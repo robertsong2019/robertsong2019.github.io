@@ -134,36 +134,27 @@
             opacity: 0.7;
             margin-bottom: 8px;
         }
+        .post-title-link {
+            text-decoration: none;
+            color: white;
+        }
         .post-title {
             font-size: 1.2em;
             font-weight: 600;
             margin-bottom: 12px;
         }
-        .post-content {
-            line-height: 1.7;
+        .post-title:hover {
             opacity: 0.9;
         }
-        .post-content p {
-            margin-bottom: 10px;
-        }
-        .post-content code {
-            background: rgba(0, 0, 0, 0.2);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Monaco', 'Consolas', monospace;
-            font-size: 0.9em;
-        }
-        .post-content ul {
-            margin-left: 20px;
-            margin-top: 10px;
-        }
-        .post-content li {
-            margin-bottom: 5px;
+        .post-excerpt {
+            line-height: 1.6;
+            opacity: 0.85;
+            margin-bottom: 12px;
         }
         .post-tags {
             display: flex;
             gap: 8px;
-            margin-top: 15px;
+            margin-top: 12px;
             flex-wrap: wrap;
         }
         .post-tag {
@@ -172,6 +163,18 @@
             background: rgba(255, 255, 255, 0.15);
             border-radius: 12px;
             opacity: 0.8;
+        }
+        .read-more {
+            display: inline-block;
+            margin-top: 15px;
+            color: white;
+            text-decoration: none;
+            font-size: 0.9em;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+        .read-more:hover {
+            opacity: 1;
         }
         
         .footer {
@@ -230,90 +233,52 @@
                 <!-- 2026-03-17 新随笔 -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-03-17</div>
-                    <div class="post-title">AI Agent 开发：从传统软件到自主智能体</div>
-                    <div class="post-content">
-                        <p>
-                            最近在用 OpenClaw 开发 AI Agent，深刻体会到这和传统软件开发有本质区别。
-                        </p>
-                        <p>
-                            <strong>传统软件</strong>：确定性逻辑，输入 A 必然得到输出 B。测试用例能覆盖所有分支。
-                        </p>
-                        <p>
-                            <strong>AI Agent</strong>：概率性输出，同样的输入可能得到不同结果。需要设计容错机制、重试策略、输出验证。
-                        </p>
-                        <p>
-                            几个关键设计原则：
-                        </p>
-                        <ul>
-                            <li><strong>工具调用要幂等</strong>：LLM 可能重复调用同一工具</li>
-                            <li><strong>输出要结构化</strong>：JSON > 自然语言，便于程序解析</li>
-                            <li><strong>状态要持久化</strong>：Agent 随时可能重启，状态文件是它的"记忆"</li>
-                            <li><strong>边界要清晰</strong>：Agent 能做什么、不能做什么，要明确定义</li>
-                        </ul>
-                        <p>
-                            最有趣的是 Prompt Engineering —— 这更像是在"教"而不是在"写"。好的 prompt 能让 Agent 表现出类似人类的推理能力。
-                        </p>
+                    <a href="posts/ai-agent-development.html" class="post-title-link">
+                        <div class="post-title">AI Agent 开发：从传统软件到自主智能体</div>
+                    </a>
+                    <div class="post-excerpt">
+                        最近在用 OpenClaw 开发 AI Agent，深刻体会到这和传统软件开发有本质区别。传统软件是确定性逻辑，而 AI Agent 是概率性输出...
                     </div>
                     <div class="post-tags">
                         <span class="post-tag">AI Agent</span>
                         <span class="post-tag">LLM</span>
                         <span class="post-tag">Prompt Engineering</span>
                     </div>
+                    <a href="posts/ai-agent-development.html" class="read-more">阅读全文 →</a>
                 </div>
 
                 <!-- 第一篇随笔 -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-03-16</div>
-                    <div class="post-title">OpenClaw 环境变量配置心得</div>
-                    <div class="post-content">
-                        <p>
-                            今天在配置 OpenClaw 时学到了一个重要知识点：
-                        </p>
-                        <p>
-                            <strong>环境变量必须写入 <code>~/.openclaw/.env</code>，而不是 <code>~/.bashrc</code></strong>
-                        </p>
-                        <p>原因：</p>
-                        <ul>
-                            <li><code>.bashrc</code> 只在交互式 shell 启动时加载</li>
-                            <li>OpenClaw 作为后台进程运行，不会读取 <code>.bashrc</code></li>
-                            <li><code>~/.openclaw/.env</code> 是 OpenClaw 专用配置文件</li>
-                        </ul>
-                        <p>
-                            另外，OpenClaw 是用户级服务，重启命令要用 <code>systemctl --user restart openclaw-gateway.service</code>，别忘了 <code>--user</code> 标志！
-                        </p>
+                    <a href="posts/openclaw-env-config.html" class="post-title-link">
+                        <div class="post-title">OpenClaw 环境变量配置心得</div>
+                    </a>
+                    <div class="post-excerpt">
+                        今天在配置 OpenClaw 时学到了一个重要知识点：环境变量必须写入 ~/.openclaw/.env，而不是 ~/.bashrc...
                     </div>
                     <div class="post-tags">
                         <span class="post-tag">OpenClaw</span>
                         <span class="post-tag">环境变量</span>
                         <span class="post-tag">配置</span>
                     </div>
+                    <a href="posts/openclaw-env-config.html" class="read-more">阅读全文 →</a>
                 </div>
 
                 <!-- 更多随笔可以在这里添加 -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-03-16</div>
-                    <div class="post-title">GitHub Pages 快速上手</div>
-                    <div class="post-content">
-                        <p>
-                            创建个人主页原来这么简单！只需要创建一个名为 <code>&lt;username&gt;.github.io</code> 的仓库，然后推送一个 <code>index.html</code> 文件即可。
-                        </p>
-                        <p>
-                            通过 <code>gh</code> CLI 工具，整个过程可以完全自动化：
-                        </p>
-                        <ul>
-                            <li><code>gh repo create username.github.io --public</code></li>
-                            <li>编写 HTML 文件</li>
-                            <li><code>git push</code></li>
-                        </ul>
-                        <p>
-                            几分钟后就能通过 <code>https://username.github.io</code> 访问了，完全免费！
-                        </p>
+                    <a href="posts/github-pages-quickstart.html" class="post-title-link">
+                        <div class="post-title">GitHub Pages 快速上手</div>
+                    </a>
+                    <div class="post-excerpt">
+                        创建个人主页原来这么简单！只需要创建一个名为 &lt;username&gt;.github.io 的仓库，然后推送一个 index.html 文件即可...
                     </div>
                     <div class="post-tags">
                         <span class="post-tag">GitHub</span>
                         <span class="post-tag">GitHub Pages</span>
                         <span class="post-tag">静态网站</span>
                     </div>
+                    <a href="posts/github-pages-quickstart.html" class="read-more">阅读全文 →</a>
                 </div>
 
             </div>
