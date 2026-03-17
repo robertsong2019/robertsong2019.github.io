@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>从零实现 JSONPath 查询工具 - 编译器前端实战 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+            --surface-2: var(--gray-50);
+            --surface-3: var(--gray-100);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --card-bg: var(--surface-1);
+            --card-bg-hover: var(--surface-2);
+            --card-radius: var(--radius-lg);
+            --card-padding: var(--space-8);
+            --transition-fast: 150ms ease-out;
+            --transition-base: 250ms ease-out;
+            --transition-slow: 350ms ease-out;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: var(--text-base);
+            line-height: 1.6;
+            background: var(--surface-0);
+            min-height: 100vh;
+            padding: var(--space-8) var(--space-4);
+            color: var(--color-text-primary);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .container { max-width: 48rem; margin: 0 auto; }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Syne', 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+        }
+        h1 { font-size: clamp(var(--text-3xl), 1.5rem + 3vw, var(--text-4xl)); margin-bottom: var(--space-2); }
+        h2 { font-size: var(--text-2xl); margin-bottom: var(--space-6); margin-top: var(--space-12); display: flex; align-items: center; gap: var(--space-2); }
+        h3 { font-size: var(--text-xl); margin-bottom: var(--space-4); margin-top: var(--space-8); }
+        .subtitle { font-size: var(--text-lg); color: var(--color-text-secondary); margin-bottom: var(--space-6); font-weight: 500; }
+        .meta { font-size: var(--text-sm); color: var(--color-text-muted); margin-bottom: var(--space-8); display: flex; gap: var(--space-4); flex-wrap: wrap; }
+        p { margin-bottom: var(--space-4); color: var(--color-text-secondary); line-height: 1.8; }
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-md);
+            padding: var(--card-padding);
+            margin-bottom: var(--space-8);
+            border: 1px solid var(--gray-200);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: var(--color-primary);
+            text-decoration: none;
+            font-weight: 500;
+            margin-bottom: var(--space-8);
+            transition: color var(--transition-fast);
+        }
+        .back-link:hover { color: var(--color-primary-hover); }
+        pre {
+            background: var(--surface-3);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+            font-size: var(--text-sm);
+            border: 1px solid var(--gray-200);
+        }
+        code {
+            font-family: 'Monaco', 'Consolas', monospace;
+            background: var(--surface-3);
+            padding: 0.125rem 0.375rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.9em;
+        }
+        pre code { background: none; padding: 0; }
+        .tags { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-6); }
+        .tag {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-sm);
+            font-weight: 500;
+        }
+        ul, ol { margin-left: var(--space-6); margin-bottom: var(--space-4); }
+        li { margin-bottom: var(--space-2); color: var(--color-text-secondary); }
+        strong { color: var(--color-text-primary); font-weight: 600; }
+        blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-4);
+            margin: var(--space-6) 0;
+            color: var(--color-text-secondary);
+            font-style: italic;
+        }
+        .highlight-box {
+            background: hsl(200, 100%, 97%);
+            border-left: 4px solid hsl(200, 100%, 40%);
+            padding: var(--space-4);
+            margin: var(--space-6) 0;
+            border-radius: var(--radius-md);
+        }
+        .highlight-box strong { color: hsl(200, 100%, 30%); }
+        @media (max-width: 640px) {
+            body { padding: var(--space-4) var(--space-3); }
+            .card { padding: var(--space-6); }
+            .meta { flex-direction: column; gap: var(--space-2); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <div class="card">
+            <h1>从零实现 JSONPath 查询工具</h1>
+            <p class="subtitle">编译器前端实战：词法分析、语法解析、AST 遍历</p>
+            <div class="meta">
+                <span>📅 2026-03-18</span>
+                <span>⏱️ 阅读时间: 15 分钟</span>
+                <span>🎯 难度: 中级</span>
+            </div>
+
+            <h2>📖 前言</h2>
+            <p>
+                你有没有想过，像 <code>jq</code> 或 <code>jsonpath</code> 这样的工具是如何工作的？
+                它们是如何将一个简单的查询字符串（如 <code>.users[0].name</code>）转换成对 JSON 数据的精确访问？
+            </p>
+            <p>
+                在这篇教程中，我们将从零开始实现一个简单的 JSONPath 查询工具。
+                通过这个项目，你将学到编译器前端的核心概念：
+            </p>
+            <ul>
+                <li><strong>词法分析（Lexing）</strong>：将字符串转换为 Token 流</li>
+                <li><strong>语法分析（Parsing）</strong>：将 Token 流转换为抽象语法树（AST）</li>
+                <li><strong>解释执行（Interpretation）</strong>：在 JSON 数据上执行 AST</li>
+            </ul>
+
+            <div class="highlight-box">
+                <strong>💡 项目源码：</strong>
+                <a href="https://github.com/robertsong2019/jp" target="_blank">https://github.com/robertsong2019/jp</a>
+                <br>
+                <span style="font-size: 0.9em; color: var(--gray-600);">
+                    核心代码 < 500 行，适合学习和理解编译器基础
+                </span>
+            </div>
+
+            <h2>🏗️ 整体架构</h2>
+            <p>我们的 JSONPath 工具由三个核心模块组成：</p>
+            <pre><code>jp/
+├── lexer.py      # 词法分析器 - Token 化
+├── parser.py     # 解析器 - 构建 AST
+├── query.py      # 查询引擎 - 执行查询
+└── cli.py        # 命令行接口</code></pre>
+
+            <p>数据流向如下：</p>
+            <pre><code>路径字符串 → Lexer → Token 流 → Parser → AST → Query Engine → 结果</code></pre>
+
+            <h2>第一步：词法分析（Lexer）</h2>
+            <p>
+                词法分析器的作用是将输入字符串转换为一系列有意义的 <strong>Token</strong>。
+                每个Token代表一个最小的语法单元。
+            </p>
+
+            <h3>定义 Token 类型</h3>
+            <pre><code>from dataclasses import dataclass
+from enum import Enum, auto
+
+class TokenType(Enum):
+    DOT = auto()          # .
+    LBRACKET = auto()     # [
+    RBRACKET = auto()     # ]
+    NUMBER = auto()       # 123
+    IDENTIFIER = auto()   # name, users, etc.
+    WILDCARD = auto()     # * or [*]
+    EOF = auto()          # End of input
+
+@dataclass
+class Token:
+    type: TokenType
+    value: any
+    position: int</code></pre>
+
+            <h3>实现 Lexer</h3>
+            <pre><code>class Lexer:
+    def __init__(self, text: str):
+        self.text = text
+        self.pos = 0
+        self.current_char = text[0] if text else None
+
+    def advance(self):
+        """移动到下一个字符"""
+        self.pos += 1
+        self.current_char = self.text[self.pos] if self.pos < len(self.text) else None
+
+    def skip_whitespace(self):
+        """跳过空白字符"""
+        while self.current_char and self.current_char.isspace():
+            self.advance()
+
+    def number(self) -> Token:
+        """解析数字"""
+        start_pos = self.pos
+        result = ''
+        while self.current_char and self.current_char.isdigit():
+            result += self.current_char
+            self.advance()
+        return Token(TokenType.NUMBER, int(result), start_pos)
+
+    def identifier(self) -> Token:
+        """解析标识符"""
+        start_pos = self.pos
+        result = ''
+        while self.current_char and (self.current_char.isalnum() or self.current_char == '_'):
+            result += self.current_char
+            self.advance()
+        return Token(TokenType.IDENTIFIER, result, start_pos)
+
+    def get_next_token(self) -> Token:
+        """获取下一个 Token"""
+        while self.current_char:
+            if self.current_char.isspace():
+                self.skip_whitespace()
+                continue
+
+            if self.current_char == '.':
+                self.advance()
+                return Token(TokenType.DOT, '.', self.pos - 1)
+
+            if self.current_char == '[':
+                self.advance()
+                return Token(TokenType.LBRACKET, '[', self.pos - 1)
+
+            if self.current_char == ']':
+                self.advance()
+                return Token(TokenType.RBRACKET, ']', self.pos - 1)
+
+            if self.current_char == '*':
+                self.advance()
+                return Token(TokenType.WILDCARD, '*', self.pos - 1)
+
+            if self.current_char.isdigit():
+                return self.number()
+
+            if self.current_char.isalpha() or self.current_char == '_':
+                return self.identifier()
+
+            raise Exception(f'Invalid character: {self.current_char}')
+
+        return Token(TokenType.EOF, None, self.pos)</code></pre>
+
+            <h3>测试 Lexer</h3>
+            <pre><code># 输入: .users[0].name
+lexer = Lexer('.users[0].name')
+tokens = []
+while True:
+    token = lexer.get_next_token()
+    tokens.append(token)
+    if token.type == TokenType.EOF:
+        break
+
+# 输出:
+# [DOT, IDENTIFIER("users"), LBRACKET, NUMBER(0), RBRACKET, DOT, IDENTIFIER("name"), EOF]</code></pre>
+
+            <h2>第二步：语法分析（Parser）</h2>
+            <p>
+                语法分析器将 Token 流转换为 <strong>抽象语法树（AST）</strong>。
+                AST 是查询语句的结构化表示。
+            </p>
+
+            <h3>定义 AST 节点</h3>
+            <pre><code>@dataclass
+class FieldNode:
+    """字段访问节点，如 .name"""
+    name: str
+
+@dataclass
+class IndexNode:
+    """数组索引节点，如 [0]"""
+    index: int
+
+@dataclass
+class WildcardNode:
+    """通配符节点，如 .* 或 [*]"""
+    pass</code></pre>
+
+            <h3>实现 Parser</h3>
+            <pre><code>class Parser:
+    def __init__(self, lexer: Lexer):
+        self.lexer = lexer
+        self.current_token = self.lexer.get_next_token()
+
+    def eat(self, token_type: TokenType):
+        """消耗当前 Token，并获取下一个"""
+        if self.current_token.type == token_type:
+            self.current_token = self.lexer.get_next_token()
+        else:
+            raise Exception(f'Expected {token_type}, got {self.current_token.type}')
+
+    def parse(self) -> list:
+        """解析 JSONPath 表达式，返回 AST 节点列表"""
+        ast = []
+
+        # 跳过可选的根节点标识符 $
+        if self.current_token.type == TokenType.IDENTIFIER and self.current_token.value == '$':
+            self.eat(TokenType.IDENTIFIER)
+
+        while self.current_token.type != TokenType.EOF:
+            if self.current_token.type == TokenType.DOT:
+                self.eat(TokenType.DOT)
+                if self.current_token.type == TokenType.IDENTIFIER:
+                    ast.append(FieldNode(self.current_token.value))
+                    self.eat(TokenType.IDENTIFIER)
+                elif self.current_token.type == TokenType.WILDCARD:
+                    ast.append(WildcardNode())
+                    self.eat(TokenType.WILDCARD)
+
+            elif self.current_token.type == TokenType.LBRACKET:
+                self.eat(TokenType.LBRACKET)
+                if self.current_token.type == TokenType.NUMBER:
+                    ast.append(IndexNode(self.current_token.value))
+                    self.eat(TokenType.NUMBER)
+                elif self.current_token.type == TokenType.WILDCARD:
+                    ast.append(WildcardNode())
+                    self.eat(TokenType.WILDCARD)
+                self.eat(TokenType.RBRACKET)
+
+        return ast</code></pre>
+
+            <h3>测试 Parser</h3>
+            <pre><code># 输入: .users[0].name
+lexer = Lexer('.users[0].name')
+parser = Parser(lexer)
+ast = parser.parse()
+
+# 输出 AST:
+# [
+#   FieldNode("users"),
+#   IndexNode(0),
+#   FieldNode("name")
+# ]</code></pre>
+
+            <h2>第三步：查询执行（Query Engine）</h2>
+            <p>
+                查询引擎在 JSON 数据上遍历 AST，返回匹配的值。
+            </p>
+
+            <h3>实现 Query Engine</h3>
+            <pre><code>class QueryEngine:
+    def __init__(self, data: any):
+        self.data = data
+
+    def execute(self, ast: list) -> list:
+        """执行 AST，返回所有匹配的值"""
+        results = [self.data]
+
+        for node in ast:
+            new_results = []
+            for result in results:
+                if isinstance(node, FieldNode):
+                    if isinstance(result, dict) and node.name in result:
+                        new_results.append(result[node.name])
+                elif isinstance(node, IndexNode):
+                    if isinstance(result, list) and 0 <= node.index < len(result):
+                        new_results.append(result[node.index])
+                elif isinstance(node, WildcardNode):
+                    if isinstance(result, dict):
+                        new_results.extend(result.values())
+                    elif isinstance(result, list):
+                        new_results.extend(result)
+            results = new_results
+
+        return results</code></pre>
+
+            <h3>完整示例</h3>
+            <pre><code>import json
+
+# JSON 数据
+data = {
+    "users": [
+        {"name": "Alice", "age": 30},
+        {"name": "Bob", "age": 25}
+    ]
+}
+
+# 查询: .users[0].name
+path = '.users[0].name'
+
+# 词法分析
+lexer = Lexer(path)
+tokens = []
+while True:
+    token = lexer.get_next_token()
+    tokens.append(token)
+    if token.type == TokenType.EOF:
+        break
+
+# 语法分析
+lexer = Lexer(path)  # 重新创建 lexer
+parser = Parser(lexer)
+ast = parser.parse()
+
+# 执行查询
+engine = QueryEngine(data)
+results = engine.execute(ast)
+
+# 输出: ["Alice"]
+print(results)</code></pre>
+
+            <h2>第四步：命令行接口（CLI）</h2>
+            <p>
+                最后，我们添加一个命令行接口，让用户可以方便地使用我们的工具。
+            </p>
+
+            <pre><code>import argparse
+import sys
+import json
+
+def main():
+    parser = argparse.ArgumentParser(description='JSONPath query tool')
+    parser.add_argument('path', help='JSONPath expression')
+    parser.add_argument('-j', '--json', action='store_true',
+                       help='Output as JSON')
+    parser.add_argument('-r', '--raw', action='store_true',
+                       help='Raw output (no quotes for strings)')
+    parser.add_argument('--version', action='version', version='jp 1.0.0')
+
+    args = parser.parse_args()
+
+    # 从 stdin 读取 JSON
+    try:
+        data = json.load(sys.stdin)
+    except json.JSONDecodeError as e:
+        print(f'Error: Invalid JSON input: {e}', file=sys.stderr)
+        sys.exit(1)
+
+    # 解析和执行查询
+    try:
+        lexer = Lexer(args.path)
+        parser_obj = Parser(lexer)
+        ast = parser_obj.parse()
+        engine = QueryEngine(data)
+        results = engine.execute(ast)
+
+        # 输出结果
+        for result in results:
+            if args.json:
+                print(json.dumps(result))
+            elif args.raw and isinstance(result, str):
+                print(result)
+            else:
+                print(json.dumps(result) if not isinstance(result, str) else f'"{result}"')
+
+    except Exception as e:
+        print(f'Error: {e}', file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()</code></pre>
+
+            <h3>使用示例</h3>
+            <pre><code># 简单字段访问
+echo '{"name": "Alice", "age": 30}' | jp .name
+# 输出: "Alice"
+
+# 数组索引
+echo '{"items": ["apple", "banana"]}' | jp '.items[1]'
+# 输出: "banana"
+
+# 嵌套对象
+echo '{"user": {"name": "Bob"}}' | jp .user.name
+# 输出: "Bob"
+
+# 通配符
+echo '{"users": [{"name": "Alice"}, {"name": "Bob"}]}' | jp '.users[*].name'
+# 输出:
+# "Alice"
+# "Bob"</code></pre>
+
+            <h2>📚 学到了什么？</h2>
+            <p>
+                通过这个项目，我们实践了编译器前端的核心概念：
+            </p>
+            <ul>
+                <li><strong>词法分析</strong>：将字符流转换为 Token 流</li>
+                <li><strong>语法分析</strong>：将 Token 流转换为 AST</li>
+                <li><strong>解释执行</strong>：在数据结构上执行 AST</li>
+                <li><strong>模块化设计</strong>：关注点分离，每个模块职责清晰</li>
+                <li><strong>Python 最佳实践</strong>：类型注解、dataclass、异常处理</li>
+            </ul>
+
+            <div class="highlight-box">
+                <strong>🎯 下一步：</strong>
+                <ul style="margin-top: 0.5rem; margin-bottom: 0;">
+                    <li>添加更多 JSONPath 特性（过滤器表达式、切片）</li>
+                    <li>性能优化（避免重复解析）</li>
+                    <li>发布到 PyPI</li>
+                    <li>添加更多测试用例</li>
+                </ul>
+            </div>
+
+            <h2>🔗 参考资料</h2>
+            <ul>
+                <li><a href="https://goessner.net/articles/JsonPath/" target="_blank">JSONPath - XPath for JSON</a></li>
+                <li><a href="https://stedolan.github.io/jq/" target="_blank">jq - Command-line JSON processor</a></li>
+                <li><a href="https://github.com/robertsong2019/jp" target="_blank">本项目源码</a></li>
+            </ul>
+
+            <div class="tags">
+                <span class="tag">Python</span>
+                <span class="tag">编译器</span>
+                <span class="tag">词法分析</span>
+                <span class="tag">语法分析</span>
+                <span class="tag">AST</span>
+                <span class="tag">JSONPath</span>
+                <span class="tag">教程</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
