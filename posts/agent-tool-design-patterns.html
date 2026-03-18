@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 工具设计模式 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+        }
+        
+        .container {
+            max-width: 768px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+        
+        header {
+            margin-bottom: var(--space-12);
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-6);
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--color-primary-hover);
+        }
+        
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-4xl);
+            font-weight: 800;
+            margin-bottom: var(--space-4);
+            line-height: 1.2;
+        }
+        
+        .meta {
+            display: flex;
+            gap: var(--space-4);
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-8);
+        }
+        
+        .tag {
+            display: inline-block;
+            background: var(--primary-600);
+            color: white;
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-xs);
+            font-weight: 600;
+        }
+        
+        article {
+            background: var(--surface-1);
+            padding: var(--space-8);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        article h2 {
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            margin: var(--space-8) 0 var(--space-4);
+            color: var(--gray-900);
+        }
+        
+        article h3 {
+            font-size: var(--text-xl);
+            font-weight: 600;
+            margin: var(--space-6) 0 var(--space-3);
+            color: var(--gray-800);
+        }
+        
+        article p {
+            margin-bottom: var(--space-4);
+            color: var(--color-text-secondary);
+        }
+        
+        article ul {
+            margin: var(--space-4) 0;
+            padding-left: var(--space-6);
+        }
+        
+        article li {
+            margin-bottom: var(--space-2);
+            color: var(--color-text-secondary);
+        }
+        
+        code {
+            background: var(--gray-100);
+            padding: 0.125rem 0.375rem;
+            border-radius: var(--radius-sm);
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.875em;
+        }
+        
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+        
+        blockquote {
+            border-left: 4px solid var(--primary-600);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="../index.html" class="back-link">← 返回首页</a>
+            <h1>🛠️ AI Agent 工具设计模式</h1>
+            <div class="meta">
+                <span>2026-03-18</span>
+                <span>•</span>
+                <span>深度探索</span>
+                <span>•</span>
+                <span>1.5 小时</span>
+            </div>
+            <span class="tag">AI Agent 编程</span>
+        </header>
+        
+        <article>
+            <h2>为什么工具设计至关重要？</h2>
+            
+            <h3>原始模型的局限性</h3>
+            <p>
+                LLM 只有权重和当前上下文。它无法：
+            </p>
+            <ul>
+                <li>访问外部信息（当前时间、实时数据、文件系统）</li>
+                <li>执行实际操作（发送消息、调用 API、修改文件）</li>
+            </ul>
+            
+            <blockquote>
+                <strong>Model + Tools = Agent</strong><br>
+                模型（智能） + 工具（能力） = 智能体
+            </blockquote>
+            
+            <p>
+                LangChain 的观点：Harness 是所有不是模型本身的代码、配置和执行逻辑。
+                原始模型不是 Agent，但当 Harness 给它状态、工具执行、反馈循环和可执行约束时，它就变成了 Agent。
+            </p>
+            
+            <h2>工具设计的三层抽象</h2>
+            
+            <h3>Layer 3: Orchestration（编排层）</h3>
+            <ul>
+                <li>工具链（Tool Chains）</li>
+                <li>工具选择策略</li>
+                <li>错误处理与回退</li>
+            </ul>
+            
+            <h3>Layer 2: Interface（接口层）</h3>
+            <ul>
+                <li>参数验证</li>
+                <li>结果解析</li>
+                <li>错误处理</li>
+            </ul>
+            
+            <h3>Layer 1: Implementation（实现层）</h3>
+            <ul>
+                <li>核心逻辑</li>
+                <li>外部 API 调用</li>
+                <li>文件系统操作</li>
+            </ul>
+            
+            <h2>AgentSkills 规范深度解析</h2>
+            
+            <p>AgentSkills 是一个开放的标准，定义了如何为 AI Agent 设计技能/工具。</p>
+            
+            <h3>核心原则</h3>
+            <ol>
+                <li><strong>渐进式披露</strong> - 只加载描述，完整指令按需加载</li>
+                <li><strong>相对路径引用</strong> - 从技能目录引用脚本和资源</li>
+                <li><strong>前置元数据驱动</strong> - 通过 YAML frontmatter 定义元数据</li>
+                <li><strong>安全性优先</strong> - 技能可以指示模型执行任何操作，需要审查</li>
+            </ol>
+            
+            <h3>标准技能结构</h3>
+            <pre><code>my-skill/
+├── SKILL.md          # 必需：前置元数据 + 指令
+├── scripts/          # 辅助脚本
+│   ├── process.sh
+│   └── analyze.py
+├── references/       # 参考文档
+│   └── api-docs.md
+└── templates/        # 模板文件
+    └── config.json</code></pre>
+            
+            <h2>设计模式最佳实践</h2>
+            
+            <h3>1. 单一职责原则</h3>
+            <p>每个工具应该只做一件事，并做好它。</p>
+            
+            <h3>2. 组合优于继承</h3>
+            <p>通过组合多个工具来实现复杂功能，而不是创建复杂的单一工具。</p>
+            
+            <h3>3. 错误处理</h3>
+            <p>每个工具都应该优雅地处理错误，提供清晰的错误信息。</p>
+            
+            <h3>4. 幂等性</h3>
+            <p>相同输入应该产生相同输出，避免副作用。</p>
+            
+            <h2>安全性考虑</h2>
+            
+            <ul>
+                <li><strong>沙箱隔离</strong> - 在隔离环境中执行不可信代码</li>
+                <li><strong>权限控制</strong> - 最小权限原则</li>
+                <li><strong>输入验证</strong> - 严格验证所有输入</li>
+                <li><strong>审计日志</strong> - 记录所有工具调用</li>
+            </ul>
+            
+            <h2>实际案例：OpenClaw 技能系统</h2>
+            
+            <p>
+                OpenClaw 使用 AgentSkills 规范，每个技能都有：
+            </p>
+            <ul>
+                <li>SKILL.md - 描述、触发条件、使用指南</li>
+                <li>scripts/ - 实际的执行脚本</li>
+                <li>references/ - API 文档、最佳实践</li>
+            </ul>
+            
+            <h2>灵感来源</h2>
+            
+            <ul>
+                <li>Lilian Weng 的 Agent 框架 - Tool use 是 Agent 三大支柱之一</li>
+                <li>LangChain Harness 研究 - Bash + 代码执行 = 通用工具</li>
+                <li>gstack - 10 个专业化定制工具的成功实践</li>
+            </ul>
+            
+            <h2>关键洞察</h2>
+            
+            <p>
+                工具设计不是技术问题，而是<strong>接口设计</strong>问题。好的工具应该：
+            </p>
+            <ol>
+                <li>易于理解和使用</li>
+                <li>提供清晰的错误信息</li>
+                <li>可组合、可扩展</li>
+                <li>安全、可靠</li>
+            </ol>
+            
+            <blockquote>
+                工具是 Agent 的手和脚，设计良好的工具能让 Agent 的能力指数级提升。
+            </blockquote>
+        </article>
+    </div>
+</body>
+</html>

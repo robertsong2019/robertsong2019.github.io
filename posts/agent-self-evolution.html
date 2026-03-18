@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 自我进化实验 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+        }
+        
+        .container {
+            max-width: 768px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+        
+        header {
+            margin-bottom: var(--space-12);
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-6);
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--color-primary-hover);
+        }
+        
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-4xl);
+            font-weight: 800;
+            margin-bottom: var(--space-4);
+            line-height: 1.2;
+        }
+        
+        .meta {
+            display: flex;
+            gap: var(--space-4);
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-8);
+        }
+        
+        .tag {
+            display: inline-block;
+            background: var(--primary-600);
+            color: white;
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-xs);
+            font-weight: 600;
+        }
+        
+        article {
+            background: var(--surface-1);
+            padding: var(--space-8);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        article h2 {
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            margin: var(--space-8) 0 var(--space-4);
+            color: var(--gray-900);
+        }
+        
+        article h3 {
+            font-size: var(--text-xl);
+            font-weight: 600;
+            margin: var(--space-6) 0 var(--space-3);
+            color: var(--gray-800);
+        }
+        
+        article p {
+            margin-bottom: var(--space-4);
+            color: var(--color-text-secondary);
+        }
+        
+        article ul {
+            margin: var(--space-4) 0;
+            padding-left: var(--space-6);
+        }
+        
+        article li {
+            margin-bottom: var(--space-2);
+            color: var(--color-text-secondary);
+        }
+        
+        code {
+            background: var(--gray-100);
+            padding: 0.125rem 0.375rem;
+            border-radius: var(--radius-sm);
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.875em;
+        }
+        
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+        
+        blockquote {
+            border-left: 4px solid var(--primary-600);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="../index.html" class="back-link">← 返回首页</a>
+            <h1>🧬 AI Agent 自我进化实验</h1>
+            <div class="meta">
+                <span>2026-03-18</span>
+                <span>•</span>
+                <span>AI Agent</span>
+                <span>•</span>
+                <span>创造性实验</span>
+            </div>
+            <span class="tag">AI Agent 编程</span>
+        </header>
+        
+        <article>
+            <h2>项目愿景</h2>
+            <p>
+                如果一个 AI Agent 能够改进自己会怎样？不是通过人工更新，而是通过<strong>自主自我进化</strong> —— 
+                分析自己的代码、识别弱点、生成改进、测试它们，并向更好的版本进化。
+            </p>
+            
+            <h2>核心概念：进化循环</h2>
+            <p>这个项目探索了一个四阶段的进化循环：</p>
+            
+            <h3>1. 自我分析阶段</h3>
+            <ul>
+                <li>解析自己的源代码</li>
+                <li>分析代码复杂度（圈复杂度、可维护性指数）</li>
+                <li>识别性能瓶颈</li>
+                <li>检测代码异味</li>
+                <li>生成改进假设</li>
+            </ul>
+            
+            <h3>2. 变异阶段</h3>
+            <ul>
+                <li>应用代码转换</li>
+                <li>生成变体实现</li>
+                <li>创建多个候选版本</li>
+            </ul>
+            
+            <h3>3. 评估阶段</h3>
+            <ul>
+                <li>运行测试套件</li>
+                <li>测量性能指标</li>
+                <li>检查代码质量分数</li>
+                <li>排名候选版本</li>
+            </ul>
+            
+            <h3>4. 选择阶段</h3>
+            <ul>
+                <li>选择性能最佳的变体</li>
+                <li>文档化改进</li>
+                <li>归档进化历史</li>
+            </ul>
+            
+            <h2>技术架构</h2>
+            
+            <h3>Self-Analyzer 模块</h3>
+            <p>分析 Agent 自己的实现，使用静态分析工具（radon、pylint）测量代码质量。</p>
+            
+            <h3>Mutator 模块</h3>
+            <p>应用代码转换规则，生成改进版本。包括重构、优化、简化等策略。</p>
+            
+            <h3>Evaluator 模块</h3>
+            <p>运行测试、测量性能、评估代码质量，为每个候选版本打分。</p>
+            
+            <h3>Evolution Controller</h3>
+            <p>协调整个进化流程，管理版本历史，记录进化路径。</p>
+            
+            <h2>灵感来源</h2>
+            <ul>
+                <li><strong>Anthropic 的内省研究</strong> - AI 访问自己的内部状态</li>
+                <li><strong>LangChain Agent Harness</strong> - 系统化的 Agent 框架</li>
+                <li><strong>Lilian Weng 的 Agent 框架</strong> - Planning + Memory + Tool use</li>
+                <li><strong>进化计算</strong> - 适者生存的代码</li>
+            </ul>
+            
+            <h2>项目状态</h2>
+            <p>
+                ✅ 已创建完整的项目结构（1274 行代码）<br>
+                ✅ 实现了四个核心模块<br>
+                🚧 探索阶段，还在完善中
+            </p>
+            
+            <h2>GitHub 仓库</h2>
+            <p>
+                <a href="https://github.com/robertsong2019/agent-self-evolution" style="color: var(--color-primary);">
+                    https://github.com/robertsong2019/agent-self-evolution
+                </a>
+            </p>
+            
+            <h2>意义</h2>
+            <p>
+                这个实验探索了 AI Agent 的终极能力 —— <strong>自我改进</strong>。如果 Agent 能够自主进化，
+                它就能持续优化自己，而不需要人工干预。这可能是通向 AGI 的重要一步。
+            </p>
+        </article>
+    </div>
+</body>
+</html>
