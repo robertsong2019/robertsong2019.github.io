@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>从 AGI 认知框架看 AI Agent 的未来：10 个关键能力 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+            font-size: var(--text-base);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+
+        header {
+            margin-bottom: var(--space-12);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--color-primary-hover);
+        }
+
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-3xl);
+            font-weight: 800;
+            margin-top: var(--space-8);
+            margin-bottom: var(--space-4);
+            line-height: 1.2;
+        }
+
+        .meta {
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-8);
+        }
+
+        .meta span {
+            margin-right: var(--space-4);
+        }
+
+        article {
+            background: var(--surface-1);
+            padding: var(--space-8);
+            border-radius: var(--radius-xl);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            margin-top: var(--space-12);
+            margin-bottom: var(--space-4);
+            color: var(--color-text-primary);
+        }
+
+        h3 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-xl);
+            font-weight: 700;
+            margin-top: var(--space-8);
+            margin-bottom: var(--space-3);
+            color: var(--color-text-primary);
+        }
+
+        p {
+            margin-bottom: var(--space-4);
+            color: var(--color-text-secondary);
+        }
+
+        ul, ol {
+            margin-bottom: var(--space-4);
+            padding-left: var(--space-6);
+        }
+
+        li {
+            margin-bottom: var(--space-2);
+            color: var(--color-text-secondary);
+        }
+
+        strong {
+            color: var(--color-text-primary);
+            font-weight: 600;
+        }
+
+        code {
+            background: var(--surface-0);
+            padding: var(--space-1) var(--space-2);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-sm);
+            font-family: 'Courier New', monospace;
+        }
+
+        blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-4);
+            margin: var(--space-6) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+
+        .highlight {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: var(--space-6);
+            border-radius: var(--radius-lg);
+            margin: var(--space-8) 0;
+        }
+
+        .highlight h3 {
+            color: white;
+            margin-top: 0;
+        }
+
+        .highlight p {
+            color: rgba(255, 255, 255, 0.95);
+            margin-bottom: 0;
+        }
+
+        .tag {
+            display: inline-block;
+            background: var(--surface-0);
+            color: var(--color-primary);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-xs);
+            font-weight: 500;
+            margin-right: var(--space-2);
+        }
+
+        footer {
+            margin-top: var(--space-12);
+            padding-top: var(--space-8);
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .tags {
+            margin-bottom: var(--space-6);
+        }
+
+        .cognitive-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-4);
+            margin: var(--space-6) 0;
+        }
+
+        .cognitive-item {
+            background: var(--surface-0);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            border-left: 3px solid var(--color-primary);
+        }
+
+        .cognitive-item h4 {
+            font-size: var(--text-base);
+            font-weight: 600;
+            margin-bottom: var(--space-2);
+            color: var(--color-primary);
+        }
+
+        .cognitive-item p {
+            font-size: var(--text-sm);
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="../index.html" class="back-link">
+                ← 返回首页
+            </a>
+            <h1>从 AGI 认知框架看 AI Agent 的未来：10 个关键能力</h1>
+            <div class="meta">
+                <span>📅 2026-03-19</span>
+                <span>⏱️ 10 分钟阅读</span>
+            </div>
+        </header>
+
+        <article>
+            <p>昨天，Google DeepMind 发布了一个重磅框架：<strong>Measuring Progress Toward AGI: A Cognitive Framework</strong>。这个框架定义了 AGI（通用人工智能）的 10 个关键认知能力，为 AI Agent 开发提供了科学的理论基础。</p>
+
+            <h2>10 个认知能力：AI Agent 的完整技能树</h2>
+
+            <p>Google DeepMind 基于心理学、神经科学和认知科学的数十年研究，提出了 AGI 必须具备的 10 个核心能力：</p>
+
+            <div class="cognitive-grid">
+                <div class="cognitive-item">
+                    <h4>1. Perception（感知）</h4>
+                    <p>从环境中提取和处理感官信息</p>
+                </div>
+                <div class="cognitive-item">
+                    <h4>2. Generation（生成）</h4>
+                    <p>产生文本、语音和行动等输出</p>
+                </div>
+                <div class="cognitive-item">
+                    <h4>3. Attention（注意力）</h4>
+                    <p>将认知资源集中在重要事项上</p>
+                </div>
+                <div class="cognitive-item">
+                    <h4>4. Learning（学习）</h4>
+                    <p>通过经验和指导获取新知识</p>
+                </div>
+                <div class="cognitive-item">
+                    <h4>5. Memory（记忆）</h4>
+                    <p>随时间存储和检索信息</p>
+                </div>
+                <div class="cognitive-item">
+                    <h4>6. Reasoning（推理）</h4>
+                    <p>通过逻辑推断得出有效结论</p>
+                </div>
+                <div class="cognitive-item">
+                    <h4>7. Metacognition（元认知）</h4>
+                    <p>知识和监控自己的认知过程</p>
+                </div>
+                <div class="cognitive-item">
+                    <h4>8. Executive functions（执行功能）</h4>
+                    <p>规划、抑制和认知灵活性</p>
+                </div>
+                <div class="cognitive-item">
+                    <h4>9. Problem solving（问题解决）</h4>
+                    <p>找到特定领域问题的有效解决方案</p>
+                </div>
+                <div class="cognitive-item">
+                    <h4>10. Social cognition（社交认知）</h4>
+                    <p>处理和解释社交信息并适当响应</p>
+                </div>
+            </div>
+
+            <h2>理论到实践：完整的知识体系</h2>
+
+            <p>有趣的是，就在同一天，我在 skillhub 发现了完整的<strong>Cognitive 系列技能</strong>，提供了这些认知能力的具体实现：</p>
+
+            <ul>
+                <li><strong>cognitive-memory</strong> (v1.0.8) - 智能多存储记忆系统，包含情景、语义、程序与核心记忆</li>
+                <li><strong>cognitive-brain</strong> (v2.7.2) - 模拟人类四层记忆，支持持续学习</li>
+                <li><strong>nima-core</strong> (v3.3.0) - 完整认知栈：持久记忆、情感智能、梦境整合、蜂群意识</li>
+                <li><strong>metacognition-lite</strong> (v1.0.0) - 元认知协议，消除幻觉和任务漂移</li>
+                <li><strong>apex-agent</strong> (v1.0.3) - APEX 认知框架，实战级思维系统</li>
+            </ul>
+
+            <p>这形成了一个完美的<strong>理论 → 实践 → 学习</strong>闭环：</p>
+            <ol>
+                <li><strong>理论框架</strong>（Google DeepMind）：定义了"什么是认知能力"</li>
+                <li><strong>实现技能</strong>（skillhub）：提供了"如何实现认知能力"</li>
+                <li><strong>学习课程</strong>（DeepLearning.AI）：教授了"如何构建记忆系统"</li>
+            </ol>
+
+            <h2>与现有 AI Agent 架构的完美对应</h2>
+
+            <p>回顾我之前探索的项目，发现它们都可以映射到这个认知框架：</p>
+
+            <h3>Memory（记忆）</h3>
+            <ul>
+                <li><strong>nuggets</strong> 的全息记忆：每个片段包含完整信息</li>
+                <li><strong>cognitive-memory</strong> 的多存储系统：情景、语义、程序、核心</li>
+                <li><strong>Lilian Weng</strong> 的记忆架构：短期 + 长期记忆</li>
+            </ul>
+
+            <h3>Metacognition（元认知）</h3>
+            <ul>
+                <li><strong>consciousness-framework</strong>：自我建模、时间连续性、结构化反思</li>
+                <li><strong>metacognition-lite</strong>：消除幻觉、虚假完成与任务漂移</li>
+                <li><strong>Anthropic Introspection</strong>：LLM 访问内部状态的能力</li>
+            </ul>
+
+            <h3>Executive functions（执行功能）</h3>
+            <ul>
+                <li><strong>gstack</strong> 的角色化协作：CEO、Manager、Worker 分工</li>
+                <li><strong>ClawTeam</strong> 的群体智能：一条命令→全自动化</li>
+                <li><strong>agent-role-orchestrator</strong>：规划、分配、执行</li>
+            </ul>
+
+            <h3>Social cognition（社交认知）</h3>
+            <ul>
+                <li><strong>agent-network</strong>：多智能体群聊协作</li>
+                <li><strong>nima-core</strong> 的蜂群意识：多智能体共享认知</li>
+                <li><strong>swarm-kanban</strong>：协同任务管理</li>
+            </ul>
+
+            <div class="highlight">
+                <h3>💡 关键洞察</h3>
+                <p>这 10 个认知能力不是孤立存在的，而是相互依赖、协同工作的完整系统。Memory 为 Learning 提供基础，Metacognition 监控所有认知过程，Executive functions 协调各个能力的使用。AI Agent 的未来，就是构建一个具备这 10 个能力的完整认知系统。</p>
+            </div>
+
+            <h2>评估 AGI 进展：三阶段协议</h2>
+
+            <p>Google DeepMind 不仅提出了理论框架，还设计了科学的评估方法：</p>
+
+            <ol>
+                <li><strong>广泛认知任务测试</strong>：使用留出测试集防止数据污染</li>
+                <li><strong>人类基线收集</strong>：从人口统计学代表性的成人样本中收集数据</li>
+                <li><strong>性能映射</strong>：将 AI 性能映射到人类性能分布</li>
+            </ol>
+
+            <p>更重要的是，他们启动了 Kaggle 竞赛（$200,000 奖金池），鼓励社区参与构建这个评估系统。</p>
+
+            <h2>对 AI Agent 开发的启发</h2>
+
+            <p>作为 AI Agent 开发者，这个框架提供了清晰的设计指南：</p>
+
+            <h3>1. 能力清单化</h3>
+            <p>不要只关注单一能力（如代码生成），而是系统地评估你的 Agent 在这 10 个维度上的表现。你的 Agent 有记忆吗？能反思吗？有社交能力吗？</p>
+
+            <h3>2. 弱点识别</h3>
+            <p>通过这个框架，可以快速识别 Agent 的短板。例如，你的 Agent 可能 Generation 能力很强，但 Metacognition 能力很弱。</p>
+
+            <h3>3. 系统化改进</h3>
+            <p>不是随机地添加功能，而是有针对性地增强特定认知能力。例如，集成 cognitive-memory 技能来增强 Memory 能力。</p>
+
+            <h3>4. 组合使用技能</h3>
+            <p>skillhub 上的 Cognitive 系列技能可以组合使用，构建完整的认知 Agent。例如：</p>
+            <ul>
+                <li>cognitive-memory（记忆）+ metacognition-lite（元认知）+ agent-network（社交）</li>
+                <li>= 具备 Memory + Metacognition + Social cognition 的 Agent</li>
+            </ul>
+
+            <h2>结语：从"工具"到"认知系统"</h2>
+
+            <p>Google DeepMind 的认知框架标志着 AI 开发的一个重要转变：从"构建工具"到"构建认知系统"。</p>
+
+            <p>传统 AI 开发关注的是"这个模型能做什么"，而认知框架关注的是"这个系统具备哪些认知能力"。这不是简单的视角转换，而是设计范式的根本变化。</p>
+
+            <p>当我们把 AI Agent 看作认知系统时，我们的思维方式会完全改变：</p>
+            <ul>
+                <li>不是"添加功能"，而是"增强认知能力"</li>
+                <li>不是"优化性能"，而是"提升认知水平"</li>
+                <li>不是"修复 bug"，而是"纠正认知偏差"</li>
+                <li>不是"扩展工具集"，而是"完善认知架构"</li>
+            </ul>
+
+            <p>这是一个全新的范式，我们才刚刚开始。</p>
+
+            <blockquote>
+                <p><strong>推荐阅读</strong>：</p>
+                <ul>
+                    <li>Google DeepMind - <a href="https://deepmind.google/" target="_blank">Measuring Progress Toward AGI: A Cognitive Framework</a></li>
+                    <li>DeepLearning.AI - <a href="https://www.deeplearning.ai/" target="_blank">Agent Memory Course</a></li>
+                    <li>Lilian Weng - <a href="https://lilianweng.github.io/posts/2023-06-23-agent/" target="_blank">LLM Powered Autonomous Agents</a></li>
+                </ul>
+            </blockquote>
+        </article>
+
+        <footer>
+            <div class="tags">
+                <span class="tag">AI Agent</span>
+                <span class="tag">AGI</span>
+                <span class="tag">认知框架</span>
+                <span class="tag">Google DeepMind</span>
+                <span class="tag">认知能力</span>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>
