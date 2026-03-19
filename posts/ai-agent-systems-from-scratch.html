@@ -160,15 +160,28 @@
         .content pre {
             background: var(--gray-900);
             color: var(--gray-100);
-            padding: var(--space-4);
+            padding: var(--space-6);
             border-radius: var(--radius-md);
             overflow-x: auto;
             margin-bottom: var(--space-4);
+            font-family: 'Courier New', Consolas, monospace;
+            font-size: var(--text-sm);
+            line-height: 1.6;
+            border: 1px solid var(--gray-800);
         }
         
         .content code {
-            font-family: 'Courier New', monospace;
+            font-family: 'Courier New', Consolas, monospace;
             font-size: var(--text-sm);
+        }
+        
+        .content pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+            border-radius: 0;
+            display: block;
+            white-space: pre;
         }
         
         .content p code, .content li code {
@@ -264,9 +277,8 @@
 
 <p>我们设计了三层角色架构：</p>
 
-<code></code>`
-<p>┌─────────────────────────────────────┐ │         CEO Agent                   │ │  • 理解用户需求                      │ │  • 制定战略规划                      │ │  • 审查最终结果                      │ └──────────────┬──────────────────────┘                │                ▼ ┌─────────────────────────────────────┐ │       Manager Agent                 │ │  • 分解项目为任务                    │ │  • 分配任务给 Worker                 │ │  • 协调资源                          │ └──────────────┬──────────────────────┘                │                ▼ ┌─────────────────────────────────────┐ │         Worker Agent                │ │  • 执行具体任务                      │ │  • Implementation / Testing /       │ │    Documentation / Review           │ └─────────────────────────────────────┘</p>
-<code></code>`
+<pre><code>┌─────────────────────────────────────┐ │         CEO Agent                   │ │  • 理解用户需求                      │ │  • 制定战略规划                      │ │  • 审查最终结果                      │ └──────────────┬──────────────────────┘                │                ▼ ┌─────────────────────────────────────┐ │       Manager Agent                 │ │  • 分解项目为任务                    │ │  • 分配任务给 Worker                 │ │  • 协调资源                          │ └──────────────┬──────────────────────┘                │                ▼ ┌─────────────────────────────────────┐ │         Worker Agent                │ │  • 执行具体任务                      │ │  • Implementation / Testing /       │ │    Documentation / Review           │ └─────────────────────────────────────┘
+</code></pre>
 
 <strong>关键设计决策</strong>：
 
@@ -296,13 +308,12 @@
 
 <strong>核心代码结构</strong>：
 
-<code></code>`typescript
-<p>// CEO Agent - 理解需求，制定规划 class CEOAgent extends BaseAgent {   async handleRequest(request: string): Promise<ProjectPlan> {     const plan = await this.llm.generatePlan(request);     return {       projectName: this.extractProjectName(request),       tasks: plan.tasks,       priority: plan.priority     };   } }</p>
+<pre><code class="typescript">// CEO Agent - 理解需求，制定规划 class CEOAgent extends BaseAgent {   async handleRequest(request: string): Promise<ProjectPlan> {     const plan = await this.llm.generatePlan(request);     return {       projectName: this.extractProjectName(request),       tasks: plan.tasks,       priority: plan.priority     };   } }
 
-<p>// Manager Agent - 分解项目，分配任务 class ManagerAgent extends BaseAgent {   async breakdownProject(plan: ProjectPlan): Promise<Task[]> {     const tasks = await this.llm.breakdownTasks(plan);     return tasks.map(task => ({       ...task,       assignedWorker: this.selectWorker(task.type)     }));   } }</p>
+// Manager Agent - 分解项目，分配任务 class ManagerAgent extends BaseAgent {   async breakdownProject(plan: ProjectPlan): Promise<Task[]> {     const tasks = await this.llm.breakdownTasks(plan);     return tasks.map(task => ({       ...task,       assignedWorker: this.selectWorker(task.type)     }));   } }
 
-<p>// Worker Agent - 执行任务 class WorkerAgent extends BaseAgent {   async executeTask(task: Task): Promise<TaskResult> {     const systemPrompt = this.getSpecializedPrompt(task.type);     const result = await this.llm.generate(task.description, systemPrompt);     return { task, output: result, status: 'completed' };   } }</p>
-<code></code>`
+// Worker Agent - 执行任务 class WorkerAgent extends BaseAgent {   async executeTask(task: Task): Promise<TaskResult> {     const systemPrompt = this.getSpecializedPrompt(task.type);     const result = await this.llm.generate(task.description, systemPrompt);     return { task, output: result, status: 'completed' };   } }
+</code></pre>
 
 <strong>测试驱动开发</strong>：
 
@@ -360,27 +371,25 @@
 
 <strong>1. 向量嵌入生成</strong>
 
-<code></code>`javascript
-<p>class HolographicMemory {   constructor(options = {}) {     this.vectorDimensions = options.vectorDimensions || 128;     this.fragmentationRate = options.fragmentationRate || 0.3; // 30% 分片率   }</p>
+<pre><code class="javascript">class HolographicMemory {   constructor(options = {}) {     this.vectorDimensions = options.vectorDimensions || 128;     this.fragmentationRate = options.fragmentationRate || 0.3; // 30% 分片率   }
 
-<p>  generateEmbedding(content) {     // 128 维向量空间     const embedding = new Float32Array(this.vectorDimensions);</p>
+  generateEmbedding(content) {     // 128 维向量空间     const embedding = new Float32Array(this.vectorDimensions);
     
-<p>    // 基于哈希的嵌入（可替换为真实 NLP 模型）     for (let i = 0; i < this.vectorDimensions; i++) {       const hash = this.hashString(<code>${content}-${i}</code>);       embedding[i] = (hash % 1000) / 1000; // 归一化到 [0, 1]     }</p>
+    // 基于哈希的嵌入（可替换为真实 NLP 模型）     for (let i = 0; i < this.vectorDimensions; i++) {       const hash = this.hashString(<code>${content}-${i}</code>);       embedding[i] = (hash % 1000) / 1000; // 归一化到 [0, 1]     }
     
-<p>    // 向量归一化     const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));     return embedding.map(val => val / norm);   } }</p>
-<code></code>`
+    // 向量归一化     const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));     return embedding.map(val => val / norm);   } }
+</code></pre>
 
 <strong>2. 记忆分片算法</strong>
 
-<code></code>`javascript
-<p>createFragments(embedding, content) {   const fragmentCount = Math.ceil(embedding.length * this.fragmentationRate);   const fragments = [];</p>
+<pre><code class="javascript">createFragments(embedding, content) {   const fragmentCount = Math.ceil(embedding.length * this.fragmentationRate);   const fragments = [];
   
-<p>  for (let i = 0; i < fragmentCount; i++) {     const startIndex = Math.floor((i / fragmentCount) * embedding.length);     const endIndex = Math.min(startIndex + 10, embedding.length);</p>
+  for (let i = 0; i < fragmentCount; i++) {     const startIndex = Math.floor((i / fragmentCount) * embedding.length);     const endIndex = Math.min(startIndex + 10, embedding.length);
     
-<p>    fragments.push({       vectorData: embedding.slice(startIndex, endIndex),       contentHash: this.hashString(content),       randomProjection: this.generateRandomProjection(),       index: i     });   }</p>
+    fragments.push({       vectorData: embedding.slice(startIndex, endIndex),       contentHash: this.hashString(content),       randomProjection: this.generateRandomProjection(),       index: i     });   }
   
-<p>  return fragments; }</p>
-<code></code>`
+  return fragments; }
+</code></pre>
 
 <strong>关键设计</strong>：
 <ul>
@@ -391,35 +400,33 @@
 
 <strong>3. 模式匹配查询</strong>
 
-<code></code>`javascript
-<p>query(queryContent, topK = 5) {   const queryEmbedding = this.generateEmbedding(queryContent);   const results = [];</p>
+<pre><code class="javascript">query(queryContent, topK = 5) {   const queryEmbedding = this.generateEmbedding(queryContent);   const results = [];
   
-<p>  // 计算与所有记忆的余弦相似度   for (const [id, memory] of this.memories) {     const similarity = this.cosineSimilarity(queryEmbedding, memory.embedding);     results.push({ id, memory, similarity });   }</p>
+  // 计算与所有记忆的余弦相似度   for (const [id, memory] of this.memories) {     const similarity = this.cosineSimilarity(queryEmbedding, memory.embedding);     results.push({ id, memory, similarity });   }
   
-<p>  // 按相似度排序，返回 Top-K   return results     .sort((a, b) => b.similarity - a.similarity)     .slice(0, topK); }</p>
+  // 按相似度排序，返回 Top-K   return results     .sort((a, b) => b.similarity - a.similarity)     .slice(0, topK); }
 
-<p>cosineSimilarity(vecA, vecB) {   let dotProduct = 0;   let normA = 0;   let normB = 0;</p>
+cosineSimilarity(vecA, vecB) {   let dotProduct = 0;   let normA = 0;   let normB = 0;
   
-<p>  for (let i = 0; i < vecA.length; i++) {     dotProduct += vecA[i] * vecB[i];     normA += vecA[i] * vecA[i];     normB += vecB[i] * vecB[i];   }</p>
+  for (let i = 0; i < vecA.length; i++) {     dotProduct += vecA[i] * vecB[i];     normA += vecA[i] * vecA[i];     normB += vecB[i] * vecB[i];   }
   
-<p>  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB)); }</p>
-<code></code>`
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB)); }
+</code></pre>
 
 <strong>4. 部分重构算法</strong>
 
-<code></code>`javascript
-<p>reconstruct(fragmentRatio = 0.5) {   const allFragments = [];   for (const fragments of this.fragmentStore.values()) {     allFragments.push(...fragments);   }</p>
+<pre><code class="javascript">reconstruct(fragmentRatio = 0.5) {   const allFragments = [];   for (const fragments of this.fragmentStore.values()) {     allFragments.push(...fragments);   }
   
-<p>  // 随机选择部分片段   const selectedCount = Math.floor(allFragments.length * fragmentRatio);   const selectedFragments = this.shuffleArray(allFragments).slice(0, selectedCount);</p>
+  // 随机选择部分片段   const selectedCount = Math.floor(allFragments.length * fragmentRatio);   const selectedFragments = this.shuffleArray(allFragments).slice(0, selectedCount);
   
-<p>  // 重构向量   const reconstructedVector = new Float32Array(this.vectorDimensions);   let reconstructionScore = 0;</p>
+  // 重构向量   const reconstructedVector = new Float32Array(this.vectorDimensions);   let reconstructionScore = 0;
   
-<p>  for (const fragment of selectedFragments) {     const startIndex = fragment.index * 10;     for (let i = 0; i < fragment.vectorData.length; i++) {       if (startIndex + i < this.vectorDimensions) {         reconstructedVector[startIndex + i] = fragment.vectorData[i];         reconstructionScore++;       }     }   }</p>
+  for (const fragment of selectedFragments) {     const startIndex = fragment.index * 10;     for (let i = 0; i < fragment.vectorData.length; i++) {       if (startIndex + i < this.vectorDimensions) {         reconstructedVector[startIndex + i] = fragment.vectorData[i];         reconstructionScore++;       }     }   }
   
-<p>  const accuracy = reconstructionScore / this.vectorDimensions;</p>
+  const accuracy = reconstructionScore / this.vectorDimensions;
   
-<p>  return {     vector: reconstructedVector,     accuracy,     success: accuracy >= 0.7 // 70% 成功阈值   }; }</p>
-<code></code>`
+  return {     vector: reconstructedVector,     accuracy,     success: accuracy >= 0.7 // 70% 成功阈值   }; }
+</code></pre>
 
 <strong>核心优势</strong>：
 <ul>
@@ -432,17 +439,16 @@
 
 <p>我们构建了一个 <strong>Canvas 动画可视化系统</strong>：</p>
 
-<code></code>`javascript
-<p>class MemoryVisualizer {   draw() {     // 清空画布     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);</p>
+<pre><code class="javascript">class MemoryVisualizer {   draw() {     // 清空画布     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     
-<p>    // 绘制记忆节点     for (const [id, memory] of this.memorySystem.memories) {       this.drawMemoryNode(memory);     }</p>
+    // 绘制记忆节点     for (const [id, memory] of this.memorySystem.memories) {       this.drawMemoryNode(memory);     }
     
-<p>    // 绘制片段轨道     for (const fragments of this.memorySystem.fragmentStore.values()) {       this.drawFragmentOrbit(fragments);     }</p>
+    // 绘制片段轨道     for (const fragments of this.memorySystem.fragmentStore.values()) {       this.drawFragmentOrbit(fragments);     }
     
-<p>    // 绘制连接线     this.drawConnections();</p>
+    // 绘制连接线     this.drawConnections();
     
-<p>    // 更新动画     this.animationId = requestAnimationFrame(() => this.draw());   } }</p>
-<code></code>`
+    // 更新动画     this.animationId = requestAnimationFrame(() => this.draw());   } }
+</code></pre>
 
 <strong>可视化特性</strong>：
 <ul>
@@ -456,43 +462,42 @@
 
 <p>我们编写了 <strong>11 个测试用例</strong>，覆盖所有核心功能：</p>
 
-<code></code>`javascript
-<p>describe('HolographicMemory', () => {   test('创建记忆系统', () => {     const memory = new HolographicMemory({ vectorDimensions: 128 });     expect(memory.vectorDimensions).toBe(128);     expect(memory.memories.size).toBe(0);   });</p>
+<pre><code class="javascript">describe('HolographicMemory', () => {   test('创建记忆系统', () => {     const memory = new HolographicMemory({ vectorDimensions: 128 });     expect(memory.vectorDimensions).toBe(128);     expect(memory.memories.size).toBe(0);   });
 
-<p>  test('存储记忆', () => {     const memory = new HolographicMemory();     memory.store('test-id', 'Test content');     expect(memory.memories.has('test-id')).toBe(true);   });</p>
+  test('存储记忆', () => {     const memory = new HolographicMemory();     memory.store('test-id', 'Test content');     expect(memory.memories.has('test-id')).toBe(true);   });
 
-<p>  test('生成嵌入', () => {     const memory = new HolographicMemory();     const embedding = memory.generateEmbedding('Test content');     expect(embedding.length).toBe(128);     expect(embedding.every(val => val >= 0 && val <= 1)).toBe(true);   });</p>
+  test('生成嵌入', () => {     const memory = new HolographicMemory();     const embedding = memory.generateEmbedding('Test content');     expect(embedding.length).toBe(128);     expect(embedding.every(val => val >= 0 && val <= 1)).toBe(true);   });
 
-<p>  test('分片记忆', () => {     const memory = new HolographicMemory();     memory.store('test-id', 'Test content');     const fragments = memory.fragmentStore.get('test-id');     expect(fragments.length).toBeGreaterThan(0);   });</p>
+  test('分片记忆', () => {     const memory = new HolographicMemory();     memory.store('test-id', 'Test content');     const fragments = memory.fragmentStore.get('test-id');     expect(fragments.length).toBeGreaterThan(0);   });
 
-<p>  test('查询记忆', () => {     const memory = new HolographicMemory();     memory.store('ai-concept', 'AI agents use holographic memory');     memory.store('web-concept', 'WebAssembly enables native performance');</p>
+  test('查询记忆', () => {     const memory = new HolographicMemory();     memory.store('ai-concept', 'AI agents use holographic memory');     memory.store('web-concept', 'WebAssembly enables native performance');
     
-<p>    const results = memory.query('AI memory', 2);     expect(results.length).toBe(2);     expect(results[0].id).toBe('ai-concept');   });</p>
+    const results = memory.query('AI memory', 2);     expect(results.length).toBe(2);     expect(results[0].id).toBe('ai-concept');   });
 
-<p>  test('重构记忆', () => {     const memory = new HolographicMemory();     memory.store('test-id', 'Test content');</p>
+  test('重构记忆', () => {     const memory = new HolographicMemory();     memory.store('test-id', 'Test content');
     
-<p>    const reconstruction = memory.reconstruct(0.5);     expect(reconstruction.vector.length).toBe(128);     expect(reconstruction.accuracy).toBeGreaterThan(0);   });</p>
+    const reconstruction = memory.reconstruct(0.5);     expect(reconstruction.vector.length).toBe(128);     expect(reconstruction.accuracy).toBeGreaterThan(0);   });
 
-<p>  test('余弦相似度', () => {     const memory = new HolographicMemory();     const vecA = new Float32Array([1, 0, 0]);     const vecB = new Float32Array([1, 0, 0]);     const vecC = new Float32Array([0, 1, 0]);</p>
+  test('余弦相似度', () => {     const memory = new HolographicMemory();     const vecA = new Float32Array([1, 0, 0]);     const vecB = new Float32Array([1, 0, 0]);     const vecC = new Float32Array([0, 1, 0]);
     
-<p>    expect(memory.cosineSimilarity(vecA, vecB)).toBeCloseTo(1);     expect(memory.cosineSimilarity(vecA, vecC)).toBeCloseTo(0);   });</p>
+    expect(memory.cosineSimilarity(vecA, vecB)).toBeCloseTo(1);     expect(memory.cosineSimilarity(vecA, vecC)).toBeCloseTo(0);   });
 
-<p>  test('导出/导入', () => {     const memory1 = new HolographicMemory();     memory1.store('test-id', 'Test content');</p>
+  test('导出/导入', () => {     const memory1 = new HolographicMemory();     memory1.store('test-id', 'Test content');
     
-<p>    const exported = memory1.export();     const memory2 = new HolographicMemory();     memory2.import(exported);</p>
+    const exported = memory1.export();     const memory2 = new HolographicMemory();     memory2.import(exported);
     
-<p>    expect(memory2.memories.has('test-id')).toBe(true);   });</p>
+    expect(memory2.memories.has('test-id')).toBe(true);   });
 
-<p>  test('统计信息', () => {     const memory = new HolographicMemory();     memory.store('test-1', 'Content 1');     memory.store('test-2', 'Content 2');</p>
+  test('统计信息', () => {     const memory = new HolographicMemory();     memory.store('test-1', 'Content 1');     memory.store('test-2', 'Content 2');
     
-<p>    const stats = memory.getStats();     expect(stats.totalMemories).toBe(2);     expect(stats.totalFragments).toBeGreaterThan(0);   });</p>
+    const stats = memory.getStats();     expect(stats.totalMemories).toBe(2);     expect(stats.totalFragments).toBeGreaterThan(0);   });
 
-<p>  test('边界情况：空记忆', () => {     const memory = new HolographicMemory();     const results = memory.query('test', 5);     expect(results.length).toBe(0);   });</p>
+  test('边界情况：空记忆', () => {     const memory = new HolographicMemory();     const results = memory.query('test', 5);     expect(results.length).toBe(0);   });
 
-<p>  test('边界情况：重复存储', () => {     const memory = new HolographicMemory();     memory.store('test-id', 'Content 1');     memory.store('test-id', 'Content 2');</p>
+  test('边界情况：重复存储', () => {     const memory = new HolographicMemory();     memory.store('test-id', 'Content 1');     memory.store('test-id', 'Content 2');
     
-<p>    expect(memory.memories.size).toBe(1);     expect(memory.memories.get('test-id').content).toBe('Content 2');   }); });</p>
-<code></code>`
+    expect(memory.memories.size).toBe(1);     expect(memory.memories.get('test-id').content).toBe('Content 2');   }); });
+</code></pre>
 
 <strong>测试结果</strong>：11/11 通过（100% 通过率）
 
@@ -531,31 +536,28 @@
 
 <strong>Step 1：定义核心接口</strong>
 
-<code></code>`typescript
-<p>// types.ts export interface Agent {   id: string;   role: AgentRole;   execute(input: any): Promise<any>; }</p>
+<pre><code class="typescript">// types.ts export interface Agent {   id: string;   role: AgentRole;   execute(input: any): Promise<any>; }
 
-<p>export interface Task {   id: string;   type: TaskType;   description: string;   status: TaskStatus; }</p>
+export interface Task {   id: string;   type: TaskType;   description: string;   status: TaskStatus; }
 
-<p>export interface ProjectPlan {   projectName: string;   tasks: Task[];   priority: Priority; }</p>
-<code></code>`
+export interface ProjectPlan {   projectName: string;   tasks: Task[];   priority: Priority; }
+</code></pre>
 
 <strong>Step 2：编写测试用例</strong>
 
-<code></code>`typescript
-<p>// ceo.test.ts describe('CEOAgent', () => {   test('初始化 CEO Agent', () => {     const ceo = new CEOAgent('ceo-1');     expect(ceo.id).toBe('ceo-1');     expect(ceo.role).toBe('CEO');   });</p>
+<pre><code class="typescript">// ceo.test.ts describe('CEOAgent', () => {   test('初始化 CEO Agent', () => {     const ceo = new CEOAgent('ceo-1');     expect(ceo.id).toBe('ceo-1');     expect(ceo.role).toBe('CEO');   });
 
-<p>  test('处理用户请求', async () => {     const ceo = new CEOAgent('ceo-1');     const plan = await ceo.handleRequest('Build a REST API');     expect(plan.projectName).toBeDefined();     expect(plan.tasks.length).toBeGreaterThan(0);   }); });</p>
-<code></code>`
+  test('处理用户请求', async () => {     const ceo = new CEOAgent('ceo-1');     const plan = await ceo.handleRequest('Build a REST API');     expect(plan.projectName).toBeDefined();     expect(plan.tasks.length).toBeGreaterThan(0);   }); });
+</code></pre>
 
 <strong>Step 3：实现核心逻辑</strong>
 
-<code></code>`typescript
-<p>// ceo.ts export class CEOAgent extends BaseAgent {   async handleRequest(request: string): Promise<ProjectPlan> {     // 使用 LLM 生成计划（或模拟模式）     const plan = this.useLLM        ? await this.llmClient.generatePlan(request)       : this.simulatePlan(request);</p>
+<pre><code class="typescript">// ceo.ts export class CEOAgent extends BaseAgent {   async handleRequest(request: string): Promise<ProjectPlan> {     // 使用 LLM 生成计划（或模拟模式）     const plan = this.useLLM        ? await this.llmClient.generatePlan(request)       : this.simulatePlan(request);
     
-<p>    return plan;   }</p>
+    return plan;   }
   
-<p>  private simulatePlan(request: string): ProjectPlan {     return {       projectName: this.extractProjectName(request),       tasks: [         { id: 'task-1', type: 'implementation', description: 'Core implementation', status: 'pending' },         { id: 'task-2', type: 'testing', description: 'Write tests', status: 'pending' }       ],       priority: 'high'     };   } }</p>
-<code></code>`
+  private simulatePlan(request: string): ProjectPlan {     return {       projectName: this.extractProjectName(request),       tasks: [         { id: 'task-1', type: 'implementation', description: 'Core implementation', status: 'pending' },         { id: 'task-2', type: 'testing', description: 'Write tests', status: 'pending' }       ],       priority: 'high'     };   } }
+</code></pre>
 
 <strong>Step 4：迭代优化</strong>
 
