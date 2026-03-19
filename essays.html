@@ -636,8 +636,25 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
         
+        // Update stats dynamically
+        function updateStats() {
+            // Total posts
+            document.getElementById('totalPosts').textContent = posts.length;
+            
+            // Total months
+            const months = new Set(posts.map(post => post.date.substring(0, 7)));
+            document.getElementById('totalMonths').textContent = months.size;
+            
+            // Latest date
+            const latestPost = posts.reduce((latest, post) => {
+                return post.date > latest.date ? post : latest;
+            });
+            document.getElementById('latestDate').textContent = latestPost.date;
+        }
+        
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
+            updateStats();
             renderPosts();
         });
     </script>
