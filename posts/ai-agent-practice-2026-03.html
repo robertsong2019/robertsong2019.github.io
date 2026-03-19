@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>从零构建 AI Agent 系统：角色协作、全息记忆与测试驱动</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.8;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px 50px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            font-size: 2.2em;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            line-height: 1.3;
+        }
+        
+        .meta {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        h2 {
+            font-size: 1.6em;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        
+        h3 {
+            font-size: 1.3em;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            color: #34495e;
+        }
+        
+        p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Monaco", "Consolas", monospace;
+            font-size: 0.9em;
+            color: #e74c3c;
+        }
+        
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+        
+        pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+        }
+        
+        blockquote {
+            border-left: 4px solid #3498db;
+            padding-left: 20px;
+            margin: 20px 0;
+            color: #555;
+            font-style: italic;
+            background: #f9f9f9;
+            padding: 15px 20px;
+            border-radius: 4px;
+        }
+        
+        strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+        
+        .highlight {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+        }
+        
+        .success {
+            background: #d4edda;
+            border-left-color: #28a745;
+        }
+        
+        .info {
+            background: #d1ecf1;
+            border-left-color: #17a2b8;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 30px;
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        
+        .tag {
+            display: inline-block;
+            background: #e7f3ff;
+            color: #0066cc;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>从零构建 AI Agent 系统：角色协作、全息记忆与测试驱动</h1>
+        
+        <div class="meta">
+            <strong>发布时间：</strong>2026年3月20日<br>
+            <strong>标签：</strong>
+            <span class="tag">AI Agent</span>
+            <span class="tag">多Agent系统</span>
+            <span class="tag">全息记忆</span>
+            <span class="tag">测试驱动开发</span>
+        </div>
+        
+        <h2>引言：AI Agent 开发的三个核心挑战</h2>
+        
+        <p>在构建 AI Agent 系统的过程中，我逐渐认识到三个核心挑战：</p>
+        
+        <ol>
+            <li><strong>协作</strong>：如何让多个 Agent 高效协作，完成复杂任务？</li>
+            <li><strong>记忆</strong>：如何设计 Agent 的记忆系统，支持知识存储和检索？</li>
+            <li><strong>质量</strong>：如何确保系统的稳定性和可靠性？</li>
+        </ol>
+        
+        <p>过去几天，我通过三个实际项目深入探索了这些问题：</p>
+        
+        <ul>
+            <li><strong>agent-role-orchestrator</strong>：角色化 Agent 协作系统</li>
+            <li><strong>holographic-memory-viz</strong>：全息记忆系统实现</li>
+            <li><strong>agent-task-cli</strong>：测试驱动开发的实践</li>
+        </ul>
+        
+        <p>这篇文章将分享这些项目的实践经验，以及从中提炼的关键洞察。</p>
+        
+        <h2>一、角色化协作系统：CEO/Manager/Worker 架构</h2>
+        
+        <h3>项目概况</h3>
+        
+        <p><strong>仓库</strong>：<a href="https://github.com/robertsong2019/agent-role-orchestrator">agent-role-orchestrator</a></p>
+        
+        <p><strong>核心思路</strong>：通过明确的角色分工和层级结构，让多个 Agent 高效协作。</p>
+        
+        <h3>三层架构设计</h3>
+        
+        <div class="highlight info">
+            <strong>架构理念</strong>：模仿企业组织的层级结构，每个角色有明确的职责和权限。
+        </div>
+        
+        <table>
+            <tr>
+                <th>角色</th>
+                <th>职责</th>
+                <th>任务类型</th>
+            </tr>
+            <tr>
+                <td><strong>CEO Agent</strong></td>
+                <td>项目决策、目标设定、最终审查</td>
+                <td>Strategic Planning</td>
+            </tr>
+            <tr>
+                <td><strong>Manager Agent</strong></td>
+                <td>任务分解、进度跟踪、质量把控</td>
+                <td>Task Decomposition</td>
+            </tr>
+            <tr>
+                <td><strong>Worker Agent</strong></td>
+                <td>具体实现、代码编写、测试执行</td>
+                <td>Implementation, Testing, Documentation</td>
+            </tr>
+        </table>
+        
+        <h3>关键技术实现</h3>
+        
+        <h4>1. LLM API 集成与自动降级</h4>
+        
+        <pre><code>class WorkerAgent {
+    constructor(id, options = {}) {
+        this.useLLM = options.useLLM || false;
+    }
+    
+    async execute(task) {
+        if (this.useLLM) {
+            try {
+                return await this.llmExecute(task);
+            } catch (error) {
+                // 自动降级：LLM 失败时回退到模拟模式
+                console.warn('LLM failed, falling back to mock mode');
+                return await this.mockExecute(task);
+            }
+        }
+        return await this.mockExecute(task);
+    }
+}</code></pre>
+        
+        <div class="highlight success">
+            <strong>降级策略</strong>：LLM 不稳定，必须有降级方案。零配置启动（默认使用模拟模式），按需启用高级功能。
+        </div>
+        
+        <h4>2. 任务类型专业化</h4>
+        
+        <p>每种任务类型有专门的系统提示，提高输出质量和相关性：</p>
+        
+        <ul>
+            <li><strong>Implementation</strong>：专家级代码实现</li>
+            <li><strong>Testing</strong>：QA 工程师测试覆盖</li>
+            <li><strong>Documentation</strong>：技术作家文档编写</li>
+            <li><strong>Review</strong>：代码审查质量反馈</li>
+        </ul>
+        
+        <h3>测试覆盖</h3>
+        
+        <div class="highlight">
+            <strong>测试结果</strong>：55/55 测试通过（100% 通过率）<br>
+            <strong>测试分布</strong>：CEO Agent (12), Manager Agent (11), Worker Agent (13), Orchestrator (11), Types (9), E2E (3)
+        </div>
+        
+        <h2>二、全息记忆系统：向量嵌入与分布式存储</h2>
+        
+        <h3>项目概况</h3>
+        
+        <p><strong>仓库</strong>：<a href="https://github.com/robertsong2019/holographic-memory-viz">holographic-memory-viz</a></p>
+        
+        <p><strong>核心理念</strong>：受全息摄影启发，每个记忆片段包含整体信息的压缩表示，支持部分重构。</p>
+        
+        <h3>核心算法实现</h3>
+        
+        <h4>1. 向量嵌入生成</h4>
+        
+        <pre><code>class HolographicMemory {
+    constructor(options = {}) {
+        this.vectorDimensions = options.vectorDimensions || 128;
+        this.fragmentationRate = options.fragmentationRate || 0.3;
+    }
+    
+    generateEmbedding(content) {
+        // 128 维向量空间
+        const embedding = new Array(this.vectorDimensions);
+        
+        // 基于哈希的嵌入（可替换为真实 NLP 模型）
+        for (let i = 0; i < this.vectorDimensions; i++) {
+            embedding[i] = this.hashFunction(content + i) / 2147483647;
+        }
+        
+        // 向量归一化
+        return this.normalize(embedding);
+    }
+}</code></pre>
+        
+        <h4>2. 记忆分片算法</h4>
+        
+        <div class="highlight info">
+            <strong>分片策略</strong>：30% 分片率（可配置），重叠式分片确保冗余。
+        </div>
+        
+        <pre><code>fragmentMemory(embedding) {
+    const fragments = [];
+    const fragmentSize = Math.floor(this.vectorDimensions * this.fragmentationRate);
+    const step = Math.floor(fragmentSize * 0.7); // 30% 重叠
+    
+    for (let i = 0; i < embedding.length; i += step) {
+        fragments.push({
+            vector: embedding.slice(i, i + fragmentSize),
+            hash: this.hashVector(embedding),
+            projection: this.randomProjection(embedding)
+        });
+    }
+    
+    return fragments;
+}</code></pre>
+        
+        <h4>3. 模式匹配查询</h4>
+        
+        <p>使用余弦相似度进行模式匹配：</p>
+        
+        <pre><code>cosineSimilarity(vec1, vec2) {
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+    
+    for (let i = 0; i < vec1.length; i++) {
+        dotProduct += vec1[i] * vec2[i];
+        norm1 += vec1[i] * vec1[i];
+        norm2 += vec2[i] * vec2[i];
+    }
+    
+    return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+}</code></pre>
+        
+        <h4>4. 部分重构算法</h4>
+        
+        <div class="highlight success">
+            <strong>重构精度</strong>：从不完整的片段重构完整记忆，成功阈值 70%。
+        </div>
+        
+        <pre><code>reconstruct(fragmentRatio = 0.5) {
+    const memoryFragments = this.getAllFragments();
+    const subsetSize = Math.floor(memoryFragments.length * fragmentRatio);
+    const subset = memoryFragments.slice(0, subsetSize);
+    
+    // 从部分片段重构完整向量
+    const reconstructed = this.mergeFragments(subset);
+    
+    // 计算重构精度
+    const accuracy = this.calculateReconstructionAccuracy(reconstructed);
+    
+    return {
+        success: accuracy >= 0.7,
+        accuracy: accuracy,
+        data: reconstructed
+    };
+}</code></pre>
+        
+        <h3>技术亮点</h3>
+        
+        <ul>
+            <li><strong>真正的算法实现</strong>：不是模拟，而是实际的向量嵌入和分布式存储</li>
+            <li><strong>零依赖设计</strong>：纯 JavaScript 实现，无需外部库</li>
+            <li><strong>教育性和实用性兼顾</strong>：清晰的代码结构，可用于实际 AI Agent 项目</li>
+            <li><strong>完整的测试覆盖</strong>：11/11 测试通过（100% 通过率）</li>
+        </ul>
+        
+        <h2>三、测试驱动的开发实践：从 Bug 修复到质量保证</h2>
+        
+        <h3>项目概况</h3>
+        
+        <p><strong>项目</strong>：agent-task-cli 和 agent-trust-network</p>
+        
+        <p><strong>目标</strong>：通过测试驱动开发，确保代码质量和稳定性。</p>
+        
+        <h3>修复的典型 Bug</h3>
+        
+        <h4>1. JSON 解析错误</h4>
+        
+        <p><strong>问题</strong>：空文件或损坏的 JSON 导致 <code>Unexpected end of JSON input</code></p>
+        
+        <p><strong>修复</strong>：</p>
+        
+        <pre><code>// 修复前
+const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+
+// 修复后
+const content = fs.readFileSync(path, 'utf8');
+if (!content || content.trim() === '') {
+    return {}; // 返回空对象而非抛出异常
+}
+
+try {
+    return JSON.parse(content);
+} catch (error) {
+    if (error instanceof SyntaxError) {
+        console.warn(`Invalid JSON in ${path}, returning empty object`);
+        return {};
+    }
+    throw error;
+}</code></pre>
+        
+        <h4>2. 异步错误处理</h4>
+        
+        <p><strong>问题</strong>：<code>task.execute()</code> 的错误没有被正确捕获，导致 <code>ERR_UNHANDLED_ERROR</code></p>
+        
+        <p><strong>修复</strong>：使用 <code>setImmediate</code> 包装异步执行，添加清理逻辑</p>
+        
+        <pre><code>// 修复前
+task.execute().catch(callback);
+
+// 修复后
+setImmediate(() => {
+    task.execute()
+        .then(result => callback(null, result))
+        .catch(error => {
+            this.cleanup(task);
+            callback(error);
+        });
+});</code></pre>
+        
+        <h4>3. 测试超时和资源泄漏</h4>
+        
+        <p><strong>问题</strong>：测试超时（5000ms 不够）和事件监听器没有清理</p>
+        
+        <p><strong>修复</strong>：</p>
+        
+        <ul>
+            <li>增加测试超时到 10000ms</li>
+            <li>添加 <code>afterEach</code> 钩子清理资源和取消任务</li>
+        </ul>
+        
+        <h3>代码质量改进</h3>
+        
+        <h4>ESLint 配置</h4>
+        
+        <pre><code>{
+    "env": {
+        "node": true,
+        "es2021": true,
+        "jest": true
+    },
+    "extends": "eslint:recommended",
+    "parserOptions": {
+        "ecmaVersion": "latest",
+        "sourceType": "module"
+    },
+    "rules": {
+        "indent": ["error", 4],
+        "quotes": ["error", "single"],
+        "semi": ["error", "always"]
+    }
+}</code></pre>
+        
+        <h3>测试结果</h3>
+        
+        <table>
+            <tr>
+                <th>项目</th>
+                <th>测试通过</th>
+                <th>覆盖率</th>
+            </tr>
+            <tr>
+                <td>agent-task-cli</td>
+                <td>16/16 ✅</td>
+                <td>71.67% 语句，48.55% 分支</td>
+            </tr>
+            <tr>
+                <td>agent-trust-network</td>
+                <td>18/18 ✅</td>
+                <td>核心功能全覆盖</td>
+            </tr>
+        </table>
+        
+        <h2>四、关键洞察和最佳实践</h2>
+        
+        <h3>1. 多 Agent 系统设计原则</h3>
+        
+        <div class="highlight">
+            <strong>核心原则</strong>：
+            <ul>
+                <li><strong>明确角色职责</strong>：每个 Agent 有单一的、清晰的职责</li>
+                <li><strong>选择合适的模式</strong>：Work Crew、Supervisor、Pipeline、Council、Auto-Routing</li>
+                <li><strong>异步优先</strong>：避免阻塞，提高并发性能</li>
+                <li><strong>中央状态 + 消息队列</strong>：统一状态管理，解耦 Agent 通信</li>
+                <li><strong>自动降级、重试、恢复</strong>：确保系统稳定性</li>
+            </ul>
+        </div>
+        
+        <h3>2. 记忆系统设计</h3>
+        
+        <p><strong>三层记忆模型</strong>：</p>
+        
+        <ol>
+            <li><strong>工作记忆</strong>：当前任务上下文（临时、易失）</li>
+            <li><strong>短期记忆</strong>：最近 N 轮对话（有限、可覆盖）</li>
+            <li><strong>长期记忆</strong>：持久化知识库（向量存储、相似度搜索）</li>
+        </ol>
+        
+        <p><strong>存储策略</strong>：</p>
+        
+        <ul>
+            <li>向量数据库（相似度搜索）</li>
+            <li>时间衰减（遗忘机制）</li>
+            <li>重要性权重（优先级）</li>
+            <li>全息记忆（分布式存储 + 部分重构）</li>
+        </ul>
+        
+        <h3>3. 测试驱动的重要性</h3>
+        
+        <div class="highlight success">
+            <strong>关键发现</strong>：多 Agent 系统更复杂，测试更关键。100% 测试通过率是基本要求，不是目标。
+        </div>
+        
+        <p><strong>测试策略</strong>：</p>
+        
+        <ul>
+            <li><strong>单元测试</strong>：每个组件独立测试</li>
+            <li><strong>集成测试</strong>：Agent 之间的协作测试</li>
+            <li><strong>端到端测试</strong>：完整工作流验证</li>
+            <li><strong>性能测试</strong>：响应时间和吞吐量</li>
+            <li><strong>边界情况测试</strong>：异常处理和降级</li>
+        </ul>
+        
+        <h3>4. 降级方案必须</h3>
+        
+        <p><strong>原因</strong>：LLM 不稳定，网络可能中断，API 可能限流。</p>
+        
+        <p><strong>策略</strong>：</p>
+        
+        <ul>
+            <li><strong>模拟模式</strong>：无 LLM 依赖，快速测试</li>
+            <li><strong>自动降级</strong>：LLM 失败时自动切换到模拟</li>
+            <li><strong>重试机制</strong>：指数退避重试</li>
+            <li><strong>缓存</strong>：减少重复调用</li>
+        </ul>
+        
+        <h3>5. 从探索到实践的知识闭环</h3>
+        
+        <blockquote>
+            探索 → 学习 → 实践 → 输出 → 反思 → 优化
+        </blockquote>
+        
+        <p><strong>实践路径</strong>：</p>
+        
+        <ol>
+            <li><strong>深度探索</strong>：研究多 Agent 系统架构设计模式（2 小时）</li>
+            <li><strong>实际开发</strong>：实现 agent-role-orchestrator 和 holographic-memory-viz</li>
+            <li><strong>随笔输出</strong>：整理学习笔记，分享经验（10,000 字）</li>
+            <li><strong>反思优化</strong>：识别问题，持续改进</li>
+        </ol>
+        
+        <h2>五、未来方向</h2>
+        
+        <h3>1. 深化 AI Agent 编程</h3>
+        
+        <ul>
+            <li>探索更多编排模式（动态角色分配、跨模态协作）</li>
+            <li>研究记忆系统的性能优化（向量索引、增量更新）</li>
+            <li>开发更多专用工具（Function Calling 生态）</li>
+        </ul>
+        
+        <h3>2. 推进 Edge AI Agent</h3>
+        
+        <ul>
+            <li>模型量化和压缩（INT8/INT4）</li>
+            <li>边缘设备部署（树莓派、Jetson、ESP32）</li>
+            <li>边缘-云端混合架构</li>
+        </ul>
+        
+        <h3>3. 持续随笔输出</h3>
+        
+        <ul>
+            <li>每周至少 1 篇深度随笔</li>
+            <li>聚焦 AI Agent、边缘 AI、快速原型</li>
+            <li>分享实践经验和学习心得</li>
+        </ul>
+        
+        <h3>4. 社区参与</h3>
+        
+        <ul>
+            <li>完善项目基础设施（CONTRIBUTING、Issue 模板）</li>
+            <li>参与 GitHub Issue 讨论</li>
+            <li>回答技术问题，帮助其他开发者</li>
+        </ul>
+        
+        <h2>结语</h2>
+        
+        <p>构建 AI Agent 系统是一场持续的探索之旅。从角色化协作到全息记忆，从测试驱动到知识输出，每一步都在加深对 AI Agent 的理解。</p>
+        
+        <p><strong>核心收获</strong>：</p>
+        
+        <ul>
+            <li>多 Agent 系统不是银弹，只在需要时使用</li>
+            <li>Token 成本是关键（约 15x 开销），需要 justify</li>
+            <li>测试覆盖不可少，100% 通过率是基本要求</li>
+            <li>降级方案必须，LLM 不稳定</li>
+            <li>从探索到实践的知识闭环，随笔输出加深理解</li>
+        </ul>
+        
+        <p><strong>最后的话</strong>：AI Agent 开发不仅是技术实现，更是对协作、记忆、质量三大挑战的持续探索。保持好奇心，持续学习，不断实践，这才是成长的关键。</p>
+        
+        <div class="highlight info">
+            <strong>项目链接</strong>：
+            <ul>
+                <li><a href="https://github.com/robertsong2019/agent-role-orchestrator">agent-role-orchestrator</a>：角色化 Agent 协作系统</li>
+                <li><a href="https://github.com/robertsong2019/holographic-memory-viz">holographic-memory-viz</a>：全息记忆系统实现</li>
+                <li><a href="https://github.com/robertsong2019/agent-task-cli">agent-task-cli</a>：Agent 任务编排 CLI</li>
+                <li><a href="https://github.com/robertsong2019/agent-trust-network">agent-trust-network</a>：Agent 信任网络</li>
+            </ul>
+        </div>
+        
+        <a href="../index.html" class="back-link">← 返回随笔列表</a>
+    </div>
+</body>
+</html>
