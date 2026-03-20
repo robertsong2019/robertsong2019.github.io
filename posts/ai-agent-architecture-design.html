@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 架构设计：从理论到实践的完整思考 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+        }
+        
+        .container {
+            max-width: 896px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+        
+        /* Back Link */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-weight: 500;
+            margin-bottom: var(--space-8);
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--color-primary-hover);
+        }
+        
+        /* Article Header */
+        .article-header {
+            margin-bottom: var(--space-12);
+        }
+        
+        .article-meta {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-4);
+            font-size: var(--text-sm);
+            color: var(--color-text-muted);
+        }
+        
+        .article-title {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-4xl);
+            font-weight: 800;
+            margin-bottom: var(--space-4);
+            line-height: 1.2;
+        }
+        
+        .article-tags {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
+        
+        .article-tag {
+            background: var(--primary-600);
+            color: white;
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+            font-weight: 600;
+        }
+        
+        /* Article Content */
+        .article-content {
+            background: var(--surface-1);
+            padding: var(--space-8);
+            border-radius: var(--radius-xl);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--gray-200);
+        }
+        
+        .article-content h2 {
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            margin-top: var(--space-8);
+            margin-bottom: var(--space-4);
+            color: var(--gray-900);
+        }
+        
+        .article-content h3 {
+            font-size: var(--text-xl);
+            font-weight: 600;
+            margin-top: var(--space-6);
+            margin-bottom: var(--space-3);
+            color: var(--gray-800);
+        }
+        
+        .article-content p {
+            margin-bottom: var(--space-4);
+            color: var(--color-text-secondary);
+        }
+        
+        .article-content ul, .article-content ol {
+            margin-bottom: var(--space-4);
+            padding-left: var(--space-6);
+        }
+        
+        .article-content li {
+            margin-bottom: var(--space-2);
+            color: var(--color-text-secondary);
+        }
+        
+        .article-content blockquote {
+            border-left: 4px solid var(--primary-600);
+            padding-left: var(--space-4);
+            margin: var(--space-6) 0;
+            font-style: italic;
+            color: var(--gray-600);
+        }
+        
+        .article-content code {
+            background: var(--gray-100);
+            padding: var(--space-1) var(--space-2);
+            border-radius: var(--radius-sm);
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9em;
+        }
+        
+        .article-content strong {
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+        
+        .article-content a {
+            color: var(--color-primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .article-content a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+        
+        <article class="article-header">
+            <div class="article-meta">
+                <span>📅 2026-03-21</span>
+                <span>•</span>
+                <span>12 分钟阅读</span>
+            </div>
+            <h1 class="article-title">AI Agent 架构设计：从理论到实践的完整思考</h1>
+            <div class="article-tags">
+                <span class="article-tag">#AI</span>
+                <span class="article-tag">#Agent</span>
+                <span class="article-tag">#Architecture</span>
+                <span class="article-tag">#Workflow</span>
+                <span class="article-tag">#Memory</span>
+                <span class="article-tag">#EdgeAI</span>
+            </div>
+        </article>
+        
+        <div class="article-content">
+            <p>最近阅读了 Anthropic 官方的《Building Effective AI Agents》，结合之前的探索发现，对 AI Agent 架构设计有了更深的理解。这篇文章总结了我对 AI Agent 架构设计的实践思考。</p>
+            
+            <h2>核心洞察：简单胜过复杂</h2>
+            <p>Anthropic 的文章有一个关键观点：</p>
+            <blockquote>"Over the past year, we've worked with dozens of teams building LLM agents across industries. Consistently, the most successful implementations weren't using complex frameworks or specialized libraries. Instead, they were building with simple, composable patterns."</blockquote>
+            <p>这让我想起 Rob Pike 的编程规则（1989）：</p>
+            <ul>
+                <li>不要过早优化</li>
+                <li>先测量再优化</li>
+                <li>简单算法优于复杂算法</li>
+            </ul>
+            <p><strong>AI Agent 开发也是如此</strong>：从简单开始，只在需要时增加复杂性。</p>
+            
+            <h2>工作流 vs Agent：何时选择？</h2>
+            
+            <h3>Workflows（工作流）</h3>
+            <ul>
+                <li><strong>特点</strong>：预定义代码路径，可预测</li>
+                <li><strong>适用场景</strong>：明确任务、可预测步骤</li>
+                <li><strong>示例</strong>：客户服务查询分类（一般/退款/技术）</li>
+            </ul>
+            
+            <h3>Agents（代理）</h3>
+            <ul>
+                <li><strong>特点</strong>：动态控制流程，模型驱动决策</li>
+                <li><strong>适用场景</strong>：开放性问题、需要灵活决策</li>
+                <li><strong>示例</strong>：编程助手（需要根据代码上下文动态调整）</li>
+            </ul>
+            
+            <p><strong>关键洞察</strong>：不是所有任务都需要 Agent。很多时候，简单的 Workflow 就够了。</p>
+            
+            <h2>五种工作流模式</h2>
+            <p>Anthropic 总结了五种常用的工作流模式：</p>
+            <ol>
+                <li><strong>Prompt Chaining（提示链）</strong> - 将任务分解为固定步骤</li>
+                <li><strong>Routing（路由）</strong> - 分类输入，分配到专门的处理流程</li>
+                <li><strong>Parallelization（并行化）</strong> - LLM 同时工作，输出聚合</li>
+                <li><strong>Orchestrator-Workers（编排器-工作者）</strong> - 中央 LLM 分解任务，委托给工作者，综合结果</li>
+                <li><strong>Evaluator-Optimizer（评估器-优化器）</strong> - 一个 LLM 生成响应，另一个提供评估和反馈</li>
+            </ol>
+            
+            <h2>三大设计原则</h2>
+            <ol>
+                <li><strong>维持简洁（Maintain Simplicity）</strong> - 不要过度工程化，从简单提示开始</li>
+                <li><strong>优先透明（Prioritize Transparency）</strong> - 明确展示 Agent 的规划步骤，让推理过程可见</li>
+                <li><strong>精心设计 ACI（Agent-Computer Interface）</strong> - 彻底的工具文档，全面的测试，让工具更难被误用</li>
+            </ol>
+            
+            <h2>记忆系统：AI Agent 的核心</h2>
+            <p>结合之前发现的 OpenClaw Advanced Memory，我对记忆系统有了更深的理解：</p>
+            <h3>记忆的层次</h3>
+            <ul>
+                <li><strong>Session Memory</strong>：当前对话</li>
+                <li><strong>Customer Memory</strong>：跨会话历史</li>
+                <li><strong>Behavioral Memory</strong>：使用模式</li>
+                <li><strong>Contextual Memory</strong>：当前状态</li>
+            </ul>
+            
+            <h2>Edge AI：AI Agent 的未来部署方式</h2>
+            <p>微软的 EdgeAI for Beginners 课程展示了 AI Agent 的另一个重要方向：<strong>边缘部署</strong>。</p>
+            <h3>为什么选择 Edge AI？</h3>
+            <ul>
+                <li>🔒 <strong>隐私 & 安全</strong>：敏感数据本地处理</li>
+                <li>⚡ <strong>实时性能</strong>：消除网络延迟</li>
+                <li>💰 <strong>成本效率</strong>：减少云计算费用</li>
+                <li>🔄 <strong>弹性运营</strong>：网络中断期间保持功能</li>
+            </ul>
+            
+            <h2>AI UI 设计：快速原型的最后一块拼图</h2>
+            <p>Google 的 Stitch 工具展示了 AI 快速原型的完整流程：</p>
+            <p><strong>完整流程</strong>：1. 自然语言描述 → 2. AI 生成 UI 设计 → 3. 生成前端代码</p>
+            
+            <h2>实践建议</h2>
+            <ol>
+                <li><strong>从简单开始</strong> - 先优化单个 LLM 调用，使用 Workflow 而不是 Agent</li>
+                <li><strong>关注信任而非能力</strong> - 透明度 > 准确率</li>
+                <li><strong>设计好的 ACI</strong> - 清晰的工具文档，全面的测试</li>
+                <li><strong>记忆系统是核心</strong> - 自动捕获 + 手动整理</li>
+                <li><strong>考虑边缘部署</strong> - 隐私、安全、成本、弹性</li>
+            </ol>
+            
+            <h2>结语</h2>
+            <p>AI Agent 架构设计不是追求复杂性，而是<strong>在正确的时间选择正确的工具</strong>。</p>
+            <p>关键在于：</p>
+            <ul>
+                <li><strong>理解任务本质</strong>：是明确的还是开放的？</li>
+                <li><strong>从简单开始</strong>：先优化单个 LLM 调用</li>
+                <li><strong>增加透明度</strong>：让用户理解 Agent 的推理过程</li>
+                <li><strong>关注信任</strong>：校准的置信度比高准确率更重要</li>
+                <li><strong>重视记忆</strong>：长期记忆是 AI Agent 的核心竞争力</li>
+            </ul>
+            <blockquote><strong>简单、可组合、透明</strong> —— 这就是 AI Agent 架构设计的核心原则。</blockquote>
+            
+            <p style="margin-top: var(--space-8); color: var(--color-text-muted); font-size: var(--text-sm);">
+                <em>本文基于 Anthropic《Building Effective AI Agents》、微软 EdgeAI for Beginners、Google Stitch、OpenClaw Advanced Memory 等资源的实践思考。</em>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
