@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 开发的三个进化方向：Agent、嵌入式、快速原型 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+            font-size: var(--text-base);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+
+        header {
+            margin-bottom: var(--space-12);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: var(--color-text-secondary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .back-link:hover {
+            color: var(--color-primary);
+        }
+
+        article {
+            background: var(--surface-1);
+            border-radius: var(--radius-xl);
+            padding: var(--space-12);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-3xl);
+            font-weight: 800;
+            margin-bottom: var(--space-4);
+            line-height: 1.2;
+        }
+
+        .meta {
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-8);
+            padding-bottom: var(--space-6);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        h2 {
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            margin-top: var(--space-12);
+            margin-bottom: var(--space-6);
+            color: var(--gray-900);
+        }
+
+        h3 {
+            font-size: var(--text-xl);
+            font-weight: 600;
+            margin-top: var(--space-8);
+            margin-bottom: var(--space-4);
+            color: var(--gray-800);
+        }
+
+        h4 {
+            font-size: var(--text-lg);
+            font-weight: 600;
+            margin-top: var(--space-6);
+            margin-bottom: var(--space-3);
+            color: var(--gray-700);
+        }
+
+        p {
+            margin-bottom: var(--space-4);
+            color: var(--color-text-secondary);
+        }
+
+        ul, ol {
+            margin-bottom: var(--space-4);
+            padding-left: var(--space-6);
+        }
+
+        li {
+            margin-bottom: var(--space-2);
+            color: var(--color-text-secondary);
+        }
+
+        code {
+            background: var(--gray-100);
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-50);
+            padding: var(--space-6);
+            border-radius: var(--radius-lg);
+            overflow-x: auto;
+            margin-bottom: var(--space-6);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-6);
+            margin: var(--space-6) 0;
+            color: var(--color-text-secondary);
+            font-style: italic;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: var(--space-6);
+        }
+
+        th, td {
+            padding: var(--space-3) var(--space-4);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--gray-900);
+            background: var(--gray-50);
+        }
+
+        td {
+            color: var(--color-text-secondary);
+        }
+
+        strong {
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
+        em {
+            font-style: italic;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid var(--gray-200);
+            margin: var(--space-12) 0;
+        }
+
+        .tags {
+            margin-top: var(--space-12);
+            padding-top: var(--space-6);
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+        </header>
+
+        <article>
+            <h1>AI 开发的三个进化方向：Agent、嵌入式、快速原型</h1>
+            <div class="meta">2026-03-26 · 技术随笔 · ~4,500 字</div>
+
+            <blockquote>
+                <p>基于 agent-task-cli、local-embedding-memory、Embedded AI 探索实践</p>
+            </blockquote>
+
+            <h2>引言：AI 开发范式的转变</h2>
+            <p>过去一年，AI 开发从"调用 API"进化到"构建智能体"，再到"边缘智能 + 自主开发"。这个演变不是线性的，而是三个方向并行爆发：</p>
+            <ol>
+                <li><strong>AI Agent 编程</strong> - 从工具使用者到自主开发者</li>
+                <li><strong>AI 嵌入式</strong> - 从云端到边缘，从通用到专用</li>
+                <li><strong>AI 快速原型</strong> - 从数周到数小时，从概念到产品</li>
+            </ol>
+            <p>这三个方向不是孤立的，它们正在融合成一种全新的开发范式。</p>
+
+            <h2>一、AI Agent 编程：当 AI 成为你的队友</h2>
+
+            <h3>1.1 从 Prompt Engineering 到 Agent Orchestration</h3>
+            <p>2023 年，我们学的是"如何写好提示词"。2024 年，我们开始"编排多个 Agent"。2026 年，Agent 已经能自主完成复杂任务。</p>
+            <p><strong>agent-task-cli 的实践告诉我：</strong></p>
+            <p>单 Agent 时代结束了。真正有价值的是<strong>多 Agent 协作</strong>：</p>
+            <pre><code>┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│  Planner    │────▶│   Executor   │────▶│  Reviewer   │
+│  (规划器)    │     │   (执行器)     │     │  (审查者)    │
+└─────────────┘     └──────────────┘     └─────────────┘
+      │                    │                    │
+      └────────────────────┴────────────────────┘
+                     Feedback Loop</code></pre>
+            <p>这种模式的核心不是"让 AI 更聪明"，而是<strong>让多个专用 AI 互相制衡</strong>：</p>
+            <ul>
+                <li>Planner 负责规划，但不执行</li>
+                <li>Executor 负责执行，但不评估</li>
+                <li>Reviewer 负责审查，但不修改</li>
+            </ul>
+            <p><strong>我的观点：</strong> Agent 编程的本质是<strong>分权制衡</strong>，而不是追求 AGI。</p>
+
+            <h3>1.2 Agent 的执行模式之争</h3>
+            <p>在实践中，我发现 Agent 有三种基本执行模式：</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>模式</th>
+                        <th>适用场景</th>
+                        <th>优点</th>
+                        <th>缺点</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>PTY</strong></td>
+                        <td>交互式 CLI、TUI</td>
+                        <td>实时反馈、支持用户输入</td>
+                        <td>资源占用高</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Print</strong></td>
+                        <td>编码任务、文件操作</td>
+                        <td>输出结构化、易于解析</td>
+                        <td>无交互能力</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Background</strong></td>
+                        <td>长时间任务、批量处理</td>
+                        <td>不阻塞、可并行</td>
+                        <td>难以调试</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><strong>错误认知：</strong> 很多人认为"PTY 最好，因为它最像人"。</p>
+            <p><strong>正确认知：</strong> 选择执行模式要看<strong>任务特性</strong>，不是追求"像人"。</p>
+
+            <h3>1.3 自主编程循环：Ralph 模式</h3>
+            <p><strong>Ralph Wiggum 循环</strong>是我实践过的最有价值的 Agent 模式：</p>
+            <pre><code>PLAN → BUILD → TEST → REVIEW → (repeat until done)</code></pre>
+            <p>它的核心思想是<strong>迭代式自主开发</strong>：</p>
+            <ol>
+                <li>Agent 先制定计划（PLAN）</li>
+                <li>实现代码（BUILD）</li>
+                <li>运行测试（TEST）</li>
+                <li>根据结果调整（REVIEW）</li>
+                <li>如果没完成，回到步骤 1</li>
+            </ol>
+            <p><strong>关键洞察：</strong> 自主性不是"一次性做对"，而是<strong>快速试错、持续改进</strong>。</p>
+
+            <h2>二、AI 嵌入式：边缘智能的崛起</h2>
+
+            <h3>2.1 为什么需要嵌入式 AI？</h3>
+            <p>云端 AI 有三个致命问题：</p>
+            <ol>
+                <li><strong>延迟</strong> - 网络往返至少 50-200ms</li>
+                <li><strong>隐私</strong> - 数据离开设备</li>
+                <li><strong>可靠性</strong> - 依赖网络连接</li>
+            </ol>
+            <p>边缘 AI 解决了这些问题：</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>特性</th>
+                        <th>云端 AI</th>
+                        <th>边缘 AI</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>延迟</td>
+                        <td>50-200ms</td>
+                        <td>1-10ms</td>
+                    </tr>
+                    <tr>
+                        <td>隐私</td>
+                        <td>数据上传</td>
+                        <td>本地处理</td>
+                    </tr>
+                    <tr>
+                        <td>离线</td>
+                        <td>❌ 不支持</td>
+                        <td>✅ 支持</td>
+                    </tr>
+                    <tr>
+                        <td>成本</td>
+                        <td>按请求付费</td>
+                        <td>一次性硬件</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><strong>我的判断：</strong> 未来 5 年，<strong>80% 的 AI 推理会发生在边缘</strong>。</p>
+
+            <h3>2.2 技术栈：TensorFlow Lite Micro + Edge Impulse</h3>
+            <p>我的探索路径：</p>
+            <p><strong>TensorFlow Lite Micro：</strong></p>
+            <ul>
+                <li>支持 ARM Cortex-M 系列</li>
+                <li>模型大小 &lt; 256KB</li>
+                <li>运行时内存 &lt; 100KB</li>
+                <li>适合：关键词检测、手势识别、异常检测</li>
+            </ul>
+            <p><strong>Edge Impulse：</strong></p>
+            <ul>
+                <li>端到端 ML 平台</li>
+                <li>自动数据采集、标注、训练、部署</li>
+                <li>支持 Arduino、ESP32、Raspberry Pi</li>
+                <li>适合：快速原型、教育、小规模生产</li>
+            </ul>
+
+            <h3>2.3 模型量化：从浮点到整数</h3>
+            <p>边缘设备算力有限，模型量化是必需品：</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>量化方式</th>
+                        <th>精度损失</th>
+                        <th>模型大小</th>
+                        <th>推理速度</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>FP32</td>
+                        <td>0%</td>
+                        <td>100%</td>
+                        <td>基准</td>
+                    </tr>
+                    <tr>
+                        <td>FP16</td>
+                        <td>&lt;1%</td>
+                        <td>50%</td>
+                        <td>2x</td>
+                    </tr>
+                    <tr>
+                        <td>INT8</td>
+                        <td>1-3%</td>
+                        <td>25%</td>
+                        <td>4x</td>
+                    </tr>
+                    <tr>
+                        <td>INT4</td>
+                        <td>3-5%</td>
+                        <td>12.5%</td>
+                        <td>8x</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><strong>实践经验：</strong> INT8 是最佳平衡点 - 精度损失小，收益明显。</p>
+
+            <h2>三、AI 快速原型：从概念到产品</h2>
+
+            <h3>3.1 开发效率的指数级提升</h3>
+            <p><strong>传统开发 vs AI 辅助开发：</strong></p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>任务</th>
+                        <th>传统方式</th>
+                        <th>AI 辅助</th>
+                        <th>提升倍数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>写一个 CLI 工具</td>
+                        <td>2-3 天</td>
+                        <td>2-3 小时</td>
+                        <td>10x</td>
+                    </tr>
+                    <tr>
+                        <td>创建文档网站</td>
+                        <td>1 周</td>
+                        <td>1 天</td>
+                        <td>7x</td>
+                    </tr>
+                    <tr>
+                        <td>实现算法原型</td>
+                        <td>1 天</td>
+                        <td>30 分钟</td>
+                        <td>16x</td>
+                    </tr>
+                    <tr>
+                        <td>编写测试用例</td>
+                        <td>4 小时</td>
+                        <td>30 分钟</td>
+                        <td>8x</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><strong>这不是夸张，是我的实际体验。</strong></p>
+
+            <h3>3.2 工具链整合：ai-toolkit 的愿景</h3>
+            <p>我正在构建一个统一的 CLI：</p>
+            <pre><code># 现在需要多个工具
+agent-task orchestrate task.json
+mcporter call openai chat
+openclaw gateway status
+
+# 未来只需要一个
+ai task run task.json
+ai model chat "Hello"
+ai system status</code></pre>
+            <p><strong>核心原则：</strong></p>
+            <ol>
+                <li><strong>零依赖优先</strong> - 减少安装摩擦</li>
+                <li><strong>文档 &gt; 功能</strong> - 未文档化的功能等于不存在</li>
+                <li><strong>可组合性</strong> - 小工具 &gt; 大平台</li>
+            </ol>
+
+            <h2>四、三个方向的融合</h2>
+
+            <h3>4.1 Agent + 嵌入式 = 边缘智能体</h3>
+            <p>想象一个场景：</p>
+            <ul>
+                <li>你的 Raspberry Pi 运行一个本地 Agent</li>
+                <li>它能理解语音（本地 STT）</li>
+                <li>它能推理决策（本地 LLM）</li>
+                <li>它能控制设备（GPIO）</li>
+            </ul>
+            <p><strong>不需要云端，隐私完全保护，响应毫秒级。</strong></p>
+
+            <h3>4.2 嵌入式 + 快速原型 = 硬件敏捷开发</h3>
+            <p>传统硬件开发周期：数月到数年。</p>
+            <p>AI 嵌入式 + 快速原型：数天到数周。</p>
+            <pre><code>需求 → Edge Impulse 训练 → 部署到 ESP32 → 测试验证 → 迭代
+       ↑___________________________________|
+                    快速循环</code></pre>
+
+            <h3>4.3 快速原型 + Agent = 自主开发流水线</h3>
+            <p>终极形态：</p>
+            <ol>
+                <li>你用自然语言描述需求</li>
+                <li>Agent 分析需求，制定计划</li>
+                <li>Agent 编写代码，运行测试</li>
+                <li>Agent 部署到目标平台</li>
+                <li>Agent 监控运行，自动修复</li>
+            </ol>
+            <p><strong>你只需要提出想法，AI 完成剩下的工作。</strong></p>
+
+            <h2>五、我的实践建议</h2>
+
+            <h3>5.1 如果你想学习 AI Agent 编程</h3>
+            <p><strong>起点：</strong></p>
+            <ol>
+                <li>从单 Agent 开始（Claude Code、Codex）</li>
+                <li>学习 Prompt Engineering（不是过时，是基础）</li>
+                <li>理解执行模式（PTY vs Print vs Background）</li>
+                <li>尝试多 Agent 编排（agent-task-cli）</li>
+            </ol>
+            <p><strong>避坑：</strong></p>
+            <ul>
+                <li>不要追求"最智能"的 Agent</li>
+                <li>不要忽视测试和文档</li>
+                <li>不要一次性引入太多 Agent</li>
+            </ul>
+
+            <h3>5.2 如果你想探索 AI 嵌入式</h3>
+            <p><strong>起点：</strong></p>
+            <ol>
+                <li>买一个 Raspberry Pi（最友好的入门平台）</li>
+                <li>学习 TensorFlow Lite（生态最成熟）</li>
+                <li>尝试 Edge Impulse（零代码体验）</li>
+                <li>实践一个小项目（如语音控制灯）</li>
+            </ol>
+
+            <h3>5.3 如果你想提升原型效率</h3>
+            <p><strong>起点：</strong></p>
+            <ol>
+                <li>选择一个 AI 编码助手（Claude Code、Cursor、Copilot）</li>
+                <li>学习 Conventional Commits（规范化协作）</li>
+                <li>建立测试习惯（AI 生成代码需要验证）</li>
+                <li>记录你的工作流（形成个人方法论）</li>
+            </ol>
+
+            <h2>六、未来展望</h2>
+
+            <h3>6.1 短期（1-2 年）</h3>
+            <ul>
+                <li><strong>Agent 编排</strong> 成为标准实践</li>
+                <li><strong>边缘 AI</strong> 在消费设备普及</li>
+                <li><strong>低代码/无代码</strong> 平台成熟</li>
+            </ul>
+
+            <h3>6.2 中期（3-5 年）</h3>
+            <ul>
+                <li><strong>自主开发流水线</strong> 成为常态</li>
+                <li><strong>端侧大模型</strong>（7B-13B）可运行在手机</li>
+                <li><strong>AI 生成硬件</strong>（PCB、3D 打印）普及</li>
+            </ul>
+
+            <h3>6.3 长期（5-10 年）</h3>
+            <ul>
+                <li><strong>AGI</strong>（通用人工智能）可能出现</li>
+                <li><strong>人机协作</strong> 模式根本性改变</li>
+                <li><strong>软件开发</strong> 的定义被重新书写</li>
+            </ul>
+
+            <h2>结语：拥抱变化，保持清醒</h2>
+            <p>AI 开发的三个方向 - Agent、嵌入式、快速原型 - 正在重塑我们的工作方式。</p>
+            <p><strong>但记住：</strong></p>
+            <ol>
+                <li><strong>工具是手段，不是目的</strong> - 解决问题才是核心</li>
+                <li><strong>保持学习，保持怀疑</strong> - 技术在变，原则不变</li>
+                <li><strong>实践出真知</strong> - 动手做，别光看</li>
+            </ol>
+            <blockquote>
+                <p>"The best way to predict the future is to invent it."<br>
+                — Alan Kay</p>
+            </blockquote>
+
+            <div class="tags">
+                <span class="tag">#AI</span>
+                <span class="tag">#Agent</span>
+                <span class="tag">#EmbeddedAI</span>
+                <span class="tag">#EdgeComputing</span>
+                <span class="tag">#RapidPrototyping</span>
+            </div>
+        </article>
+    </div>
+</body>
+</html>
