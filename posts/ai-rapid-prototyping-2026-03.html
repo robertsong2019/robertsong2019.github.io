@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 快速原型开发：从 Agent 编程到嵌入式部署 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+            font-size: var(--text-base);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+
+        header {
+            margin-bottom: var(--space-12);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-weight: 500;
+            margin-bottom: var(--space-6);
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--color-primary-hover);
+        }
+
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-4xl);
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: var(--space-4);
+            background: linear-gradient(135deg, var(--gray-900) 0%, var(--primary-600) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .meta {
+            display: flex;
+            gap: var(--space-4);
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-8);
+        }
+
+        .tag {
+            background: var(--gray-200);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-xs);
+            font-weight: 500;
+            color: var(--gray-700);
+        }
+
+        .content h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            margin-top: var(--space-12);
+            margin-bottom: var(--space-4);
+            color: var(--gray-900);
+        }
+
+        .content h3 {
+            font-size: var(--text-xl);
+            font-weight: 600;
+            margin-top: var(--space-8);
+            margin-bottom: var(--space-3);
+            color: var(--gray-800);
+        }
+
+        .content p {
+            margin-bottom: var(--space-4);
+            color: var(--color-text-secondary);
+        }
+
+        .content ul, .content ol {
+            margin-bottom: var(--space-4);
+            padding-left: var(--space-6);
+        }
+
+        .content li {
+            margin-bottom: var(--space-2);
+            color: var(--color-text-secondary);
+        }
+
+        .content strong {
+            color: var(--color-text-primary);
+            font-weight: 600;
+        }
+
+        .content code {
+            background: var(--gray-100);
+            padding: 0.125rem 0.375rem;
+            border-radius: var(--radius-sm);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.875em;
+            color: var(--primary-600);
+        }
+
+        .content pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-6);
+            border-radius: var(--radius-lg);
+            overflow-x: auto;
+            margin-bottom: var(--space-6);
+        }
+
+        .content pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        .quote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-4);
+            margin: var(--space-6) 0;
+            font-style: italic;
+            color: var(--color-text-muted);
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: var(--space-6);
+            margin: var(--space-6) 0;
+        }
+
+        .highlight-box h4 {
+            font-weight: 600;
+            margin-bottom: var(--space-3);
+            color: var(--primary-600);
+        }
+
+        .mermaid {
+            background: var(--gray-50);
+            padding: var(--space-6);
+            border-radius: var(--radius-lg);
+            text-align: center;
+            margin: var(--space-6) 0;
+            font-family: monospace;
+            font-size: var(--text-sm);
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        .toc {
+            background: var(--surface-1);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: var(--space-6);
+            margin-bottom: var(--space-8);
+        }
+
+        .toc h4 {
+            font-weight: 600;
+            margin-bottom: var(--space-3);
+            color: var(--gray-700);
+        }
+
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .toc li {
+            margin-bottom: var(--space-2);
+        }
+
+        .toc a {
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        footer {
+            margin-top: var(--space-16);
+            padding-top: var(--space-8);
+            border-top: 1px solid var(--gray-200);
+            text-align: center;
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="../index.html" class="back-link">← 返回首页</a>
+            <h1>AI 快速原型开发：从 Agent 编程到嵌入式部署</h1>
+            <div class="meta">
+                <span>2026年3月27日</span>
+                <span>·</span>
+                <span>约 12 分钟阅读</span>
+            </div>
+            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                <span class="tag">AI Agent</span>
+                <span class="tag">嵌入式 AI</span>
+                <span class="tag">快速原型</span>
+                <span class="tag">零依赖设计</span>
+            </div>
+        </header>
+
+        <nav class="toc">
+            <h4>目录</h4>
+            <ul>
+                <li><a href="#intro">引言：当 AI 开发遇上工程约束</a></li>
+                <li><a href="#agent-programming">一、AI Agent 编程的演进</a></li>
+                <li><a href="#embedded-ai">二、嵌入式 AI：从云端到边缘</a></li>
+                <li><a href="#rapid-prototyping">三、快速原型开发的艺术</a></li>
+                <li><a href="#prompt-weaver">四、实战：Prompt Weaver 零依赖编排引擎</a></li>
+                <li><a href="#conclusion">五、结语</a></li>
+            </ul>
+        </nav>
+
+        <article class="content">
+            <section id="intro">
+                <p>在过去的几周里，我一直在探索一个有趣的问题：<strong>如何在资源受限的环境下快速构建 AI 应用？</strong></p>
+                <p>这个问题引领我走进了三个看似独立却又紧密相关的领域：AI Agent 编程、嵌入式 AI、以及快速原型开发。今天，我想分享这段时间的探索成果和实践心得。</p>
+            </section>
+
+            <section id="agent-programming">
+                <h2>一、AI Agent 编程的演进</h2>
+                
+                <h3>从单体到编排</h3>
+                <p>AI Agent 的发展正在经历一个重要的范式转变：从单一功能的 Agent 到多 Agent 编排系统。这种转变不仅仅是架构上的变化，更是对复杂问题解决方式的重新思考。</p>
+                
+                <div class="highlight-box">
+                    <h4>现代 Agent 架构的五大核心组件</h4>
+                    <ol>
+                        <li><strong>核心循环</strong>：推理 → 行动 → 观察</li>
+                        <li><strong>工具系统</strong>：赋予 Agent 具体能力</li>
+                        <li><strong>记忆系统</strong>：上下文与状态管理</li>
+                        <li><strong>技能层</strong>：领域专业知识</li>
+                        <li><strong>编排层</strong>：协调多个 Agent 协作</li>
+                    </ol>
+                </div>
+
+                <h3>三种执行模式</h3>
+                <p>在实践中，我发现 Agent 的执行模式可以分为三种：</p>
+                <ul>
+                    <li><strong>交互模式 (PTY)</strong>：适用于需要终端 UI 的工具（如 Codex）</li>
+                    <li><strong>打印模式</strong>：适用于程序化执行（如 Claude Code）</li>
+                    <li><strong>后台模式</strong>：用于长时间运行的任务</li>
+                </ul>
+
+                <p>理解这些模式的差异，对于选择合适的技术栈至关重要。</p>
+
+                <h3>多 Agent 编排模式</h3>
+                <p>当面对复杂任务时，单 Agent 往往力不从心。这时候就需要编排器（Orchestrator）来协调多个 Agent：</p>
+                
+                <div class="mermaid">
+graph TD
+    A[Orchestrator] --> B[解析参数]
+    B --> C[获取任务]
+    C --> D[预检查]
+    D --> E[并行启动子Agent]
+    E --> F[Agent 1: 分析]
+    E --> G[Agent 2: 实现]
+    E --> H[Agent 3: 测试]
+    F --> I[监控与审查]
+    G --> I
+    H --> I
+    I --> J[输出结果]
+                </div>
+
+                <p>这种模式在 GitHub Issue 自动化处理、代码审查等场景中表现出色。</p>
+            </section>
+
+            <section id="embedded-ai">
+                <h2>二、嵌入式 AI：从云端到边缘</h2>
+                
+                <h3>为什么需要 Edge AI？</h3>
+                <p>云端 AI 虽然强大，但在某些场景下存在明显的局限性：</p>
+                <ul>
+                    <li><strong>延迟</strong>：网络往返可能需要数百毫秒</li>
+                    <li><strong>隐私</strong>：敏感数据需要留在本地</li>
+                    <li><strong>可靠性</strong>：离线场景需要本地处理能力</li>
+                    <li><strong>成本</strong>：大规模部署时云端费用可观</li>
+                </ul>
+
+                <div class="highlight-box">
+                    <h4>Edge AI vs Cloud AI 对比</h4>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr style="border-bottom: 1px solid var(--gray-200);">
+                            <td style="padding: 8px;"><strong>维度</strong></td>
+                            <td style="padding: 8px;"><strong>Edge AI</strong></td>
+                            <td style="padding: 8px;"><strong>Cloud AI</strong></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--gray-200);">
+                            <td style="padding: 8px;">延迟</td>
+                            <td style="padding: 8px;">毫秒级</td>
+                            <td style="padding: 8px;">百毫秒~秒级</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--gray-200);">
+                            <td style="padding: 8px;">隐私</td>
+                            <td style="padding: 8px;">数据不出设备</td>
+                            <td style="padding: 8px;">数据上传云端</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--gray-200);">
+                            <td style="padding: 8px;">离线</td>
+                            <td style="padding: 8px;">✓ 完全支持</td>
+                            <td style="padding: 8px;">✗ 需要网络</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px;">算力</td>
+                            <td style="padding: 8px;">有限</td>
+                            <td style="padding: 8px;">强大</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <h3>主流框架：TensorFlow Lite Micro</h3>
+                <p>TensorFlow Lite Micro 是专为微控制器设计的推理框架，它的特点是：</p>
+                <ul>
+                    <li>最小模型仅需 <strong>16KB RAM</strong></li>
+                    <li>支持 ARM Cortex-M 系列</li>
+                    <li>提供 C++ 和 MicroPython 接口</li>
+                    <li>谷歌官方维护，生态成熟</li>
+                </ul>
+
+                <h3>混合模式：最佳实践</h3>
+                <p>在实际应用中，混合模式往往是最优解：</p>
+                <ul>
+                    <li><strong>Edge 端</strong>：快速响应、实时决策</li>
+                    <li><strong>Cloud 端</strong>：深度分析、模型训练</li>
+                    <li><strong>协同</strong>：根据场景自适应切换</li>
+                </ul>
+
+                <p>这种架构在智能家居、工业 IoT、自动驾驶等领域已经得到广泛应用。</p>
+            </section>
+
+            <section id="rapid-prototyping">
+                <h2>三、快速原型开发的艺术</h2>
+                
+                <h3>零依赖设计哲学</h3>
+                <p>在探索过程中，我逐渐形成了一套"零依赖优先"的设计哲学：</p>
+                
+                <div class="quote">
+                    "好的工具应该像 Unix pipe —— 简单、可组合、可预测。每个组件只做一件事，但把它做好。"
+                </div>
+
+                <p>零依赖设计的优势：</p>
+                <ul>
+                    <li><strong>无版本冲突</strong>：不用担心依赖包的兼容性问题</li>
+                    <li><strong>安装简单</strong>：无需 pip install，开箱即用</li>
+                    <li><strong>可移植性强</strong>：可以在任何环境运行</li>
+                    <li><strong>维护成本低</strong>：不需要追踪依赖更新</li>
+                </ul>
+
+                <h3>快速原型的核心原则</h3>
+                <ol>
+                    <li><strong>从简单开始</strong>：先实现核心功能，再逐步增强</li>
+                    <li><strong>渐进式复杂度</strong>：根据需求添加特性，避免过度设计</li>
+                    <li><strong>文档驱动</strong>：好的文档比复杂的功能更有价值</li>
+                    <li><strong>测试先行</strong>：测试覆盖率是质量的保障</li>
+                </ol>
+
+                <h3>从原型到产品</h3>
+                <p>快速原型的目的不是停留在原型阶段，而是快速验证想法、收集反馈、迭代改进。一个好的原型应该：</p>
+                <ul>
+                    <li>在 <strong>1-2 天</strong>内完成核心功能</li>
+                    <li>有 <strong>80%+</strong> 的测试覆盖率</li>
+                    <li>有清晰的 <strong>README</strong> 和使用示例</li>
+                    <li>能够 <strong>演示</strong> 核心价值</li>
+                </ul>
+            </section>
+
+            <section id="prompt-weaver">
+                <h2>四、实战：Prompt Weaver 零依赖编排引擎</h2>
+                
+                <p>基于上述理念，我创建了 <strong>Prompt Weaver</strong> —— 一个零依赖的 Prompt 编排引擎。</p>
+
+                <h3>设计目标</h3>
+                <ul>
+                    <li>零依赖，纯 Python 标准库实现</li>
+                    <li>链式 API，流畅的构建体验</li>
+                    <li>YAML 配置支持</li>
+                    <li>自动生成 Mermaid 流程图</li>
+                </ul>
+
+                <h3>核心功能</h3>
+                
+                <div class="highlight-box">
+                    <h4>模板引擎</h4>
+                    <pre><code># 变量替换
+prompt = "Hello, {{name}}!"
+
+# 过滤器支持
+prompt = "Name: {{name | upper}}"</code></pre>
+                </div>
+
+                <div class="highlight-box">
+                    <h4>链式 API</h4>
+                    <pre><code>from weaver import Chain
+
+result = (Chain()
+    .prompt("Analyze: {{text}}")
+    .transform("upper")
+    .output())</code></pre>
+                </div>
+
+                <div class="highlight-box">
+                    <h4>条件分支</h4>
+                    <pre><code>chain = (Chain()
+    .prompt("Score: {{score}}")
+    .branch(
+        condition=lambda ctx: ctx["score"] >= 60,
+        true_node=Node("Pass").prompt("Congratulations!"),
+        false_node=Node("Fail").prompt("Keep trying!")
+    ))</code></pre>
+                </div>
+
+                <h3>项目统计</h3>
+                <ul>
+                    <li>Python 代码：<strong>~500 行</strong></li>
+                    <li>测试：<strong>17 tests, 100% 通过</strong></li>
+                    <li>依赖：<strong>0</strong>（纯标准库）</li>
+                </ul>
+
+                <h3>适用场景</h3>
+                <ul>
+                    <li>AI Agent 工具快速原型</li>
+                    <li>Prompt 模板管理</li>
+                    <li>数据处理管道</li>
+                    <li>工作流编排</li>
+                    <li>教学和演示</li>
+                </ul>
+            </section>
+
+            <section id="conclusion">
+                <h2>五、结语</h2>
+                
+                <p>这次探索让我深刻体会到：<strong>好的工具设计不需要复杂的依赖，简单的架构往往更可靠。</strong></p>
+
+                <p>从 AI Agent 编程到嵌入式部署，从云端到边缘，核心的设计原则是一致的：</p>
+                <ol>
+                    <li><strong>模块化</strong>：小而美的组件，可独立测试</li>
+                    <li><strong>可组合</strong>：像搭积木一样组合功能</li>
+                    <li><strong>渐进式</strong>：从简单开始，按需增强</li>
+                    <li><strong>文档优先</strong>：代码是写给人看的</li>
+                </ol>
+
+                <div class="quote">
+                    "AI 的未来不在于更大的模型，而在于更聪明的工具和更好的工程实践。"
+                </div>
+
+                <p>接下来，我计划将 Prompt Weaver 进一步完善，添加循环支持、并行执行、错误处理等特性。同时，也会继续探索 Edge AI 在实际项目中的应用。</p>
+
+                <p><strong>相关项目：</strong></p>
+                <ul>
+                    <li>Agent Task CLI - 多 Agent 任务编排（109 tests, 80%+ coverage）</li>
+                    <li>Prompt Weaver - 零依赖 Prompt 编排引擎（17 tests）</li>
+                    <li>Local Embedding Memory - OpenClaw 语义记忆插件</li>
+                </ul>
+
+                <p>如果你对这些话题感兴趣，欢迎交流讨论！</p>
+
+                <hr style="margin: var(--space-8) 0; border: none; border-top: 1px solid var(--gray-200);">
+
+                <p style="font-size: var(--text-sm); color: var(--color-text-muted);">
+                    <em>本文基于 2026年3月 的探索和实践总结而成。代码已开源，详见 code-lab/ 目录。</em>
+                </p>
+            </section>
+        </article>
+
+        <footer>
+            <p>© 2026 Robert's Blog · 用代码思考，用文字记录</p>
+            <p style="margin-top: var(--space-2);">
+                <a href="../index.html" style="color: var(--color-primary); text-decoration: none;">首页</a>
+                ·
+                <a href="../essays.html" style="color: var(--color-primary); text-decoration: none;">随笔</a>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
