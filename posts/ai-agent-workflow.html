@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 开发工作流：从 brainstorming 到 TDD 的系统化实践 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+            font-size: var(--text-base);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+
+        header {
+            margin-bottom: var(--space-12);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: var(--color-text-secondary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .back-link:hover {
+            color: var(--color-primary);
+        }
+
+        article {
+            background: var(--surface-1);
+            border-radius: var(--radius-xl);
+            padding: var(--space-12);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-3xl);
+            font-weight: 800;
+            margin-bottom: var(--space-4);
+            line-height: 1.2;
+        }
+
+        .meta {
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-8);
+            padding-bottom: var(--space-6);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        h2 {
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            margin-top: var(--space-12);
+            margin-bottom: var(--space-6);
+            color: var(--gray-900);
+        }
+
+        h3 {
+            font-size: var(--text-xl);
+            font-weight: 600;
+            margin-top: var(--space-8);
+            margin-bottom: var(--space-4);
+            color: var(--gray-800);
+        }
+
+        h4 {
+            font-size: var(--text-lg);
+            font-weight: 600;
+            margin-top: var(--space-6);
+            margin-bottom: var(--space-3);
+            color: var(--gray-700);
+        }
+
+        p {
+            margin-bottom: var(--space-4);
+            color: var(--color-text-secondary);
+        }
+
+        ul, ol {
+            margin-bottom: var(--space-4);
+            padding-left: var(--space-6);
+        }
+
+        li {
+            margin-bottom: var(--space-2);
+            color: var(--color-text-secondary);
+        }
+
+        code {
+            background: var(--gray-100);
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-50);
+            padding: var(--space-6);
+            border-radius: var(--radius-lg);
+            overflow-x: auto;
+            margin-bottom: var(--space-6);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-6);
+            margin: var(--space-6) 0;
+            color: var(--color-text-secondary);
+            font-style: italic;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: var(--space-6);
+        }
+
+        th, td {
+            padding: var(--space-3) var(--space-4);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--gray-900);
+            background: var(--gray-50);
+        }
+
+        td {
+            color: var(--color-text-secondary);
+        }
+
+        strong {
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
+        em {
+            font-style: italic;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid var(--gray-200);
+            margin: var(--space-12) 0;
+        }
+
+        .tags {
+            margin-top: var(--space-12);
+            padding-top: var(--space-6);
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+            font-weight: 600;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, var(--primary-600) 0%, hsl(280, 70%, 50%) 100%);
+            color: white;
+            padding: var(--space-8);
+            border-radius: var(--radius-xl);
+            margin: var(--space-8) 0;
+        }
+
+        .highlight-box h3 {
+            color: white;
+            margin-top: 0;
+        }
+
+        .highlight-box ul {
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .highlight-box li {
+            color: rgba(255, 255, 255, 0.95);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+        </header>
+
+        <article>
+            <h1>AI Agent 开发工作流：从 brainstorming 到 TDD 的系统化实践</h1>
+            <div class="meta">2026-03-20 · 技术随笔 · ~6,000 字</div>
+
+            <blockquote>
+                <p>基于 OpenClaw 平台架构探索与 superpowers (96.1k stars) 工作流实践</p>
+            </blockquote>
+
+            <h2>引言：为什么需要系统化工作流？</h2>
+            <p>AI Agent 开发不同于传统软件开发。它需要：</p>
+            <ul>
+                <li><strong>迭代探索</strong> - 需求往往不明确，需要边做边发现</li>
+                <li><strong>快速验证</strong> - 想法需要快速原型验证可行性</li>
+                <li><strong>质量保证</strong> - AI 生成代码需要严格测试</li>
+                <li><strong>知识积累</strong> - 每次迭代都要沉淀可复用的知识</li>
+            </ul>
+            <p>superpowers 项目提供了一个完整的解决方案：7 步系统化工作流。</p>
+
+            <h2>一、Superpowers 工作流概览</h2>
+
+            <div class="highlight-box">
+                <h3>7 步开发流程</h3>
+                <ol>
+                    <li><strong>Brainstorming</strong> - 一次一个问题，深度探索需求</li>
+                    <li><strong>Git Worktrees</strong> - 并行开发，隔离环境</li>
+                    <li><strong>Writing Plans</strong> - 详细规划，分步执行</li>
+                    <li><strong>Subagent-Driven Development</strong> - 委托执行，提高效率</li>
+                    <li><strong>TDD (Test-Driven Development)</strong> - 先写测试，保证质量</li>
+                    <li><strong>Code Review</strong> - 多视角审查，发现盲点</li>
+                    <li><strong>Finishing Branch</strong> - 清理文档，合并代码</li>
+                </ol>
+            </div>
+
+            <h3>1.1 核心原则</h3>
+            <ul>
+                <li><strong>一次一个问题</strong> - 头脑风暴时避免上下文混乱</li>
+                <li><strong>TDD 永远</strong> - 先写失败测试，再写实现</li>
+                <li><strong>YAGNI</strong> - 从所有设计中删除不必要的功能</li>
+                <li><strong>DRY</strong> - 无重复代码</li>
+                <li><strong>系统化优于临时</strong> - 特别是在时间压力下遵循流程</li>
+                <li><strong>证据优于声明</strong> - 在宣布成功前验证</li>
+            </ul>
+
+            <h2>二、多 Agent 编排模式</h2>
+
+            <h3>2.1 五种核心模式</h3>
+
+            <h4>1. Work Crew（工作组）</h4>
+            <p><strong>场景：</strong>并行执行，多角度验证</p>
+            <pre><code>任务 → [Agent 1] → 结果 1
+     → [Agent 2] → 结果 2
+     → [Agent 3] → 结果 3
+     → [Agent 4] → 结果 4
+              ↓
+         Consensus/Merge</code></pre>
+            <p><strong>优势：</strong>冗余验证，提高质量</p>
+            <p><strong>成本：</strong>约 4x tokens</p>
+
+            <h4>2. Supervisor（监督者）</h4>
+            <p><strong>场景：</strong>动态分解，复杂规划</p>
+            <pre><code>复杂任务 → [Supervisor]
+              ↓
+         分解为子任务
+              ↓
+    [Agent 1] [Agent 2] [Agent 3]
+              ↓
+         [Supervisor] 整合</code></pre>
+            <p><strong>优势：</strong>处理复杂任务，自动分解</p>
+            <p><strong>成本：</strong>约 15x tokens（最昂贵）</p>
+
+            <h4>3. Pipeline（流水线）</h4>
+            <p><strong>场景：</strong>顺序阶段处理</p>
+            <pre><code>输入 → [Stage 1] → [Stage 2] → [Stage 3] → 输出</code></pre>
+            <p><strong>优势：</strong>结构清晰，易于调试</p>
+            <p><strong>成本：</strong>约 3x tokens</p>
+
+            <h4>4. Council（专家委员会）</h4>
+            <p><strong>场景：</strong>跨领域专家协商</p>
+            <pre><code>问题 → [Security Expert]
+      → [Performance Expert]
+      → [UX Expert]
+              ↓
+         Consensus Decision</code></pre>
+            <p><strong>优势：</strong>多视角，全面评估</p>
+            <p><strong>成本：</strong>约 5x tokens</p>
+
+            <h4>5. Auto-Routing（自动路由）</h4>
+            <p><strong>场景：</strong>自动任务分类</p>
+            <pre><code>任务 → [Router] → 类型判断
+                    ↓
+        [Research Agent] 或 [Coding Agent] 或 [Creative Agent]</code></pre>
+            <p><strong>优势：</strong>自动化，无需人工干预</p>
+            <p><strong>成本：</strong>约 2x tokens</p>
+
+            <h3>2.2 Token 成本分析</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>模式</th>
+                        <th>Token 成本</th>
+                        <th>适用场景</th>
+                        <th>何时避免</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Work Crew</td>
+                        <td>4x</td>
+                        <td>需要冗余验证的研究任务</td>
+                        <td>简单确定性任务</td>
+                    </tr>
+                    <tr>
+                        <td>Supervisor</td>
+                        <td>15x</td>
+                        <td>复杂多步骤任务</td>
+                        <td>协调开销 &gt; 收益</td>
+                    </tr>
+                    <tr>
+                        <td>Pipeline</td>
+                        <td>3x</td>
+                        <td>结构化顺序任务</td>
+                        <td>无并行化机会</td>
+                    </tr>
+                    <tr>
+                        <td>Council</td>
+                        <td>5x</td>
+                        <td>需要多专家视角</td>
+                        <td>单领域问题</td>
+                    </tr>
+                    <tr>
+                        <td>Auto-Routing</td>
+                        <td>2x</td>
+                        <td>混合类型任务流</td>
+                        <td>任务类型明确</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>三、Ralph Mode：自主编程循环</h2>
+
+            <h3>3.1 核心机制</h3>
+            <pre><code>Requirements → Planning → Building (Iterative)
+     ↑                        ↓
+     └── Tests/Typecheck/Lint/Build ←┘
+              (Backpressure Gates)</code></pre>
+
+            <h3>3.2 关键特性</h3>
+            <ul>
+                <li><strong>一个任务每次迭代</strong> - 每次都是新鲜上下文</li>
+                <li><strong>计划是一次性的</strong> - 错误或过时时重新生成</li>
+                <li><strong>外部观察者友好</strong> - PROGRESS.md 强制记录进度</li>
+                <li><strong>显式完成信号</strong> - 状态: COMPLETE + 文件列表 + 干净退出</li>
+            </ul>
+
+            <h3>3.3 背压门控（Backpressure Gates）</h3>
+            <p>每次迭代必须通过所有检查：</p>
+            <ol>
+                <li><strong>Tests</strong> - 所有测试通过</li>
+                <li><strong>Typecheck</strong> - 类型检查通过</li>
+                <li><strong>Lint</strong> - 代码风格检查通过</li>
+                <li><strong>Build</strong> - 构建成功</li>
+            </ol>
+            <p><strong>任何一项失败都会阻止迭代完成。</strong></p>
+
+            <h2>四、子代理调度最佳实践</h2>
+
+            <h3>4.1 调度格式</h3>
+            <pre><code>Goal: [一句话描述]
+Context: [为什么重要，哪个计划文件]
+Files: [确切路径]
+Constraints: [不要做什么 - 无范围蔓延，仅 TDD]
+Verify: [如何确认成功 - 测试通过，特定命令]
+Task text: [从计划粘贴完整任务]</code></pre>
+
+            <h3>4.2 PTY 模式指南</h3>
+            <p><strong>需要 PTY 的代理：</strong>OpenCode, Codex, Claude Code, Pi, Goose</p>
+            <p><strong>不需要 PTY 的代理：</strong>aider, 自定义脚本</p>
+
+            <h4>正确用法示例：</h4>
+            <pre><code># ✅ Codex/Pi/OpenCode 正确用法
+exec pty:true workdir:~/project command:"codex exec 'Your prompt'"
+
+# ✅ Claude Code 正确用法（Print 模式）
+exec workdir:~/project command:"claude --permission-mode bypassPermissions --print 'task'"
+
+# ❌ Claude Code 错误用法
+exec pty:true command:"claude --dangerously-skip-permissions 'task'"</code></pre>
+
+            <h3>4.3 并行任务处理</h3>
+            <p>使用 git worktrees 并行处理多个任务：</p>
+            <pre><code># 1. 为每个问题创建 worktree
+git worktree add -b fix/issue-78 /tmp/issue-78 main
+git worktree add -b fix/issue-99 /tmp/issue-99 main
+
+# 2. 在每个中启动 Codex（后台 + PTY）
+exec pty:true workdir:/tmp/issue-78 background:true command:"codex --yolo 'Fix #78'"
+exec pty:true workdir:/tmp/issue-99 background:true command:"codex --yolo 'Fix #99'"
+
+# 3. 监控进度
+process action:list
+
+# 4. 创建 PR
+cd /tmp/issue-78 && git push -u origin fix/issue-78
+gh pr create --title "fix: ..."
+
+# 5. 清理
+git worktree remove /tmp/issue-78</code></pre>
+
+            <h2>五、常见陷阱与预防</h2>
+
+            <h3>5.1 常见陷阱</h3>
+            <ol>
+                <li><strong>无声失败</strong> - Ralph 停止迭代无进度日志</li>
+                <li><strong>重叠会话</strong> - 派生 v2 时 v1 仍在运行</li>
+                <li><strong>路径假设</strong> - 错误目录，错误文件</li>
+                <li><strong>无限迭代</strong> - 无时间限制 + 无阻塞器</li>
+            </ol>
+
+            <h3>5.2 预防措施</h3>
+            <ul>
+                <li>强制 PROGRESS.md 更新</li>
+                <li>检查/清理后派生</li>
+                <li>显式路径验证</li>
+                <li>迭代超时 + 阻塞器日志</li>
+            </ul>
+
+            <h2>六、实践建议</h2>
+
+            <h3>6.1 选择正确的工具</h3>
+
+            <h4>对于编码任务：</h4>
+            <ul>
+                <li><strong>快速一次性</strong> → 直接使用 edit 工具</li>
+                <li><strong>多步骤构建</strong> → coding-agent (Codex/Claude Code)</li>
+                <li><strong>复杂项目</strong> → Ralph Mode + Subagents</li>
+                <li><strong>需要验证</strong> → Superpowers 工作流</li>
+            </ul>
+
+            <h4>对于研究任务：</h4>
+            <ul>
+                <li><strong>单视角</strong> → 主会话 + web search</li>
+                <li><strong>多视角</strong> → Work Crew (4 agents, consensus)</li>
+                <li><strong>跨领域</strong> → Expert Council</li>
+                <li><strong>不确定类型</strong> → Auto-Routing</li>
+            </ul>
+
+            <h3>6.2 性能优化策略</h3>
+            <ol>
+                <li><strong>减少上下文污染</strong>
+                    <ul>
+                        <li>使用 workdir 隔离</li>
+                        <li>避免在 ~/.openclaw/ 启动代理</li>
+                        <li>精简 SKILL.md</li>
+                    </ul>
+                </li>
+                <li><strong>并行化策略</strong>
+                    <ul>
+                        <li>Work Crew 用于研究</li>
+                        <li>Git worktrees 用于编码</li>
+                        <li>Pipeline 用于顺序阶段</li>
+                    </ul>
+                </li>
+                <li><strong>成本控制</strong>
+                    <ul>
+                        <li>评估任务价值 vs. 15x token 成本</li>
+                        <li>使用心跳批处理检查</li>
+                        <li>优先单代理完成简单任务</li>
+                    </ul>
+                </li>
+            </ol>
+
+            <h2>七、总结：系统化的价值</h2>
+
+            <p>AI Agent 开发的系统化工作流不是"过度工程"，而是<strong>必需品</strong>：</p>
+            <ol>
+                <li><strong>可重复</strong> - 每次都遵循相同的流程</li>
+                <li><strong>可追溯</strong> - 每个决策都有记录</li>
+                <li><strong>可优化</strong> - 发现瓶颈，持续改进</li>
+                <li><strong>可扩展</strong> - 团队协作，知识共享</li>
+            </ol>
+
+            <blockquote>
+                <p>"系统化优于临时，特别是在时间压力下遵循流程。"<br>
+                — superpowers 项目核心理念</p>
+            </blockquote>
+
+            <h3>下一步行动</h3>
+            <ol>
+                <li>选择一个实际项目，完整走一遍 7 步工作流</li>
+                <li>记录每个阶段的耗时和 token 消耗</li>
+                <li>根据实际经验调整工作流</li>
+                <li>建立个人/团队的 AI Agent 开发规范</li>
+            </ol>
+
+            <div class="tags">
+                <span class="tag">#AI Agent</span>
+                <span class="tag">#TDD</span>
+                <span class="tag">#Workflow</span>
+                <span class="tag">#superpowers</span>
+                <span class="tag">#OpenClaw</span>
+            </div>
+        </article>
+    </div>
+</body>
+</html>
