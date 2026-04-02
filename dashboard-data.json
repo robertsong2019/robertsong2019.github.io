@@ -1,130 +1,42 @@
 {
-  "lastUpdated": "2026-03-30T22:00:00Z",
-  "actionRequired": [
-    {
-      "title": "deep-exploration-evening (UTC) cron job has 4 consecutive errors — missing delivery.channel",
-      "url": null,
-      "priority": "high"
-    }
-  ],
-  "activeNow": [
-    {
-      "task": "Dashboard morning update (cron)",
-      "model": "glm-5.1",
-      "startedAt": "2026-03-30T22:00:00Z"
-    }
-  ],
-  "products": [],
-  "crons": [
-    {
-      "name": "dashboard-update-morning",
-      "schedule": "6:00 AM daily",
-      "lastRun": "2026-03-30T22:00:00Z",
-      "status": "running",
-      "errors": 0,
-      "lastError": null
-    },
-    {
-      "name": "github-creative-evening",
-      "schedule": "7:00 PM daily",
-      "lastRun": "2026-03-30T11:00:00Z",
-      "status": "ok",
-      "errors": 0,
-      "lastError": null
-    },
-    {
-      "name": "deep-exploration-evening",
-      "schedule": "8:00 PM daily",
-      "lastRun": "2026-03-30T12:00:00Z",
-      "status": "ok",
-      "errors": 0,
-      "lastError": null
-    },
-    {
-      "name": "deep-exploration-evening (UTC)",
-      "schedule": "8:00 PM daily (UTC)",
-      "lastRun": "2026-03-30T12:00:00Z",
-      "status": "error",
-      "errors": 4,
-      "lastError": "Channel is required when multiple channels are configured"
-    },
-    {
-      "name": "code-lab-evening",
-      "schedule": "9:00 PM daily",
-      "lastRun": "2026-03-30T13:00:00Z",
-      "status": "ok",
-      "errors": 0,
-      "lastError": null
-    },
-    {
-      "name": "tool-development-evening",
-      "schedule": "10:00 PM daily",
-      "lastRun": "2026-03-30T14:00:00Z",
-      "status": "ok",
-      "errors": 0,
-      "lastError": null
-    },
-    {
-      "name": "key-development-1",
-      "schedule": "11:00 PM daily",
-      "lastRun": "2026-03-30T15:00:00Z",
-      "status": "ok",
-      "errors": 0,
-      "lastError": null
-    },
-    {
-      "name": "key-development-2",
-      "schedule": "12:00 AM daily",
-      "lastRun": "2026-03-30T16:00:00Z",
-      "status": "ok",
-      "errors": 0,
-      "lastError": null
-    },
-    {
-      "name": "key-development-3",
-      "schedule": "1:00 AM daily",
-      "lastRun": "2026-03-30T17:00:00Z",
-      "status": "ok",
-      "errors": 0,
-      "lastError": null
-    },
-    {
-      "name": "knowledge-organization-morning",
-      "schedule": "2:00 AM daily",
-      "lastRun": "2026-03-30T18:00:00Z",
-      "status": "ok",
-      "errors": 0,
-      "lastError": null
-    },
-    {
-      "name": "project-testing-morning",
-      "schedule": "3:00 AM daily",
-      "lastRun": "2026-03-30T19:00:00Z",
-      "status": "ok",
-      "errors": 0,
-      "lastError": null
-    },
-    {
-      "name": "documentation-morning",
-      "schedule": "4:00 AM daily",
-      "lastRun": "2026-03-30T20:00:00Z",
-      "status": "ok",
-      "errors": 0,
-      "lastError": null
-    },
-    {
-      "name": "essay-generation-morning",
-      "schedule": "5:00 AM daily",
-      "lastRun": "2026-03-30T21:00:00Z",
-      "status": "ok",
-      "errors": 0,
-      "lastError": null
-    }
-  ],
-  "systemHealth": {
-    "totalCronJobs": 13,
-    "healthyJobs": 12,
-    "errorJobs": 1,
-    "uptime": "stable"
+  "updatedAt": "2026-04-03T06:00:00+08:00",
+  "updatedAtUtc": "2026-04-02T22:00:00Z",
+  "system": {
+    "agent": "Catalyst",
+    "host": "VM-0-5-ubuntu",
+    "os": "Linux 6.8.0-71-generic (x64)",
+    "model": "zai/glm-5.1",
+    "node": "v22.22.1",
+    "uptime": "running"
+  },
+  "cronJobs": {
+    "total": 13,
+    "enabled": 13,
+    "healthy": 13,
+    "jobs": [
+      {"name": "dashboard-update-morning", "schedule": "0 6 * * *", "status": "ok", "lastDuration": "58s"},
+      {"name": "github-creative-evening", "schedule": "0 19 * * *", "status": "ok", "lastDuration": "137s"},
+      {"name": "deep-exploration-evening", "schedule": "0 20 * * *", "status": "ok", "lastDuration": "128s"},
+      {"name": "deep-exploration-noon", "schedule": "0 12 * * * (UTC)", "status": "ok", "lastDuration": "156s"},
+      {"name": "code-lab-evening", "schedule": "0 21 * * *", "status": "ok", "lastDuration": "83s"},
+      {"name": "tool-development-evening", "schedule": "0 22 * * *", "status": "ok", "lastDuration": "158s"},
+      {"name": "key-development-1", "schedule": "0 23 * * *", "status": "ok", "lastDuration": "68s"},
+      {"name": "key-development-2", "schedule": "0 0 * * *", "status": "ok", "lastDuration": "490s"},
+      {"name": "key-development-3", "schedule": "0 1 * * *", "status": "ok", "lastDuration": "38s"},
+      {"name": "knowledge-organization-morning", "schedule": "0 2 * * *", "status": "ok", "lastDuration": "22s"},
+      {"name": "project-testing-morning", "schedule": "0 3 * * *", "status": "ok", "lastDuration": "560s"},
+      {"name": "documentation-morning", "schedule": "0 4 * * *", "status": "ok", "lastDuration": "37s"},
+      {"name": "essay-generation-morning", "schedule": "0 5 * * *", "status": "ok", "lastDuration": "138s"}
+    ]
+  },
+  "sessions": {
+    "active": 1,
+    "note": "Current session: dashboard-update-morning cron run"
+  },
+  "summary": {
+    "allCronJobsHealthy": true,
+    "consecutiveErrors": 0,
+    "dailyCycleComplete": true,
+    "nextJob": "github-creative-evening at 19:00 CST"
   }
 }
