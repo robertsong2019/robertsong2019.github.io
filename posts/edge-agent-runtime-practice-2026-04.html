@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>零依赖 Edge Agent Runtime：当 AI Agent 走向边缘 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        .info { background: #d1ecf1; border-left-color: #17a2b8; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-top: 30px; color: #3498db; }
+        .tag { display: inline-block; background: #e7f3ff; color: #0066cc; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; margin-right: 8px; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>零依赖 Edge Agent Runtime：当 AI Agent 走向边缘</h1>
+        
+        <div class="meta">
+            <strong>发布时间：</strong>2026年4月3日<br>
+            <strong>标签：</strong>
+            <span class="tag">Edge AI</span>
+            <span class="tag">Agent Runtime</span>
+            <span class="tag">嵌入式AI</span>
+            <span class="tag">快速原型开发</span>
+            <span class="tag">零依赖设计</span>
+        </div>
+        
+        <h2>引言</h2>
+        <p>AI Agent 正在从云端走向边缘。但在树莓派、ESP32、甚至更小的 MCU 上跑一个完整的 Agent 循环，真的可行吗？答案是：不仅可行，而且可以零依赖实现。今天分享的 Edge Agent Runtime 项目，就是一次从零构建边缘智能的实践。</p>
+
+        <h2>一、为什么需要 Edge Agent Runtime？</h2>
+        <p>云端的 AI Agent 已经很成熟了——OpenClaw、AutoGPT、LangChain 生态蓬勃发展。但现实世界的很多场景需要 Agent 在本地运行：</p>
+        <ul>
+            <li><strong>智能温室</strong>：温度传感器实时响应，不能等云端的 200ms 延迟</li>
+            <li><strong>工业控制</strong>：网络不稳定环境下，Agent 必须自主决策</li>
+            <li><strong>隐私场景</strong>：家庭 IoT 数据不上云，推理在本地完成</li>
+            <li><strong>成本控制</strong>：每台设备调一次 API 的费用，不如本地推理一次</li>
+        </ul>
+        <p>核心矛盾：<strong>Agent 的智能需要算力，但边缘设备的算力有限。</strong> 解决方案不是堆硬件，而是设计一个足够轻量的 Agent 运行时。</p>
+
+        <h2>二、核心设计：Perceive → Reason → Act</h2>
+        
+        <h3>2.1 Agent 循环</h3>
+        <p>Agent 的本质是一个循环：感知环境、推理决策、执行动作。Edge Agent Runtime 将这个循环抽象为四个可插拔组件：</p>
+        <pre><code>class Sensor(ABC):       # 感知：获取环境数据
+class Reasoner(ABC):     # 推理：根据数据做决策
+class Actuator(ABC):     # 执行：对环境施加影响
+class Memory(ABC):       # 记忆：存储历史和上下文</code></pre>
+        <p>每个 tick（循环周期），Agent 执行一次完整的 Perceive → Reason → Act。这个设计参考了 BDI（Belief-Desire-Intention）架构，但做了大幅简化。</p>
+
+        <h3>2.2 三种记忆实现</h3>
+        <p>记忆是 Agent 智能的关键。我们实现了三种策略：</p>
+        <ul>
+            <li><strong>SlidingWindowMemory</strong>：保留最近 N 条感知记录，适合短期响应</li>
+            <li><strong>KeyValueMemory</strong>：带历史记录的键值存储，适合设备状态追踪</li>
+            <li><strong>PriorityMemory</strong>：按优先级驱逐，确保重要信息不丢失</li>
+        </ul>
+        <p>在实际温室场景中，PriorityMemory 最有价值——温度骤升比 3 小时前的正常读数重要得多。</p>
+
+        <h3>2.3 三种推理器</h3>
+        <p>推理器决定了 Agent "有多聪明"：</p>
+        <ol>
+            <li><strong>RuleReasoner</strong>：规则引擎，支持 <code>temp > 30</code> 和 <code>18 <= temp <= 30</code> 等条件</li>
+            <li><strong>ThresholdReasoner</strong>：阈值判断，超出范围触发动作</li>
+            <li><strong>CompositeReasoner</strong>：组合多个推理器，实现复杂逻辑</li>
+        </ol>
+        <div class="highlight">
+            <strong>安全第一</strong>：条件解析器不使用 eval()，而是手写了一个安全的表达式解析器。在边缘设备上，安全比性能更重要。
+        </div>
+
+        <h2>三、实战：智能温室控制</h2>
+        <p>用一个完整的温室场景验证设计：</p>
+        <pre><code># 温度传感器 → 温度超30°C → 打开风扇
+# 湿度传感器 → 湿度低于40% → 打开灌溉
+# 光照传感器 → 光照不足 → 打开补光灯</code></pre>
+        <p>Agent 每个 tick 读取所有传感器，通过规则推理器判断条件，按优先级排序后执行动作。关键设计决策：</p>
+        <ul>
+            <li><strong>容错</strong>：Sensor 故障不崩溃 Agent，返回 None 跳过</li>
+            <li><strong>优先级排序</strong>：Action 按 priority 排序，先处理紧急情况</li>
+            <li><strong>静默忽略</strong>：未知 Actuator 不报错，适合动态扩展</li>
+        </ul>
+        <p>31 个测试用例全部通过，覆盖了数据模型、三种记忆、三种推理器、Agent 集成和完整温室场景。</p>
+
+        <h2>四、零依赖设计的哲学</h2>
+        <p>整个核心模块（Agent 循环、规则引擎、记忆系统）<strong>零第三方依赖</strong>，只用 Python 标准库。为什么？</p>
+        <blockquote>
+            依赖是灵活性的敌人。每一个 <code>import numpy</code> 都在告诉你：这个 Agent 跑不了 MicroPython。
+        </blockquote>
+        <p>零依赖意味着：</p>
+        <ul>
+            <li>可以在 <strong>MicroPython</strong> 上运行（下一个目标）</li>
+            <li>可以被 <strong>单个文件</strong> 分发和部署</li>
+            <li>可以在 <strong>CircuitPython</strong> 等受限环境运行</li>
+            <li>可以被 <strong>轻松审计</strong>，没有供应链攻击风险</li>
+        </ul>
+        <p>这不意味着拒绝所有依赖。ONNX Runtime 用于 ML 推理、GPIO 库用于硬件驱动——这些都是合理的模块级依赖。核心要保持干净。</p>
+
+        <h2>五、快速原型开发的方法论</h2>
+        <p>这个项目从概念到 31 个测试全部通过，用了一个晚上。快速原型的核心原则：</p>
+        <ol>
+            <li><strong>先跑起来</strong>：用最简实现验证架构，不追求完美</li>
+            <li><strong>测试驱动</strong>：先写测试场景（温室），再实现功能</li>
+            <li><strong>抽象边界清晰</strong>：Sensor/Actuator/Reasoner/Memory 各自独立，可以单独替换和测试</li>
+            <li><strong>真实场景验证</strong>：温室场景不是 toy example，它模拟了真实的传感器故障和优先级冲突</li>
+        </ol>
+
+        <h2>六、下一步：从规则到学习</h2>
+        <p>当前版本的推理器是纯规则的，智能程度有限。计划的演进路线：</p>
+        <ul>
+            <li><strong>MLReasoner</strong>：集成 ONNX Runtime，支持小型 ML 模型推理</li>
+            <li><strong>Async Agent</strong>：异步循环，支持并发传感器读取</li>
+            <li><strong>MicroPython 适配</strong>：在 ESP32 上跑起来</li>
+            <li><strong>真实硬件驱动</strong>：GPIO、I2C 传感器对接</li>
+        </ul>
+        <p>最终目标：一个可以在树莓派上 5 分钟部署、ESP32 上也能跑的轻量 Agent 运行时。</p>
+
+        <h2>总结</h2>
+        <p>Edge Agent Runtime 证明了三件事：</p>
+        <div class="highlight success">
+            <strong>1.</strong> Agent 循环不需要复杂框架，Perceive-Reason-Act 可以用 200 行核心代码实现。<br>
+            <strong>2.</strong> 零依赖设计让 Agent 真正可移植，从服务器到 MCU 无缝迁移。<br>
+            <strong>3.</strong> 快速原型的关键不是速度，而是正确的抽象边界。
+        </div>
+        <p>AI Agent 的未来不仅在云端大模型。当 Agent 走向边缘，轻量、自治、可移植的运行时将成为基础设施。这个项目是朝这个方向迈出的一小步。</p>
+        
+        <a href="/" class="back-link">← 返回首页</a>
+    </div>
+</body>
+</html>
