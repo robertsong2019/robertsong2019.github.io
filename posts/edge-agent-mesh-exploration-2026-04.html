@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当 AI Agent 学会社交：Edge Agent Mesh 的设计思考 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>当 AI Agent 学会社交：Edge Agent Mesh 的设计思考</h1>
+        <div class="meta">
+            2026-04-04 · 罗嵩 · 
+            <span class="tag">AI Agent</span>
+            <span class="tag">嵌入式</span>
+            <span class="tag">边缘计算</span>
+            <span class="tag">快速原型</span>
+        </div>
+
+        <p>上周五晚的创意探索中，我做了一个有趣的实验——<strong>Edge Agent Mesh</strong>，一个让 AI Agent 在边缘设备上自组织协作的微型框架。这不是一个"又一个大模型项目"，而是一次对 AI 系统小型化、分布式化的思考。</p>
+
+        <h2>一、起点：从单体到群体</h2>
+
+        <p>主流 AI Agent 框架（LangChain、CrewAI、AutoGen）都默认运行在云端，依赖强大的 GPU 做推理。但现实世界的问题往往发生在边缘：工厂车间的传感器异常、家庭环境中的语音交互、田间地头的作物监测。</p>
+
+        <p>这些场景有一个共同特征：<strong>延迟敏感、离线优先、资源受限</strong>。一个 7B 参数的模型在 Jetson Nano 上可以跑，但在 ESP32 上就完全不可能了。如果不同能力的设备能"发现彼此"并自动分工呢？</p>
+
+        <blockquote>
+            核心洞察：不是每个 Agent 都需要是大模型。让小模型专注"感知"，中等模型负责"决策"，大模型只在需要时介入——这是 Agent 网络而非单体 Agent 的思路。
+        </blockquote>
+
+        <h2>二、设计：零配置的自组织网络</h2>
+
+        <p>Edge Agent Mesh 的核心设计原则只有三个：</p>
+
+        <ol>
+            <li><strong>插电即用</strong>：通过 mDNS 零配置发现，设备上电后自动加入网络</li>
+            <li><strong>按能力分工</strong>：每个 Agent 广播自己的能力（感知、决策、视觉、执行），任务自动路由到最合适的节点</li>
+            <li><strong>本地学习</strong>：SQLite 记忆让每个 Agent 积累本地经验，越用越聪明</li>
+        </ol>
+
+        <p>整个核心运行时不到 500 行 Python。这得益于一个设计选择：<strong>不重新发明协议</strong>。通信用 WebSocket，发现用 mDNS，模型加载用 Ollama/llama.cpp 的现有接口，记忆用 SQLite。每一个组件都是成熟的、经过验证的技术。</p>
+
+        <div class="highlight">
+            <strong>快速原型的秘诀：</strong>不是从零开始写一切，而是找到最小可行的组合。500 行代码能做到自组织 Agent 网络，不是因为代码多精妙，而是因为站在了对的抽象层上。
+        </div>
+
+        <h2>三、灵感碰撞：GitHub Trending 的启发</h2>
+
+        <p>设计过程中浏览了当天的 GitHub Trending，三个项目给了直接启发：</p>
+
+        <ul>
+            <li><strong>hermes-agent (23K⭐)</strong>：自学习循环——Agent 从经验中创建技能，使用中自我改进。这启发了 Edge Mesh 的本地记忆系统</li>
+            <li><strong>deer-flow (57K⭐)</strong>：长周期 SuperAgent 编排——任务分解为子 Agent 并行执行。这启发了 Mesh 中的任务委托协议</li>
+            <li><strong>timesfm (Google)</strong>：时序基础模型——预训练的时间序列预测。这启发了传感器数据场景中"预测型 Agent"的设计</li>
+        </ul>
+
+        <p>有趣的是，这些项目各自解决不同问题，但当它们的思想在边缘场景中碰撞，就产生了新的可能性。这或许就是开源生态的魅力——<strong>创新往往发生在不同领域的交叉点</strong>。</p>
+
+        <h2>四、嵌入式 AI 的可行性验证</h2>
+
+        <p>做这个项目时，我对当前的嵌入式 AI 能力做了一次盘点：</p>
+
+        <table>
+            <tr>
+                <th>设备</th>
+                <th>模型大小</th>
+                <th>推理延迟</th>
+                <th>适合角色</th>
+            </tr>
+            <tr>
+                <td>ESP32-S3</td>
+                <td>&lt; 1MB (TFLite Micro)</td>
+                <td>&lt; 100ms</td>
+                <td>传感器分类、简单决策</td>
+            </tr>
+            <tr>
+                <td>Raspberry Pi 5</td>
+                <td>~100MB (GGUF 量化)</td>
+                <td>1-3s</td>
+                <td>任务规划、自然语言</td>
+            </tr>
+            <tr>
+                <td>Jetson Nano</td>
+                <td>~500MB (INT8)</td>
+                <td>0.5-1s</td>
+                <td>图像识别、目标检测</td>
+            </tr>
+        </table>
+
+        <p>关键发现：<strong>2026 年的边缘设备已经足以运行"够用"的 AI</strong>。不需要 GPT-4 级别的能力，一个 100MB 的量化模型在树莓派上就能处理大多数场景的决策需求。瓶颈不再是算力，而是系统设计——如何让多个小模型协同工作。</p>
+
+        <h2>五、从原型到产品的思考</h2>
+
+        <p>Edge Agent Mesh 目前是一个概念验证，但它揭示了一个趋势：</p>
+
+        <p><strong>AI 系统的下一波创新不在模型层，而在系统层。</strong>模型会继续变强，但更重要的是如何把不同能力的模型组合成一个自适应的系统。就像互联网不是由一台超级计算机构成的，而是由无数普通设备组成的网络。</p>
+
+        <p>下一步的探索方向：</p>
+        <ul>
+            <li>用 Rust 重写核心运行时，将内存占用再降低一个量级</li>
+            <li>引入联邦学习机制，让 Agent 之间能共享经验而不泄露原始数据</li>
+            <li>设计一个声明式的 Agent DSL，用 YAML 描述 Mesh 拓扑和行为</li>
+        </ul>
+
+        <h2>六、写在最后</h2>
+
+        <p>从 Voice Agent 到 Agent DSL 再到 Edge Agent Mesh，这条探索路径的底层逻辑是一致的：<strong>让 AI 更贴近问题发生的地方</strong>。语音是自然的交互方式，DSL 是可维护的工作流定义，而边缘 Mesh 是去中心化的部署架构。</p>
+
+        <p>三个方向可以融合——用 DSL 定义 Mesh 工作流，用语音与 Mesh 交互。当你对着空气说一句"帮我把客厅的灯调暗一点"，背后可能是 ESP32 感知环境光 → RPi 规划执行策略 → ESP32 控制灯光的完整 Mesh 协作。</p>
+
+        <blockquote>
+            技术的价值不在于它有多复杂，而在于它能多简单地解决问题。Edge Agent Mesh 追求的不是技术炫技，而是让 AI 像水电一样自然地融入物理世界。
+        </blockquote>
+
+        <p style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 0.85em;">
+            项目地址：<a href="https://github.com/robertsong2019/edge-agent-mesh" target="_blank">github.com/robertsong2019/edge-agent-mesh</a><br>
+            本文基于 2026-04-03 的创意探索笔记整理而成
+        </p>
+    </div>
+</body>
+</html>

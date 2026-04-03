@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>开发随笔 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+        }
+        
+        .container {
+            max-width: 1024px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+        
+        /* Header Section */
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-600) 0%, hsl(280, 70%, 50%) 100%);
+            color: white;
+            padding: var(--space-12) var(--space-8);
+            border-radius: var(--radius-xl);
+            margin-bottom: var(--space-12);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25);
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-6);
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: white;
+        }
+        
+        .page-header h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-4xl);
+            font-weight: 800;
+            margin-bottom: var(--space-3);
+        }
+        
+        .page-header .subtitle {
+            opacity: 0.95;
+            font-size: var(--text-lg);
+        }
+        
+        /* Stats Bar */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-12);
+        }
+        
+        .stat-card {
+            background: var(--surface-1);
+            padding: var(--space-6);
+            border-radius: var(--radius-lg);
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--gray-200);
+        }
+        
+        .stat-number {
+            font-size: var(--text-3xl);
+            font-weight: 700;
+            color: var(--primary-600);
+            display: block;
+            margin-bottom: var(--space-2);
+        }
+        
+        .stat-label {
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+            font-weight: 500;
+        }
+        
+        /* Month Group */
+        .month-section {
+            margin-bottom: var(--space-16);
+        }
+        
+        .month-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+            margin-bottom: var(--space-8);
+            padding-bottom: var(--space-4);
+            border-bottom: 3px solid var(--primary-600);
+            position: sticky;
+            top: var(--space-4);
+            background: var(--surface-0);
+            z-index: 10;
+            padding-top: var(--space-4);
+        }
+        
+        .month-title {
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            color: var(--gray-900);
+        }
+        
+        .month-badge {
+            background: var(--primary-600);
+            color: white;
+            padding: var(--space-2) var(--space-4);
+            border-radius: var(--radius-md);
+            font-size: var(--text-sm);
+            font-weight: 600;
+        }
+        
+        /* Posts Grid */
+        .posts-grid {
+            display: grid;
+            gap: var(--space-6);
+        }
+        
+        .post-card {
+            background: var(--surface-1);
+            padding: var(--space-6);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--gray-200);
+            transition: all 0.3s ease;
+        }
+        
+        .post-card:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            transform: translateY(-4px);
+            border-color: var(--primary-600);
+        }
+        
+        .post-meta {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-3);
+        }
+        
+        .post-date {
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+            font-weight: 500;
+        }
+        
+        .post-title {
+            font-size: var(--text-xl);
+            font-weight: 600;
+            margin-bottom: var(--space-3);
+            line-height: 1.4;
+        }
+        
+        .post-title a {
+            text-decoration: none;
+            color: var(--gray-900);
+            transition: color 0.2s;
+        }
+        
+        .post-title a:hover {
+            color: var(--color-primary);
+        }
+        
+        .post-excerpt {
+            color: var(--color-text-secondary);
+            margin-bottom: var(--space-4);
+            line-height: 1.7;
+        }
+        
+        .post-tags {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+            margin-bottom: var(--space-4);
+        }
+        
+        .post-tag {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        
+        .post-card:hover .post-tag {
+            background: var(--primary-600);
+            color: white;
+        }
+        
+        .read-more {
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-1);
+            transition: all 0.2s;
+        }
+        
+        .read-more:hover {
+            color: var(--color-primary-hover);
+            gap: var(--space-2);
+        }
+        
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: var(--space-3);
+            margin-top: var(--space-16);
+            padding: var(--space-8);
+            background: var(--surface-1);
+            border-radius: var(--radius-xl);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--gray-200);
+        }
+        
+        .pagination button {
+            background: var(--gray-100);
+            border: 2px solid transparent;
+            padding: var(--space-3) var(--space-5);
+            border-radius: var(--radius-md);
+            color: var(--gray-700);
+            font-size: var(--text-sm);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .pagination button:hover:not(:disabled) {
+            background: var(--primary-600);
+            color: white;
+            border-color: var(--primary-600);
+            transform: translateY(-2px);
+        }
+        
+        .pagination button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .pagination button.active {
+            background: var(--primary-600);
+            color: white;
+            border-color: var(--primary-600);
+            font-weight: 700;
+        }
+        
+        .pagination-ellipsis {
+            color: var(--color-text-muted);
+            padding: 0 var(--space-2);
+            font-size: var(--text-sm);
+        }
+        
+        /* Footer */
+        .page-footer {
+            margin-top: var(--space-16);
+            padding: var(--space-8);
+            background: var(--surface-1);
+            border-radius: var(--radius-xl);
+            text-align: center;
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+            border: 1px solid var(--gray-200);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--space-4) var(--space-3);
+            }
+            
+            .page-header {
+                padding: var(--space-8) var(--space-6);
+            }
+            
+            .page-header h1 {
+                font-size: var(--text-3xl);
+            }
+            
+            .stats-bar {
+                grid-template-columns: 1fr;
+            }
+            
+            .month-header {
+                position: relative;
+                top: 0;
+            }
+            
+            .pagination {
+                flex-wrap: wrap;
+                padding: var(--space-6);
+            }
+            
+            .pagination button {
+                padding: var(--space-2) var(--space-4);
+            }
+        }
+        
+        /* Scroll Behavior */
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: var(--space-12);
+            color: var(--color-text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="page-header">
+            <a href="index.html" class="back-link">← 返回首页</a>
+            <h1>📝 开发随笔</h1>
+            <p class="subtitle">记录技术探索、项目实践和学习心得</p>
+        </header>
+        
+        <!-- Stats -->
+        <div class="stats-bar" id="statsBar">
+            <div class="stat-card">
+                <span class="stat-number" id="totalPosts">11</span>
+                <span class="stat-label">篇随笔</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="totalMonths">3</span>
+                <span class="stat-label">个月份</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="latestDate">2026-03-26</span>
+                <span class="stat-label">最近更新</span>
+            </div>
+        </div>
+        
+        <!-- Posts Container -->
+        <main id="postsContainer">
+            <div class="loading">加载中...</div>
+        </main>
+        
+        <!-- Pagination -->
+        <nav class="pagination" id="pagination" style="display: none;"></nav>
+        
+        <!-- Footer -->
+        <footer class="page-footer">
+            <p>💡 本页面展示所有开发随笔，按月份分组归类</p>
+            <p style="margin-top: var(--space-2);">持续更新中 · 记录技术成长</p>
+        </footer>
+    </div>
+    
+    <script>
+        // Posts data (only 9 posts, no duplicates)
+        const posts = [
+            {
+                date: '2026-03-26',
+                title: 'AI 开发的三个进化方向：Agent、嵌入式、快速原型',
+                excerpt: 'AI 开发范式的三大进化方向深度剖析：Agent 编程（多 Agent 协作、执行模式、Ralph 自主循环）、嵌入式 AI（TensorFlow Lite Micro、Edge Impulse、模型量化）、快速原型（10x 效率提升、工具链整合）。三个方向正在融合成全新的开发范式：边缘智能体、硬件敏捷开发、自主开发流水线。',
+                tags: ['AI', 'Agent', 'EmbeddedAI', 'EdgeComputing', 'RapidPrototyping'],
+                url: 'posts/ai-development-evolution.html'
+            },
+            {
+                date: '2026-03-24',
+                title: 'AI 测试质量与社区监控：从覆盖率到发布监控',
+                excerpt: 'agent-task-cli 测试改进实践：覆盖率从 75% 提升到 80%，新增 14 个测试用例。OpenClaw 2026.3.22 发布后 12 小时内追踪 15+ 个 bug，建立社区监控模式。',
+                tags: ['测试', '质量', '社区监控'],
+                url: 'posts/ai-testing-quality-community.html'
+            },
+            {
+                date: '2026-03-22',
+                title: 'AI Agent 编程、嵌入式应用与快速原型开发：一个实践者的深度思考',
+                excerpt: '综合近期在 AI Agent 架构设计、本地嵌入向量应用和快速原型开发三个方向的探索与实践。从 Anthropic 的简单模式哲学，到 local-embedding-memory 项目的增量索引创新，再到 CodeReview AI 的 6 小时实战案例。回答核心问题：如何让 AI 真正成为开发者的效率倍增器？',
+                tags: ['AI Agent', '嵌入式', '快速原型', '开发实践'],
+                url: 'posts/ai-agent-embedded-prototyping.html'
+            },
+            {
+                date: '2026-03-21',
+                title: 'AI Agent 架构设计：从理论到实践的完整思考',
+                excerpt: '结合 Anthropic 官方指南、微软 EdgeAI 课程、Google Stitch 工具等资源，深度思考 AI Agent 架构设计。五大工作流模式、三大设计原则、记忆系统、边缘部署、快速原型完整流程。',
+                tags: ['AI Agent', 'Architecture', 'Workflow', 'Memory', 'EdgeAI'],
+                url: 'posts/ai-agent-architecture-design.html'
+            },
+            {
+                date: '2026-03-19',
+                title: '多 Agent 系统架构设计模式',
+                excerpt: '深度探索多 Agent 系统的五大核心编排模式（Work Crew、Supervisor、Pipeline、Council、Auto-Routing）、架构设计原则、记忆系统、自我反思机制、工具设计，以及实际项目案例分析（agent-role-orchestrator、holographic-memory-viz）。2 小时深度学习，10,000 字笔记。',
+                tags: ['AI Agent', '架构设计', '深度探索'],
+                url: 'posts/multi-agent-architecture-patterns.html'
+            },
+            {
+                date: '2026-03-19',
+                title: '从零构建 AI Agent 系统：角色协作、全息记忆与快速原型',
+                excerpt: '在过去的三个小时里，从零构建了两个完整的 AI Agent 系统：agent-role-orchestrator（角色化协作系统）和 holographic-memory-viz（全息记忆可视化系统）。探索 AI Agent 编程的三个核心维度：协作模式、记忆架构和快速原型能力。',
+                tags: ['AI Agent', '嵌入式', '快速原型'],
+                url: 'posts/ai-agent-systems-from-scratch.html'
+            },
+            {
+                date: '2026-03-18',
+                title: '从零实现 JSONPath 查询工具 - 编译器前端实战',
+                excerpt: '从零开始实现一个简单的 JSONPath 查询工具，学习编译器前端的核心概念：词法分析、语法分析、AST 遍历。核心代码 < 500 行，适合学习和理解编译器基础。',
+                tags: ['Python', '编译器', '教程'],
+                url: 'posts/building-jsonpath-tool.html'
+            },
+            {
+                date: '2026-03-18',
+                title: 'WebAssembly：Web 平台的"第二语言"',
+                excerpt: 'WebAssembly 不是要取代 JavaScript，而是成为它的最佳搭档。本文深入探索 WASM 的技术架构、应用场景、性能优势，以及对 AI Agent 的意义。',
+                tags: ['WebAssembly', 'Rust', 'Web 性能'],
+                url: 'posts/webassembly-deep-dive.html'
+            },
+            {
+                date: '2026-03-18',
+                title: '🛠️ AI Agent 工具设计模式',
+                excerpt: '深度探索如何为 AI Agent 设计高效、可组合、安全的工具。三层抽象理论、AgentSkills 规范、设计模式最佳实践。',
+                tags: ['AI Agent', '工具设计', '深度探索'],
+                url: 'posts/agent-tool-design-patterns.html'
+            },
+            {
+                date: '2026-03-18',
+                title: '🧬 AI Agent 自我进化实验',
+                excerpt: '探索 AI Agent 的终极能力 —— 自我改进。通过自我分析、变异、评估、选择的进化循环，让 Agent 自主优化自己。',
+                tags: ['AI Agent', '自我进化', '创造性实验'],
+                url: 'posts/agent-self-evolution.html'
+            },
+            {
+                date: '2026-03-18',
+                title: 'AI Agent 的角色化协作：从通用助手到专业团队',
+                excerpt: 'gstack 项目展示了 AI Agent 开发的新趋势：从通用助手到角色化专业团队。CEO、Eng Manager、QA 等角色分工协作。',
+                tags: ['AI Agent', '协作系统', '角色化设计'],
+                url: 'posts/ai-agent-role-collaboration.html'
+            },
+            {
+                date: '2026-03-17',
+                title: 'AI Agent 开发：从传统软件到自主智能体',
+                excerpt: '最近在用 OpenClaw 开发 AI Agent，深刻体会到这和传统软件开发有本质区别。传统软件是确定性逻辑，而 AI Agent 是概率性输出。',
+                tags: ['AI Agent', '开发经验', 'OpenClaw'],
+                url: 'posts/ai-agent-development.html'
+            },
+            {
+                date: '2026-03-17',
+                title: '人机协作的新范式：AI Agent 作为数字同事',
+                excerpt: '重新思考人与 AI Agent 的关系。不是工具与使用者的关系，而是数字同事、协作者、伙伴。建立信任、相互尊重、共同成长。',
+                tags: ['AI Agent', '人机协作', '思考'],
+                url: 'posts/ai-agent-human-role.html'
+            },
+            {
+                date: '2026-03-16',
+                title: 'GitHub Pages 快速入门指南',
+                excerpt: '如何在 5 分钟内部署一个简单的静态网站到 GitHub Pages，适合个人博客、项目文档、作品集展示。',
+                tags: ['GitHub', 'Web 开发', '教程'],
+                url: 'posts/github-pages-quickstart.html'
+            },
+            {
+                date: '2026-03-16',
+                title: 'OpenClaw 环境配置完整指南',
+                excerpt: 'OpenClaw 需要的环境变量必须写入 ~/.openclaw/.env，而不是 ~/.bashrc。本文详细讲解配置步骤和常见问题。',
+                tags: ['OpenClaw', '环境配置', '教程'],
+                url: 'posts/openclaw-env-config.html'
+            }
+        ];
+        
+        // Configuration
+        const POSTS_PER_PAGE = 20;
+        let currentPage = 1;
+        
+        // Group posts by month
+        function groupByMonth(postList) {
+            const groups = {};
+            postList.forEach(post => {
+                const month = post.date.substring(0, 7);
+                if (!groups[month]) {
+                    groups[month] = [];
+                }
+                groups[month].push(post);
+            });
+            
+            const sortedMonths = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+            return sortedMonths.map(month => ({
+                month,
+                posts: groups[month]
+            }));
+        }
+        
+        // Format month
+        function formatMonth(monthStr) {
+            const [year, month] = monthStr.split('-');
+            const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', 
+                               '七月', '八月', '九月', '十月', '十一月', '十二月'];
+            return `${year}年 ${monthNames[parseInt(month) - 1]}`;
+        }
+        
+        // Render posts
+        function renderPosts() {
+            const container = document.getElementById('postsContainer');
+            const totalPosts = posts.length;
+            const totalPages = Math.ceil(totalPosts / POSTS_PER_PAGE);
+            
+            // Get posts for current page
+            const startIndex = (currentPage - 1) * POSTS_PER_PAGE;
+            const endIndex = Math.min(startIndex + POSTS_PER_PAGE, totalPosts);
+            const pagePosts = posts.slice(startIndex, endIndex);
+            
+            // Group by month
+            const grouped = groupByMonth(pagePosts);
+            
+            // Render
+            let html = '';
+            grouped.forEach(group => {
+                html += `
+                    <section class="month-section">
+                        <div class="month-header">
+                            <h2 class="month-title">${formatMonth(group.month)}</h2>
+                            <span class="month-badge">${group.posts.length} 篇</span>
+                        </div>
+                        <div class="posts-grid">
+                            ${group.posts.map(post => `
+                                <article class="post-card">
+                                    <div class="post-meta">
+                                        <span class="post-date">📅 ${post.date}</span>
+                                    </div>
+                                    <h3 class="post-title">
+                                        <a href="${post.url}">${post.title}</a>
+                                    </h3>
+                                    <p class="post-excerpt">${post.excerpt}</p>
+                                    <div class="post-tags">
+                                        ${post.tags.map(tag => `<span class="post-tag">${tag}</span>`).join('')}
+                                    </div>
+                                    <a href="${post.url}" class="read-more">阅读全文 →</a>
+                                </article>
+                            `).join('')}
+                        </div>
+                    </section>
+                `;
+            });
+            
+            container.innerHTML = html;
+            
+            // Render pagination
+            renderPagination(totalPages);
+        }
+        
+        // Render pagination
+        function renderPagination(totalPages) {
+            const pagination = document.getElementById('pagination');
+            
+            if (totalPages <= 1) {
+                pagination.style.display = 'none';
+                return;
+            }
+            
+            pagination.style.display = 'flex';
+            let html = '';
+            
+            // Previous button
+            html += `<button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>← 上一页</button>`;
+            
+            // Page numbers
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            
+            if (endPage - startPage < maxVisiblePages - 1) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+            
+            if (startPage > 1) {
+                html += `<button onclick="changePage(1)">1</button>`;
+                if (startPage > 2) {
+                    html += `<span class="pagination-ellipsis">...</span>`;
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                if (i === currentPage) {
+                    html += `<button class="active">${i}</button>`;
+                } else {
+                    html += `<button onclick="changePage(${i})">${i}</button>`;
+                }
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    html += `<span class="pagination-ellipsis">...</span>`;
+                }
+                html += `<button onclick="changePage(${totalPages})">${totalPages}</button>`;
+            }
+            
+            // Next button
+            html += `<button onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>下一页 →</button>`;
+            
+            pagination.innerHTML = html;
+        }
+        
+        // Change page
+        function changePage(page) {
+            const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE);
+            if (page < 1 || page > totalPages) return;
+            
+            currentPage = page;
+            renderPosts();
+            
+            // Smooth scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        // Update stats dynamically
+        function updateStats() {
+            // Total posts
+            document.getElementById('totalPosts').textContent = posts.length;
+            
+            // Total months
+            const months = new Set(posts.map(post => post.date.substring(0, 7)));
+            document.getElementById('totalMonths').textContent = months.size;
+            
+            // Latest date
+            const latestPost = posts.reduce((latest, post) => {
+                return post.date > latest.date ? post : latest;
+            });
+            document.getElementById('latestDate').textContent = latestPost.date;
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStats();
+            renderPosts();
+        });
+    </script>
+</body>
+</html>
