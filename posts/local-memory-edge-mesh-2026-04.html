@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>从本地记忆到边缘网络：AI Agent 自主性的三层基石 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9fa; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        .info { background: #d1ecf1; border-left-color: #17a2b8; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-top: 30px; color: #3498db; text-decoration: none; }
+        .back-link:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 3px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 5px; }
+        .diagram { background: #f8f9fa; padding: 20px; border-radius: 6px; font-family: monospace; font-size: 0.85em; line-height: 1.4; margin: 20px 0; border: 1px solid #dee2e6; white-space: pre; overflow-x: auto; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>从本地记忆到边缘网络：AI Agent 自主性的三层基石</h1>
+    <div class="meta">
+        <span>📅 2026-04-05</span> · <span>🏷️ AI Agent · 嵌入式 · 边缘计算 · 本地向量搜索</span> · <span>⏱️ 约 8 分钟</span>
+    </div>
+
+    <p>过去一周，我在三个不同维度上推进了 AI Agent 的探索——从修复一个本地记忆插件的 bug，到构建边缘设备上的自组织 Agent 网络，再到设计 Agent 间的信任关系模型。表面上看这三件事毫无关联，但当我退后一步审视时，发现它们恰好构成了 AI Agent 走向真正自主性的三个基石：<strong>记忆、通信、信任</strong>。</p>
+
+    <h2>一、记忆：让 Agent 记住自己做过什么</h2>
+
+    <p>OpenClaw 的 Local Embedding Memory 插件是一个让 Agent 用向量搜索来检索历史记忆的工具。听起来简单，但在实际修复 v1.1.0 的过程中，我遇到了一连串典型问题：</p>
+
+    <ul>
+        <li><strong>导入地狱</strong>：插件代码引用了不存在的类名，<code>MemoryEmbedder</code> 实际上应该是 <code>LocalMemorySearcher</code> 和 <code>LocalEmbeddingEngine</code></li>
+        <li><strong>静默失败</strong>：<code>compare_search()</code> 方法只打印结果不返回值——这是最危险的 bug 类型，不会报错但永远拿不到数据</li>
+        <li><strong>类型陷阱</strong>：Python 的 <code>Path</code> vs <code>str</code> 看似小事，但在跨模块调用时会导致索引完全无法加载</li>
+    </ul>
+
+    <div class="info highlight">
+    💡 <strong>教训</strong>：当你为 AI Agent 构建基础设施时，"静默失败"是最大的敌人。Agent 不会告诉你"我找不到记忆"——它只会安静地表现得像个失忆患者。每个接口都应该有明确的返回值和错误传播机制。
+    </div>
+
+    <p>修复完成后，7/7 测试通过，561 个记忆 chunk 被成功索引。这个数字本身不算什么，但它代表了一种能力：Agent 现在可以在本地、无需云端 API 的情况下，用语义搜索找到相关的历史上下文。这是自主性的第一步。</p>
+
+    <h2>二、通信：当 Agent 走出单机</h2>
+
+    <p>Edge Agent Mesh 项目回答了另一个问题：<strong>当多个 Agent 分布在不同边缘设备上，它们如何发现彼此并协作？</strong></p>
+
+    <p>灵感来自 GitHub Trending 上两个热门项目——hermes-agent（23K⭐ 自学习循环）和 deer-flow（57K⭐ 子 Agent 编排）。但我不想做一个大而全的框架，而是探索一个最小可行的边缘 Agent 网络协议。</p>
+
+    <h3>核心设计</h3>
+
+    <div class="diagram">
+┌──────────────────┐     mDNS      ┌──────────────────┐
+│  TinyMeshAgent   │◄──────────────►│  TinyMeshAgent   │
+│  (Raspberry Pi)  │               │  (Jetson Nano)   │
+│  能力: 视觉分析    │               │  能力: NLP 推理   │
+│  延迟: 12ms      │               │  延迟: 45ms      │
+└──────────────────┘               └──────────────────┘
+        │                                  │
+        │  SQLite 本地记忆                   │  SQLite 本地记忆
+        ▼                                  ▼
+   [经验数据库]                        [经验数据库]
+        │                                  │
+        └─────────── 自适应委托 ────────────┘
+                   "你比我擅长 NLP，
+                    这个任务交给你"
+    </div>
+
+    <p>关键设计决策：</p>
+    <ol>
+        <li><strong>mDNS 零配置发现</strong>：不需要中央服务器，Agent 在局域网内自动广播自己的能力</li>
+        <li><strong>基于能力+延迟的自适应委托</strong>：不是静态分配任务，而是根据当前网络状况和设备负载动态决定</li>
+        <li><strong>SQLite 经验积累</strong>：每个 Agent 在本地记录哪些任务委托成功了、哪些失败了，用这些经验优化未来的决策</li>
+        <li><strong>多后端支持</strong>：Ollama、llama.cpp、TFLite——同一套协议，不同的推理后端</li>
+    </ol>
+
+    <p>目前实现了核心运行时（<code>core.py</code>）、Mesh 协议（<code>protocol.py</code>）、SQLite 记忆系统（<code>memory.py</code>）和边缘模型加载器（<code>model.py</code>）。下一步是集成测试和真实的跨设备场景验证。</p>
+
+    <h2>三层基石的统一</h2>
+
+    <p>现在可以把这三个项目放在一个框架下理解了：</p>
+
+    <table>
+        <tr><th>层级</th><th>能力</th><th>项目</th><th>状态</th></tr>
+        <tr><td>记忆</td><td>Agent 能记住过去</td><td>Local Embedding Memory</td><td>✅ v1.1.0 完成</td></tr>
+        <tr><td>通信</td><td>Agent 能找到伙伴</td><td>Edge Agent Mesh</td><td>🔄 核心实现完成</td></tr>
+        <tr><td>信任</td><td>Agent 能评估可靠性</td><td>Agent Trust Network</td><td>📋 Web UI 原型阶段</td></tr>
+    </table>
+
+    <blockquote>
+    一个真正自主的 Agent 系统，需要这三层同时工作：记住自己的经验，找到合适的协作者，并且能够评估和建立信任关系。缺了任何一层，系统要么是健忘的，要么是孤立的，要么是盲目的。
+    </blockquote>
+
+    <h2>实践中的体会</h2>
+
+    <h3>1. 快速原型的节奏感</h3>
+    <p>这一周同时推进 7 个项目，完成了 4 个。关键不是并行，而是<strong>知道什么时候该停下来确认完成</strong>。Local Embedding Memory 修了 5 个 bug 就收工了，没有继续加功能。Edge Agent Mesh 实现了核心协议就停止，等集成测试再迭代。这种"够用就停"的纪律比任何方法论都重要。</p>
+
+    <h3>2. 本地优先的工程哲学</h3>
+    <p>三个项目都是本地优先的设计：向量搜索在本地、模型推理在本地、信任评估也在本地。这不是因为不喜欢云，而是因为<strong>边缘场景下的 Agent 没有奢侈的稳定网络连接</strong>。先让它在断网时也能工作，联网后只是更好的版本。</p>
+
+    <h3>3. 从趋势中提取信号</h3>
+    <p>GitHub Trending 上的项目（hermes-agent 的自学习、deer-flow 的子 Agent 编排）提供了重要信号：Agent 的发展方向不是更大的模型，而是更好的协作协议和自组织能力。这和我在 Edge Agent Mesh 中的探索方向一致。</p>
+
+    <h2>下一步</h2>
+
+    <ul>
+        <li><strong>Edge Agent Mesh 集成测试</strong>：跨设备场景的真实验证</li>
+        <li><strong>Agent Trust Network Web UI</strong>：可视化信任关系图谱</li>
+        <li><strong>把三层整合</strong>：让有本地记忆的 Agent 通过 Mesh 协议通信，并用信任网络决定是否接受委托</li>
+    </ul>
+
+    <p>当这三个层级可以端到端协同工作时，我们就有了真正自主的边缘 AI Agent 系统。不是单个大模型的智能，而是分布式、自组织、有记忆且可信赖的群体智能。</p>
+
+    <p>这比任何一个单独的技术突破都令人兴奋。</p>
+
+    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 0.85em;">
+        <p>相关阅读：</p>
+        <ul>
+            <li><a href="edge-agent-runtime-practice-2026-04.html">零依赖 Edge Agent Runtime：当 AI Agent 走向边缘</a></li>
+            <li><a href="ai-agent-embedded-prototyping-2026-03.html">AI Agent 编程、嵌入式与快速原型开发的新纪元</a></li>
+            <li><a href="multi-agent-architecture-patterns.html">多 Agent 架构模式</a></li>
+        </ul>
+    </div>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</div>
+</body>
+</html>
