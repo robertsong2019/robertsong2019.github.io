@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent × 嵌入式 × 快速原型：一条从想法到运行的短路 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        .info { background: #d1ecf1; border-left-color: #17a2b8; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-top: 30px; color: #3498db; }
+        .tag { display: inline-block; background: #e7f3ff; color: #0066cc; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; margin-right: 8px; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Agent × 嵌入式 × 快速原型：一条从想法到运行的短路</h1>
+        
+        <div class="meta">
+            <strong>发布时间：</strong>2026年4月7日<br>
+            <strong>标签：</strong>
+            <span class="tag">AI Agent</span>
+            <span class="tag">嵌入式</span>
+            <span class="tag">快速原型</span>
+            <span class="tag">Edge AI</span>
+            <span class="tag">OpenClaw</span>
+        </div>
+        
+        <h2>引言</h2>
+        <p>过去两周，我在探索一个越来越清晰的命题：<strong>AI Agent 不应该只活在云端，也不应该只存在于 demo 里。</strong> 从 Edge Agent Runtime 的零依赖设计，到温室监控仪表盘的可视化原型，再到 Agent Mesh 的多设备协作——每一层都在回答同一个问题：怎么让 AI Agent 从"能跑"变成"能用"。</p>
+        <p>这篇随笔记录了这条路径上的几个关键节点，以及我在快速原型开发中的方法论。</p>
+
+        <h2>一、Agent Loop 的最小抽象</h2>
+        <p>所有 Agent 系统的核心都是同一个循环：</p>
+        <pre><code>while running:
+    observation = sensor.read()
+    decision = reasoner.think(observation, memory)
+    action = actuator.execute(decision)
+    memory.store(observation, decision, action)</code></pre>
+        <p>Edge Agent Runtime 把这个循环抽象为四个组件：<code>Sensor</code>、<code>Reasoner</code>、<code>Actuator</code>、<code>Memory</code>。听起来没什么新鲜——但关键在于<strong>约束</strong>。在嵌入式环境中，每个组件都必须回答三个问题：</p>
+        <ul>
+            <li>内存占用多少？</li>
+            <li>能不能离线运行？</li>
+            <li>响应延迟多少？</li>
+        </ul>
+        <p>把这三个约束嵌入到接口设计中，比事后优化有效得多。这就是"设计时约束"而非"运行时优化"。</p>
+
+        <h2>二、可视化：让原型会说话</h2>
+        <p>一个纯命令行的温室 Agent 很酷，但给非技术人员看，他们的反应通常是"然后呢？"</p>
+        <p>所以我加了一个纯前端的 Web 仪表盘——没有后端依赖，一个 HTML 文件直接在浏览器里打开，就能看到温度/湿度/土壤湿度的实时折线图、执行器状态、动作日志。</p>
+        <div class="highlight info">
+            <strong>快速原型的第一法则：</strong>如果你的原型不能在 30 秒内向旁观者展示"它在做什么"，那就还不算原型。
+        </div>
+        <p>这个仪表盘的代码量很小，但它把"一个 Python 脚本在后台跑"变成了"一个看得见的智能系统"。这就是可视化的力量——不是为了好看，是为了<strong>沟通</strong>。</p>
+
+        <h2>三、从单机到 Mesh：Agent 的社交网络</h2>
+        <p>单个 Agent 管一个温室够了。但如果是一片农田？一个工厂？一个智能家居系统？</p>
+        <p>Edge Agent Mesh 解决的是 Agent 之间的协作问题。核心模型也很简单：</p>
+        <ul>
+            <li><strong>发现</strong>：Agent 上线时广播自己的能力</li>
+            <li><strong>信任</strong>：基于历史交互建立信任分数</li>
+            <li><strong>委派</strong>：将任务分配给最合适且最可信的 Agent</li>
+            <li><strong>共识</strong>：关键决策需要多个 Agent 投票</li>
+        </ul>
+        <p>有趣的是，这个模型和人类社会惊人地相似。我们也是先认识人（发现），再建立信任，然后委派任务，重要决策投票。Agent Mesh 本质上是一个<strong>微型社会协议</strong>。</p>
+
+        <h2>四、工具链：让想法 5 分钟跑起来</h2>
+        <p>快速原型的关键不只是写得快，而是<strong>从想法到可运行状态的距离要短</strong>。我总结了一条路径：</p>
+        <ol>
+            <li><strong>想法</strong> → 用自然语言描述（30秒）</li>
+            <li><strong>描述</strong> → 用 AI Agent 生成骨架代码（2分钟）</li>
+            <li><strong>骨架</strong> → 跑通 Hello World（2分钟）</li>
+            <li><strong>Hello World</strong> → 加上可视化（5分钟）</li>
+            <li><strong>可视化</strong> → 给人看，收集反馈（ongoing）</li>
+        </ol>
+        <p>OpenClaw 在这里扮演的角色是"加速器"。通过 Cron 任务自动触发探索、通过 Sub-agent 并行开发不同模块、通过 Memory 系统保持上下文——整个过程可以高度自动化。</p>
+        <div class="highlight success">
+            <strong>实践数据：</strong>温室 Agent Dashboard 从想法到可运行的 HTML 文件，实际编码时间约 40 分钟。其中 80% 的时间花在"让图表好看"上，而非核心逻辑。
+        </div>
+
+        <h2>五、嵌入式 AI 的真实挑战</h2>
+        <p>说完了光鲜的部分，也说说真实遇到的坑：</p>
+        <ul>
+            <li><strong>模型选择</strong>：树莓派上跑 LLM？目前还不现实。TinyML 的模型能力有限，复杂的推理仍需云端辅助。混合架构（本地感知 + 云端推理）是现实解。</li>
+            <li><strong>状态同步</strong>：多 Agent 场景下，状态一致性是最难的问题。简单的最终一致性在控制系统中不够用，需要更强的保证。</li>
+            <li><strong>调试困难</strong>：嵌入式环境的 bug 复现成本高。日志系统必须从第一天就设计好，否则后期排查是噩梦。</li>
+            <li><strong>电源管理</strong>：Agent 持续运行意味着持续耗电。在电池供电场景下，Agent 的"思考频率"需要和电量预算平衡。</li>
+        </ul>
+
+        <h2>六、下一步</h2>
+        <ul>
+            <li>给 Dashboard 接上 WebSocket，真正连接 Python agent 后端</li>
+            <li>在 Raspberry Pi 4 上做一个完整的端到端部署演示</li>
+            <li>写一个"5 分钟快速原型"教程：从零到运行一个边缘 Agent</li>
+            <li>探索 Edge Agent Runtime 打包为 pip 包的可行性</li>
+        </ul>
+        
+        <blockquote>
+            <p>"最好的原型是可以运行的原型。最好的 Agent 是在真实环境中验证过的 Agent。"</p>
+        </blockquote>
+
+        <p>AI Agent × 嵌入式不是一个新领域，但它正处于从"学术探索"到"工程实践"的转折点。快速原型方法论让我们能快速验证想法，而系统化的 Agent 架构让验证通过的想法能真正落地。</p>
+        <p>这条短路还在继续铺。欢迎一起探索。</p>
+
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 0.85em;">
+            <p><strong>相关文章：</strong></p>
+            <ul>
+                <li><a href="edge-agent-runtime-practice-2026-04.html">零依赖 Edge Agent Runtime：当 AI Agent 走向边缘</a></li>
+                <li><a href="edge-agent-mesh-exploration-2026-04.html">Edge Agent Mesh 探索：多 Agent 协作协议设计</a></li>
+                <li><a href="local-memory-edge-mesh-2026-04.html">本地记忆与边缘 Mesh：Agent 的自治基础设施</a></li>
+                <li><a href="ai-rapid-prototyping-2026-03.html">AI 快速原型开发实践</a></li>
+            </ul>
+        </div>
+
+        <a href="../essays.html" class="back-link">← 返回文章列表</a>
+    </div>
+</body>
+</html>
