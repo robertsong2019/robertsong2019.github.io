@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tiny Agent Workshop：用七个单文件学会 AI Agent - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9fa; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        .info { background: #d1ecf1; border-left-color: #17a2b8; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 3px 10px; border-radius: 12px; font-size: 0.85em; margin-right: 8px; }
+        .pattern-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 20px; margin: 15px 0; }
+        .pattern-card h3 { margin-top: 0; color: #3498db; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Tiny Agent Workshop：用七个单文件学会 AI Agent</h1>
+    <div class="meta">
+        2026-04-08 · <a href="/">Robert's Blog</a><br>
+        <span class="tag">AI Agent</span><span class="tag">嵌入式</span><span class="tag">快速原型</span><span class="tag">零依赖</span>
+    </div>
+
+    <blockquote>
+        通过构建来学习 Agent，而不是安装框架。
+    </blockquote>
+
+    <h2>为什么又造轮子</h2>
+    <p>AI Agent 领域的框架已经够多了。LangChain、CrewAI、AutoGen——每一个都在争夺"最佳 Agent 框架"的称号。但框架的繁荣掩盖了一个问题：<strong>你真的理解 Agent 在做什么吗？</strong></p>
+    <p>大多数人用框架的方式是：import，配置，运行，看结果。如果结果不对，调参数。这和会用 jQuery 不等于理解 DOM 是一样的道理。</p>
+    <p>所以我想做一个实验：能不能用<strong>七个单文件</strong>，每个文件实现一个核心 Agent 模式，零框架依赖，覆盖从基础循环到边缘部署的完整图谱？</p>
+    <p>答案是 <a href="https://github.com/robertsong2019/tiny-agent-workshop">tiny-agent-workshop</a>。</p>
+
+    <h2>七个模式，七种思维</h2>
+
+    <h3>1. ReAct Loop（Python）</h3>
+    <p>一切 Agent 的起点。Read-Eval-Act 循环——不是 RAG，不是 Chain，而是最基本的"思考→行动→观察"回路。用不到 100 行 Python 实现一个能搜索网页、做数学、记住上下文的推理 Agent。</p>
+    <div class="highlight">
+        <strong>核心洞察：</strong>Agent = Loop + Tools + Memory。没有更多了。所有框架的本质都是这三件事。
+    </div>
+
+    <h3>2. Tool Calling（Bash）</h3>
+    <p>用纯 Bash 实现 Agent 工具调用。为什么要用 Bash？因为 shell 本身就是一个天然的工具调度器——管道、子进程、环境变量，这些就是 Agent 需要的全部基础设施。</p>
+    <p>当你用 Bash 写完一个 Tool Caller，你会发现 LangChain 的 Tool 抽象不过是 <code>case...esac</code> 的语法糖。</p>
+
+    <h3>3. Conversational Memory（Node.js）</h3>
+    <p>对话记忆不是简单的消息数组。滑动窗口、摘要压缩、优先级队列——这些策略决定了 Agent 是"金鱼脑"还是"有记忆的伙伴"。</p>
+    <p>用 Node.js Stream API 实现一个带过期策略的记忆管理器，你会发现内存管理的本质和 Agent 记忆管理惊人地相似。</p>
+
+    <h3>4. Intent Router（Python）</h3>
+    <p>Agent 不应该用一个大模型处理所有请求。Intent Router 做一件事：把用户输入分发给最合适的处理器。关键词匹配、向量相似度、规则引擎——三种路由策略，一个文件搞定。</p>
+    <div class="highlight">
+        <strong>核心洞察：</strong>"Mixture of Experts" 不需要参数。有时候一个 if-else 就是最优路由。
+    </div>
+
+    <h3>5. Safety Guardrails（Python）</h3>
+    <p>Agent 能做事不代表它应该做事。Safety Guardrails 实现输入过滤、输出审查、动作审批三层防护。没有安全边界的 Agent 是一把没有保险的枪。</p>
+    <p>这个文件最值得仔细读——每个 guardrail 函数都是一次"AI 安全"从理论到实践的翻译。</p>
+
+    <h3>6. Agent Chain/Pipeline（Bash）</h3>
+    <p>多个 Agent 串联工作。Bash 的管道哲学完美契合 Agent Pipeline：每个 Agent 是一个处理阶段，输入从 stdin 流入，输出到 stdout 流出。</p>
+    <p>当你写完 <code>agent1 | agent2 | agent3</code>，你会理解为什么 Unix 哲学经久不衰——因为它是最好的 Agent 编排范式。</p>
+
+    <h3>7. Edge Agent（Python）🆕</h3>
+    <p>这是最新加的一个，也是我最喜欢的一个。<strong>一个不需要 LLM 的 Agent。</strong></p>
+    <p>运行在模拟的微控制器上：5 个传感器（温度/湿度/土壤/光照/电池），规则推理器，EEPROM 风格持久存储，三级电源管理。它像一个真正的嵌入式系统一样思考和行动。</p>
+
+    <h2>Edge Agent：不需要 LLM 的智能</h2>
+    <p>让我多说说这第七个模式，因为它代表了一种被忽视的思路。</p>
+    <p>当前 AI Agent 的讨论有一个隐含假设：Agent = LLM + Tools。好像没有大语言模型，就没有 Agent。但嵌入式世界从来不这么想。</p>
+
+    <div class="pattern-card">
+        <h3>Sense → Think → Act → Remember</h3>
+        <p>Edge Agent 的循环和 ReAct Loop 本质相同，但"Think"不是调用 GPT，而是查规则表。温度高于 35°C？开风扇。土壤湿度低于 30%？开浇水。电池低于 15%？进入睡眠模式。</p>
+        <p>规则推理器还有一个"异常检测"模块——当连续 3 个 tick 传感器值超出正常范围，触发警报。这不是机器学习，这是经验编码。而在大多数场景下，这就够了。</p>
+    </div>
+
+    <p>更有意思的是内存模型。EEPROM 只有 256 字节，满了要用 FIFO 淘汰。每条记忆都是精简的结构体：<code>{tick, type, value, action}</code>。这迫使你思考：<strong>什么值得记住？</strong></p>
+    <p>这个问题，恰恰是当前 LLM Agent 社区还没有认真回答的。</p>
+
+    <div class="highlight info">
+        <strong>戏剧性场景：</strong>Edge Agent 内置了 4 个事件——热浪（tick 8）、寒潮（tick 18）、暴雨（tick 25）、电池危机（tick 30）。看着 Agent 在这些事件中自适应调整策略，你会对"智能"有新的理解。
+    </div>
+
+    <h2>从 Workshop 到现实</h2>
+    <p>这七个模式不是玩具。它们是生产 Agent 的简化版本，剥离了工程复杂度，保留了核心逻辑。</p>
+
+    <table>
+        <tr><th>Workshop 模式</th><th>生产对应物</th></tr>
+        <tr><td>ReAct Loop</td><td>LangChain Agent / OpenAI Assistants</td></tr>
+        <tr><td>Tool Calling</td><td>Function Calling API</td></tr>
+        <tr><td>Conversational Memory</td><td>Mem0 / LangChain Memory</td></tr>
+        <tr><td>Intent Router</td><td>Semantic Router / MOE</td></tr>
+        <tr><td>Safety Guardrails</td><td>NeMo Guardrails / Llama Guard</td></tr>
+        <tr><td>Agent Pipeline</td><td>CrewAI / AutoGen</td></tr>
+        <tr><td>Edge Agent</td><td>edge-agent-runtime / TinyML</td></tr>
+    </table>
+
+    <p>理解了左边，你才能真正评价右边。</p>
+
+    <h2>零依赖哲学</h2>
+    <p>每个文件都是零外部依赖的。Python 只用标准库，Bash 只用内置命令，Node.js 不装包。这不是为了炫技，而是为了一个原则：<strong>如果你不能在没有框架的情况下实现它，你就不理解它。</strong></p>
+    <p>框架应该是效率工具，不是理解工具。先用手写版本理解原理，再用框架提升效率——这个顺序不能反。</p>
+
+    <h2>快速原型的正确姿势</h2>
+    <p>这七个模式从构思到完成，每个平均 2-3 小时。Edge Agent 最复杂，也只用了 4 小时（包括内置场景和测试）。这就是"快速原型"的真正含义——<strong>不是用框架快速搭建，而是理解本质后快速实现。</strong></p>
+    <p>快速原型开发的核心竞争力不是速度，而是判断力：知道什么该简化、什么不能省、哪里是核心复杂度。这种判断力只能通过手写获得。</p>
+
+    <h2>下一步</h2>
+    <p>Tiny Agent Workshop 会继续扩展。计划中的模式包括：</p>
+    <ul>
+        <li><strong>Multi-Agent Negotiation</strong> — Agent 之间如何协商和达成共识</li>
+        <li><strong>Self-Correcting Agent</strong> — Agent 如何检测和修复自己的错误</li>
+        <li><strong>Agent Protocol</strong> — Agent 间通信的最小协议设计</li>
+    </ul>
+    <p>如果你也在学习 AI Agent，不妨从一个空文件开始。不需要安装任何东西。打开编辑器，写一个循环。那就是 Agent 的全部起点。</p>
+
+    <div class="highlight success">
+        <strong>仓库地址：</strong><a href="https://github.com/robertsong2019/tiny-agent-workshop">github.com/robertsong2019/tiny-agent-workshop</a><br>
+        每个 README 都有运行说明和设计思路。clone 下来，跑一遍，改一改。学习 Agent 最好的方式，就是写一个。
+    </div>
+
+</div>
+</body>
+</html>
