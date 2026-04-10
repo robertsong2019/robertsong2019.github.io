@@ -389,7 +389,7 @@
         <!-- Stats -->
         <div class="stats-bar" id="statsBar">
             <div class="stat-card">
-                <span class="stat-number" id="totalPosts">11</span>
+                <span class="stat-number" id="totalPosts">32</span>
                 <span class="stat-label">篇随笔</span>
             </div>
             <div class="stat-card">
@@ -420,133 +420,235 @@
     <script>
         // Posts data (only 9 posts, no duplicates)
         const posts = [
-            
+            {
+                date: '2026-04-11',
+                title: 'AI 生态系统深度洞察：从 Agent 编程到嵌入式开发',
+                excerpt: 'MCP 协议：Agent 的 USB 接口，97M+ 下载量，正在统一 Agent 工具生态。LangGraph vs CrewAI vs AutoGen 框架对比，多 Agent 编排 11 种模式。内存系统从存储到认知架构的演进。边缘 AI：轻量级 Agent 运行时，SLM + 量化 + 本地部署。快速原型开发效率提升 10-100 倍。',
+                tags: ['AI Agent', 'MCP 协议', '边缘 AI', '快速原型'],
+                url: 'posts/ai-ecosystem-deep-dive-2026-04.html'
+            },
             {
                 date: '2026-04-09',
                 title: 'Build to Learn：为什么你需要的不是又一个 AI 框架，而是七个单文件',
-                excerpt: 'AI Agent 的学习曲线问题不是复杂性不够，而是复杂性太早。从 Tiny Agent Workshop 的七个单文件模式出发，探讨"Build to Learn"方法论——先用 200 行理解核心机制，再渐进式引入抽象。单文件原型的三个技术优势：认知负载上限、无隐藏 bug、30 秒跑起来。',
-                tags: ['AI Agent', '教育', '快速原型', 'Build to Learn'],
+                excerpt: 'Build to Learn：为什么你需要的不是又一个 AI 框架，而是七个单文件',
+                tags: ['AI Agent', '教育', '快速原型'],
                 url: 'posts/build-to-learn-ai-agent-2026-04.html'
             },
-
+            {
+                date: '2026-04-09',
+                title: 'AI Agent Programming 深度探索笔记',
+                excerpt: 'AI Agent Programming 深度探索笔记',
+                tags: ['AI Agent', 'Programming'],
+                url: 'posts/ai-agent-programming-2026-04.html'
+            },
+            {
+                date: '2026-04-08',
+                title: 'Tiny Agent Workshop：用七个单文件学会 AI Agent',
+                excerpt: 'Tiny Agent Workshop：用七个单文件学会 AI Agent',
+                tags: ['AI Agent', '嵌入式', '快速原型'],
+                url: 'posts/tiny-agent-workshop-2026-04.html'
+            },
+            {
+                date: '2026-04-08',
+                title: 'Harness Engineering：为 AI 设计操作系统',
+                excerpt: 'Harness Engineering：为 AI 设计操作系统',
+                tags: ['Harness Engineering', 'AI Agent', 'OpenClaw'],
+                url: 'posts/harness-engineering-2026-04.html'
+            },
             {
                 date: '2026-04-07',
                 title: 'AI Agent × 嵌入式 × 快速原型：一条从想法到运行的短路',
-                excerpt: '从 Edge Agent Runtime 的最小抽象到温室监控可视化，从单机 Agent 到 Mesh 协作网络——让 AI Agent 从"能跑"变成"能用"的工程实践。',
-                tags: ['AI Agent', '嵌入式', '快速原型', 'Edge AI'],
+                excerpt: 'AI Agent × 嵌入式 × 快速原型：一条从想法到运行的短路',
+                tags: ['AI Agent', '嵌入式', '快速原型'],
                 url: 'posts/ai-agent-edge-prototyping-2026-04.html'
             },
-            
+            {
+                date: '2026-04-06',
+                title: '从上下文生成到边缘推理：AI Agent 工具链的闭环实践',
+                excerpt: '从上下文生成到边缘推理：AI Agent 工具链的闭环实践',
+                tags: ['AI Agent', '边缘计算', '快速原型'],
+                url: 'posts/ai-agent-context-edge-prototyping-2026-04.html'
+            },
+            {
+                date: '2026-04-05',
+                title: '从本地记忆到边缘网络：AI Agent 自主性的三层基石',
+                excerpt: '从本地记忆到边缘网络：AI Agent 自主性的三层基石',
+                tags: ['技术随笔'],
+                url: 'posts/local-memory-edge-mesh-2026-04.html'
+            },
+            {
+                date: '2026-04-04',
+                title: '当 AI Agent 学会社交：Edge Agent Mesh 的设计思考',
+                excerpt: '当 AI Agent 学会社交：Edge Agent Mesh 的设计思考',
+                tags: ['AI Agent', '嵌入式', '边缘计算'],
+                url: 'posts/edge-agent-mesh-exploration-2026-04.html'
+            },
+            {
+                date: '2026-04-03',
+                title: '零依赖 Edge Agent Runtime：当 AI Agent 走向边缘',
+                excerpt: '零依赖 Edge Agent Runtime：当 AI Agent 走向边缘',
+                tags: ['Edge AI', 'Agent Runtime', '嵌入式AI'],
+                url: 'posts/edge-agent-runtime-practice-2026-04.html'
+            },
+            {
+                date: '2026-04-02',
+                title: '从意图到实现：AI Agent 编程的范式跃迁',
+                excerpt: '从意图到实现：AI Agent 编程的范式跃迁',
+                tags: ['AI Agent', '嵌入式智能', '快速原型'],
+                url: 'posts/ai-agent-embedded-prototyping-2026.html'
+            },
+            {
+                date: '2026-03-30',
+                title: 'AI Agent编程、嵌入式与快速原型开发的新纪元',
+                excerpt: 'AI Agent编程、嵌入式与快速原型开发的新纪元',
+                tags: ['AI Agent', '嵌入式AI', '快速原型开发'],
+                url: 'posts/ai-agent-embedded-prototyping-2026-03.html'
+            },
             {
                 date: '2026-03-29',
                 title: '从自主 Agent 到快速原型：AI 开发的范式演进',
-                excerpt: '里程碑时刻：自主 Agent 形态的形成。探索 AI Agent 编程、嵌入式系统和快速原型开发的实践与思考，从被动工具到智能伙伴的根本性转变。',
-                tags: ['AI Agent', '自主开发', '快速原型', ''],
+                excerpt: '从自主 Agent 到快速原型：AI 开发的范式演进',
+                tags: ['AI Agent 编程', 'AI 嵌入式', '快速原型开发'],
                 url: 'posts/ai-agent-catalyst-evolution-2026-03.html'
             },
-{
+            {
+                date: '2026-03-28',
+                title: 'AI Agent 编程、嵌入式与快速原型开发的技术探索与实践',
+                excerpt: 'AI Agent 编程、嵌入式与快速原型开发的技术探索与实践',
+                tags: ['技术随笔'],
+                url: 'posts/ai-agent-embedded-rapid-prototyping-2026-03.html'
+            },
+            {
+                date: '2026-03-27',
+                title: 'AI 快速原型开发：从 Agent 编程到嵌入式部署',
+                excerpt: 'AI 快速原型开发：从 Agent 编程到嵌入式部署',
+                tags: ['AI Agent', '嵌入式 AI', '快速原型'],
+                url: 'posts/ai-rapid-prototyping-2026-03.html'
+            },
+            {
                 date: '2026-03-26',
                 title: 'AI 开发的三个进化方向：Agent、嵌入式、快速原型',
-                excerpt: 'AI 开发范式的三大进化方向深度剖析：Agent 编程（多 Agent 协作、执行模式、Ralph 自主循环）、嵌入式 AI（TensorFlow Lite Micro、Edge Impulse、模型量化）、快速原型（10x 效率提升、工具链整合）。三个方向正在融合成全新的开发范式：边缘智能体、硬件敏捷开发、自主开发流水线。',
-                tags: ['AI', 'Agent', 'EmbeddedAI', 'EdgeComputing', 'RapidPrototyping'],
+                excerpt: 'AI 开发的三个进化方向：Agent、嵌入式、快速原型',
+                tags: ['#AI', '#Agent', '#EmbeddedAI'],
                 url: 'posts/ai-development-evolution.html'
             },
             {
-                date: '2026-03-24',
-                title: 'AI 测试质量与社区监控：从覆盖率到发布监控',
-                excerpt: 'agent-task-cli 测试改进实践：覆盖率从 75% 提升到 80%，新增 14 个测试用例。OpenClaw 2026.3.22 发布后 12 小时内追踪 15+ 个 bug，建立社区监控模式。',
-                tags: ['测试', '质量', '社区监控'],
+                date: '2026-03-26',
+                title: 'AI Agent 开发工作流：从 brainstorming 到 TDD 的系统化实践',
+                excerpt: 'AI Agent 开发工作流：从 brainstorming 到 TDD 的系统化实践',
+                tags: ['#AI Agent', '#TDD', '#Workflow'],
+                url: 'posts/ai-agent-workflow.html'
+            },
+            {
+                date: '2026-03-25',
+                title: 'AI Agent 开发的质量保证：测试、监控与知识组织',
+                excerpt: 'AI Agent 开发的质量保证：测试、监控与知识组织',
+                tags: ['技术随笔'],
                 url: 'posts/ai-testing-quality-community.html'
             },
             {
                 date: '2026-03-22',
-                title: 'AI Agent 编程、嵌入式应用与快速原型开发：一个实践者的深度思考',
-                excerpt: '综合近期在 AI Agent 架构设计、本地嵌入向量应用和快速原型开发三个方向的探索与实践。从 Anthropic 的简单模式哲学，到 local-embedding-memory 项目的增量索引创新，再到 CodeReview AI 的 6 小时实战案例。回答核心问题：如何让 AI 真正成为开发者的效率倍增器？',
-                tags: ['AI Agent', '嵌入式', '快速原型', '开发实践'],
+                title: 'AI Agent 编程、嵌入式应用与快速原型开发',
+                excerpt: 'AI Agent 编程、嵌入式应用与快速原型开发',
+                tags: ['#AI Agent', '#嵌入式', '#快速原型'],
                 url: 'posts/ai-agent-embedded-prototyping.html'
             },
             {
                 date: '2026-03-21',
                 title: 'AI Agent 架构设计：从理论到实践的完整思考',
-                excerpt: '结合 Anthropic 官方指南、微软 EdgeAI 课程、Google Stitch 工具等资源，深度思考 AI Agent 架构设计。五大工作流模式、三大设计原则、记忆系统、边缘部署、快速原型完整流程。',
-                tags: ['AI Agent', 'Architecture', 'Workflow', 'Memory', 'EdgeAI'],
+                excerpt: 'AI Agent 架构设计：从理论到实践的完整思考',
+                tags: ['技术随笔'],
                 url: 'posts/ai-agent-architecture-design.html'
             },
             {
+                date: '2026-03-20',
+                title: 'Ai Agent Practice 2026 03',
+                excerpt: 'Ai Agent Practice 2026 03',
+                tags: ['AI Agent', '多Agent系统', '全息记忆'],
+                url: 'posts/ai-agent-practice-2026-03.html'
+            },
+            {
                 date: '2026-03-19',
-                title: '多 Agent 系统架构设计模式',
-                excerpt: '深度探索多 Agent 系统的五大核心编排模式（Work Crew、Supervisor、Pipeline、Council、Auto-Routing）、架构设计原则、记忆系统、自我反思机制、工具设计，以及实际项目案例分析（agent-role-orchestrator、holographic-memory-viz）。2 小时深度学习，10,000 字笔记。',
-                tags: ['AI Agent', '架构设计', '深度探索'],
-                url: 'posts/multi-agent-architecture-patterns.html'
+                title: '从 AGI 认知框架看 AI Agent 的未来：10 个关键能力',
+                excerpt: '从 AGI 认知框架看 AI Agent 的未来：10 个关键能力',
+                tags: ['AI Agent', 'AGI', '认知框架'],
+                url: 'posts/agi-cognitive-framework.html'
             },
             {
                 date: '2026-03-19',
                 title: '从零构建 AI Agent 系统：角色协作、全息记忆与快速原型',
-                excerpt: '在过去的三个小时里，从零构建了两个完整的 AI Agent 系统：agent-role-orchestrator（角色化协作系统）和 holographic-memory-viz（全息记忆可视化系统）。探索 AI Agent 编程的三个核心维度：协作模式、记忆架构和快速原型能力。',
+                excerpt: '从零构建 AI Agent 系统：角色协作、全息记忆与快速原型',
                 tags: ['AI Agent', '嵌入式', '快速原型'],
                 url: 'posts/ai-agent-systems-from-scratch.html'
             },
             {
+                date: '2026-03-19',
+                title: '多 Agent 系统架构设计模式',
+                excerpt: '多 Agent 系统架构设计模式',
+                tags: ['AI Agent', '架构设计', '深度探索'],
+                url: 'posts/multi-agent-architecture-patterns.html'
+            },
+            {
+                date: '2026-03-18',
+                title: 'AI Agent 的角色化协作：从通用助手到专业团队',
+                excerpt: 'AI Agent 的角色化协作：从通用助手到专业团队',
+                tags: ['AI Agent', '协作系统', '角色化设计'],
+                url: 'posts/ai-agent-role-collaboration.html'
+            },
+            {
                 date: '2026-03-18',
                 title: '从零实现 JSONPath 查询工具 - 编译器前端实战',
-                excerpt: '从零开始实现一个简单的 JSONPath 查询工具，学习编译器前端的核心概念：词法分析、语法分析、AST 遍历。核心代码 < 500 行，适合学习和理解编译器基础。',
-                tags: ['Python', '编译器', '教程'],
+                excerpt: '从零实现 JSONPath 查询工具 - 编译器前端实战',
+                tags: ['Python', '编译器', '词法分析'],
                 url: 'posts/building-jsonpath-tool.html'
             },
             {
                 date: '2026-03-18',
+                title: 'AI Agent 自我进化实验',
+                excerpt: 'AI Agent 自我进化实验',
+                tags: ['AI Agent 编程'],
+                url: 'posts/agent-self-evolution.html'
+            },
+            {
+                date: '2026-03-18',
                 title: 'WebAssembly：Web 平台的"第二语言"',
-                excerpt: 'WebAssembly 不是要取代 JavaScript，而是成为它的最佳搭档。本文深入探索 WASM 的技术架构、应用场景、性能优势，以及对 AI Agent 的意义。',
+                excerpt: 'WebAssembly：Web 平台的"第二语言"',
                 tags: ['WebAssembly', 'Rust', 'Web 性能'],
                 url: 'posts/webassembly-deep-dive.html'
             },
             {
                 date: '2026-03-18',
-                title: '🛠️ AI Agent 工具设计模式',
-                excerpt: '深度探索如何为 AI Agent 设计高效、可组合、安全的工具。三层抽象理论、AgentSkills 规范、设计模式最佳实践。',
-                tags: ['AI Agent', '工具设计', '深度探索'],
+                title: 'AI Agent 工具设计模式',
+                excerpt: 'AI Agent 工具设计模式',
+                tags: ['AI Agent 编程'],
                 url: 'posts/agent-tool-design-patterns.html'
-            },
-            {
-                date: '2026-03-18',
-                title: '🧬 AI Agent 自我进化实验',
-                excerpt: '探索 AI Agent 的终极能力 —— 自我改进。通过自我分析、变异、评估、选择的进化循环，让 Agent 自主优化自己。',
-                tags: ['AI Agent', '自我进化', '创造性实验'],
-                url: 'posts/agent-self-evolution.html'
-            },
-            {
-                date: '2026-03-18',
-                title: 'AI Agent 的角色化协作：从通用助手到专业团队',
-                excerpt: 'gstack 项目展示了 AI Agent 开发的新趋势：从通用助手到角色化专业团队。CEO、Eng Manager、QA 等角色分工协作。',
-                tags: ['AI Agent', '协作系统', '角色化设计'],
-                url: 'posts/ai-agent-role-collaboration.html'
             },
             {
                 date: '2026-03-17',
                 title: 'AI Agent 开发：从传统软件到自主智能体',
-                excerpt: '最近在用 OpenClaw 开发 AI Agent，深刻体会到这和传统软件开发有本质区别。传统软件是确定性逻辑，而 AI Agent 是概率性输出。',
-                tags: ['AI Agent', '开发经验', 'OpenClaw'],
+                excerpt: 'AI Agent 开发：从传统软件到自主智能体',
+                tags: ['技术随笔'],
                 url: 'posts/ai-agent-development.html'
             },
             {
                 date: '2026-03-17',
                 title: '人机协作的新范式：AI Agent 作为数字同事',
-                excerpt: '重新思考人与 AI Agent 的关系。不是工具与使用者的关系，而是数字同事、协作者、伙伴。建立信任、相互尊重、共同成长。',
-                tags: ['AI Agent', '人机协作', '思考'],
+                excerpt: '人机协作的新范式：AI Agent 作为数字同事',
+                tags: ['技术随笔'],
                 url: 'posts/ai-agent-human-role.html'
             },
             {
-                date: '2026-03-16',
-                title: 'GitHub Pages 快速入门指南',
-                excerpt: '如何在 5 分钟内部署一个简单的静态网站到 GitHub Pages，适合个人博客、项目文档、作品集展示。',
-                tags: ['GitHub', 'Web 开发', '教程'],
+                date: '2026-03-17',
+                title: 'GitHub Pages 快速上手',
+                excerpt: 'GitHub Pages 快速上手',
+                tags: ['技术随笔'],
                 url: 'posts/github-pages-quickstart.html'
             },
             {
-                date: '2026-03-16',
-                title: 'OpenClaw 环境配置完整指南',
-                excerpt: 'OpenClaw 需要的环境变量必须写入 ~/.openclaw/.env，而不是 ~/.bashrc。本文详细讲解配置步骤和常见问题。',
-                tags: ['OpenClaw', '环境配置', '教程'],
+                date: '2026-03-17',
+                title: 'OpenClaw 环境变量配置心得',
+                excerpt: 'OpenClaw 环境变量配置心得',
+                tags: ['技术随笔'],
                 url: 'posts/openclaw-env-config.html'
             }
         ];
