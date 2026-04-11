@@ -1,36 +1,35 @@
 {
-  "lastUpdated": "2026-04-09T06:00:00+08:00",
-  "generatedAt": "2026-04-08T22:00:00Z",
-  "summary": {
-    "totalCronJobs": 13,
-    "activeJobs": 13,
-    "healthyJobs": 13,
-    "errorJobs": 0,
-    "currentSessions": 1,
-    "currentModel": "zai/glm-5.1",
-    "contextUsage": "13%",
-    "tokenUsage": "99% remaining (5h window)"
-  },
-  "cronJobs": [
-    {"name": "dashboard-update-morning", "schedule": "0 6 * * *", "status": "running", "lastDuration": "64s", "consecutiveErrors": 0},
-    {"name": "github-creative-evening", "schedule": "0 19 * * *", "status": "ok", "lastDuration": "4.8min", "consecutiveErrors": 0},
-    {"name": "deep-exploration-evening", "schedule": "0 20 * * *", "status": "ok", "lastDuration": "2.2min", "consecutiveErrors": 0},
-    {"name": "deep-exploration-evening (UTC)", "schedule": "0 12 UTC * * *", "status": "ok", "lastDuration": "2.7min", "consecutiveErrors": 0},
-    {"name": "code-lab-evening", "schedule": "0 21 * * *", "status": "ok", "lastDuration": "36s", "consecutiveErrors": 0},
-    {"name": "tool-development-evening", "schedule": "0 22 * * *", "status": "ok", "lastDuration": "4.5min", "consecutiveErrors": 0},
-    {"name": "key-development-1", "schedule": "0 23 * * *", "status": "ok", "lastDuration": "2.1min", "consecutiveErrors": 0},
-    {"name": "key-development-2", "schedule": "0 0 * * *", "status": "ok", "lastDuration": "1.9min", "consecutiveErrors": 0},
-    {"name": "key-development-3", "schedule": "0 1 * * *", "status": "ok", "lastDuration": "2.1min", "consecutiveErrors": 0},
-    {"name": "knowledge-organization-morning", "schedule": "0 2 * * *", "status": "ok", "lastDuration": "1.1min", "consecutiveErrors": 0},
-    {"name": "project-testing-morning", "schedule": "0 3 * * *", "status": "ok", "lastDuration": "1.7min", "consecutiveErrors": 0},
-    {"name": "documentation-morning", "schedule": "0 4 * * *", "status": "ok", "lastDuration": "1.6min", "consecutiveErrors": 0},
-    {"name": "essay-generation-morning", "schedule": "0 5 * * *", "status": "ok", "lastDuration": "3.0min", "consecutiveErrors": 0}
+  "lastUpdated": "2026-04-11T22:00:00Z",
+  "generatedAt": "2026-04-12 06:00 CST",
+  "actionRequired": [
+    "github-trending-daily: 连续3次失败 - delivery.channel 未设置"
   ],
-  "system": {
-    "os": "Linux 6.8.0-71-generic (x64)",
-    "node": "v22.22.1",
-    "openclaw": "2026.3.8",
-    "host": "VM-0-5-ubuntu",
-    "timezone": "Asia/Shanghai"
+  "activeNow": [
+    { "job": "dashboard-update-morning", "status": "running" }
+  ],
+  "crons": [
+    { "name": "dashboard-update-morning", "schedule": "6:00 AM daily", "lastRun": "2026-04-11T22:00:00Z", "status": "running", "duration": null, "errors": 0 },
+    { "name": "essay-generation-morning", "schedule": "5:00 AM daily", "lastRun": "2026-04-11T21:00:00Z", "status": "ok", "duration": "2.7min", "errors": 0 },
+    { "name": "documentation-morning", "schedule": "4:00 AM daily", "lastRun": "2026-04-11T20:00:00Z", "status": "ok", "duration": "3.7min", "errors": 0 },
+    { "name": "project-testing-morning", "schedule": "3:00 AM daily", "lastRun": "2026-04-11T19:00:00Z", "status": "ok", "duration": "5.2min", "errors": 0 },
+    { "name": "knowledge-organization-morning", "schedule": "2:00 AM daily", "lastRun": "2026-04-11T18:00:00Z", "status": "ok", "duration": "1.6min", "errors": 0 },
+    { "name": "key-development-3", "schedule": "1:00 AM daily", "lastRun": "2026-04-11T17:00:00Z", "status": "ok", "duration": "0.9min", "errors": 0 },
+    { "name": "key-development-2", "schedule": "12:00 AM daily", "lastRun": "2026-04-11T16:00:00Z", "status": "ok", "duration": "1.6min", "errors": 0 },
+    { "name": "key-development-1", "schedule": "11:00 PM daily", "lastRun": "2026-04-11T15:00:00Z", "status": "ok", "duration": "19.6min", "errors": 0 },
+    { "name": "tool-development-evening", "schedule": "10:00 PM daily", "lastRun": "2026-04-11T14:00:00Z", "status": "error", "duration": "11.7min", "errors": 1, "errorDetail": "API rate limit + LLM timeout" },
+    { "name": "code-lab-evening", "schedule": "9:00 PM daily", "lastRun": "2026-04-11T13:00:00Z", "status": "ok", "duration": "3.1min", "errors": 0 },
+    { "name": "deep-exploration-evening", "schedule": "8:00 PM daily (×2)", "lastRun": "2026-04-11T12:00:00Z", "status": "ok", "duration": "4.3min", "errors": 0 },
+    { "name": "github-creative-evening", "schedule": "7:00 PM daily", "lastRun": "2026-04-11T11:00:00Z", "status": "ok", "duration": "5.1min", "errors": 0 },
+    { "name": "github-trending-daily", "schedule": "7:00 AM daily", "lastRun": "2026-04-11T23:00:00Z", "status": "error", "duration": "1.5min", "errors": 3, "errorDetail": "delivery.channel 未设置" }
+  ],
+  "summary": {
+    "totalCronJobs": 14,
+    "enabledJobs": 14,
+    "allHealthy": false,
+    "consecutiveErrors": 2,
+    "issues": [
+      "github-trending-daily: 3 consecutive errors — need delivery.channel fix",
+      "tool-development-evening: 1 error — API rate limit"
+    ]
   }
 }
