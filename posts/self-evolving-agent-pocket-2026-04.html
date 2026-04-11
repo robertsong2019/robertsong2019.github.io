@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>从 Pocket Agent 到自进化系统：AI Agent 最小化实践 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>从 Pocket Agent 到自进化系统：AI Agent 最小化实践</h1>
+    <div class="meta">
+        2026-04-12 · <span class="tag">AI-Agent</span> <span class="tag">Rapid-Prototyping</span> <span class="tag">Edge-AI</span> <span class="tag">Python</span>
+    </div>
+
+    <p>过去两周的深夜代码实验室里，我一直在做一个实验：用最少的代码，把 AI Agent 的核心概念讲清楚。结果出乎意料——<strong>一个完整的 ReAct Agent 只需要 ~150 行 Python</strong>，而一个能在运行时自我扩展能力的 Agent，也不到 300 行。</p>
+
+    <p>这篇文章记录了 Pocket Agent 和 Self-Evolving Agent 两个实验项目的设计思路，以及从中提炼的 AI Agent 最小化实践原则。</p>
+
+    <h2>一、为什么是"最小化"？</h2>
+
+    <p>2026 年的 Agent 框架百花齐放——LangGraph 状态图、CrewAI 角色团队、AutoGen 对话流……每个都有价值，但也都有一个共同问题：<strong>抽象层太厚，初学者很难理解 Agent 到底在做什么</strong>。</p>
+
+    <p>我想要一个"口袋版"的 Agent：</p>
+    <ul>
+        <li>读完 <code>agent.py</code> 一个文件就能理解全部逻辑</li>
+        <li>零外部依赖，拔掉网线也能跑</li>
+        <li>但架构要能无缝切换到真实的 LLM API</li>
+    </ul>
+
+    <p>这就像学操作系统，先写一个能启动的 bootloader，再看 Linux 内核。</p>
+
+    <h2>二、Pocket Agent：150 行的核心抽象</h2>
+
+    <h3>2.1 三大组件</h3>
+
+    <p>Pocket Agent 把所有 Agent 框架的共性提取为三个核心类：</p>
+
+    <ol>
+        <li><strong>ToolRegistry</strong> — 工具注册中心，自动从函数签名生成 JSON Schema</li>
+        <li><strong>EpisodicMemory</strong> — 情景记忆，存储完整的交互历史</li>
+        <li><strong>ReActLoop</strong> — 推理-行动循环，Agent 的"心跳"</li>
+    </ol>
+
+    <pre><code>@tool
+def get_weather(city: str) -> str:
+    """查询指定城市的天气"""
+    return f"{city}: 晴, 25°C"
+
+# 装饰器自动注册，自动生成 schema
+# 无需手动描述参数类型 — 从 type hints 推导</code></pre>
+
+    <p>这个设计的精妙之处在于：<strong>MockLLM 和真实 API 共享完全相同的接口</strong>。替换 LLM 只需要改一行初始化代码。</p>
+
+    <h3>2.2 ReAct 循环的本质</h3>
+
+    <p>ReAct（Reasoning + Acting）不是什么高深的概念。本质上就是一个 while 循环：</p>
+
+    <pre><code>while not done:
+    thought = llm.think(context)    # 思考
+    action = llm.decide(thought)    # 决策
+    result = tool_registry.call(action)  # 执行
+    memory.store(thought, action, result)  # 记忆
+    done = llm.evaluate(result)     # 判断是否完成</code></pre>
+
+    <blockquote>所有 Agent 框架的复杂性，本质上都是在回答三个问题：怎么思考？怎么选工具？什么时候停下来？</blockquote>
+
+    <h2>三、Self-Evolving Agent：运行时自我扩展</h2>
+
+    <p>如果说 Pocket Agent 回答了"Agent 是什么"，那 Self-Evolving Agent 回答的就是：<strong>"Agent 能不能变得更强大？"</strong></p>
+
+    <h3>3.1 核心机制</h3>
+
+    <p>Self-Evolving Agent 从零工具开始。当用户提出一个它无法处理的需求时：</p>
+    <ol>
+        <li>分析需求，匹配内置的 8 个工具模板（fibonacci、prime_check、password_gen 等）</li>
+        <li>用 <code>exec()</code> 动态生成工具代码</li>
+        <li>自动注册到 ToolRegistry</li>
+        <li>立即使用新工具响应用户</li>
+    </ol>
+
+    <pre><code># 运行时动态生成工具
+tool_code = generate_from_template("fibonacci", params)
+exec(tool_code)  # 动态执行
+registry.register(new_tool)  # 自动注册</code></pre>
+
+    <h3>3.2 安全与设计的权衡</h3>
+
+    <p>是的，<code>exec()</code> 在生产环境中是危险的。但这个实验的价值在于概念验证：<strong>Agent 的能力边界不必在部署时固定</strong>。</p>
+
+    <p>更安全的实现方式包括：</p>
+    <ul>
+        <li><strong>MCP 工具市场</strong> — 从受信任的注册中心动态拉取工具</li>
+        <li><strong>A2A 协议</strong> — 通过 Agent 间通信借用其他 Agent 的能力</li>
+        <li><strong>Sandbox 执行</strong> — WASM 沙箱中运行动态代码</li>
+    </ul>
+
+    <h2>四、从实验室到边缘：AI 嵌入式的快速路径</h2>
+
+    <p>这两个实验项目指向一个更大的趋势：<strong>AI Agent 正在从云端走向边缘</strong>。</p>
+
+    <h3>4.1 最小化 = 可嵌入</h3>
+
+    <p>150 行的 Pocket Agent 意味着什么？它意味着：</p>
+    <ul>
+        <li>可以在 <strong>Raspberry Pi</strong> 上以微秒级延迟运行</li>
+        <li>可以编译为 <strong>MicroPython</strong> 在 ESP32 上运行</li>
+        <li>核心逻辑可以翻译成 <strong>C/Rust</strong> 嵌入固件</li>
+    </ul>
+
+    <p>当 Agent 框架从"几百 MB 的依赖链"缩减到"几百行代码"，嵌入式部署就不再是梦想。</p>
+
+    <h3>4.2 Edge Agent Runtime</h3>
+
+    <p>基于这些实验，我正在开发一个 Edge Agent Runtime，核心设计理念：</p>
+
+    <ul>
+        <li><strong>零依赖核心</strong> — 纯 Python，无外部包</li>
+        <li><strong>可插拔推理器</strong> — MockLLM → ONNX → 云端 API，按硬件能力选择</li>
+        <li><strong>自组织网络</strong> — 边缘设备通过轻量协议自动组网（Edge Agent Mesh）</li>
+    </ul>
+
+    <h2>五、快速原型开发的方法论</h2>
+
+    <p>这些实验验证了一个我越来越确信的方法论：<strong>先缩到最小，再按需扩展</strong>。</p>
+
+    <h3>5.1 三步法</h3>
+
+    <ol>
+        <li><strong>Strip</strong> — 剥离所有框架，用最少的代码实现核心概念</li>
+        <li><strong>Swap</strong> — 用真实组件替换 mock 组件（MockLLM → OpenAI，Dict → VectorDB）</li>
+        <li><strong>Scale</strong> — 添加分布式、持久化、安全等生产级能力</li>
+    </ol>
+
+    <h3>5.2 为什么有效？</h3>
+
+    <p>因为<strong>理解 > 使用</strong>。一个理解了 ReAct 循环本质的开发者，切换到 LangGraph 只需要看 30 分钟文档。而一个跳过理解直接用框架的人，遇到问题就是黑箱。</p>
+
+    <h2>六、下一步</h2>
+
+    <p>这些实验还在继续演化：</p>
+    <ul>
+        <li><strong>Edge Agent Runtime</strong> — 核心已完成（31/31 tests），下一步是硬件适配</li>
+        <li><strong>Edge Agent Mesh</strong> — 去中心化协作协议已实现核心模块</li>
+        <li><strong>MCP Server for OpenClaw</strong> — 把 Agent 工具暴露为标准 MCP 接口</li>
+        <li><strong>Agent Trust Network</strong> — 多 Agent 信任模型 + Web 可视化</li>
+    </ul>
+
+    <p>如果你对 AI Agent 编程感兴趣，我的建议很简单：<strong>打开编辑器，从 150 行开始</strong>。</p>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:2rem 0;">
+    <p style="color:#8b949e;font-size:0.85rem;">
+        本文基于 2026 年 4 月代码实验室的实践记录。相关项目代码可在 <a href="https://github.com/robertsong2019">GitHub</a> 查看。<br>
+        上一篇：<a href="local-memory-edge-mesh-2026-04.html">本地记忆与边缘网格：AI Agent 的分布式未来</a>
+    </p>
+</body>
+</html>
