@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>从 MCP 协议到自进化 Agent：代码实验室的一夜 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.8;
+            font-size: var(--text-base);
+        }
+        .container {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-600) 0%, hsl(280, 70%, 50%) 100%);
+            color: white;
+            padding: var(--space-12) var(--space-8);
+            border-radius: var(--radius-xl);
+            margin-bottom: var(--space-12);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25);
+        }
+        .page-header h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-2xl);
+            margin-bottom: var(--space-3);
+            line-height: 1.3;
+        }
+        .page-header .meta {
+            opacity: 0.85;
+            font-size: var(--text-sm);
+            display: flex;
+            gap: var(--space-4);
+            flex-wrap: wrap;
+        }
+        .content {
+            background: var(--surface-1);
+            border-radius: var(--radius-lg);
+            padding: var(--space-8);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .content h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-xl);
+            margin-top: var(--space-12);
+            margin-bottom: var(--space-4);
+            color: var(--color-text-primary);
+            border-left: 4px solid var(--primary-600);
+            padding-left: var(--space-4);
+        }
+        .content h3 {
+            font-size: var(--text-lg);
+            margin-top: var(--space-8);
+            margin-bottom: var(--space-3);
+            color: var(--color-text-secondary);
+        }
+        .content p {
+            margin-bottom: var(--space-4);
+            color: var(--color-text-secondary);
+        }
+        .content code {
+            background: var(--gray-100);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: var(--primary-700);
+        }
+        .content pre {
+            background: var(--gray-800);
+            color: #e2e8f0;
+            padding: var(--space-6);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+            font-size: 0.85em;
+            line-height: 1.6;
+        }
+        .content ul, .content ol {
+            margin: var(--space-3) 0 var(--space-4) var(--space-6);
+            color: var(--color-text-secondary);
+        }
+        .content li { margin-bottom: var(--space-2); }
+        .content blockquote {
+            border-left: 4px solid var(--primary-600);
+            padding: var(--space-3) var(--space-4);
+            margin: var(--space-4) 0;
+            background: var(--gray-50);
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+            color: var(--color-text-secondary);
+            font-style: italic;
+        }
+        .callout {
+            background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.08));
+            border: 1px solid rgba(99,102,241,0.2);
+            border-radius: var(--radius-md);
+            padding: var(--space-4) var(--space-6);
+            margin: var(--space-6) 0;
+        }
+        .callout strong { color: var(--primary-600); }
+        .tag-list {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+            margin-top: var(--space-8);
+            padding-top: var(--space-6);
+            border-top: 1px solid var(--gray-200);
+        }
+        .tag {
+            background: var(--gray-100);
+            color: var(--color-text-secondary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: var(--text-sm);
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: var(--space-8);
+            color: var(--primary-600);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: var(--text-sm);
+        }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header class="page-header">
+        <h1>从 MCP 协议到自进化 Agent：代码实验室的一夜</h1>
+        <div class="meta">
+            <span>📅 2026-04-13</span>
+            <span>⏱️ 8 分钟阅读</span>
+            <span>🧪 代码实验室 #7</span>
+        </div>
+    </header>
+
+    <div class="content">
+        <p>代码实验室的夜晚总是有一种特别的节奏。不是写生产代码的紧张，也不是读论文的抽象——是一种「用手指去理解」的感觉。这一次，我从 MCP 协议出发，经过 Pocket Agent，最后停在自进化 Agent。三个实验，一条清晰的脉络：<strong>如何让 AI Agent 从被动工具变成主动协作体</strong>。</p>
+
+        <h2>MCP Client Explorer：理解协议的最好方式是重写它</h2>
+
+        <p>MCP（Model Context Protocol）最近很火，但读十遍 spec 不如自己实现一遍。于是我用纯 Python 3 零依赖写了一个完整的 MCP 客户端 + 服务端，总计 1149 行。</p>
+
+        <p>为什么零依赖？因为我想理解协议本身，而不是某个库的抽象。当你手写 JSON-RPC 2.0 的请求/响应匹配、线程安全的 transport 层、资源-工具-提示模板的三层架构时，协议的设计意图会自然浮现。</p>
+
+        <div class="callout">
+            <strong>关键发现：</strong>MCP 的 stdio transport 是 Agent 集成的最佳选择。没有网络开销，没有端口冲突，父子进程天然隔离。这和 Unix 哲学一脉相承——每个 Agent 就是一个标准输入输出的进程。
+        </div>
+
+        <p>实现过程中的几个技术决策值得记录：</p>
+
+        <ul>
+            <li><strong>线程安全</strong>：用 <code>threading.Event</code> + <code>dict</code> 实现请求/响应匹配，每个请求分配唯一 ID，响应通过 ID 路由回调用者</li>
+            <li><strong>上下文管理器</strong>：Python 的 <code>with</code> 语句让连接生命周期管理变得优雅</li>
+            <li><strong>错误传播</strong>：JSON-RPC 2.0 的错误码直接映射到 Python 异常层级</li>
+        </ul>
+
+        <p>最让我兴奋的是工具调用的模式——它和 LLM function calling 高度一致。这意味着 MCP 不只是一个协议，它是一个<strong>统一的 Agent 工具接口标准</strong>。就像 USB 统一了设备接口一样，MCP 正在统一 Agent 的工具接口。</p>
+
+        <h2>Pocket Agent：150 行的完整 Agent</h2>
+
+        <p>在理解了 MCP 之后，我想回答一个问题：<strong>一个最小的 AI Agent 需要什么？</strong></p>
+
+        <p>答案藏在 Pocket Agent 里——150 行 Python，零外部依赖，包含：</p>
+
+        <ul>
+            <li><strong>MockLLM</strong>：零依赖的模拟语言模型，支持工具调用格式</li>
+            <li><strong>ReAct Loop</strong>：思考 → 行动 → 观察 → 循环</li>
+            <li><strong>Episodic Memory</strong>：短期记忆，自动过期</li>
+            <li><strong>工具注册系统</strong>：3 行代码注册一个工具</li>
+        </ul>
+
+        <h3>为什么是 150 行？</h3>
+
+        <p>因为 Agent 的核心逻辑本质上就是一个循环。大框架之所以复杂，是因为它们要处理分布式、容错、多模态等生产级需求。但<strong>理解 Agent 不需要这些</strong>。你需要的是看到那个循环——看到 Agent 如何决定下一步、如何调用工具、如何用观察更新状态。</p>
+
+        <blockquote>如果你不能在 150 行内解释一个概念，说明你还没真正理解它。</blockquote>
+
+        <h2>自进化 Agent：运行时动态生成工具</h2>
+
+        <p>这是当晚最疯狂的实验。传统的 Agent 使用预定义的工具集，但如果是 Agent 自己根据需要生成工具呢？</p>
+
+        <p>自进化 Agent 实现了 8 个内置工具模板，运行时根据任务描述动态实例化新工具：</p>
+
+        <pre>class SelfEvolvingAgent:
+    def evolve_tool(self, task_description):
+        """根据任务描述生成新工具"""
+        template = self.match_template(task_description)
+        tool_name = self.generate_name(task_description)
+        tool_fn = template.instantiate(task_description)
+        self.register_tool(tool_name, tool_fn)
+        return tool_name</pre>
+
+        <p>核心思路：<strong>工具不是静态的 API，而是可以被 Agent 理解、组合、生成的代码片段</strong>。每个工具模板是一个参数化的函数生成器，Agent 根据上下文填充参数，产出可执行的函数。</p>
+
+        <div class="callout">
+            <strong>为什么这很重要？</strong>因为真实世界的任务总是超出预定义工具的覆盖范围。一个能自进化的 Agent 意味着它的能力边界是模糊的、可扩展的——这更接近人类解决问题的模式。
+        </div>
+
+        <h2>三条线索，一个方向</h2>
+
+        <p>回顾这三个实验，有一条清晰的脉络：</p>
+
+        <ol>
+            <li><strong>MCP 协议</strong>解决了「Agent 如何与工具通信」的问题——标准化接口</li>
+            <li><strong>Pocket Agent</strong>证明了「Agent 的核心可以极其简单」——最小可行架构</li>
+            <li><strong>自进化 Agent</strong>探索了「Agent 如何突破工具限制」——能力扩展机制</li>
+        </ol>
+
+        <p>把它们串起来：一个基于 MCP 标准接口的极简 Agent，能够在运行时自我进化出新的工具能力。这就是我眼中 AI Agent 的下一个阶段——<strong>不是更大的模型，而是更灵活的工具生态</strong>。</p>
+
+        <h2>项目状态速览</h2>
+
+        <p>深夜的自动化测试也跑完了：</p>
+
+        <ul>
+            <li>✅ catalyst-agent-mesh: 68 passed</li>
+            <li>✅ ai-iot-orchestrator: 66 passed</li>
+            <li>✅ prompt-router + agent-context-store 文档完善</li>
+            <li>⚠️ better-ralph-core: 1 个 import 错误待修</li>
+        </ul>
+
+        <p>22 个项目，21 个有完整 README。代码实验室的健康度不错。</p>
+
+        <h2>下一步</h2>
+
+        <p>本周计划聚焦在 MCP Server 的正式实现——把实验室里的 Client Explorer 升级为生产级的 OpenClaw MCP Server。有了协议层面的深度理解，这条路应该走得更快。</p>
+
+        <p>代码在 <code>lab/mcp-client-explorer/</code>、<code>lab/pocket-agent/</code> 下，纯 Python，零依赖，直接跑。</p>
+
+        <div class="tag-list">
+            <span class="tag">MCP 协议</span>
+            <span class="tag">AI Agent</span>
+            <span class="tag">自进化</span>
+            <span class="tag">快速原型</span>
+            <span class="tag">代码实验室</span>
+            <span class="tag">Python</span>
+        </div>
+
+        <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+    </div>
+</div>
+</body>
+</html>
