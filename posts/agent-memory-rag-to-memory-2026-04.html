@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 的记忆难题：从 RAG 到 Agent Memory - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9fa; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        .info { background: #d1ecf1; border-left-color: #17a2b8; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 3px 10px; border-radius: 12px; font-size: 0.85em; margin-right: 8px; }
+        .layer-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 20px; margin: 15px 0; }
+        .layer-card h3 { margin-top: 0; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>AI Agent 的记忆难题：从 RAG 到 Agent Memory</h1>
+    <div class="meta">
+        2026-04-14 · <a href="/">Robert's Blog</a><br>
+        <span class="tag">AI Agent</span><span class="tag">Memory</span><span class="tag">快速原型</span><span class="tag">零依赖</span>
+    </div>
+
+    <blockquote>
+        一个没有记忆的 Agent，每次对话都像失忆的病人——聪明，但毫无连续性。
+    </blockquote>
+
+    <h2>问题：为什么 RAG 不够用了</h2>
+    <p>RAG（检索增强生成）在过去两年几乎成了 AI 应用的标配。语义相似度匹配 + 大语言模型，简单粗暴，效果还行。但当 Agent 需要长期运行、跨会话协作时，RAG 的短板暴露无遗：</p>
+    <ul>
+        <li><strong>无状态</strong> — 每次检索都是独立的，无法追踪事件的时间线</li>
+        <li><strong>语义陷阱</strong> — "我讨厌咖啡"和"我喜欢咖啡"语义相似度极高，含义截然相反</li>
+        <li><strong>被动</strong> — 只在被问到时才检索，不会主动关联和推理</li>
+        <li><strong>无遗忘机制</strong> — 过时信息和当前信息权重相同</li>
+    </ul>
+    <p>这不是 RAG 的 bug，而是它根本不是为 Agent 设计的。RAG 是工具书索引，Agent Memory 是日记本。</p>
+
+    <h2>范式转移：记忆的生命周期</h2>
+    <p>Agent Memory 的核心洞察是：<strong>记忆不是一个存储问题，而是一个生命周期问题</strong>。一条记忆从产生到消亡，经历三个阶段：</p>
+
+    <div class="layer-card">
+        <h3>🟢 短期记忆（L2）— 当前会话</h3>
+        <p>活跃在工作内存中，半衰期约 1 天。类似人类的"今天午饭吃了什么"——现在清楚，三天后消失。用于维护当前对话上下文和临时决策。</p>
+    </div>
+
+    <div class="layer-card">
+        <h3>🟡 中期记忆（L1）— 事件记录</h3>
+        <p>带有时间戳的事件流，半衰期约 30 天。"上周讨论了 Agent Trust Network 的架构"——需要时能回忆，但重要性会随时间衰减。需要主动维护才能保留。</p>
+    </div>
+
+    <div class="layer-card">
+        <h3>🔴 长期记忆（L0）— 持久知识</h3>
+        <p>不衰减的核心知识。"用户偏好零依赖方案"——这类信息一旦确认，永远有效。是 Agent 人格和能力的基石。</p>
+    </div>
+
+    <p>关键在于：<strong>记忆不是静态的</strong>。每次被访问（recall），记忆得到加强；长时间不被访问，按 Ebbinghaus 遗忘曲线衰减。这和人类大脑的工作方式惊人地相似。</p>
+
+    <h2>实战：31 个测试，零依赖</h2>
+    <p>理论说够了，动手。我花了一个晚上实现了 <code>agent-memory-service</code>，一个 Mem0 风格的记忆管理服务。设计原则一如既往：<strong>零外部依赖，先跑通再优化</strong>。</p>
+
+    <h3>自动记忆提取</h3>
+    <p>对话流入系统后，自动识别五类信息：</p>
+    <ul>
+        <li><strong>偏好</strong> — "我喜欢用零依赖方案"</li>
+        <li><strong>事实</strong> — "项目的测试覆盖率是 80%"</li>
+        <li><strong>决策</strong> — "决定用 JSON 文件而不是 SQLite"</li>
+        <li><strong>实体</strong> — "Edge Agent Runtime 项目"</li>
+        <li><strong>上下文</strong> — "正在做 Agent Memory 架构设计"</li>
+    </ul>
+    <p>当前用规则匹配实现（快速原型），后续可以无缝升级为 LLM 提取。</p>
+
+    <h3>多策略检索</h3>
+    <p>检索时不是简单的一个向量相似度，而是四路合并：</p>
+    <ol>
+        <li><strong>关键词匹配</strong> — 精确命中，高置信度</li>
+        <li><strong>n-gram 语义相似度</strong> — 无需 embedding API，离线可用</li>
+        <li><strong>时间衰减</strong> — 越新的记忆权重越高</li>
+        <li><strong>层级加权</strong> — L0 记忆天然比 L2 更重要</li>
+    </ol>
+    <p>最终得分 = 各路加权和，取 Top-K 返回。</p>
+
+    <h3>去重与增强</h3>
+    <p>两个容易被忽略但至关重要的机制：</p>
+    <ul>
+        <li><strong>内容哈希去重</strong> — 同一信息不会存两遍。用内容的 SHA-256 哈希判断。</li>
+        <li><strong>访问增强</strong> — 每次 recall 都是一次"复习"。被频繁访问的记忆衰减更慢。</li>
+    </ul>
+
+    <h2>框架对比：谁在做什么</h2>
+    <p>研究了一圈主流框架，各有侧重：</p>
+
+    <table>
+        <tr><th>框架</th><th>核心思路</th><th>LongMemEval</th><th>适合场景</th></tr>
+        <tr><td><strong>Mem0</strong></td><td>最大生态，SDK 成熟</td><td>49.0%</td><td>快速集成，产品化</td></tr>
+        <tr><td><strong>Hindsight</strong></td><td>多策略检索</td><td>91.4%</td><td>高准确率需求</td></tr>
+        <tr><td><strong>Letta</strong></td><td>OS 启发分层</td><td>—</td><td>Agent 自主管理</td></tr>
+        <tr><td><strong>Zep</strong></td><td>时间推理领先</td><td>—</td><td>对话分析</td></tr>
+    </table>
+
+    <p>Hindsight 的 91.4% 准确率令人印象深刻，但 Mem0 的生态优势也不可忽视。选择取决于你的优先级：准确率还是生态完整性。</p>
+
+    <h2>设计决策：为什么不用 SQLite</h2>
+    <p>在实现过程中，我做了一个可能引发争议的决定：<strong>用 JSON 文件而不是 SQLite 做持久化</strong>。理由：</p>
+    <ol>
+        <li><strong>可读性</strong> — 打开文件就能看到所有记忆，调试友好</li>
+        <li><strong>可移植性</strong> — 不依赖任何数据库引擎</li>
+        <li><strong>快速原型</strong> — 从 idea 到 31 个测试全绿，一个晚上</li>
+        <li><strong>后续可升级</strong> — 存储层是抽象的，换 SQLite 或 Vector DB 是配置变更</li>
+    </ol>
+    <p>同样的逻辑也适用于 n-gram 相似度替代 embedding。不需要 API，离线可用，对于快速原型足够好。<strong>先证明架构正确，再优化实现</strong>。</p>
+
+    <div class="info highlight">
+        <strong>快速原型的核心原则：</strong>用最简单的实现验证最核心的假设。如果你不能用 JSON 文件和规则匹配证明三层记忆模型有效，换成 Vector DB 和 LLM 也救不了你。
+    </div>
+
+    <h2>六大设计模式回顾</h2>
+    <p>在探索过程中，我重新审视了 Andrew Ng 总结的 AI Agent 六大模式，在记忆管理的语境下有了新的理解：</p>
+    <ul>
+        <li><strong>Reflection</strong> — Agent 定期回顾自己的记忆，修正过时信息</li>
+        <li><strong>Tool Use</strong> — 记忆本身作为一种工具，供其他 Agent 查询</li>
+        <li><strong>Planning</strong> — 多步骤任务需要维护中间状态的记忆链</li>
+        <li><strong>Multi-Agent</strong> — 每个 Agent 有自己的记忆，如何共享和隔离</li>
+        <li><strong>Orchestrator-Worker</strong> — 编排者需要记住全局，工作者只需局部</li>
+        <li><strong>Evaluator-Optimizer</strong> — 用记忆中的历史数据评估和改进</li>
+    </ul>
+    <p>每种模式都对记忆有不同的需求。一个成熟的 Agent 系统需要根据模式选择合适的记忆策略。</p>
+
+    <h2>下一步</h2>
+    <p>这个项目还只是一个开始。接下来要做的事：</p>
+    <ol>
+        <li><strong>接入 LLM 提取</strong> — 从规则匹配升级为真正的语义提取</li>
+        <li><strong>Embedding 集成</strong> — 接入 Local Embedding Memory 的向量检索</li>
+        <li><strong>OpenClaw 插件化</strong> — 替代/增强现有的 MEMORY.md 文件系统</li>
+        <li><strong>知识图谱合并</strong> — 与 agent-memory-graph 的图谱能力整合</li>
+    </ol>
+
+    <h2>总结</h2>
+    <p>Agent Memory 不是 RAG 的升级版，而是一个全新的问题域。它需要你思考记忆的生命周期、衰减机制、层级划分和检索策略。好消息是，核心概念并不复杂——三层存储、遗忘曲线、多策略检索——用一个晚上就能实现原型。</p>
+    <p>关键不是用什么数据库或什么向量引擎，而是<strong>你是否理解了记忆的生命周期</strong>。工具可以换，架构不能错。</p>
+
+    <blockquote>
+        先用 JSON 文件证明你的架构是对的，再考虑换 Vector DB。顺序反了就是灾难。
+    </blockquote>
+
+    <div class="meta" style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">零依赖</span>
+        <span class="tag">快速原型</span>
+        <span class="tag">Mem0</span>
+    </div>
+</div>
+</body>
+</html>
