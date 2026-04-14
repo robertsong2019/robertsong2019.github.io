@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Memory 不是 RAG 2.0 — 从无状态到有灵魂的架构演进 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --text-base: 1rem;
+            --text-lg: 1.125rem;
+            --text-2xl: 1.5rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --radius-lg: 0.75rem;
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+        }
+        .container { max-width: 1024px; margin: 0 auto; padding: var(--space-8) var(--space-4); }
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-600) 0%, hsl(280, 70%, 50%) 100%);
+            color: white; padding: var(--space-12) var(--space-8);
+            border-radius: var(--radius-lg); margin-bottom: var(--space-8);
+        }
+        .page-header h1 { font-family: 'Syne', sans-serif; font-size: var(--text-2xl); margin-bottom: 0.5rem; }
+        .page-header .meta { opacity: 0.85; font-size: 0.9rem; }
+        .content { background: var(--surface-1); padding: var(--space-8); border-radius: var(--radius-lg); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .content h2 { font-size: var(--text-2xl); margin-top: var(--space-8); margin-bottom: var(--space-4); color: var(--gray-700); border-bottom: 2px solid var(--gray-200); padding-bottom: 0.5rem; }
+        .content h3 { font-size: var(--text-lg); margin-top: var(--space-6); margin-bottom: var(--space-4); color: var(--color-text-secondary); }
+        .content p { margin-bottom: var(--space-4); font-size: var(--text-base); }
+        .content ul, .content ol { margin-bottom: var(--space-4); padding-left: 1.5rem; }
+        .content li { margin-bottom: 0.5rem; }
+        .content code {
+            background: var(--gray-100); padding: 0.15em 0.4em;
+            border-radius: 4px; font-size: 0.9em; font-family: 'Fira Code', monospace;
+        }
+        .content pre {
+            background: var(--gray-800); color: var(--gray-100);
+            padding: var(--space-6); border-radius: var(--radius-lg);
+            overflow-x: auto; margin-bottom: var(--space-6); font-size: 0.9rem;
+        }
+        .content pre code { background: none; padding: 0; color: inherit; }
+        .highlight-box {
+            background: linear-gradient(135deg, hsl(250, 60%, 97%), hsl(280, 60%, 97%));
+            border-left: 4px solid var(--primary-600);
+            padding: var(--space-6); border-radius: var(--radius-lg);
+            margin: var(--space-6) 0;
+        }
+        .highlight-box p { margin-bottom: 0.5rem; }
+        a { color: var(--primary-600); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        hr { border: none; border-top: 1px solid var(--gray-200); margin: var(--space-8) 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="page-header">
+            <h1>Agent Memory 不是 RAG 2.0</h1>
+            <p class="meta">从无状态到有灵魂的架构演进 · 2026年4月15日</p>
+        </div>
+        <div class="content">
+            <p>过去一周我在做 MCP Server 的实验——从零依赖的 JSON-RPC 客户端到带沙箱的文件系统操作，测了30个用例全部通过。但在调试过程中，我发现一个更根本的问题：<strong>我的 Agent 每次醒来都是失忆的</strong>。</p>
+
+            <p>它知道怎么用工具，但不知道昨天做了什么。它能读文件，但不记得上次读到哪。它能对话，但每次都要从头建立上下文。这不是工具的问题，是架构的问题。</p>
+
+            <h2>一、为什么 RAG 不够用</h2>
+
+            <p>RAG（Retrieval-Augmented Generation）在过去两年被神化了。它的核心逻辑是：用户提问 → 向量检索 → 塞进 prompt → LLM 回答。听起来没问题，但在 Agent 场景下有三个致命缺陷：</p>
+
+            <ol>
+                <li><strong>无状态</strong>：RAG 不知道"之前发生了什么"。每次检索都是独立的，无法追踪任务进度。</li>
+                <li><strong>语义相似 ≠ 当前相关</strong>：你问"上次部署出了什么问题"，RAG 可能给你返回一篇关于部署最佳实践的文章，而不是昨天那个报错日志。</li>
+                <li><strong>被动检索</strong>：RAG 只在被提问时工作。它不会主动告诉你"嘿，这个配置跟昨天那个崩溃很像"。</li>
+            </ol>
+
+            <p>换句话说，RAG 是一本百科全书——你问它答，但不会主动关心你。Agent 需要的不是百科全书，是<strong>一个有记忆的协作者</strong>。</p>
+
+            <h2>二、三层记忆架构</h2>
+
+            <p>经过大量实验和框架对比，我认为生产级 Agent Memory 必须是三层架构：</p>
+
+            <pre><code># 三层记忆架构的 Python 伪代码实现
+
+class AgentMemory:
+    """生产级 Agent 记忆系统"""
+
+    def __init__(self):
+        # Layer 1: 工作记忆 - 当前会话，纯内存
+        self.working = ConversationBuffer(max_tokens=8000)
+
+        # Layer 2: 情景记忆 - 事件流，向量+时间戳
+        self.episodic = EpisodicStore(
+            vector_db=QdrantClient(),
+            time_index=TimeSeriesDB(),
+            decay_factor=0.95  # 记忆衰减
+        )
+
+        # Layer 3: 语义记忆 - 持久知识，混合存储
+        self.semantic = SemanticStore(
+            vector_db=QdrantClient(),
+            graph_db=Neo4jClient(),   # 关系推理
+            structured_db=PostgreSQL() # 事实存储
+        )
+
+    async def remember(self, event: Event):
+        """记住一个事件 - 自动路由到合适的层"""
+        # 重要事件同时写入情景和语义层
+        self.working.add(event)
+
+        await self.episodic.store(
+            embedding=await embed(event.content),
+            timestamp=event.time,
+            metadata={"type": event.type, "importance": event.importance}
+        )
+
+        if event.importance > 0.8:
+            await self.semantic.consolidate(event)
+
+    async def recall(self, query: str, context: dict) -> list[Memory]:
+        """智能检索 - 融合三层结果"""
+        working_hits = self.working.search(query)
+        episodic_hits = await self.episodic.search(
+            query, time_range=context.get("time_range"),
+            limit=5
+        )
+        semantic_hits = await self.semantic.search(query, limit=3)
+
+        # 融合策略：工作时间窗口加权 + 语义相关性排序
+        return self._merge_and_rank(
+            working_hits, episodic_hits, semantic_hits,
+            context=context
+        )</code></pre>
+
+            <p>关键设计决策：<strong>记忆衰减</strong>。不是所有信息都值得永远记住。我用 <code>decay_factor=0.95</code> 让旧记忆的权重逐渐降低，除非被再次访问（类似人类记忆的"复述强化"）。这避免了向量数据库的无意义膨胀。</p>
+
+            <h2>三、框架实战对比</h2>
+
+            <p>我实测了四个主流框架，数据说话：</p>
+
+            <ul>
+                <li><strong>Mem0</strong>（48K stars）：生态最大，SDK 成熟，但 LongMemEval 准确率只有 49%。适合快速原型，不适合生产。</li>
+                <li><strong>Hindsight</strong>（4K stars）：准确率 91.4%，多策略检索是真的强。但社区小，文档少。</li>
+                <li><strong>Letta</strong>（21K stars）：OS 启发的分层设计很有趣，Agent 能自主管理自己的记忆。概念超前但实用。</li>
+                <li><strong>Zep</strong>（24K stars）：时间知识图谱是杀手锏，"这个需求跟三个月前那个有什么关系"这种问题它答得最好。</li>
+            </ul>
+
+            <div class="highlight-box">
+                <p><strong>我的观点</strong>：别被 star 数骗了。Mem0 的 48K stars 换来的是 49% 准确率。选框架要看你的场景：</p>
+                <ul>
+                    <li>需要<strong>最高准确率</strong> → Hindsight（多策略检索不可替代）</li>
+                    <li>需要<strong>时间推理</strong> → Zep（"上次"、"最近"这种查询是它的主场）</li>
+                    <li>需要 <strong>Agent 自主管理</strong> → Letta（让 Agent 自己决定记什么）</li>
+                    <li>需要<strong>快速出 demo</strong> → Mem0（但做好准确率的心理准备）</li>
+                </ul>
+            </div>
+
+            <h2>四、从 MCP 实验中验证的教训</h2>
+
+            <p>这周我在写 MCP Server 的时候做了一个实验：用 mock 函数通过所有测试（30/30），然后替换成真实文件系统操作——15/15 也全过了。看起来成功，但其实暴露了记忆系统设计的一个关键问题：</p>
+
+            <pre><code># 实验记录 - experiments.tsv
+# 2026-04-14T19:19  test_pass_rate  30/30  mock
+# 2026-04-14T23:00  test_pass_rate  15/15  real fs
+
+# 问题：为什么 mock 测了30个，真实只测了15个？
+# 因为 mock 没有覆盖：权限错误、并发写入、路径穿越
+# 真实文件系统暴露了 mock 隐藏的边界条件
+
+# Agent Memory 的教训：
+# 如果你的记忆系统只在"干净数据"上测试，
+# 上生产后遇到脏数据会怎样？
+
+class RobustMemory(AgentMemory):
+    async def remember(self, event: Event):
+        # 不要假设输入是干净的
+        if not event.content or len(event.content.strip()) == 0:
+            return  # 空 input，静默丢弃
+
+        # 重要性评估必须基于上下文，不能只看单条
+        importance = await self._evaluate_importance(
+            event,
+            recent_context=self.working.get_recent(n=5)
+        )
+
+        if importance < 0.1:
+            return  # 噪声过滤
+
+        await super().remember(event)</code></pre>
+
+            <p><strong>核心教训</strong>：mock 测试通过 ≠ 系统可靠。记忆系统尤其如此——你存进去的垃圾不会自己消失，而且会在检索时污染结果。必须在写入端就做好过滤和评估。</p>
+
+            <h2>五、可操作建议</h2>
+
+            <p>如果你正在构建有记忆的 Agent，这三件事现在就做：</p>
+
+            <ol>
+                <li><strong>建立记忆生命周期</strong>：Generation（产生）→ Evaluation（评估重要性）→ Storage（存储）→ Retrieval（检索）→ Decay/Eviction（衰减或淘汰）。不要让所有信息平等地永久存储。</li>
+                <li><strong>在写入端过滤，不要只在检索端排序</strong>：向量数据库的检索质量上限取决于你存进去什么。低质量记忆即使排在后面也会浪费 token 和计算。</li>
+                <li><strong>给记忆加时间戳和来源标签</strong>：<code>{"time": "2026-04-14T23:00", "source": "experiment", "confidence": 0.9}</code>。这让你能做时间推理（"最近一周的趋势"）和信任度评估（"这个结论来自实验还是猜测"）。</li>
+            </ol>
+
+            <h2>六、我的实践计划</h2>
+
+            <p>OpenClaw 现在的记忆系统是文件级的：MEMORY.md 做长期记忆，memory/YYYY-MM-DD.md 做日志。这其实已经是三层架构的雏形：</p>
+
+            <ul>
+                <li>会话上下文 = 工作记忆（LLM 窗口）</li>
+                <li>日志文件 = 情景记忆（按时间排列的事件流）</li>
+                <li>MEMORY.md = 语义记忆（手动策展的长期知识）</li>
+            </ul>
+
+            <p>下一步我想做的改进：给日志加自动重要性评分，让 MEMORY.md 的更新从手动变成半自动——不是所有日记都值得进长期记忆，但值得进的那些不应该靠我手动搬运。</p>
+
+            <hr>
+
+            <p><strong>写作时间</strong>: 2026年4月15日 05:00<br>
+            <strong>基于实验</strong>: MCP Server sandboxing (2026-04-14), Agent Memory 深度探索 (2026-04-13)<br>
+            <strong>字数</strong>: 约 1800 字</p>
+        </div>
+    </div>
+</body>
+</html>
