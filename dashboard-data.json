@@ -1,35 +1,31 @@
 {
-  "lastUpdated": "2026-04-11T22:00:00Z",
-  "generatedAt": "2026-04-12 06:00 CST",
-  "actionRequired": [
-    "github-trending-daily: 连续3次失败 - delivery.channel 未设置"
-  ],
-  "activeNow": [
-    { "job": "dashboard-update-morning", "status": "running" }
-  ],
-  "crons": [
-    { "name": "dashboard-update-morning", "schedule": "6:00 AM daily", "lastRun": "2026-04-11T22:00:00Z", "status": "running", "duration": null, "errors": 0 },
-    { "name": "essay-generation-morning", "schedule": "5:00 AM daily", "lastRun": "2026-04-11T21:00:00Z", "status": "ok", "duration": "2.7min", "errors": 0 },
-    { "name": "documentation-morning", "schedule": "4:00 AM daily", "lastRun": "2026-04-11T20:00:00Z", "status": "ok", "duration": "3.7min", "errors": 0 },
-    { "name": "project-testing-morning", "schedule": "3:00 AM daily", "lastRun": "2026-04-11T19:00:00Z", "status": "ok", "duration": "5.2min", "errors": 0 },
-    { "name": "knowledge-organization-morning", "schedule": "2:00 AM daily", "lastRun": "2026-04-11T18:00:00Z", "status": "ok", "duration": "1.6min", "errors": 0 },
-    { "name": "key-development-3", "schedule": "1:00 AM daily", "lastRun": "2026-04-11T17:00:00Z", "status": "ok", "duration": "0.9min", "errors": 0 },
-    { "name": "key-development-2", "schedule": "12:00 AM daily", "lastRun": "2026-04-11T16:00:00Z", "status": "ok", "duration": "1.6min", "errors": 0 },
-    { "name": "key-development-1", "schedule": "11:00 PM daily", "lastRun": "2026-04-11T15:00:00Z", "status": "ok", "duration": "19.6min", "errors": 0 },
-    { "name": "tool-development-evening", "schedule": "10:00 PM daily", "lastRun": "2026-04-11T14:00:00Z", "status": "error", "duration": "11.7min", "errors": 1, "errorDetail": "API rate limit + LLM timeout" },
-    { "name": "code-lab-evening", "schedule": "9:00 PM daily", "lastRun": "2026-04-11T13:00:00Z", "status": "ok", "duration": "3.1min", "errors": 0 },
-    { "name": "deep-exploration-evening", "schedule": "8:00 PM daily (×2)", "lastRun": "2026-04-11T12:00:00Z", "status": "ok", "duration": "4.3min", "errors": 0 },
-    { "name": "github-creative-evening", "schedule": "7:00 PM daily", "lastRun": "2026-04-11T11:00:00Z", "status": "ok", "duration": "5.1min", "errors": 0 },
-    { "name": "github-trending-daily", "schedule": "7:00 AM daily", "lastRun": "2026-04-11T23:00:00Z", "status": "error", "duration": "1.5min", "errors": 3, "errorDetail": "delivery.channel 未设置" }
+  "updatedAt": "2026-04-15T06:00:00+08:00",
+  "generatedBy": "Catalyst Mission Control",
+  "cronJobs": [
+    {"name": "dashboard-update-morning", "schedule": "0 6 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "51s", "nextRun": "2026-04-16 06:00"},
+    {"name": "github-trending-daily", "schedule": "0 7 * * *", "enabled": true, "lastStatus": "error", "lastDuration": "21s", "consecutiveErrors": 7, "nextRun": "2026-04-15 07:00"},
+    {"name": "essay-generation-morning", "schedule": "0 5 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "3m", "nextRun": "2026-04-16 05:00"},
+    {"name": "github-creative-evening", "schedule": "0 19 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "10m 37s", "nextRun": "2026-04-15 19:00"},
+    {"name": "deep-exploration-evening", "schedule": "0 20 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "1m 31s", "nextRun": "2026-04-15 20:00"},
+    {"name": "code-lab-evening", "schedule": "0 21 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "2m 6s", "nextRun": "2026-04-15 21:00"},
+    {"name": "tool-development-evening", "schedule": "0 22 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "6m 51s", "nextRun": "2026-04-15 22:00"},
+    {"name": "key-development-1", "schedule": "0 23 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "4m 55s", "nextRun": "2026-04-15 23:00"},
+    {"name": "key-development-2", "schedule": "0 0 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "2m 43s", "nextRun": "2026-04-16 00:00"},
+    {"name": "key-development-3", "schedule": "0 1 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "6m 35s", "nextRun": "2026-04-16 01:00"},
+    {"name": "knowledge-organization-morning", "schedule": "0 2 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "2m 5s", "nextRun": "2026-04-16 02:00"},
+    {"name": "project-testing-morning", "schedule": "0 3 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "4m 27s", "nextRun": "2026-04-16 03:00"},
+    {"name": "documentation-morning", "schedule": "0 4 * * *", "enabled": true, "lastStatus": "ok", "lastDuration": "2m 21s", "nextRun": "2026-04-16 04:00"}
   ],
   "summary": {
-    "totalCronJobs": 14,
+    "totalJobs": 14,
     "enabledJobs": 14,
-    "allHealthy": false,
-    "consecutiveErrors": 2,
-    "issues": [
-      "github-trending-daily: 3 consecutive errors — need delivery.channel fix",
-      "tool-development-evening: 1 error — API rate limit"
-    ]
-  }
+    "healthyJobs": 13,
+    "errorJobs": 1,
+    "last24hRuns": 14,
+    "last24hSuccess": 13,
+    "last24hErrors": 1
+  },
+  "alerts": [
+    {"job": "github-trending-daily", "issue": "连续7次失败: Feishu投递目标格式错误", "severity": "high"}
+  ]
 }
