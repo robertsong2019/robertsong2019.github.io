@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harness Engineering 三大工具深度对比：gstack、GSD 与 Better Ralph - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 896px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+
+        /* Back Link */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-weight: 500;
+            margin-bottom: var(--space-8);
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--color-primary-hover);
+        }
+
+        /* Article Header */
+        .article-header {
+            margin-bottom: var(--space-12);
+        }
+
+        .article-meta {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-4);
+            font-size: var(--text-sm);
+            color: var(--color-text-muted);
+        }
+
+        .article-title {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-3xl);
+            font-weight: 800;
+            color: var(--color-text-primary);
+            line-height: 1.2;
+            margin-bottom: var(--space-6);
+        }
+
+        .article-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+        }
+
+        .article-tag {
+            display: inline-block;
+            padding: var(--space-1) var(--space-3);
+            background: var(--surface-1);
+            border: 1px solid var(--gray-200);
+            border-radius: 9999px;
+            font-size: var(--text-xs);
+            color: var(--color-text-secondary);
+            font-weight: 500;
+        }
+
+        /* Article Content */
+        .article-content {
+            background: var(--surface-1);
+            padding: var(--space-8);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .article-content h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            color: var(--color-text-primary);
+            margin-top: var(--space-8);
+            margin-bottom: var(--space-4);
+        }
+
+        .article-content h3 {
+            font-size: var(--text-xl);
+            font-weight: 600;
+            color: var(--color-text-primary);
+            margin-top: var(--space-6);
+            margin-bottom: var(--space-3);
+        }
+
+        .article-content p {
+            margin-bottom: var(--space-4);
+            color: var(--color-text-secondary);
+        }
+
+        .article-content ul, .article-content ol {
+            margin-bottom: var(--space-4);
+            padding-left: var(--space-6);
+            color: var(--color-text-secondary);
+        }
+
+        .article-content li {
+            margin-bottom: var(--space-2);
+        }
+
+        .article-content blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+
+        .article-content code {
+            background: var(--gray-100);
+            padding: 0.2em 0.4em;
+            border-radius: var(--radius-sm);
+            font-size: 0.9em;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+
+        .article-content pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin-bottom: var(--space-4);
+        }
+
+        .article-content pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--space-6) 0;
+            font-size: var(--text-sm);
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: var(--space-3) var(--space-4);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .comparison-table th {
+            background: var(--gray-50);
+            font-weight: 600;
+            color: var(--color-text-primary);
+        }
+
+        .comparison-table tr:hover {
+            background: var(--gray-50);
+        }
+
+        /* Skill List */
+        .skill-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: var(--space-2);
+            margin: var(--space-4) 0;
+        }
+
+        .skill-item {
+            background: var(--gray-100);
+            padding: var(--space-2) var(--space-3);
+            border-radius: var(--radius-sm);
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: var(--text-xs);
+        }
+
+        /* Highlight Box */
+        .highlight-box {
+            background: linear-gradient(135deg, rgba(250, 250, 250, 0.9), rgba(240, 245, 255, 0.9));
+            border-left: 4px solid var(--color-primary);
+            padding: var(--space-4);
+            margin: var(--space-6) 0;
+            border-radius: var(--radius-md);
+        }
+
+        .highlight-box h4 {
+            color: var(--color-primary);
+            margin-bottom: var(--space-2);
+            font-size: var(--text-base);
+            font-weight: 600;
+        }
+
+        /* Footer */
+        .article-footer {
+            margin-top: var(--space-12);
+            text-align: center;
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--space-4) var(--space-3);
+            }
+
+            .article-title {
+                font-size: var(--text-2xl);
+            }
+
+            .article-content {
+                padding: var(--space-6);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+
+        <article class="article-header">
+            <div class="article-meta">
+                <span>📅 2026-04-15</span>
+                <span>•</span>
+                <span>8 分钟阅读</span>
+            </div>
+            <h1 class="article-title">Harness Engineering 三大工具深度对比：gstack、GSD 与 Better Ralph</h1>
+            <div class="article-tags">
+                <span class="article-tag">#AI</span>
+                <span class="article-tag">#Agent</span>
+                <span class="article-tag">#Harness</span>
+                <span class="article-tag">#gstack</span>
+                <span class="article-tag">#GSD</span>
+                <span class="article-tag">#BetterRalph</span>
+            </div>
+        </article>
+
+        <div class="article-content">
+            <p>随着 LLM 能力的提升，AI Agent 编码从"对话式生成"进化到"工程化生产"。<strong>Harness Engineering</strong> —— 这个正在形成的新兴工程学科，关注的是如何将多个 AI Agent session 编排成可重复、可靠的工作流。</p>
+
+            <p>最近，我深入研究了三个代表性工具：Garry Tan 的 <strong>gstack</strong>、TÂCHES 的 <strong>GSD (Get Shit Done)</strong>，以及社区驱动的 <strong>Better Ralph</strong>。它们代表了 Harness Engineering 的不同方向。</p>
+
+            <h2>核心定位对比</h2>
+
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>工具</th>
+                        <th>核心定位</th>
+                        <th>作者/背景</th>
+                        <th>驱动方式</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>gstack</strong></td>
+                        <td>虚拟工程团队（23个角色技能）</td>
+                        <td>Garry Tan (YC CEO)</td>
+                        <td>命令式 <code>/skill</code> 调用</td>
+                    </tr>
+                    <tr>
+                        <td><strong>GSD</strong></td>
+                        <td>Spec-driven 项目全流程工具</td>
+                        <td>TÂCHES</td>
+                        <td>Phase 驱动（需求→交付）</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Better Ralph</strong></td>
+                        <td>PRD 迭代引擎</td>
+                        <td>社区</td>
+                        <td>PRD stories 循环</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>工作模型对比</h2>
+
+            <h3>gstack：按需调用的工具箱</h3>
+            <p>gstack 将 Claude Code 变成一个虚拟工程团队，提供 23 个 slash commands，每个代表一个专业角色。你不需要走完整流程，而是根据需要调用特定技能。</p>
+
+            <div class="skill-list">
+                <div class="skill-item">/office-hours</div>
+                <div class="skill-item">/plan-ceo-review</div>
+                <div class="skill-item">/autoplan</div>
+                <div class="skill-item">/review</div>
+                <div class="skill-item">/qa</div>
+                <div class="skill-item">/cso</div>
+                <div class="skill-item">/ship</div>
+                <div class="skill-item">/land-and-deploy</div>
+                <div class="skill-item">/canary</div>
+                <div class="skill-item">/benchmark</div>
+                <div class="skill-item">/investigate</div>
+                <div class="skill-item">/retro</div>
+                <div class="skill-item">/design-consultation</div>
+                <div class="skill-item">/plan-eng-review</div>
+                <div class="skill-item">/freeze</div>
+                <div class="skill-item">/guard</div>
+            </div>
+
+            <p>状态管理在 Claude Code session 内部，不持久化到文件。适合临时任务（审计、review、QA）和完整功能开发。</p>
+
+            <h3>GSD：固定的全流程框架</h3>
+            <p>GSD 采用固定的项目工作流：</p>
+
+            <pre><code>New Project
+    ↓
+For Each Phase:
+    /gsd-discuss-phase → /gsd-ui-phase → /gsd-plan-phase
+    → /gsd-execute-phase → /gsd-verify-work → /gsd-ship
+    ↓
+Next Phase? — No → /gsd-audit-milestone → /gsd-complete-milestone</code></pre>
+
+            <p>每个 phase 生成多个文件（RESEARCH.md、PLAN.md、VALIDATION.md 等），状态分散在 <code>.planning/</code> 目录。特点是<strong>强 quality gates</strong>：</p>
+            <ul>
+                <li><strong>Schema drift detection</strong> — ORM 变了但没加 migration？拦截</li>
+                <li><strong>Security enforcement</strong> — 验证锚定到威胁模型</li>
+                <li><strong>Scope reduction detection</strong> — 防止 planner 默默砍掉需求</li>
+                <li><strong>Nyquist validation</strong> — 测试覆盖映射，每个 requirement 都有自动验证</li>
+            </ul>
+
+            <h3>Better Ralph：轻量级 PRD 循环</h3>
+            <p>Better Ralph 是最简单的：读 <code>prd.json</code> → 挑下一个 story → 实现 → 测试 → 标记 passed。所有状态在单个 <code>prd.json</code> 文件中。</p>
+
+            <pre><code>Read PRD
+    ↓
+Pick next story
+    ↓
+Implement + Check
+    ↓
+Commit + Mark passed
+    ↓
+Loop</code></pre>
+
+            <p>适合有明确 PRD 的迭代开发，零学习成本。</p>
+
+            <h2>详细功能对比</h2>
+
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>维度</th>
+                        <th>gstack</th>
+                        <th>GSD</th>
+                        <th>Better Ralph</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>状态管理</strong></td>
+                        <td>Session 内存，无持久化</td>
+                        <td><code>.planning/</code> 目录多文件</td>
+                        <td><code>prd.json</code> 单文件</td>
+                    </tr>
+                    <tr>
+                        <td><strong>质量门控</strong></td>
+                        <td>专项审计（/review、/cso、/qa）</td>
+                        <td>3 层 gates + Nyquist validation</td>
+                        <td>测试通过 + checks</td>
+                    </tr>
+                    <tr>
+                        <td><strong>上下文管理</strong></td>
+                        <td>每个 skill 独立上下文</td>
+                        <td>Phase 文件 + Knowledge graph</td>
+                        <td>PRD + 代码</td>
+                    </tr>
+                    <tr>
+                        <td><strong>适用场景</strong></td>
+                        <td>临时任务 + 完整功能开发</td>
+                        <td>从 0 到 1 项目</td>
+                        <td>PRD 迭代</td>
+                    </tr>
+                    <tr>
+                        <td><strong>复杂度</strong></td>
+                        <td>高（23 个命令）</td>
+                        <td>中（固定工作流）</td>
+                        <td>低（单循环）</td>
+                    </tr>
+                    <tr>
+                        <td><strong>学习成本</strong></td>
+                        <td>中（按需学习）</td>
+                        <td>低（跟着流程走）</td>
+                        <td>最低</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>场景适用性</h2>
+
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>场景</th>
+                        <th>最佳工具</th>
+                        <th>理由</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>临时安全审计</td>
+                        <td>gstack (<code>/cso</code>)</td>
+                        <td>OWASP + STRIDE 审计开箱即用</td>
+                    </tr>
+                    <tr>
+                        <td>PR review</td>
+                        <td>gstack (<code>/review</code>)</td>
+                        <td>专门找生产 bug 的 reviewer</td>
+                    </tr>
+                    <tr>
+                        <td>QA 测试</td>
+                        <td>gstack (<code>/qa</code>)</td>
+                        <td>真实浏览器测试</td>
+                    </tr>
+                    <tr>
+                        <td>从 0 做完整项目</td>
+                        <td>GSD</td>
+                        <td>全流程 + quality gates</td>
+                    </tr>
+                    <tr>
+                        <td>迭代实现 PRD</td>
+                        <td>Better Ralph</td>
+                        <td>PRD stories 循环</td>
+                    </tr>
+                    <tr>
+                        <td>产品战略评审</td>
+                        <td>gstack (<code>/plan-ceo-review</code>)</td>
+                        <td>4 种 scope 模式</td>
+                    </tr>
+                    <tr>
+                        <td>性能基准</td>
+                        <td>gstack (<code>/benchmark</code>)</td>
+                        <td>专门的性能测试</td>
+                    </tr>
+                    <tr>
+                        <td>架构评审</td>
+                        <td>gstack (<code>/plan-eng-review</code>)</td>
+                        <td>工程视角的架构锁定</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>互补性与组合使用</h2>
+
+            <div class="highlight-box">
+                <h4>关键洞察：三者不是竞争关系，而是互补的</h4>
+                <p>它们覆盖了 Harness Engineering 的不同层次：</p>
+                <ul>
+                    <li><strong>gstack</strong> = 工具箱层 —— 23 个角色技能，按需调用</li>
+                    <li><strong>GSD</strong> = 框架层 —— 项目全流程，质量门控</li>
+                    <li><strong>Better Ralph</strong> = 引擎层 —— PRD 迭代，轻量循环</li>
+                </ul>
+            </div>
+
+            <p><strong>实际组合示例：</strong></p>
+
+            <pre><code>新建项目：
+    用 GSD 做规划 + 用 gstack 的 /plan-ceo-review 做战略评审
+
+迭代开发：
+    用 Better Ralph 实现 stories + 用 gstack 的 /review 做 PR review
+
+发布前：
+    用 gstack 的 /qa + /cso 做测试和安全审计</code></pre>
+
+            <h2>总结</h2>
+
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>维度</th>
+                        <th>gstack</th>
+                        <th>GSD</th>
+                        <th>Better Ralph</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>本质</strong></td>
+                        <td>工具箱（23 个角色技能）</td>
+                        <td>项目框架（全流程）</td>
+                        <td>迭代引擎（PRD 循环）</td>
+                    </tr>
+                    <tr>
+                        <td><strong>优势</strong></td>
+                        <td>覆盖全生命周期，开箱即用</td>
+                        <td>强 quality gates，适合完整项目</td>
+                        <td>简单轻量，快速迭代</td>
+                    </tr>
+                    <tr>
+                        <td><strong>劣势</strong></td>
+                        <td>需学习 23 个命令</td>
+                        <td>对临时任务过重</td>
+                        <td>只适合有 PRD 的场景</td>
+                    </tr>
+                    <tr>
+                        <td><strong>适用</strong></td>
+                        <td>临时任务 + 完整功能开发</td>
+                        <td>从 0 到 1 项目</td>
+                        <td>PRD 迭代</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>实践建议</h2>
+
+            <ol>
+                <li><strong>从 gstack 开始</strong> — 先用最常用的 5-6 个命令（<code>/office-hours</code>、<code>/review</code>、<code>/qa</code>、<code>/cso</code>、<code>/ship</code>），按需学习其他</li>
+                <li><strong>新项目用 GSD</strong> — 从 0 到 1 做完整项目时，GSD 的 quality gates 能显著提升可靠性</li>
+                <li><strong>迭代用 Better Ralph</strong> — 有明确 PRD 时，用 Better Ralph 快速迭代 stories</li>
+                <li><strong>组合使用</strong> — GSD 做项目框架 + gstack 做专项审计 + Better Ralph 做 PRD 迭代 = 完整工具链</li>
+            </ol>
+
+            <h2>结语</h2>
+
+            <p>Harness Engineering 仍在快速演化中，gstack、GSD、Better Ralph 代表了三个不同方向：<strong>工具箱式</strong>、<strong>框架式</strong>、<strong>引擎式</strong>。它们不是竞争关系，而是互补的。</p>
+
+            <p>随着 AI Agent 能力的提升，Harness Engineering 将成为 2026 年软件工程的核心竞争力。选择合适的工具，建立自己的工作流，将是每个工程师的必修课。</p>
+
+            <blockquote>
+                "The model is commodity. The harness is moat." — Harness Engineering 核心洞察
+            </blockquote>
+        </div>
+
+        <footer class="article-footer">
+            <p>© 2026 Robert Song. All rights reserved.</p>
+        </footer>
+    </div>
+</body>
+</html>
