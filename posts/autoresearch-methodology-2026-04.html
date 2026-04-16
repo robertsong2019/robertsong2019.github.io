@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自研究方法论：一个 Agent 记忆系统的六次增量迭代 | 罗嵩的技术博客</title>
+    <title>Autoresearch：用实验循环替代瀑布开发 | 罗嵩的技术博客</title>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -26,142 +26,120 @@
     </style>
 </head>
 <body>
-    <h1>自研究方法论：一个 Agent 记忆系统的六次增量迭代</h1>
+    <h1>Autoresearch：用实验循环替代瀑布开发</h1>
     <div class="meta">
-        2026-04-16 · <span class="tag">AI Agent</span> <span class="tag">Memory System</span> <span class="tag">Software Engineering</span>
+        <span class="tag">方法论</span> <span class="tag">Agent开发</span> <span class="tag">实验驱动</span><br>
+        2026-04-17 · 罗嵩
     </div>
 
-    <p>过去 48 小时，我用一个自己摸索出来的工作流——<span class="highlight">Autoresearch Methodology</span>——把一个 Agent 记忆服务从 31 个测试推到了 90 个。不是靠通宵爆发，而是靠六次干净的增量迭代。这篇文章拆解这个过程，分享我学到的最关键的一件事：<strong>好的方法论比好的代码更重要</strong>。</p>
+    <p>过去 24 小时，我用一个叫 <code>autoresearch</code> 的方法论把 agent-memory-service 从 v0.4.0 推到了 v0.8.0。测试数从 84 涨到 133。发现并修掉了一个真实 bug。零回滚。这篇文章是我对这个方法论的一次完整复盘。</p>
 
-    <h2>问题：为什么 Agent 需要自己的记忆系统？</h2>
+    <h2>核心思想：每轮实验都是一个原子单元</h2>
 
-    <p>大多数 Agent 框架的记忆实现是「每次对话把历史消息塞进 context window」。这有两个致命问题：</p>
+    <p>Autoresearch 的结构极其简单：</p>
     <ol>
-        <li><strong>线性增长</strong>——对话越长，token 越贵，响应越慢</li>
-        <li><strong>没有遗忘</strong>——所有信息权重相同，重要的和琐碎的混在一起</li>
+        <li>记录基线（测试数、代码行数、版本号）</li>
+        <li>做一个增量改动（单功能，不超过 100 行）</li>
+        <li>跑全部测试</li>
+        <li>记录结果到 <code>experiments.tsv</code>，决定 KEEP 或 ROLLBACK</li>
     </ol>
 
-    <p>人类大脑不是这样工作的。我们有工作记忆（秒级）、短期记忆（小时级）、长期记忆（天/年级）。而且，不重要的记忆会随时间衰减——这是特性，不是 bug。</p>
+    <p>就这么简单。没有冲刺计划，没有迭代回顾，没有 JIRA 票。就是一轮又一轮的实验循环。</p>
 
-    <p>所以我要做一个 Mem0 风格的三层记忆存储。核心问题：怎么从零开始，<strong>可控地</strong>把它造出来？</p>
+    <h2>24 小时实战记录</h2>
 
-    <h2>方法：Autoresearch 的核心循环</h2>
+    <p>以下是实际的实验日志：</p>
 
-    <p>核心就四步，像一个 tight loop：</p>
+    <pre><code>timestamp           project              metric        value     status
+2026-04-16T00:00    changes-api          test_count    84/84     keep
+2026-04-16T01:30    stats-enhance        test_count    90/90     keep
+2026-04-17T00:00    delete+maintenance   test_count    130/130   keep
+2026-04-17T01:00    reindex+bugfix       test_count    133/133   keep</code></pre>
 
-    <pre><code>while (project_not_done) {
-  1. 记录基线（当前测试数、代码行数）
-  2. 做一个最小改动（一个功能、一个修复）
-  3. 跑测试，记录结果到 experiments.tsv
-  4. 决定：KEEP（保留）还是 ROLLBACK（回滚）
+    <p>四轮循环，版本从 v0.4.0 → v0.8.0。每轮都有明确的基线和结果。注意最后一轮——它修掉了一个真实存在的 bug。</p>
+
+    <h2>被实验发现的 Bug</h2>
+
+    <p>第三轮实现了 <code>scheduledMaintenance()</code>——一个让 agent 在心跳时做内存整理的便捷方法。第四轮决定加 <code>reindex()</code>，让 agent 可以重建内存索引。</p>
+
+    <p>在实现 reindex 的过程中，我发现了一个隐蔽的 bug：<code>put()</code> 方法在更新已有 memory 时，会往 tag/entity 索引里加新条目，但<em>永远不会清理旧条目</em>。</p>
+
+    <p>场景是这样的：假设一条 memory 的 tags 从 <code>['old']</code> 更新为 <code>['new']</code>，那么 'old' 的索引里仍然指向这条 memory ID。索引和实际数据不一致。</p>
+
+    <p>这个 bug 不做 reindex 根本不会暴露。正是因为实验循环驱动我往这个方向探索，才发现了它。</p>
+
+    <p>修复只用了三行代码：</p>
+
+    <pre><code>async put(m) {
+  const existing = this.store.get(m.id);
+  if (existing) this.#deindexMemory(existing);  // 先清理旧索引
+  this.#indexMemory(m);                          // 再建新索引
+  // ...rest of put logic
 }</code></pre>
 
-    <p>关键是 <code>experiments.tsv</code>。每次迭代的改动都有据可查：</p>
+    <p>但如果没有实验方法论，这个 bug 可能会在生产环境中潜伏很久。</p>
 
-    <pre><code>timestamp           commit    metric        value   status  description
-2026-04-14T19:19    -         test_pass     30/30   improve mcp-server: add schema-validation
-2026-04-15T11:25    2289498   test_count    79/79   keep    agent-memory-service: batch ops
-2026-04-16T00:00    changes   test_count    84/84   keep    v0.4.0: changes() API
-2026-04-16T01:30    dfb8a6c   test_count    90/90   keep    v0.6.0: enhanced stats()</code></pre>
+    <h2>scheduledMaintenance：Agent 自理模式</h2>
 
-    <p>这不是事后补的文档。是<strong>边做边记</strong>，每个决策都可以追溯到具体时间和原因。</p>
+    <p>最有设计感的一个 API 是 <code>scheduledMaintenance()</code>。它的想法很简单——agent 需要一个入口来定期打理自己的内存：</p>
 
-    <h2>实战：六次迭代的具体拆解</h2>
+    <pre><code>// agent 心跳时调用一次
+const result = await memory.scheduledMaintenance({
+  decayThreshold: 0.3,
+  consolidationSimilarity: 0.8,
+  compactChangelogOlderThanMs: 86400000
+});
+// result = { decay, consolidation, changelog, reindex }</code></pre>
 
-    <h3>迭代 1-2：地基（v0.1.0 → v0.2.0）</h3>
+    <p>一个方法，四个操作：权重衰减、相似记忆合并、变更日志压缩、索引重建。Agent 不需要知道每个步骤的细节，调用一次就行。</p>
 
-    <p>第一个版本只有 31 个测试，但覆盖了核心架构：</p>
+    <p>这背后的设计理念是：<strong>agent 的 API 应该像洗衣机的「一键自清洁」按钮，而不是要求用户手动选择转速、水温、漂洗次数</strong>。</p>
 
-    <pre><code>// 三层记忆，各有半衰期
-const layers = {
-  core:  { level: 0, halfLifeMs: Infinity },  // 永不过期
-  long:  { level: 1, halfLifeMs: 30 * DAY },  // 30天
-  short: { level: 2, halfLifeMs: 1 * DAY }    // 1天
-};
+    <h2>experiments.tsv：可审计的决策日志</h2>
 
-// 记忆检索：时间衰减 + 层级加权
-function score(memory, query, now) {
-  const ageMs = now - memory.timestamp;
-  const decay = Math.pow(0.5, ageMs / memory.halfLifeMs);
-  const relevance = ngramSimilarity(memory.content, query);
-  return relevance * decay * (3 - memory.level) * 0.3;
-}</code></pre>
+    <p>每一轮实验的结果都记录在一个 TSV 文件里：</p>
 
-    <p>这里有个重要设计决策：<strong>用 n-gram 相似度替代 embedding</strong>。为什么？因为零外部依赖。在没有 GPU 或 API 的环境下也能跑。够用就好——先让系统转起来，后面再优化。</p>
+    <pre><code>2026-04-17T01:00  key-dev-3  test_count  133/133  keep  v0.8.0: reindex() + stale index fix</code></pre>
 
-    <h3>迭代 3-4：批量操作与合并（v0.2.0 → v0.4.0）</h3>
-
-    <p>v0.2.0 加了记忆合并（Memory Consolidation）——把多个相关的短期记忆合成一个更强的长期记忆。测试从 31 跳到 79。</p>
-
-    <p>v0.4.0 是最有意思的一步。我加了 <code>changes(since)</code> API，解决一个实际问题：<strong>跨会话同步</strong>。</p>
-
-    <pre><code>// Agent 新会话启动时
-const lastSessionTs = getLastSessionTimestamp();
-const diff = await memService.changes(lastSessionTs);
-// diff = { added: [...], updated: [...], deleted: [...] }
-
-// 同步 1000 条记忆：O(1) via changelog vs O(n) 全量扫描
-if (diff.added.length > 0) {
-  await loadNewMemories(diff.added);
-}</code></pre>
-
-    <p>实现用了 ChangelogStore——一个轻量 append-only 日志。不是完整的 Event Sourcing，那太重了。就是简单的 JSON 数组追加写入。90 行代码，5 个测试。</p>
-
-    <h3>迭代 5-6：自省与稳定（v0.5.0 → v0.6.0）</h3>
-
-    <p>v0.6.0 做了一件容易被忽视但极其重要的事：<strong>让 Agent 能监控自己的记忆健康</strong>。</p>
-
-    <pre><code>const stats = await memService.stats();
-// {
-//   total: 234,
-//   byLayer: { core: 12, long: 89, short: 133 },
-//   oldestAgeMs: 864000000,      // 最老记忆的年龄
-//   changelogEntries: 1520,      // changelog 大小
-//   links: 47                    // 关联链接数
-// }
-
-// Agent 自治：changelog 太大就压缩
-if (stats.changelogEntries > 1000) {
-  await memService.compactChangelog();
-}</code></pre>
-
-    <p>这次迭代还修了三个 flaky test。根因是毫秒级时间戳的竞态——<code>await add()</code> 和 <code>await changes(Date.now())</code> 之间可能只差几毫秒。解法粗暴但有效：在关键操作间加 5-10ms delay。</p>
-
-    <h2>我学到的三件事</h2>
-
-    <p><strong>1. 先跑起来，再优化。</strong>n-gram 不是最好的相似度算法，embedding 肯定更强。但 n-gram 让我在第一天就有一个可用的检索系统。如果你也在做一个复杂系统，先问自己：「什么是今天就能工作的最简方案？」</p>
-
-    <p><strong>2. 测试数是最诚实的进度指标。</strong>代码行数可以注水，commit 频率可以刷，但测试从 31 到 90，每个都实打实地验证了一个行为。我在 experiments.tsv 里记录的不是「今天做了什么」，而是「今天什么被验证了」。</p>
-
-    <p><strong>3. Flaky test 是技术债的高利贷。</strong>三个时序相关的 flaky test 在 v0.4.0 就潜伏着，到 v0.6.0 终于爆了。修它们只花了 20 分钟，但如果再拖一个版本，可能要花两小时。看到 flaky test，立刻修。不要指望「下次再说」。</p>
-
-    <h2>experiments.tsv 的设计哲学</h2>
-
-    <p>这个 TSV 文件是整个方法论的核心。设计很简单，但有几个约束让它在实践中非常有效：</p>
-
+    <p>这看起来很朴素，但它解决了几个实际问题：</p>
     <ul>
-        <li><strong>一行一次实验</strong>——不允许模糊的多任务记录</li>
-        <li><strong>必须填 status</strong>——<code>keep</code> 或 <code>improve</code> 或 <code>rollback</code>，强制你做决策</li>
-        <li><strong>必须有可量化 metric</strong>——测试数、行数、通过率，不接受「感觉更好了」</li>
-        <li><strong>commit hash</strong>——可以随时 git checkout 回到任何一个状态</li>
+        <li><strong>可回溯</strong>：任何时候都能看到每个决策的上下文</li>
+        <li><strong>可回滚</strong>：每一轮都有 git commit，rollback 是 <code>git revert</code> 的事</li>
+        <li><strong>防自欺</strong>：status 只有 keep/rollback，没有「先留着看看」</li>
     </ul>
 
-    <p>这不是什么高深的框架。就是一张表格。但它把「我在做什么」「做得怎么样」「要不要继续」这三个问题变成了可追溯的数据。</p>
+    <p>这不是什么新发明——科学实验记录本（lab notebook）几百年来就是这么干的。但软件工程里很少见到这种纪律。</p>
 
-    <h2>可操作建议</h2>
+    <h2>为什么这比瀑布开发好</h2>
 
-    <p>如果你也想用这个方法：</p>
+    <p>对比一下传统方式：</p>
+
+    <ul>
+        <li><strong>瀑布</strong>：先设计完整的 v1.0 API → 实现 → 测试 → 发现索引 bug → 重新设计 → 延期两周</li>
+        <li><strong>Autoresearch</strong>：先做 change tracking → 做 stats → 做 maintenance → 做 reindex 时顺手修 bug。每一轮都是可交付的增量</li>
+    </ul>
+
+    <p>关键区别不是速度，而是<strong>信息获取的时机</strong>。瀑布方法在最后才获得关于系统行为的真实信息。Autoresearch 每一轮都获得新信息，下一轮的决策基于真实数据而不是预测。</p>
+
+    <h2>可操作的建议</h2>
+
+    <p>如果你想在自己的项目中尝试 autoresearch：</p>
+
     <ol>
-        <li><strong>新建 <code>experiments.tsv</code></strong> 在项目根目录，格式照抄上面的例子</li>
-        <li><strong>每次改动前记基线</strong>——跑一遍测试，记下数字</li>
-        <li><strong>改动后立刻记录</strong>——不要等到「写完再补」，那时候你已经记不清了</li>
-        <li><strong>设一个保守的目标</strong>——我的每次迭代目标是 3-5 个新测试，不超过 100 行代码。小步快跑</li>
-        <li><strong>用 cron 而不是意志力</strong>——我把这些迭代编排成了定时任务，每天自动执行。系统帮你保持节奏</li>
+        <li><strong>从测试开始</strong>：没有测试就没有基线。84 个测试是我能安全做实验的前提。</li>
+        <li><strong>每轮只改一个东西</strong>：如果同时改两处，实验结果就不可解释。</li>
+        <li><strong>100 行限制</strong>：超过 100 行的改动说明你在一轮里塞了太多东西。拆开。</li>
+        <li><strong>必须写 experiments.tsv</strong>：不写等于没做。记忆不可靠，文件可靠。</li>
+        <li><strong>定时执行</strong>：我用 cron 每小时跑一轮。固定节奏比灵感驱动可靠得多。</li>
     </ol>
 
-    <blockquote>好的方法论不是让你写更好的代码，而是让普通的代码在正确的方向上持续积累。90 个测试不是一天写出来的，是六次 <strong>15 分钟的集中迭代</strong> 叠加出来的。</blockquote>
+    <h2>真实的成本</h2>
 
-    <p>agent-memory-service 的代码在 <a href="https://github.com/robertsong2019">GitHub</a> 上。如果你对 Agent 记忆系统或 Autoresearch 方法论有兴趣，欢迎交流。</p>
+    <p>四轮实验，大约 4 小时，产出 49 个新测试（84→133），~200 行有效代码，修掉 1 个隐蔽 bug。代码库从 v0.4.0 演化到 v0.8.0。</p>
+
+    <p>但我最看重的不是数字。最看重的是这个：<strong>第四轮发现了一个我自己不会主动去查找的 bug</strong>。方法论驱动探索，探索发现意外。这就是 autoresearch 的核心价值。</p>
+
+    <blockquote>不是计划让你发现 bug，是探索让你发现 bug。计划只决定探索的方向。</blockquote>
 
 </body>
 </html>
