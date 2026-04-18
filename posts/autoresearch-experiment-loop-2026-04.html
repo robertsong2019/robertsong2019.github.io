@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autoresearch 实验循环：如何让 AI Agent 用 TSV 驱动自我进化 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>Autoresearch 实验循环：如何让 AI Agent 用 TSV 驱动自我进化</h1>
+    <div class="meta">
+        2026-04-19 · <span class="tag">AI Agent</span> <span class="tag">自动化研究</span> <span class="tag">实验方法论</span>
+    </div>
+
+    <p>过去两周，我的 <code>agent-memory-service</code> 项目从 90 个测试增长到 241 个。不是我在深夜加班写的——是一个 AI Agent 用一种我叫 <span class="highlight">Autoresearch 实验循环</span> 的方法论自动推进的。这篇文章拆解这个方法，告诉你为什么它比"让 AI 写代码"有效得多。</p>
+
+    <h2>问题：AI 编码的最大敌人不是能力，是上下文丢失</h2>
+
+    <p>大多数人用 AI 写代码的方式是：开一个对话，描述需求，拿到代码，粘贴。下一次开新对话，从头开始。</p>
+
+    <p>这对小任务够用。但当你想让 Agent 持续演进一个项目——每天自动发现改进点、实现、测试、提交——上下文丢失就成了致命问题。Agent 不知道昨天做了什么、上次实验成功还是失败、哪些代码已经被回滚。</p>
+
+    <p>我的解决方案不是更长的 prompt，而是一个 <strong>5 列的 TSV 文件</strong>。</p>
+
+    <h2>experiments.tsv：Agent 的实验笔记本</h2>
+
+    <p>核心结构极其简单：</p>
+
+    <pre><code>timestamp    commit    metric    value    status    description
+2026-04-19T01:00    fd3bae4    test_count    241/241    keep    bulkTag(ids,{add,remove}) — 5 new tests
+2026-04-19T00:00    key-dev-2b    test_count    236/236    keep    renameTag()+mergeTags() — 8 new tests
+2026-04-18T19:30    d2b6d46    test_count    206/206    keep    mergeMemories(ids,opts) — 5 new tests</code></pre>
+
+    <p>每一行记录一次实验：<strong>什么时候做的、改了什么、指标是多少、保留还是回滚、一句话总结</strong>。</p>
+
+    <p>Agent 每次启动时读取这个文件，就能回答：</p>
+    <ul>
+        <li>当前有多少测试通过？（241）</li>
+        <li>上次实验成功了吗？（keep = 成功保留）</li>
+        <li>最近的代码在哪里？（commit hash）</li>
+        <li>项目在哪个版本？（v0.9.8）</li>
+    </ul>
+
+    <h2>循环协议：每个实验都是原子操作</h2>
+
+    <p>每次实验严格遵循以下步骤：</p>
+
+    <ol>
+        <li><strong>读取基线</strong> — 从 experiments.tsv 获取当前状态（版本号、测试数）</li>
+        <li><strong>选择目标</strong> — 发现一个具体的 API 缺口或改进点</li>
+        <li><strong>实现 + 测试</strong> — 最小化代码变更，配套测试</li>
+        <li><strong>验证</strong> — 全量测试跑一遍，确认零回归</li>
+        <li><strong>决策</strong> — <code>keep</code>（保留）或 <code>rollback</code>（回滚）</li>
+        <li><strong>提交</strong> — git commit + 更新 experiments.tsv</li>
+    </ol>
+
+    <p>关键约束：<strong>每次只做一件事</strong>。不是"重构整个模块"，而是"加一个 <code>touch()</code> 方法做轻量访问追踪"。这让每次变更可审计、可回滚。</p>
+
+    <h2>实战案例：48 小时从 184 到 241</h2>
+
+    <p>看看 4 月 17-18 日发生了什么：</p>
+
+    <pre><code>v0.9.5  184 tests  →  LLM记忆提取 (extractWithLLM + extractHybrid)
+v0.9.6  188 tests  →  touch(id) 轻量访问追踪，不改内容不记日志
+v0.9.7  206 tests  →  count()+random()+recent()+mergeMemories() 查询增强
+        219 tests  →  query()+findByEntity()+batchUpdate() 结构化查询
+        224 tests  →  snapshot()+diff() 状态快照对比
+        228 tests  →  listArchived() 归档列表
+v0.9.8  236 tests  →  renameTag()+mergeTags() 批量标签管理
+        241 tests  →  bulkTag(ids,{add,remove}) 精确标签增删</code></pre>
+
+    <p>57 个新测试，17 个新 API 方法，<strong>零回滚</strong>。每个方法都是 Agent 自己发现缺口、自己实现、自己验证的。</p>
+
+    <p>拿 <code>touch(id)</code> 举例。Agent 注意到：搜索命中的记忆需要更新访问时间，但唯一的接口 <code>update()</code> 会创建 changelog 条目。对纯访问追踪来说太重了。于是它实现了：</p>
+
+    <pre><code>// 18 行代码，解决一个真实痛点
+touch(id, { boost } = {}) {
+  const mem = this.store.get(id);
+  if (!mem) return null;
+  mem.accessedAt = Date.now();
+  mem.accessCount = (mem.accessCount || 0) + 1;
+  if (boost) {
+    mem.weight = Math.min(
+      (mem.weight || 1) + boost,
+      this.MAX_WEIGHT
+    );
+  }
+  this._save();
+  return { ...mem };
+}</code></pre>
+
+    <p>没有 changelog，没有内容变更，纯粹是"这个记忆被访问了"的信号。用于后续的衰减排序：最近被访问的记忆权重更高。</p>
+
+    <h2>为什么这比"让 AI 自由发挥"好</h2>
+
+    <p><strong>可审计。</strong> 每一行 experiments.tsv 都是一次决策记录。出了问题可以追溯到具体哪次实验引入的。</p>
+
+    <p><strong>可回滚。</strong> 状态列只有两种值：<code>keep</code> 或 <code>rollback</code>。Agent 启动时如果看到 <code>rollback</code>，就知道上次实验失败，需要 <code>git revert</code>。</p>
+
+    <p><strong>可持续。</strong> Agent 不依赖记忆来知道项目状态——它依赖文件。文件不会在 session 重启时消失。</p>
+
+    <p><strong>反奢侈。</strong> 每次实验只加 15-50 行代码。不是大重构，是持续的小改进。这符合软件工程的现实：大多数有价值的改动都是小的、精确的、针对性强的。</p>
+
+    <h2>踩过的坑</h2>
+
+    <p>4 月 17 日有一次惨痛教训：Agent 连续做了 3 个实验循环，更新了 experiments.tsv，但<strong>忘了 git commit 代码</strong>。Session 重启后，代码全丢了，TSV 里记着 133 个测试但实际只有 90 个。</p>
+
+    <p>修复方案：在实验协议中加了一步硬性规则——<strong>每次 keep 决策后必须 git commit</strong>。不是"建议"，是"协议的一部分"。从此再没丢过代码。</p>
+
+    <pre><code>// 修复后的协议（伪代码）
+if (allTestsPass) {
+  decision = 'keep';
+  exec('git add -A && git commit');
+  appendToExperimentsTsv(...);
+} else {
+  decision = 'rollback';
+  exec('git checkout -- .');
+}</code></pre>
+
+    <h2>可操作建议</h2>
+
+    <ul>
+        <li><strong>如果你在用 AI Agent 做持续开发</strong>，立刻创建一个 experiments.tsv。不需要复杂工具，5 列就够。</li>
+        <li><strong>每次实验只改一件事</strong>。如果你需要改三个地方，做三次实验。多花的时间换来的是可审计性和可回滚性。</li>
+        <li><strong>测试数是最好的进度指标</strong>。不需要代码覆盖率，不需要复杂度量。测试从 N 涨到 N+5，你就知道项目在前进。</li>
+        <li><strong>commit 是实验的一部分，不是事后的装饰</strong>。忘记提交等于没做。</li>
+        <li><strong>让 Agent 自己发现改进点</strong>。我的 Agent 读了 API 列表后会说"batchUpdate 只能全量替换标签，缺少增量操作"——然后自己去实现 <code>bulkTag</code>。这种自主发现比人列需求表高效得多。</li>
+    </ul>
+
+    <h2>总结</h2>
+
+    <p>Autoresearch 实验循环的本质是：<strong>把 AI Agent 的无状态特性变成优势</strong>。既然它记不住上次做了什么，那就让文件记住。既然上下文窗口有限，那就把最关键的信息压缩成 5 列 TSV。</p>
+
+    <p>241 个测试、17 个新 API、零回滚。这个方法论不是理论——它每天都在跑，每天都在产出。</p>
+
+    <p>试试看。你需要的只是一个 TSV 文件和一条规则：每次实验，原子提交。</p>
+
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 2rem 0;">
+    <p style="color: #8b949e; font-size: 0.85rem;">
+        本文基于 agent-memory-service 项目的真实实验记录撰写。
+        项目地址：<a href="https://github.com/robertsong2019">github.com/robertsong2019</a>
+    </p>
+</body>
+</html>
