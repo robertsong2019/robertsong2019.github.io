@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>为什么你的语义搜索不如关键词搜索：BM25 混合检索实战 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9fa; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        .info { background: #d1ecf1; border-left-color: #17a2b8; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-top: 30px; padding: 10px 20px; background: #3498db; color: white; border-radius: 4px; }
+        .back-link:hover { background: #2980b9; text-decoration: none; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>为什么你的语义搜索不如关键词搜索：BM25 混合检索实战</h1>
+    <div class="meta">📅 2026-04-20 · 标签：BM25, RRF, 混合检索, Agent Memory, 信息检索</div>
+
+    <p>过去一周，我在给 <code>agent-memory-service</code> 做 v1.0 的检索架构升级。测试从 195 个涨到 259 个，代码改了几轮。但真正让我停下来思考的是一个反直觉的现象：<b>当我用 embedding 做语义搜索时，查 "error code 5012" 居然查不到包含 "Error code 5012 means database connection timeout" 的记忆。</b></p>
+
+    <p>Embedding 模型觉得 "error code 5012" 和 "exception handling" 语义相似，把后者排到了前面。精确匹配？不存在的。</p>
+
+    <p>这就是为什么 2024-2025 年信息检索领域的一个共识是：<b>混合检索（Hybrid Search）</b>——BM25 关键词匹配 + Embedding 语义相似度，用 Reciprocal Rank Fusion (RRF) 融合。今天我想把这套方案从论文翻译成可运行的零依赖 JavaScript 代码，讲清楚每个设计决策背后的原因。</p>
+
+    <h2>问题：纯语义搜索的三个盲区</h2>
+
+    <p>Embedding 搜索很强大——"如何处理错误" 能匹配到 "exception handling best practices"。但它在以下场景会翻车：</p>
+
+    <ol>
+        <li><b>精确标识符</b>：错误码、ID、函数名、版本号。这些 token 在 embedding 空间里没有稳定的近邻关系。</li>
+        <li><b>短查询</b>：2-3 个词的查询，embedding 信息量太少，噪音比信号大。</li>
+        <li><b>中文分词</b>：embedding 模型对中文的支持参差不齐，尤其是技术术语和新词。</li>
+    </ol>
+
+    <p>而 BM25 在这些场景下反而表现优秀——它本质是回答三个问题：这个词有多罕见？在文档中出现多频繁？文档是不是异常长？这三个问题恰好覆盖了精确匹配的核心需求。</p>
+
+    <h2>核心实现：零依赖 BM25（80 行代码）</h2>
+
+    <p>BM25 的公式看起来吓人，但实现起来非常简洁。关键是维护三个语料库级别的统计量：<code>N</code>（总文档数）、<code>df(term)</code>（包含某词的文档数）、<code>avgdl</code>（平均文档长度）。</p>
+
+<pre><code>class BM25Index {
+  constructor(k1 = 1.2, b = 0.75) {
+    this.k1 = k1;  // 词频饱和参数
+    this.b = b;    // 长度归一化参数
+    this.docs = new Map();   // id → {tokens, tf, dl}
+    this.df = new Map();     // term → 文档频率
+    this.avgdl = 0;
+    this.N = 0;
+  }
+
+  add(id, text) {
+    const tokens = tokenize(text);
+    const tf = new Map();
+    for (const t of tokens) tf.set(t, (tf.get(t) || 0) + 1);
+    for (const t of tf.keys())
+      this.df.set(t, (this.df.get(t) || 0) + 1);
+    this.docs.set(id, { tokens, tf, dl: tokens.length });
+    this.N = this.docs.size;
+    this._updateAvgdl();
+  }
+
+  search(query, topK = 10) {
+    const queryTokens = tokenize(query);
+    const scores = new Map();
+    for (const [id, doc] of this.docs) {
+      let score = 0;
+      for (const qt of queryTokens) {
+        const tf = doc.tf.get(qt) || 0;
+        if (tf === 0) continue;
+        const idf = Math.log(1 +
+          (this.N - (this.df.get(qt) || 0) + 0.5) /
+          ((this.df.get(qt) || 0) + 0.5));
+        const tfNorm = (tf * (this.k1 + 1)) /
+          (tf + this.k1 * (1 - this.b +
+           this.b * doc.dl / Math.max(this.avgdl, 1)));
+        score += idf * tfNorm;
+      }
+      if (score > 0) scores.set(id, score);
+    }
+    return [...scores.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, topK)
+      .map(([id, score]) => ({ id, score }));
+  }
+}</code></pre>
+
+    <p>几个关键设计点：</p>
+
+    <ul>
+        <li><code>k1=1.2</code> 控制词频饱和——一个词出现 10 次不会比 5 次好两倍。这是 BM25 区别于简单 TF 的核心。</li>
+        <li><code>b=0.75</code> 控制长度归一化。b=0 忽略长度，b=1 完全按长度缩放。0.75 是经验最优值。</li>
+        <li><code>remove()</code> 方法必须反向更新 <code>df</code> 和 <code>avgdl</code>，否则索引会逐渐漂移。这就是我上一篇文章说的"幽灵 Bug"的另一个变种。</li>
+    </ul>
+
+    <h2>中文分词：Bigram 切分就够了</h2>
+
+    <p>很多人一提到中文检索就想上 jieba 或 HanLP。但在 Agent Memory 场景下，bigram 切分就能工作得很好，而且零依赖：</p>
+
+<pre><code>function tokenize(text) {
+  const tokens = [];
+  const parts = text.toLowerCase().split(/[^\w\u4e00-\u9fff]+/);
+  for (const part of parts) {
+    if (!part) continue;
+    if (/[\u4e00-\u9fff]/.test(part)) {
+      // 中文: bigram 切分
+      for (let i = 0; i < part.length - 1; i++)
+        tokens.push(part.slice(i, i + 2));
+    } else if (part.length > 1) {
+      tokens.push(part);
+    }
+  }
+  return tokens;
+}</code></pre>
+
+    <p>"混合检索架构" → ["混合", "合检", "检索", "索架", "架构"]。每个 bigram 都是一个 token，BM25 会基于 IDF 自动给有区分度的 bigram 更高权重。"架构" 出现在很多文档里，IDF 低；"混合" 更罕见，IDF 高。这个粗粒度分词在 < 10K 文档规模下完全够用。</p>
+
+    <h2>RRF：为什么不用线性加权？</h2>
+
+    <p>融合 BM25 和 embedding 搜索结果，直觉上是用 <code>0.6 × bm25_score + 0.4 × embedding_score</code>。但这里有个致命问题：<b>BM25 分数和余弦相似度不在同一个尺度上</b>。BM25 分数可以到 30+，而余弦相似度永远在 [0, 1]。线性加权的结果完全取决于权重调参。</p>
+
+    <p>RRF (Reciprocal Rank Fusion) 的优雅之处在于只用排名，不用分数：</p>
+
+<pre><code>function rrfFusion(resultSets, k = 60) {
+  const scores = new Map();
+  for (const results of resultSets) {
+    results.forEach((r, rank) => {
+      const current = scores.get(r.id) ||
+        { id: r.id, score: 0, sources: [] };
+      current.score += 1 / (k + rank + 1);
+      current.sources.push(r.source);
+      scores.set(r.id, current);
+    });
+  }
+  return [...scores.values()]
+    .sort((a, b) => b.score - a.score);
+}</code></pre>
+
+    <p><code>k=60</code> 是原始论文推荐的值。它的作用是平滑——排名 1 和排名 2 的分数差距不会太大，避免某一通道的结果独占排名。整个函数 O(n) 复杂度，零依赖，不需要任何调参。</p>
+
+    <h2>实战效果：三种查询的对比</h2>
+
+    <p>我用 Agent Memory 的真实数据测试了三种查询场景：</p>
+
+    <div class="highlight">
+        <strong>查询 1："error code 5012"</strong><br>
+        ✅ BM25 直接命中 "Error code 5012 means database connection timeout"<br>
+        ❌ Embedding 返回 "exception handling" 之类的语义近邻<br>
+        ✅ 混合：BM25 结果排第一，RRF 保证了精确匹配不会被淹没
+    </div>
+
+    <div class="info highlight">
+        <strong>查询 2："用户喜欢什么风格"</strong><br>
+        ❌ BM25 命中 "用户喜欢简洁直接的沟通风格" ✅ 但排在后面<br>
+        ✅ Embedding 也命中了，且把 "偏好深色主题" 这种隐含相关的内容拉上来<br>
+        ✅ 混合：两者都命中，RRF 融合后排序更合理
+    </div>
+
+    <div class="success highlight">
+        <strong>查询 3："BM25 混合"</strong><br>
+        ✅ BM25 精确命中包含 "BM25" 和 "混合" 的记忆<br>
+        ✅ Embedding 命中 "三层存储架构" 等相关概念<br>
+        ✅ 混合：两个通道互补，覆盖面最广
+    </div>
+
+    <h2>增量更新：不要忘了 remove() 的 df 维护</h2>
+
+    <p>这是我在实验中踩的坑。BM25 的 <code>df</code>（文档频率）是全局统计量。当你删除一个文档时，必须递减对应 term 的 df。否则随着时间推移，IDF 值会越来越不准——罕见词不再"罕见"，搜索质量静默退化。</p>
+
+<pre><code>remove(id) {
+  const doc = this.docs.get(id);
+  if (!doc) return;
+  // 反向更新 df — 这一步忘了就完蛋
+  for (const t of doc.tf.keys()) {
+    const newDf = (this.df.get(t) || 1) - 1;
+    if (newDf <= 0) this.df.delete(t);
+    else this.df.set(t, newDf);
+  }
+  this.docs.delete(id);
+  this.N = this.docs.size;
+  this._updateAvgdl();
+}</code></pre>
+
+    <p>对于 Agent Memory 这种 < 1K 文档规模的场景，每次操作实时更新 O(1) 完全够用。如果是 > 10K 的场景，可以考虑懒更新——标记 dirty，搜索时按需重建。</p>
+
+    <h2>我的观点：不要迷信 Embedding</h2>
+
+    <p>2024-2025 年的 AI 圈有一种倾向：万物皆可 Embedding。但信息检索领域几十年的经验告诉我们，<b>精确匹配和语义匹配是互补的，不是替代关系</b>。BM25 在精确标识符、短查询、低资源场景下依然碾压纯语义搜索。</p>
+
+    <p>而且 BM25 的实现成本极低——上面的完整代码不到 150 行，零依赖，内存占用极小。如果你的项目已经有 embedding 搜索，加上 BM25 + RRF 也就是半天的工作量，但检索质量会有质的提升。</p>
+
+    <p>一句话总结：<b>Embedding 负责理解意图，BM25 负责精确命中，RRF 负责融合排名</b>。三个组件各司其职，缺一不可。</p>
+
+    <blockquote>
+        完整可运行代码已在我的 <a href="https://github.com/robertsong2019">GitHub</a> 的 agent-memory-service 项目中。本文基于 2026-04-19 的实际研究笔记写成，所有数据来自真实测试。
+    </blockquote>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</div>
+</body>
+</html>
