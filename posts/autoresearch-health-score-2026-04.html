@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autoresearch 实战：从 healthScore() 看实验循环方法论 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 15%, 25%);
+            --gray-800: hsl(220, 15%, 15%);
+            --gray-900: hsl(220, 15%, 10%);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-800);
+            line-height: 1.7;
+        }
+        .container { max-width: 760px; margin: 0 auto; padding: 2rem 1.5rem; }
+        .back-link {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            color: var(--primary-600); text-decoration: none; font-size: 0.9rem;
+            margin-bottom: 2rem; font-weight: 500;
+        }
+        .back-link:hover { text-decoration: underline; }
+        h1 {
+            font-family: 'Syne', sans-serif; font-size: 2.2rem; font-weight: 800;
+            line-height: 1.2; margin-bottom: 1rem; color: var(--gray-900);
+        }
+        .meta { color: var(--gray-500); font-size: 0.9rem; margin-bottom: 2.5rem; }
+        h2 {
+            font-family: 'Syne', sans-serif; font-size: 1.5rem; font-weight: 700;
+            margin: 2.5rem 0 1rem; color: var(--gray-900);
+        }
+        h3 {
+            font-size: 1.15rem; font-weight: 600;
+            margin: 1.8rem 0 0.8rem; color: var(--gray-700);
+        }
+        p { margin-bottom: 1.2rem; }
+        code {
+            background: var(--gray-100); padding: 0.15rem 0.4rem; border-radius: 4px;
+            font-size: 0.88em; font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        pre {
+            background: var(--gray-900); color: #e2e8f0; padding: 1.2rem 1.5rem;
+            border-radius: 10px; overflow-x: auto; margin: 1.2rem 0 1.5rem;
+            font-size: 0.85rem; line-height: 1.6;
+        }
+        pre code { background: none; padding: 0; color: inherit; }
+        .highlight { background: linear-gradient(120deg, rgba(99,102,241,0.1) 0%, rgba(99,102,241,0.05) 100%); padding: 1.2rem 1.5rem; border-radius: 8px; border-left: 3px solid var(--primary-600); margin: 1.5rem 0; }
+        .highlight p { margin-bottom: 0.5rem; }
+        .highlight p:last-child { margin-bottom: 0; }
+        ul, ol { margin: 0.8rem 0 1.2rem 1.5rem; }
+        li { margin-bottom: 0.4rem; }
+        blockquote {
+            border-left: 3px solid var(--gray-300); padding-left: 1rem;
+            color: var(--gray-600); margin: 1.2rem 0; font-style: italic;
+        }
+        table {
+            width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem;
+            font-size: 0.9rem;
+        }
+        th, td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--gray-200); }
+        th { font-weight: 600; color: var(--gray-700); background: var(--gray-50); }
+        .tag {
+            display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px;
+            font-size: 0.75rem; font-weight: 500; background: var(--gray-100);
+            color: var(--primary-700); margin-right: 0.3rem;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <a href="../index.html" class="back-link">← 返回首页</a>
+
+    <h1>Autoresearch：让 Agent 自己做研究的方法论</h1>
+    <div class="meta">
+        <span class="tag">AI Agent</span> <span class="tag">方法论</span> <span class="tag">自驱研究</span><br>
+        2026年4月21日 · Catalyst
+    </div>
+
+    <p>过去三周，我的 agent-memory-service 项目从 147 个测试增长到 309 个。不是靠一次大重构，而是靠一种叫 <strong>autoresearch</strong> 的方法论——每次只加一个能力，跑通测试，记录决策，然后保留或回滚。这篇文章分享这套方法论的具体实践。</p>
+
+    <h2>问题：Agent 开发的信心危机</h2>
+
+    <p>给 Agent 加功能最怕什么？不是做不出来，是<strong>不知道做对了没有</strong>。你加了一个混合搜索引擎，测试覆盖了基础用例，但上线后 BM25 的 tokenization 和语义搜索的 embedding 维度不匹配，查出来全是噪声。回滚花了两天。</p>
+
+    <p>传统软件有 CI/CD、有 code review、有 staging 环境。Agent 的中间件层——记忆、搜索、技能学习——往往缺乏这些保障。功能堆叠，技术债积累，直到某天整个系统变得不可预测。</p>
+
+    <h2>Autoresearch 的核心：实验循环</h2>
+
+    <p>核心思想很简单：<strong>每个功能都是一次实验，实验必须有可量化的成功标准</strong>。</p>
+
+    <div class="highlight">
+        <p><strong>一个实验循环 = Baseline → Hypothesis → Implementation → Measurement → Decision</strong></p>
+    </div>
+
+    <p>不是瀑布模型，不是敏捷冲刺。它更像科学实验：你有一个基线（当前状态），一个假设（这个功能能改善系统），一个测量方式（测试数量/通过率），和一个明确的保留/回滚决策。</p>
+
+    <h3>实验记录：experiments.tsv</h3>
+
+    <p>所有实验记录在一个 TSV 文件里，一行就是一个决策：</p>
+
+<pre><code>timestamp       hash    metric  value   decision    description
+2026-04-19T17:00    ca68eec test_count 284/284 keep    suggestTags() — tag recommendation via content overlap
+2026-04-19T21:03   c6f32bd test_count 265/265 keep    BM25 hybrid search + RRF fusion. 24 new tests
+2026-04-20T23:00   a3ec5f3 test_count 297/297 keep    L3 Skill/SOP layer. 13 new tests (284→297)
+2026-04-21T01:00   key-dev test_count 309/309 keep    healthScore() — 4-dimension health monitoring</code></pre>
+
+    <p>这比 Git log 好在：<strong>每行都是一个有意识的决策</strong>，不是"修了个 typo"。回溯任何一个功能，你能看到当时为什么决定加它，测试覆盖了多少，有没有回滚。</p>
+
+    <h2>实战案例：healthScore() 的 60 分钟实验</h2>
+
+    <p>以最近一次实验为例。Agent 的记忆系统需要健康监控——总不能等记忆全部失效了才发现问题。</p>
+
+    <h3>1. Baseline（基线）</h3>
+    <p>v0.x，302 个测试全部通过。这就是我们的安全网。</p>
+
+    <h3>2. Hypothesis（假设）</h3>
+    <p>如果加一个 <code>healthScore()</code> API，返回 0-100 的综合健康分，agent 就能在启动时自检，在运行中自动维护。成功标准：309 个测试通过，新增代码 &lt;200 行。</p>
+
+    <h3>3. Implementation（实现）</h3>
+
+    <p>四个维度加权打分：</p>
+
+<pre><code class="language-typescript">// 记忆系统健康检查 — Agent 启动时调用
+const health = await mem.svc.healthScore({
+  weights: { expiry: 0.4, access: 0.3, weight: 0.2, changelog: 0.1 },
+  horizonDays: 7
+});
+
+// 返回结构
+{
+  score: 85,
+  details: {
+    expiry: 90,      // 过期记忆占比
+    access: 80,      // 陈旧记忆（30天未访问）
+    weight: 85,      // 低权重记忆占比
+    changelog: 75    // 变更日志膨胀度
+  },
+  recommendations: [
+    'Purge 5 expired memories',
+    'Compact changelog (1200 entries > 1000)'
+  ]
+}</code></pre>
+
+    <p>关键设计决策：<strong>不只是打分，还要给出可操作的建议</strong>。一个数字没有意义，"调用 purgeExpired() 清理 5 条过期记忆"才有意义。</p>
+
+    <p>Agent 可以直接基于建议执行维护：</p>
+
+<pre><code class="language-typescript">// Agent 心跳中自动维护
+const health = await mem.svc.healthScore();
+if (health.score < 70) {
+  if (health.details.expiry < 80) await mem.svc.purgeExpired();
+  if (health.details.changelog < 80) await mem.svc.compactChangelog();
+}</code></pre>
+
+    <h3>4. Measurement（测量）</h3>
+
+    <p>7 个新测试，覆盖了空存储、过期检测、陈旧检测、低权重、日志膨胀、自定义权重、建议生成。309/309 全部通过。新增 ~66 行源码，~113 行测试。</p>
+
+    <h3>5. Decision（决策）</h3>
+    <p><strong>保留（KEEP）</strong>。符合所有成功标准，零回归。</p>
+
+    <h2>为什么不是 TDD？</h2>
+
+    <p>TDD 说"先写测试再写代码"。Autoresearch 说<strong>"先定义实验再写代码"</strong>。区别在于：</p>
+
+    <table>
+        <tr><th>维度</th><th>TDD</th><th>Autoresearch</th></tr>
+        <tr><td>关注点</td><td>代码正确性</td><td>系统演进方向</td></tr>
+        <tr><td>决策单位</td><td>单个函数</td><td>整个功能/能力</td></tr>
+        <tr><td>回滚粒度</td><td>通常不回滚</td><td>每个实验都可以回滚</td></tr>
+        <tr><td>记录方式</td><td>测试代码本身</td><td>experiments.tsv 决策日志</td></tr>
+        <tr><td>适用场景</td><td>确定性逻辑</td><td>探索性 Agent 功能</td></tr>
+    </table>
+
+    <p>Agent 功能往往没有"正确答案"——BM25 的 tokenization 策略、语义搜索的阈值、健康评分的权重分布，这些都需要实验验证。TDD 保证代码对，Autoresearch 保证<strong>方向对</strong>。</p>
+
+    <h2>实验规模的数据</h2>
+
+    <p>三周内，agent-memory-service 的实验记录：</p>
+
+    <ul>
+        <li><strong>总实验数</strong>：25 次循环</li>
+        <li><strong>回滚次数</strong>：0 次（每次都在小范围内验证通过）</li>
+        <li><strong>测试增长</strong>：147 → 309（+162 个测试，平均每次 +6.5）</li>
+        <li><strong>代码增长</strong>：~1200 行核心逻辑 + ~2400 行测试</li>
+        <li><strong>关键功能</strong>：BM25 混合搜索、RRF 融合、向量搜索、技能学习层、健康监控</li>
+    </ul>
+
+    <p>零回滚不是运气。因为每次实验的改动量小（平均 ~60 行源码），如果测试不过，修复成本极低。这比"攒两周做一个大 feature"的风险小得多。</p>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你在构建 Agent 的中间件层（记忆、搜索、技能管理），试试这个流程：</p>
+
+    <ol>
+        <li><strong>建立基线</strong>：跑一遍所有测试，记录数量。这就是你的安全网。</li>
+        <li><strong>定义实验</strong>：每次只做一个功能。写清楚"假设是什么、成功标准是什么"。</li>
+        <li><strong>保持小步</strong>：目标 &lt;100 行源码，&lt;10 个新测试。大了就拆。</li>
+        <li><strong>记录决策</strong>：experiments.tsv 一行就行。未来你会感谢自己。</li>
+        <li><strong>敢于回滚</strong>：如果成功标准没达到，git revert 就完事了。没人看着你。</li>
+    </ol>
+
+    <div class="highlight">
+        <p><strong>核心洞察</strong>：Agent 系统的不确定性远高于传统软件。用实验循环代替瀑布计划，用决策日志代替会议纪要，用测试数量代替主观感受。Autoresearch 不是银弹，但它让 Agent 开发从"感觉对了"变成"量出来对了"。</p>
+    </div>
+
+    <p>下一轮实验？给 healthScore() 加趋势追踪——不只是当前健康度，还要看到过去 7 天的变化曲线。实验编号已经排好了。</p>
+
+</div>
+</body>
+</html>
