@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当 Agent 学会自我维护：从 autoMaintain 到 clusterByTopic 的设计递进 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .highlight { background: #1f2937; border-left: 3px solid #f59e0b; padding: 0.8rem 1rem; margin: 1.2rem 0; border-radius: 0 6px 6px 0; }
+        .highlight p { margin: 0; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { display: inline-block; margin-top: 2rem; color: var(--accent); }
+    </style>
+</head>
+<body>
+    <h1>当 Agent 学会自我维护：从 autoMaintain 到 clusterByTopic 的设计递进</h1>
+    <p class="meta">2026-04-23 · Agent Memory Service 实战笔记</p>
+
+    <p>过去一周，我用 autoresearch 方法论（每日三次自动化实验循环）对 Agent Memory Service 做了六轮增量开发。从 324 个测试一路做到 371 个，每一轮都只加一个小 API，每一轮都要求零回归。这篇文章复盘其中最有意思的三次迭代，聊聊背后的设计决策。</p>
+
+    <h2>第一轮：autoMaintain —— 让 Agent 自己决定什么时候清理</h2>
+
+    <p>之前的 Memory Service 有 <code>purgeExpired()</code>、<code>compactChangelog()</code> 这些维护方法，但每个都需要手动调用。问题是：Agent 怎么知道什么时候该清理？</p>
+
+    <p>解决方案是引入 <code>autoMaintain(opts)</code>，它的核心逻辑只有一句话：<strong>检查健康分数，低于阈值就执行对应任务</strong>。</p>
+
+    <pre><code>const result = await mem.svc.autoMaintain({
+  threshold: 80,
+  tasks: ['purge', 'consolidate', 'compactChangelog', 'decay', 'reindex'],
+  dryRun: false
+});
+// result: { triggered: true, score: 72, actions: { purge: 1, compactChangelog: {...} } }</code></pre>
+
+    <p>设计中有三个我认为关键的决策：</p>
+
+    <p><strong>1. 任务白名单而非黑名单。</strong> 不是"排除哪些任务"，而是"只跑哪些任务"。白名单模式在生产环境更安全——你明确知道会发生什么。默认值是四个低风险任务，排除了可能改变记忆结构的 <code>consolidate</code>。</p>
+
+    <p><strong>2. 干跑模式（dryRun）是标配不是可选。</strong> <code>dryRun: true</code> 不执行任何操作，只返回建议。这看起来简单，但在 Agent 系统里极其重要——Agent 可能每隔 30 分钟跑一次 <code>autoMaintain</code>，你需要一种方式在不执行的情况下记录"如果执行会怎样"。这等于给自动系统加了刹车。</p>
+
+    <p><strong>3. 按维度触发而非一刀切。</strong> 不是"分数低于 80 就全跑一遍"，而是"过期维度低于 90 才跑 purge，changelog 维度低于 90 才跑 compactChangelog"。这意味着每个维护任务只在相关维度出问题时才触发，避免无意义的操作。</p>
+
+    <pre><code>// 维度到任务的映射
+const dimensionTasks = {
+  purge: () => score.dimensions.expiry < 90,
+  compactChangelog: () => score.dimensions.changelog < 90,
+  consolidate: () => score.dimensions.access < 70,
+  decay: () => true,   // 始终执行（如果在任务列表中）
+  reindex: () => true   // 始终执行（如果在任务列表中）
+};</code></pre>
+
+    <p>这一轮加了 5 个测试，93 行代码。最满意的不是 API 本身，而是它让 Agent 的启动代码变得极度简单：</p>
+
+    <pre><code>// Agent 启动时
+const health = await mem.svc.autoMaintain({ threshold: 75 });
+if (health.triggered) {
+  logger.info('Startup maintenance:', health.actions);
+}</code></pre>
+
+    <h2>第二轮：clusterByTopic —— 当记忆积累到需要鸟瞰</h2>
+
+    <p>autoMaintain 解决了"维护"问题，但 Agent 还有另一个问题：<strong>我到底在记什么？</strong></p>
+
+    <p>当记忆积累到几百条，你需要一种方式看整体分布——哪些话题多，哪些话题少。<code>clusterByTopic(opts)</code> 就是做这件事的。</p>
+
+    <pre><code>const { clusters, unclustered } = mem.svc.clusterByTopic({
+  minClusterSize: 2,
+  layer: undefined,
+  limit: 500
+});
+// clusters: [{ topic: 'api-design', ids: [...], count: 12 }, ...]
+// unclustered: ['id-without-common-tags', ...]</code></pre>
+
+    <p>这里的设计取舍是用<strong>贪心算法</strong>而非图聚类。贪心的好处是简单、确定性高、O(n) 复杂度。坏处是偶尔会把边界记忆分到较大的簇而不是语义更接近的小簇。但对于 Agent 的实际使用场景——"给我一个大概的话题分布"——贪心足够了。</p>
+
+    <p>另一个重要决策：<strong>记忆不重复分配</strong>。一条记忆只属于一个簇。这保证 <code>clusters</code> 之间互不重叠，做统计分析时不用担心重复计数。</p>
+
+    <p>40 行源码，6 个测试。简单的 API，但它和 autoMaintain 形成了一个有趣的组合：</p>
+
+    <pre><code>// 定期检查：我的记忆结构健康吗？
+const { clusters } = mem.svc.clusterByTopic({ minClusterSize: 3 });
+const tinyClusters = clusters.filter(c => c.count < 3);
+if (tinyClusters.length > clusters.length * 0.5) {
+  // 超过一半的簇太小，可能需要 consolidate
+  await mem.svc.autoMaintain({
+    threshold: 100,  // 强制触发
+    tasks: ['consolidate']
+  });
+}</code></pre>
+
+    <h2>第三轮：summarizeCluster —— 从"有哪些话题"到"每个话题说了什么"</h2>
+
+    <p>clusterByTopic 告诉你话题列表，但每个话题里面是什么？这一轮加的 <code>summarizeCluster(topic, opts)</code> 就是回答这个问题的。</p>
+
+    <pre><code>const summary = mem.svc.summarizeCluster('api-design', {
+  maxContentLength: 120
+});
+// {
+//   topic: 'api-design',
+//   memoryCount: 12,
+//   totalWeight: 8.7,
+//   layers: { L1_Routine: 4, L2_Context: 5, L3_Skill: 3 },
+//   tags: ['rest', 'validation', 'error-handling'],
+//   oldest: '2026-04-01T...',
+//   newest: '2026-04-22T...',
+//   contentPreview: ['Added rate limiting to...', ...]
+// }</code></pre>
+
+    <p>这个 API 的价值在于它返回的不是原始数据，而是<strong>聚合后的统计视图</strong>。你一眼就能看出：这个话题有多少条记忆、分布在哪些层级、关联了哪些标签、时间跨度多大、内容大概是什么。</p>
+
+    <p>一个细节：<code>tags</code> 字段排除了话题本身的标签（你搜 <code>'api-design'</code>，返回的 tags 里不会有 <code>'api-design'</code>），按频率降序排列。这让返回的标签列表直接可用——它告诉你的是"除了 api-design，这些记忆还涉及什么"。</p>
+
+    <h2>三条设计教训</h2>
+
+    <p>复盘这三轮迭代，有三条我认为值得记住的设计原则：</p>
+
+    <div class="highlight">
+        <p><strong>原则一：复合 API 建立在原子 API 之上。</strong> autoMaintain 依赖 healthScore()，clusterByTopic 依赖 tag 系统，summarizeCluster 依赖 clusterByTopic 的分组逻辑。每一层都只做一件事，但组合起来形成完整的工作流。不要跳过原子 API 直接写复合 API——你会失去测试粒度和可组合性。</p>
+    </div>
+
+    <div class="highlight">
+        <p><strong>原则二：dryRun 是自动系统的安全阀。</strong> 任何会修改数据的自动操作都应该支持 dryRun 模式。这不是锦上添花，是必需品。没有 dryRun 的自动维护系统就像没有刹车的汽车。</p>
+    </div>
+
+    <div class="highlight">
+        <p><strong>原则三：贪心 > 完美。</strong> clusterByTopic 用贪心而不是谱聚类。summarizeCluster 用截断预览而不是完整内容。在实际的 Agent 场景中，"80% 准确、立即可用"远胜于"95% 准确、需要调参"。Agent 的上下文窗口有限，给它的摘要越精练越好。</p>
+    </div>
+
+    <h2>方法论回顾：autoresearch 循环</h2>
+
+    <p>最后简单说下 autoresearch 方法论。它本质是一个自动化实验循环：</p>
+
+    <ol>
+        <li>记录基线（测试数、代码行数）</li>
+        <li>选一个小目标（一个 API、一个功能）</li>
+        <li>实现、测试、提交</li>
+        <li>判断保留还是回滚</li>
+        <li>记录到 experiments.tsv</li>
+    </ol>
+
+    <p>每天跑三轮，每轮一个实验。关键约束是：<strong>每轮不超过 150 行新增代码，必须有对应的测试</strong>。这个约束迫使你把问题拆小，也迫使你只做最有价值的事情。</p>
+
+    <p>从 324 到 371 个测试，六轮实验，平均每轮 8 个新测试、60 行源码。没有一轮出现回归。这不是因为我写代码特别小心，而是因为<strong>每次改动足够小，小到出错的可能性很低</strong>。</p>
+
+    <p>这就是 autoresearch 的核心洞察：与其花一周设计一个完美的系统，不如每天做三个小的、可验证的改进。六天后你会发现自己走得很远，而且每一步都是扎实的。</p>
+
+    <table>
+        <tr><th>轮次</th><th>API</th><th>测试增量</th><th>源码行数</th></tr>
+        <tr><td>1</td><td>autoMaintain()</td><td>324 → 329 (+5)</td><td>~39</td></tr>
+        <tr><td>2</td><td>searchSimilar()</td><td>329 → 334 (+5)</td><td>~16</td></tr>
+        <tr><td>3</td><td>clusterByTopic()</td><td>359 → 365 (+6)</td><td>~40</td></tr>
+        <tr><td>4</td><td>summarizeCluster()</td><td>365 → 371 (+6)</td><td>~50</td></tr>
+    </table>
+
+    <blockquote>完整实验记录在项目的 experiments.tsv 中。代码开源在 GitHub。</blockquote>
+
+    <a class="back-link" href="/index.html">← 返回首页</a>
+</body>
+</html>
