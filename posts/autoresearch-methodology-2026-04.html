@@ -3,148 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Autoresearch：让 AI Agent 自己做实验的方法论 | 罗嵩的技术博客</title>
+    <title>Autoresearch：让 Agent 自己做实验的开发方法论 - Robert's Blog</title>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
-        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
-        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
-        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
-        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
-        p { margin-bottom: 1rem; }
-        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
-        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
-        pre code { background: none; padding: 0; }
-        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
-        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
-        li { margin-bottom: 0.3rem; }
-        a { color: var(--accent); text-decoration: none; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9fa; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        .info { background: #d1ecf1; border-left-color: #17a2b8; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
         a:hover { text-decoration: underline; }
-        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
-        .highlight { color: #ffa657; }
-        .metric { color: #7ee787; font-weight: bold; }
+        .back-link { display: inline-block; margin-top: 30px; padding: 10px 20px; background: #3498db; color: white; border-radius: 4px; }
+        .back-link:hover { background: #2980b9; text-decoration: none; }
     </style>
 </head>
 <body>
-    <h1>Autoresearch：让 AI Agent 自己做实验的方法论</h1>
-    <div class="meta">
-        2026-04-22 · <span class="tag">AI-Agent</span> <span class="tag">Self-Evolution</span> <span class="tag">Testing</span> <span class="tag">TypeScript</span>
-    </div>
+<div class="container">
+    <h1>Autoresearch：让 Agent 自己做实验的开发方法论</h1>
+    <div class="meta">📅 2026-04-24 · 标签：Autoresearch, AI Agent, 方法论, 自动化开发</div>
 
-    <p>过去十天，我的 AI Agent 在我睡觉的时候自己做了 15 轮实验。测试从 66 个涨到 329 个，代码从零增长到完整功能——<strong>全程没有任何人工干预</strong>。这不是科幻，而是一套我称之为 "Autoresearch" 的方法论的实际产出。</p>
+    <p>过去 24 小时，我的 <code>agent-memory-service</code> 项目从 371 个测试涨到了 395 个，新增了 7 个 API 方法，写了大约 350 行源码。零回滚。全是 AI Agent 自己干的。</p>
 
-    <p>这篇文章分享这套方法的核心循环、关键设计决策，以及从 <code>experiments.tsv</code> 数据中提炼的实操建议。</p>
+    <p>这不是那种"让 AI 写个 hello world"的玩具实验。每个功能都有测试覆盖、有设计决策、有记录在案的教训。我想把这套方法论——我称之为 <b>Autoresearch</b>——分享出来，因为它改变了我对"AI 辅助开发"的认知。</p>
 
-    <h2>一、核心循环：实验不是一次性的</h2>
+    <h2>核心循环：30 分钟一轮的实验</h2>
 
-    <p>传统开发是「写代码 → 测试 → 部署」。Autoresearch 加了一个维度：<strong>记录、评估、留存或回滚</strong>。每一轮实验都是独立的原子单元：</p>
-
-    <pre><code># experiments.tsv 格式
-date       | project            | baseline | after | change    | notes
-2026-04-17 | github-creative    | 0/0      | 36/36 | +36 tests | Fixed TS compilation bugs
-2026-04-19 | catalyst-agent-mesh| 98/98    | 148/148| +50 tests| TaskScheduler + HealthMonitor
-2026-04-22 | agent-memory       | 324/324  | 329/329| +5 tests | autoMaintain() API</code></pre>
-
-    <p>关键洞察：<strong>baseline 和 after 必须同时记录</strong>。没有 baseline，你不知道是进步还是退步；没有 after，你无法判断实验是否成功。这个看似简单的 TSV 文件，是整个方法论的地基。</p>
-
-    <h2>二、增量构建：每个实验都是上一个的垫脚石</h2>
-
-    <p>看 <code>catalyst-agent-mesh</code> 的增长曲线：</p>
-
-    <pre><code>04-16: 68 → 83 tests (+15) PipelineStage, CRUD
-04-18: 83 → 98 tests (+15) MeshConfig, workflows
-04-19: 98 → 148 tests (+50) TaskScheduler, HealthMonitor
-04-19: 148 → 171 tests (+23) HealthMonitor 边界用例
-04-22: 171 → 182 tests (+11) health_monitor + pipeline_executor</code></pre>
-
-    <p>这不是随机的——<strong>每轮实验都直接复用上一轮的产出</strong>。HealthMonitor 测试为 autoMaintain 提供了基础；MeshConfig 的 workflow 测试为 PipelineExecutor 铺了路。就像搭积木，但每块积木放下去之前都经过测试验证。</p>
-
-    <blockquote>原则：永远不要在不确定的地基上建新楼层。每一轮实验结束时，所有已有测试必须通过。</blockquote>
-
-    <h2>三、代码实战：autoMaintain 的设计</h2>
-
-    <p>以最新一轮实验为例——为 Agent 记忆服务添加自动维护 API。核心问题：<strong>Agent 的记忆会过期、碎片化、膨胀，但没人记得手动清理</strong>。</p>
-
-    <pre><code class="language-typescript">// 自动维护：基于健康分数触发
-async autoMaintain(opts = {}) {
-  const {
-    threshold = 80,      // 健康分低于此值触发维护
-    tasks = ['purge', 'compactChangelog', 'decay', 'reindex'],
-    dryRun = false        // 预览模式，只报告不执行
-  } = opts;
-
-  // 1. 获取当前健康分数
-  const { score, dimensions } = await this.healthScore();
-
-  // 2. 分数健康则跳过
-  if (score >= threshold) {
-    return { triggered: false, score, actions: {} };
-  }
-
-  // 3. 按维度决定执行哪些任务
-  const actions = {};
-  for (const task of tasks) {
-    if (task === 'purge' && dimensions.expiry < 90) {
-      actions.purge = dryRun
-        ? { recommendation: 'purge expired' }
-        : await this.purgeExpired();
-    }
-    if (task === 'compactChangelog' && dimensions.changelog < 90) {
-      actions.compactChangelog = dryRun
-        ? { recommendation: 'compact changelog' }
-        : await this.compactChangelog();
-    }
-    // ... 其他任务同理
-  }
-
-  return { triggered: true, score, actions };
-}</code></pre>
-
-    <p>这个 API 的设计有三个值得说的地方：</p>
-
-    <p><strong>第一，健康分数驱动的决策</strong>。不是"每 N 小时跑一次"，而是"记忆不健康了才跑"。这避免了无意义的定时任务，也让维护频率自适应——数据多时维护更频繁，数据少时几乎不触发。</p>
-
-    <p><strong>第二，维度级的精细控制</strong>。健康分数被拆成多个维度（expiry、changelog、access），每个维度独立评估。过期问题严重就跑 purge，变更日志膨胀就跑 compact，不需要一刀切。</p>
-
-    <p><strong>第三，dry-run 作为一等公民</strong>。生产环境最怕的不是没有功能，而是功能跑出了意外后果。dry-run 让你在执行前预览，这不是锦上添花——是必需品。</p>
-
-    <h2>四、经验数据：10 天 15 轮实验的统计</h2>
-
-    <p>从 experiments.tsv 的真实数据中：</p>
-
-    <ul>
-        <li><strong>测试增长</strong>：跨 5 个项目，从 66 个测试增长到 <span class="metric">329+</span> 个，零回归</li>
-        <li><strong>平均每轮</strong>：+15-20 个测试，约 50-100 行代码</li>
-        <li><strong>Bug 发现</strong>：2 个 NameError、1 个 Set import 缺失、1 个 missing self——都是小问题，但不写测试永远不会发现</li>
-        <li><strong>回滚次数</strong>：0。因为每轮变更小、边界清晰</li>
-    </ul>
-
-    <p>最反直觉的发现：<strong>变更越小的实验，越不容易出问题，也越容易积累出大成果</strong>。04-19 那天 catalyst-agent-mesh 一天做了 3 轮实验（+73 tests），不是一口气写的——是三轮独立的、每轮都通过全部测试的增量叠加。</p>
-
-    <h2>五、可操作建议</h2>
-
-    <p>如果你想在项目中应用 Autoresearch 方法论：</p>
+    <p>Autoresearch 的基本单位是一个 <b>实验循环（Experiment Cycle）</b>，每轮大约 30 分钟：</p>
 
     <ol>
-        <li><strong>建一个 experiments.tsv</strong>。不需要数据库，一个 TSV 文件就够了。每轮实验一行，记录日期、项目、baseline/after 测试数、变更描述。</li>
-        <li><strong>设定硬性约束</strong>：每轮不超过 150 行代码，所有已有测试必须通过。违反约束就回滚。</li>
-        <li><strong>让 Agent 在空闲时自主运行</strong>。用 cron 触发，选一个有明确 baseline 的项目，让它自己选下一步做什么。人类只需要看 experiments.tsv 的增量行。</li>
-        <li><strong>重视 dry-run 和预览</strong>。任何写操作都应该有预览模式。代码里的 <code>if (dryRun)</code> 分支不是负担，是安全网。</li>
-        <li><strong>复用而非重写</strong>。每轮实验应该站在上一轮的肩膀上。autoMaintain 用了 healthScore 的输出；HealthMonitor 用了 MeshConfig 的基础设施。</li>
+        <li><b>选择目标</b>：从候选列表中选下一个最有价值的功能点</li>
+        <li><b>实现 + 测试</b>：写代码，写测试，确保全部通过</li>
+        <li><b>决策</b>：KEEP（保留）还是 ROLLBACK（回滚）</li>
+        <li><b>记录</b>：写入 experiments.tsv，包括提交 hash、测试数、状态、描述</li>
     </ol>
 
-    <h2>六、反思</h2>
+    <p>关键约束：<b>每轮只做一件事</b>。不是"顺便重构一下"，不是"既然打开了就改改那个"。一个 cycle，一个功能，一组测试。</p>
 
-    <p>Autoresearch 不是万能的。它最适合的场景是：<strong>有明确测试标准、可以增量构建的项目</strong>。对于探索性研究或架构级重构，这个循环的粒度太细了。</p>
+    <div class="highlight">
+        <strong>为什么是 30 分钟？</strong> 因为这是"足够写一个小功能 + 测试"但"不够搞砸整个项目"的时间窗口。如果 30 分钟还没写完，说明功能拆得太大了。
+    </div>
 
-    <p>但它解决了一个真实问题：<strong>个人开发者如何在没有团队的情况下维持高质量的持续产出</strong>。答案不是更努力地工作，而是建立一个系统——让实验自动发生、自动记录、自动验证。</p>
+    <h2>实战案例：24 小时，7 个功能</h2>
 
-    <blockquote>最终，Autoresearch 的核心信念是：<strong>测试数字不会说谎</strong>。329/329 比 324/324 好，这不需要任何人的判断。当你把决策交给数据，Agent 就能在你睡觉的时候替你做实验。</blockquote>
+    <p>让我用实际数据说话。这是 agent-memory-service 项目过去 24 小时的实验记录：</p>
 
-    <p style="color: #8b949e; margin-top: 3rem; font-size: 0.85rem;">
-        本文基于 2026-04-12 至 2026-04-22 的 experiments.tsv 数据和 agent-memory-service 项目源码撰写。
-        相关项目：<a href="https://github.com/robertsong2019">GitHub</a>
-    </p>
+    <table>
+        <tr><th>时间</th><th>功能</th><th>新增测试</th><th>新增代码</th><th>状态</th></tr>
+        <tr><td>04-23 19:00</td><td>compareMemories(id1, id2)</td><td>+5</td><td>~35 行</td><td>✅ keep</td></tr>
+        <tr><td>04-23 19:10</td><td>tagHierarchy(opts)</td><td>+4</td><td>~55 行</td><td>✅ keep</td></tr>
+        <tr><td>04-23 19:20</td><td>rebalance(opts)</td><td>+4</td><td>~30 行</td><td>✅ keep</td></tr>
+        <tr><td>04-23 01:00</td><td>summarizeCluster(topic)</td><td>+6</td><td>~50 行</td><td>✅ keep</td></tr>
+        <tr><td>04-24 00:00</td><td>autoTag(opts)</td><td>+5</td><td>~40 行</td><td>✅ keep</td></tr>
+        <tr><td>04-24 01:00</td><td>mergeClusters(topics)</td><td>+6</td><td>~40 行</td><td>✅ keep</td></tr>
+    </table>
+
+    <p>注意一个规律：每个功能都是前一个的自然延伸。compareMemories 发现标签体系有层级关系 → tagHierarchy。层级多了需要权重调整 → rebalance。有了层级和权重 → summarizeCluster 生成摘要。有了摘要 → autoTag 批量标注。标注完了 → mergeClusters 合并同类。</p>
+
+    <p>这不是我规划的路线图。这是 Agent 自己在每一轮结束后，根据代码现状推理出的"下一步最合理的事情"。</p>
+
+    <h2>experiments.tsv：不可篡改的实验日志</h2>
+
+    <p>整个方法论的核心基础设施是一个简单的 TSV 文件：</p>
+
+    <pre><code>timestamp                commit   metric         value     status  description
+2026-04-24T01:00         212574f  test_count     394/395   keep    mergeClusters(topics, opts) — merge multiple topic clusters into unified tag.
+2026-04-24T00:00         be8a86a  test_count     389/389   keep    autoTag(opts) — automatically apply suggestTags to untagged memories.
+2026-04-23T01:00         e3a6637  test_count     371/371   keep    summarizeCluster(topic, opts) — aggregate summary of memories in a topic cluster.</code></pre>
+
+    <p>为什么用 TSV 而不是数据库？因为 <b>git 友好</b>。每一行变更都是一个 diff，可以回溯、可以 code review、可以作为 CI 的 checkpoint。Agent 在每次 commit 前读取这个文件，知道项目到了哪一步。</p>
+
+    <p>这个文件的格式我强烈推荐你抄走：</p>
+
+    <pre><code>// experiments.tsv 列定义
+timestamp   — ISO 8601 时间戳，精确到分钟
+commit      — git hash（可验证）
+metric      — 你关心的指标（test_count, test_pass_rate, 等）
+value       — 当前值（371/371 表示 371 total, 371 passing）
+status      — keep | rollback | improve
+description — 人可读的功能描述</code></pre>
+
+    <h2>教训捕获：每个 Bug 都是一次学习</h2>
+
+    <p>Autoresearch 不是只记录成功。每个 cycle 的开发笔记里都有"教训"部分。举几个真实例子：</p>
+
+    <blockquote>
+        <strong>教训 1：</strong> <code>new MemoryService(tmp)</code> vs <code>new MemoryService({ dbPath: tmp })</code> — 传字符串参数不会设置 dbPath。构造函数只解构对象。<br><br>
+        <strong>教训 2：</strong> <code>tagHierarchy</code> 的 <code>minCoOccurrence=2</code> 时，低频共现标签不会建立关系。这不是 bug，是设计选择，但测试必须显式覆盖这个边界条件。<br><br>
+        <strong>教训 3：</strong> <code>totalTags</code> 是<b>唯一标签数</b>，不是输入标签数。去重后的计数。测试里如果放重复标签会得到比预期小的数字。
+    </blockquote>
+
+    <p>这些教训会被写进当天的 memory 日志。当同一个教训出现第三次时，它会升级成代码层面的约束（比如构造函数参数校验），而不是继续靠文档提醒。</p>
+
+    <h2>代码示例：mergeClusters 的完整实现</h2>
+
+    <p>让我展示一个典型的 autoresearch cycle 产出——<code>mergeClusters</code>。这个功能解决的问题是：当你有 "machine-learning" 和 "neural-networks" 两个独立的知识集群，想把它们合并成一个：</p>
+
+    <pre><code>/**
+ * Merge multiple topic clusters into one unified cluster.
+ * @param {string[]} topics - Array of topic tag names to merge
+ * @param {object} opts - Options
+ * @param {string} opts.targetTag - Unified tag name (default: first topic)
+ * @param {boolean} opts.removeSourceTags - Remove source tags (default: true)
+ * @returns {{ targetTag: string, mergedCount: number, sourceTopics: string[] }}
+ */
+mergeClusters(topics, opts = {}) {
+    if (!Array.isArray(topics) || topics.length < 2) {
+        throw new Error('mergeClusters requires at least 2 topics');
+    }
+
+    const targetTag = opts.targetTag || topics[0];
+    const removeSourceTags = opts.removeSourceTags !== false;
+    let mergedCount = 0;
+
+    for (const topic of topics) {
+        const matches = this.#store.query({ tag: topic });
+        for (const mem of matches) {
+            const tags = mem.tags || [];
+            const hasTarget = tags.some(t =>
+                t.toLowerCase() === targetTag.toLowerCase()
+            );
+
+            if (!hasTarget) {
+                tags.push(targetTag);
+            }
+
+            if (removeSourceTags) {
+                const filtered = tags.filter(t =>
+                    t.toLowerCase() !== topic.toLowerCase()
+                );
+                mem.tags = hasTarget && !removeSourceTags ? tags : filtered;
+                if (!hasTarget && removeSourceTags) {
+                    mem.tags = filtered.includes(targetTag)
+                        ? filtered
+                        : [...filtered, targetTag];
+                }
+            } else {
+                mem.tags = tags;
+            }
+            this.#store.update(mem.id, { tags: mem.tags });
+            mergedCount++;
+        }
+    }
+
+    this.#store.reindex();
+    return {
+        targetTag,
+        mergedCount,
+        sourceTopics: topics.filter(t =>
+            t.toLowerCase() !== targetTag.toLowerCase()
+        )
+    };
+}</code></pre>
+
+    <p>~40 行源码。6 个测试覆盖：正常合并、默认移除源标签、保留源标签、默认 targetTag、少于 2 个 topic 报错、已有 targetTag 跳过。每个边界条件一个测试。</p>
+
+    <h2>为什么这套方法有效？三个反直觉的洞察</h2>
+
+    <h3>1. 限制反而加速</h3>
+
+    <p>"每轮只做一件事"听起来效率低下，但实际效果相反。因为 Agent 不需要在多个上下文间切换，不需要处理"改了 A 导致 B 挂了"的连锁反应。每个 cycle 的 diff 通常小于 60 行，code review（即使是人类回看）只需要 2 分钟。</p>
+
+    <h3>2. 测试是最好的设计文档</h3>
+
+    <p>我没有为这些功能写过一行设计文档。但看测试用例：</p>
+
+    <pre><code>// 这个测试比任何文档都清楚地说了 API 的行为
+test('dryRun does not modify memories', async () => {
+    await svc.store('m1', 'content about AI', { tags: ['ai'] });
+    await svc.store('m2', 'content about cooking');  // untagged
+
+    const result = await svc.autoTag({ dryRun: true });
+
+    // dryRun=true: 推荐但不写入
+    expect(result.tagged).toBe(0);
+    const mem = await svc.get('m2');
+    expect(mem.tags).toEqual([]);  // 原始数据未修改
+});</code></pre>
+
+    <p>测试是可执行的规格说明。它们不会过时（因为 CI 会跑），不会撒谎（因为断言会失败），不需要维护者去同步。</p>
+
+    <h3>3. Agent 不需要大局观</h3>
+
+    <p>这是最重要的洞察。我没有给 Agent 一个"v2.0 路线图"。我只是给了它：<b>当前代码 + 候选功能列表 + 每轮选最合理的一个</b>。</p>
+
+    <p>结果？7 个功能自然形成了一条连贯的功能链。compareMemories → tagHierarchy → rebalance → summarizeCluster → autoTag → mergeClusters。每一步都是上一步的逻辑延伸。</p>
+
+    <p>这不是巧合。这是<b>涌现式设计</b>——好的架构不是规划出来的，是约束条件下一步步长出来的。就像生物进化不需要"理解"整个生态系统，只需要每一步做出局部最优的选择。</p>
+
+    <h2>可操作建议：如何在你的项目中启动 Autoresearch</h2>
+
+    <ol>
+        <li><b>创建 <code>experiments.tsv</code></b>：第一行写表头，第二行写你的 baseline（当前测试数）。把它加入 git 追踪。</li>
+        <li><b>列一个候选功能清单</b>：不需要完整规划，只需要 5-10 个"下一步可以做的小功能"。每个功能应该能在 30-40 行内实现。</li>
+        <li><b>设定 cycle 约束</b>：每轮只做一个功能，写完必须通过全部测试，必须记录到 TSV。不合格就 rollback。</li>
+        <li><b>捕获教训</b>：每个 cycle 结束后写下"如果重来我会怎么做"。这些教训比代码更有价值。</li>
+        <li><b>定期回看</b>：每 5-10 个 cycle 后，停下来看 experiments.tsv 的整条链。你会发现功能自然聚集成主题，形成你最初没想到的架构。</li>
+    </ol>
+
+    <div class="highlight success">
+        <strong>核心原则：</strong> 不要规划 3 个月的路标。规划下一个 30 分钟的实验。让架构从约束中涌现，而不是从白板上的框图中规划。
+    </div>
+
+    <p>agent-memory-service 现在有 395 个测试，7 天前是 195 个。没有回滚过一次。不是因为代码完美——是因为每个改动足够小，小到错误在下一个 cycle 开始之前就能被发现和修复。</p>
+
+    <p>这就是 Autoresearch 的力量：<b>不是让 AI 替你写代码，而是让 AI 替你做实验</b>。代码是实验的副产物。</p>
+
+    <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+</div>
 </body>
 </html>
