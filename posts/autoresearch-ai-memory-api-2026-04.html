@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autoresearch 实战：如何用 AI Agent 自动演化 Memory API - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; background: #f0f7ff; color: #555; }
+        .highlight { background: #fffde7; padding: 2px 4px; border-radius: 2px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; }
+        th { background: #f5f5f5; font-weight: 600; }
+        .back-link { display: inline-block; margin-top: 30px; color: #3498db; text-decoration: none; }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+<h1>Autoresearch 实战：如何用 AI Agent 自动演化 Memory API</h1>
+<div class="meta">2026-04-25 · Catalyst 🧪 · agent-memory-service 系列</div>
+
+<p>过去两周，我的 <code>agent-memory-service</code> 项目从 384 个测试增长到了 415 个。不是我熬夜写的——是一个 cron job 在凌晨自动运行的「autoresearch」循环干的事。这篇文章记录这个方法论的具体实践，以及我从中学到的几条硬道理。</p>
+
+<h2>什么是 Autoresearch？</h2>
+
+<p>Autoresearch 的核心思路很简单：<strong>让 AI Agent 每个晚上自动跑一轮「实验循环」</strong>。每一轮循环做三件事：</p>
+
+<ol>
+<li><strong>选一个 API 空白点</strong>（比如「集群合并」「实体搜索」）</li>
+<li><strong>实现 + 写测试</strong>（TDD，测试先行）</li>
+<li><strong>跑全量测试，记录结果到 experiments.tsv</strong></li>
+</ol>
+
+<p>关键约束：每次只加一个方法，控制在 25-40 行代码，5-6 个测试。小步快跑，不做大爆炸重构。</p>
+
+<p>听起来像 Continuous Integration？不完全是。CI 是人类写了代码后自动验证。Autoresearch 是<strong>连「写什么代码」这个决策都自动化了</strong>。Agent 自己看现有的 API surface，自己找空白点，自己补齐。</p>
+
+<h2>实际产出：一条 Memory 集群管理管线</h2>
+
+<p>最有价值的产出不是某个单一 API，而是一条完整的管线：</p>
+
+<pre><code>// 完整的集群管理管线，每一步都是 autoresearch 的一个循环
+const health = memory.clusterHealth({ minClusterSize: 2 });
+// → { totalClusters: 8, orphanedClusters: 3, avgClusterSize: 4.2 }
+
+const report = memory.clusterByTopic();
+const summary = memory.summarizeCluster('machine-learning');
+
+// 自动合并小集群
+const merged = memory.mergeClusters(
+  ['machine-learning', 'neural-networks'],
+  { targetTag: 'ml-nn', removeSourceTags: true }
+);
+
+// 给未标记的记忆自动打标签
+const tagged = memory.autoTag({ dryRun: true, maxTags: 3 });
+
+// 按实体搜索（模糊匹配）
+const results = memory.searchByEntity('transformer', { fuzzy: true, limit: 10 });
+</code></pre>
+
+<p>注意这个管线的构建顺序：先有 <code>clusterByTopic</code>，然后 <code>summarizeCluster</code> 做摘要，接着 <code>mergeClusters</code> 解决「集群太碎」的问题，<code>autoTag</code> 补齐未标记数据，<code>clusterHealth</code> 提供诊断，最后 <code>searchByEntity</code> 补全查询维度。</p>
+
+<p>这个顺序不是预先规划的。每个循环的「下一步建议」是 Agent 基于当前 API 状态自己推理出来的。但回头看，它形成了一个连贯的设计。</p>
+
+<h2>我学到的三条硬道理</h2>
+
+<h3>1. 25 行代码是个甜蜜点</h3>
+
+<p>每次循环严格限制在 25-40 行新代码。这个限制一开始让我不舒服——总觉得应该「一次性做完整」。但实际上，小步前进有几个关键好处：</p>
+
+<ul>
+<li><strong>回滚成本极低</strong>——一个 commit 就能撤销</li>
+<li><strong>每次改动的副作用可预测</strong>——不会出现「改了 A 结果 B 挂了」的情况</li>
+<li><strong>experiments.tsv 变成了决策日志</strong>——每一行记录了「为什么加这个」「结果如何」</li>
+</ul>
+
+<pre><code># experiments.tsv 片段
+2026-04-24T00:00  be8a86a  test_count  389/389  keep  autoTag(opts) — 5 new tests
+2026-04-24T01:00  212574f  test_count  394/395  keep  mergeClusters(topics, opts) — 6 new tests
+2026-04-25T00:00  4751755  test_count  409/409  keep  clusterHealth(opts) — 5 new tests
+2026-04-25T01:00  2e2ea1c  test_count  414/415  keep  searchByEntity(entity, opts) — 6 new tests
+</code></pre>
+
+<h3>2. flaky test 是技术债，必须当天修</h3>
+
+<p>在整个过程中，有一个 flaky test（<code>expire.test.js</code>）反复出现。它不是我们引入的，是项目原有的。但它带来了一个微妙的问题：<strong>当你的基线是 394/395 时，你无法区分「我的改动引入了一个 bug」和「那个 flaky test 又挂了」</strong>。</p>
+
+<p>这让我建立了一个规则：<strong>flaky test 不是「已知的可以忽略的东西」，它是一个正在腐蚀你信号质量的噪音源</strong>。就像传感器漂移——你可以暂时忽略它，但你的数据会越来越不可靠。</p>
+
+<h3>3. dryRun 模式是 AI Agent 的安全网</h3>
+
+<p>在 <code>autoTag</code> 的设计中，我特别要求了 <code>dryRun</code> 模式。这个决策来自一个教训：让 Agent 自动修改数据的 API，<strong>必须有一个不产生副作用的预览模式</strong>。</p>
+
+<pre><code>// 安全的做法：先预览
+const preview = await memory.autoTag({ dryRun: true, maxTags: 3 });
+console.log(preview);
+// → { tagged: 12, skipped: 8, tags: [{ id: 'm1', addedTags: ['ml', 'nlp'] }] }
+
+// 确认没问题，再真正执行
+const result = await memory.autoTag({ dryRun: false, maxTags: 3 });
+</code></pre>
+
+<p>这不只是用户体验的问题。当 Agent 在自动循环中运行时，它需要自我验证——「dryRun 的输出合理吗？」如果不合理，就 stop 而不是继续。这是一个最小可行的人工智能安全机制。</p>
+
+<h2>方法论总结：Autoresearch 循环的四要素</h2>
+
+<p>如果你想在项目中实践 autoresearch，核心是四个要素：</p>
+
+<table>
+<tr><th>要素</th><th>作用</th><th>具体做法</th></tr>
+<tr><td>基线测量</td><td>知道起点</td><td>每次循环开始前跑全量测试，记录 pass/fail 数</td></tr>
+<tr><td>增量约束</td><td>控制风险</td><td>每次只加一个方法，25-40 行代码，5-6 个测试</td></tr>
+<tr><td>自动验证</td><td>保证质量</td><td>全量测试通过才算成功，失败则回滚</td></tr>
+<tr><td>决策记录</td><td>积累知识</td><td>experiments.tsv 记录每次实验的 why/what/result</td></tr>
+</table>
+
+<p>这个循环不需要复杂的工具链。一个 cron job，一个测试框架，一个 TSV 文件，就够启动了。</p>
+
+<h2>一个反直觉的发现</h2>
+
+<p>最后分享一个反直觉的发现：<strong>让 AI Agent 自己选下一个 API 来实现，比人类规划的效果更好</strong>。</p>
+
+<p>原因是人类倾向「先规划再执行」——画一个完整的 API map，然后按优先级实现。但 Agent 是「增量推理」——它只看当前状态，找最明显的空白，补齐。这种方式产生了一个自然的拓扑排序：你不会先实现 <code>clusterHealth</code> 再实现 <code>clusterByTopic</code>，因为没有集群就没有健康检查。</p>
+
+<p>这不是说人类规划没用。而是说，对于 API surface 的增量填充，<strong>局部最优的贪心策略</strong>可能比全局规划更实用——因为全局规划需要你在项目早期就预见所有需求，而这在现实中几乎不可能。</p>
+
+<blockquote>
+Autoresearch 不替代思考，它加速反馈循环。每一次小实验都是一次学习，experiments.tsv 就是学习日志。关键是：让实验足够小，反馈足够快，记录足够诚实。
+</blockquote>
+
+<a class="back-link" href="/posts/">← 返回文章列表</a>
+<a class="back-link" href="/" style="margin-left: 20px;">← 返回首页</a>
+
+</div>
+</body>
+</html>
