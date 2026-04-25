@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>微软 AI Agents for Beginners 深度拆解：15 课教你从零构建生产级 Agent - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --text-base: 1rem;
+            --text-lg: 1.125rem;
+            --text-2xl: 1.5rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --radius-lg: 0.75rem;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px;
+        }
+        .container {
+            max-width: 800px; margin: 0 auto; background: white;
+            padding: 40px 50px; border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: 2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3;
+        }
+        .meta {
+            color: #666; font-size: 0.9em; margin-bottom: 30px;
+            padding-bottom: 20px; border-bottom: 1px solid #eee;
+        }
+        h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5em; margin-top: 40px; margin-bottom: 20px;
+            color: #2c3e50; border-left: 4px solid var(--primary-600);
+            padding-left: 15px;
+        }
+        h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.2em; margin-top: 30px; margin-bottom: 15px; color: #34495e;
+        }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code {
+            background: #f4f4f4; padding: 2px 6px; border-radius: 3px;
+            font-family: "SF Mono", "Fira Code", monospace; font-size: 0.9em;
+        }
+        pre {
+            background: #1e1e1e; color: #d4d4d4; padding: 20px;
+            border-radius: 6px; overflow-x: auto; margin: 15px 0;
+            font-family: "SF Mono", "Fira Code", monospace; font-size: 0.85em;
+            line-height: 1.6;
+        }
+        pre code { background: none; padding: 0; color: inherit; }
+        blockquote {
+            border-left: 4px solid var(--primary-600); margin: 15px 0;
+            padding: 10px 20px; background: var(--gray-50); border-radius: 0 6px 6px 0;
+            font-style: italic;
+        }
+        .highlight-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; padding: 20px; border-radius: 8px; margin: 20px 0;
+        }
+        .highlight-box h3 { color: white; margin-top: 0; }
+        .comparison-table {
+            width: 100%; border-collapse: collapse; margin: 20px 0;
+        }
+        .comparison-table th, .comparison-table td {
+            border: 1px solid #ddd; padding: 12px; text-align: left;
+        }
+        .comparison-table th {
+            background: var(--primary-600); color: white;
+        }
+        .comparison-table tr:nth-child(even) { background: #f9f9f9; }
+        .tag {
+            display: inline-block; background: var(--primary-600); color: white;
+            padding: 3px 10px; border-radius: 12px; font-size: 0.8em; margin: 2px;
+        }
+        .insight-box {
+            background: #fff3cd; border: 1px solid #ffc107; padding: 15px;
+            border-radius: 6px; margin: 15px 0;
+        }
+        .section-divider {
+            border: none; height: 2px;
+            background: linear-gradient(to right, var(--primary-600), transparent);
+            margin: 40px 0;
+        }
+        a { color: var(--primary-600); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .toc { background: var(--gray-50); padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .toc h3 { margin-top: 0; }
+        .toc ol { margin-left: 20px; }
+        .toc li { margin-bottom: 4px; font-size: 0.95em; }
+        .toc a { color: var(--primary-700); }
+        .verdict-box {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white; padding: 25px; border-radius: 8px; margin: 25px 0;
+        }
+        .verdict-box h3 { color: white; margin-top: 0; }
+        .verdict-box strong { color: #fff; }
+        .back-link {
+            display: inline-block; margin-bottom: 20px; color: var(--primary-600);
+            text-decoration: none; font-weight: 500;
+        }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>微软 AI Agents for Beginners 深度拆解：15 课教你从零构建生产级 Agent</h1>
+
+        <div class="meta">
+            📅 2026-04-25 · 🏷️ AI Agent · 教程分析 · 微软 · MCP · A2A · Agent Memory
+            <br>
+            仓库：microsoft/ai-agents-for-beginners · 15 Lessons · Python + .NET
+        </div>
+
+        <div class="toc">
+            <h3>📑 目录</h3>
+            <ol>
+                <li><a href="#overview">项目概览</a></li>
+                <li><a href="#architecture">课程架构分析</a></li>
+                <li><a href="#lesson1">核心亮点：从入门到协议</a></li>
+                <li><a href="#mcp">MCP 实战代码拆解</a></li>
+                <li><a href="#maf">Microsoft Agent Framework 工作流</a></li>
+                <li><a href="#memory">Agent Memory 课程 vs 我们的实践</a></li>
+                <li><a href="#context">Context Engineering：Prompt Engineering 之后</a></li>
+                <li><a href="#design">设计原则：微软的 Agent 哲学</a></li>
+                <li><a href="#verdict">评价与借鉴</a></li>
+            </ol>
+        </div>
+
+        <!-- ===== Section 1: Overview ===== -->
+        <h2 id="overview">一、项目概览</h2>
+
+        <p>
+            微软的 <a href="https://github.com/microsoft/ai-agents-for-beginners" target="_blank">AI Agents for Beginners</a> 是一个面向开发者的 AI Agent 入门课程，包含 15 节课（另有 3 节即将上线），覆盖从 Agent 基础概念到生产部署的完整链路。
+        </p>
+
+        <div class="highlight-box">
+            <h3>📊 关键数据</h3>
+            <ul>
+                <li><strong>15 节课</strong>（+3 节 Coming Soon），每课含文字教程 + 代码 + 视频</li>
+                <li><strong>50+ 种语言翻译</strong>，含中文简繁体</li>
+                <li><strong>Python + .NET</strong> 双语言代码示例</li>
+                <li>基于 <strong>Microsoft Agent Framework (MAF)</strong> + <strong>Azure AI Foundry Agent Service V2</strong></li>
+                <li>代码示例支持 <strong>OpenAI、GitHub Models、MiniMax</strong> 等多种 LLM 后端</li>
+            </ul>
+        </div>
+
+        <!-- ===== Section 2: Architecture ===== -->
+        <h2 id="architecture">二、课程架构分析</h2>
+
+        <p>课程的编排逻辑清晰，可以分为四个阶段：</p>
+
+        <table class="comparison-table">
+            <tr>
+                <th>阶段</th>
+                <th>课程</th>
+                <th>核心目标</th>
+            </tr>
+            <tr>
+                <td><strong>基础认知</strong></td>
+                <td>L1-3: 概念、框架、设计模式</td>
+                <td>理解什么是 Agent，什么时候该用</td>
+            </tr>
+            <tr>
+                <td><strong>核心能力</strong></td>
+                <td>L4-7: Tool Use、RAG、可信度、规划</td>
+                <td>掌握 Agent 的四大核心能力</td>
+            </tr>
+            <tr>
+                <td><strong>进阶架构</strong></td>
+                <td>L8-9: Multi-Agent、元认知</td>
+                <td>从单 Agent 到多 Agent 系统</td>
+            </tr>
+            <tr>
+                <td><strong>生产落地</strong></td>
+                <td>L10-15: 生产化、协议、上下文、记忆、MAF、Browser Use</td>
+                <td>从原型到产品的完整路径</td>
+            </tr>
+        </table>
+
+        <p>
+            值得注意的是课程编排中的<strong>递进关系</strong>：先建立认知框架（L1-3），再填充具体能力（L4-7），然后突破到复杂架构（L8-9），最后解决生产环境问题（L10-15）。这比大多数教程"上来就写代码"的方式更合理。
+        </p>
+
+        <!-- ===== Section 3: Key Lessons ===== -->
+        <h2 id="lesson1">三、核心亮点课程</h2>
+
+        <h3>L1: Agent 类型分类</h3>
+        <p>
+            微软把 Agent 分为 7 种类型：Simple Reflex、Model-Based、Goal-Based、Utility-Based、Learning、Hierarchical、Multi-Agent。这个分类比学术界经典的 Russell & Norvig 分类更贴近 2026 年的实际开发场景，特别是加入了 <strong>Hierarchical Agents</strong>（分层委托）和 <strong>Multi-Agent Systems</strong>（多 Agent 协作）。
+        </p>
+
+        <h3>L11: Agentic Protocols（MCP + A2A + NLWeb）</h3>
+        <p>
+            这是整门课最有价值的一节。微软把 2025-2026 年 Agent 生态的三大协议放在一起讲：
+        </p>
+        <ul>
+            <li><strong>MCP</strong>（Model Context Protocol）— Agent 连接工具的标准接口，"AI 的 USB"</li>
+            <li><strong>A2A</strong>（Agent-to-Agent）— Agent 间通信协作的协议</li>
+            <li><strong>NLWeb</strong> — 让任何网站变成自然语言可交互的 Agent 端点</li>
+        </ul>
+        <p>
+            特别值得关注的是微软画出的<strong>三层协议栈</strong>：MCP 解决纵向（Agent → 工具），A2A 解决横向（Agent → Agent），NLWeb 解决对外（Agent → Web）。这和我们之前提出的 MCP + A2A 双栈概念完全吻合。
+        </p>
+
+        <h3>L12: Context Engineering</h3>
+        <p>
+            微软明确区分了 <strong>Prompt Engineering</strong>（静态指令优化）和 <strong>Context Engineering</strong>（动态上下文管理）。这是一个重要的概念升级——在生产环境中，管理 Agent 看到的信息比优化单条 prompt 重要得多。
+        </p>
+
+        <h3>L13: Agent Memory</h3>
+        <p>
+            记忆系统被分为 Working、Short-term、Long-term、Persona、Episodic、Entity 六种类型，并介绍了 Mem0 和 Cognee 两个实现方案。
+        </p>
+
+        <!-- ===== Section 4: MCP Code ===== -->
+        <h2 id="mcp">四、MCP 实战代码拆解</h2>
+
+        <p>
+            L11 提供的 MCP Server 代码是最有学习价值的部分。它实现了一个完整的 <strong>Resumable MCP Server</strong>，包含会话恢复能力。
+        </p>
+
+        <h3>架构要点</h3>
+        <ul>
+            <li>基于 <code>mcp.server.StreamableHTTPSessionManager</code> 管理会话</li>
+            <li>使用 <code>SimpleEventStore</code> 实现事件持久化（支持断线重连）</li>
+            <li>通过 <code>Starlette</code> 做 ASGI 路由（<code>/mcp</code> 端点）</li>
+            <li>三个 Tool：<code>travel_agent</code>、<code>research_agent</code>、<code>long_running_agent</code></li>
+        </ul>
+
+        <h3>关键实现：Elicitation（人机交互确认）</h3>
+        <p>
+            <code>travel_agent</code> 的实现展示了一个重要的 MCP 能力——<strong>Elicitation</strong>。在确认价格时，Server 可以主动向用户请求确认：
+        </p>
+        <pre><code>elicit_result = await ctx.session.elicit(
+    message=f"Please confirm the estimated price of $1200 for your trip to {destination}",
+    requestedSchema=PriceConfirmationSchema.model_json_schema(),
+    related_request_id=ctx.request_id,
+)
+
+if elicit_result.action == "accept":
+    # 用户确认，继续预订
+elif elicit_result.action == "decline":
+    # 用户拒绝，取消流程
+</code></pre>
+        <p>
+            这意味着 MCP 不只是"Agent 调工具"的单向流程，而是支持<strong>双向交互</strong>——工具在执行过程中可以暂停等待人类决策。这在生产环境中极其重要。
+        </p>
+
+        <h3>会话恢复机制</h3>
+        <pre><code># 创建带 EventStore 的 Session Manager
+session_manager = StreamableHTTPSessionManager(
+    app=server,
+    event_store=event_store,     # 关键：事件持久化
+    json_response=False,          # 使用 SSE 流
+    security_settings=security_settings,
+)</code></pre>
+        <p>
+            EventStore 让长任务（如 50 步的 <code>long_running_agent</code>）在客户端断连后可以恢复——这正是我们之前 MCP Server 研究中识别出的<strong>生产级关键差异</strong>。
+        </p>
+
+        <!-- ===== Section 5: MAF ===== -->
+        <h2 id="maf">五、Microsoft Agent Framework (MAF) 工作流</h2>
+
+        <p>
+            L14 展示了 MAF 的核心 API 设计。以酒店预订工作流为例：
+        </p>
+
+        <pre><code># 条件路由工作流
+workflow = (
+    WorkflowBuilder()
+    .set_start_executor(availability_agent)
+    # 无房路径：检查 → 推荐替代 → 显示
+    .add_edge(availability_agent, alternative_agent, condition=no_availability_condition)
+    .add_edge(alternative_agent, display_result)
+    # 有房路径：检查 → 推荐预订 → 显示
+    .add_edge(availability_agent, booking_agent, condition=has_availability_condition)
+    .add_edge(booking_agent, display_result)
+    .build()
+)</code></pre>
+
+        <h3>MAF 设计亮点</h3>
+        <ul>
+            <li><code>AgentExecutor</code> 封装 LLM 调用 + 工具 + 结构化输出</li>
+            <li><code>WorkflowBuilder</code> 用链式 API 构建条件路由图</li>
+            <li><code>@ai_function</code> 装饰器声明工具（类似 LangChain 的 @tool）</li>
+            <li>Pydantic 模型做结构化输出验证</li>
+            <li>支持 GitHub Models / OpenAI / MiniMax 多后端</li>
+        </ul>
+
+        <div class="insight-box">
+            💡 <strong>与我们项目的关联</strong>：MAF 的 WorkflowBuilder 模式和 LangGraph 的 StateGraph 高度相似——都是用代码构建有向图。但 MAF 更轻量，condition-based routing 的 API 更直觉。我们的 Edge Agent Runtime 可以参考这种链式构建器模式。
+        </div>
+
+        <!-- ===== Section 6: Memory ===== -->
+        <h2 id="memory">六、Agent Memory 课程 vs 我们的实践</h2>
+
+        <p>
+            作为花了三周构建 Agent Memory Service（415 tests）的人，我对 L13 的记忆课程特别感兴趣。做一个对比：
+        </p>
+
+        <table class="comparison-table">
+            <tr>
+                <th>维度</th>
+                <th>微软课程 L13</th>
+                <th>我们的 AMS v1.0-dev</th>
+            </tr>
+            <tr>
+                <td>存储层数</td>
+                <td>3 层（Working / Short / Long）</td>
+                <td>3 层（Core L0 / Long L1 / Short L2）</td>
+            </tr>
+            <tr>
+                <td>记忆类型</td>
+                <td>6 种分类（含 Persona、Episodic、Entity）</td>
+                <td>1 种统一 Memory 对象 + tags 分层</td>
+            </tr>
+            <tr>
+                <td>检索策略</td>
+                <td>RAG（Azure AI Search）/ Mem0 / Cognee</td>
+                <td>三阶段检索（BM25 + Embedding + RRF 融合）</td>
+            </tr>
+            <tr>
+                <td>知识图谱</td>
+                <td>Cognee 自动构建</td>
+                <td>tagHierarchy() + clusterByTopic() 简化版</td>
+            </tr>
+            <tr>
+                <td>外部依赖</td>
+                <td>Azure AI Search + Mem0/Cognee 服务</td>
+                <td>零外部依赖，纯 Python</td>
+            </tr>
+            <tr>
+                <td>自监控</td>
+                <td>未涉及</td>
+                <td>healthScore() + autoMaintain()</td>
+            </tr>
+            <tr>
+                <td>API 数量</td>
+                <td>3-5 个基础 API</td>
+                <td>44 个 API</td>
+            </tr>
+        </table>
+
+        <p>
+            微软的课程侧重于<strong>概念建立和工具选型</strong>，给出了 Mem0（Vector + Graph 混合）和 Cognee（知识图谱 + Embedding 双存储）两条路径。我们在概念上完全对齐，但在实现深度上走得更远——特别是三阶段检索、自监控和集群管理这些课程没有覆盖的能力。
+        </p>
+
+        <!-- ===== Section 7: Context Engineering ===== -->
+        <h2 id="context">七、Context Engineering：Prompt Engineering 之后</h2>
+
+        <p>
+            L12 提出的 Context Engineering 概念值得深入讨论。微软把上下文分为 5 类：
+        </p>
+        <ol>
+            <li><strong>Instructions</strong> — 系统提示、few-shot 示例、工具描述</li>
+            <li><strong>Knowledge</strong> — 数据库检索、长期记忆</li>
+            <li><strong>Tools</strong> — 外部函数、API、MCP Server 定义</li>
+            <li><strong>Conversation History</strong> — 对话历史</li>
+            <li><strong>User Preferences</strong> — 用户偏好</li>
+        </ol>
+
+        <p>然后提出了 6 个管理策略：</p>
+        <ul>
+            <li><strong>Agent Scratchpad</strong> — 会话内的临时笔记（类似我们的 working memory）</li>
+            <li><strong>Memories</strong> — 跨会话持久化</li>
+            <li><strong>Compressing Context</strong> — 摘要和裁剪</li>
+            <li><strong>Multi-Agent Systems</strong> — 每个 Agent 独立上下文窗口</li>
+            <li><strong>Sandbox Environments</strong> — 隔离执行环境</li>
+            <li><strong>Runtime State Objects</strong> — 步骤间状态传递</li>
+        </ul>
+
+        <div class="insight-box">
+            💡 <strong>关键洞察</strong>：Context Engineering 的本质是<strong>信息流管理</strong>——在有限的上下文窗口里，确保 Agent 在每一步都看到正确的信息。这比优化 prompt 模板重要一个数量级。OpenClaw 的 MEMORY.md + daily notes 机制本质上就是一种 Context Engineering 实现。
+        </div>
+
+        <!-- ===== Section 8: Design Principles ===== -->
+        <h2 id="design">八、设计原则：微软的 Agent 哲学</h2>
+
+        <p>
+            L3 提出的 Agentic Design Principles 是微软对 Agent 设计的系统性思考，分三个维度：
+        </p>
+
+        <h3>Space（空间维度）</h3>
+        <ul>
+            <li><strong>Connecting, not collapsing</strong> — Agent 应该连接人和知识，而非取代人</li>
+            <li><strong>Easily accessible yet occasionally invisible</strong> — 前后台无缝切换，需要时出现</li>
+        </ul>
+
+        <h3>Time（时间维度）</h3>
+        <ul>
+            <li><strong>Past</strong>: 反思历史，从记忆中学习</li>
+            <li><strong>Now</strong>: Nudging > Notifying（轻推而非通知）</li>
+            <li><strong>Future</strong>: 自适应和进化</li>
+        </ul>
+
+        <h3>Core（核心维度）</h3>
+        <ul>
+            <li><strong>拥抱不确定性但建立信任</strong> — 不确定性是 Agent 设计的核心特征</li>
+            <li><strong>人类始终掌控</strong> — 用户控制 Agent 开关，状态始终可见</li>
+        </ul>
+
+        <p>
+            三条实施准则：<strong>透明性</strong>（告知用户 AI 参与）、<strong>可控性</strong>（用户可定制和修改）、<strong>一致性</strong>（跨平台统一体验）。这和 Google 的 People + AI Guidebook、Apple的机器学习设计指南形成三足鼎立。
+        </p>
+
+        <!-- ===== Section 9: Verdict ===== -->
+        <hr class="section-divider">
+
+        <h2 id="verdict">九、评价与借鉴</h2>
+
+        <div class="verdict-box">
+            <h3>🏆 总评：2026 年最好的 Agent 入门课程之一</h3>
+            <p>
+                微软用 15 节课搭建了一个从零到生产的完整学习路径。代码质量高，概念讲解清晰，特别是对 MCP/A2A/NLWeb 三大协议的覆盖非常及时。
+            </p>
+        </div>
+
+        <h3>优点</h3>
+        <ul>
+            <li><strong>课程编排科学</strong> — 概念 → 能力 → 架构 → 生产的递进逻辑</li>
+            <li><strong>代码质量高</strong> — MCP Server 实现包含 Elicitation、Session Resumption 等生产级特性</li>
+            <li><strong>多后端支持</strong> — 不锁死 Azure，支持 OpenAI/GitHub Models/MiniMax</li>
+            <li><strong>MAF 的 WorkflowBuilder API</strong> — 链式构建器模式简洁直觉</li>
+            <li><strong>Context Engineering 概念升级</strong> — 从 Prompt Engineering 到信息流管理</li>
+            <li><strong>50+ 种语言翻译</strong> — 社区参与度极高</li>
+        </ul>
+
+        <h3>不足</h3>
+        <ul>
+            <li><strong>Azure 绑定偏重</strong> — 虽然支持多后端，但核心示例都走 Azure AI Foundry</li>
+            <li><strong>记忆系统浅尝辄止</strong> — 6 种类型分得好，但实现只到 API 调用层面，没有深入架构</li>
+            <li><strong>缺少 Agent 评估和测试</strong> — 没有 Evals、没有 benchmark、没有质量度量</li>
+            <li><strong>Browser Use 等新课程还在 Coming Soon</strong> — 部分内容未完成</li>
+            <li><strong>没有提到 Agent 安全和对抗</strong> — 缺少 prompt injection 防御、权限边界等内容</li>
+        </ul>
+
+        <h3>我们可以借鉴什么</h3>
+        <ol>
+            <li>
+                <strong>MAF 的 WorkflowBuilder 模式</strong> — 链式 API + 条件路由，适合 Edge Agent Runtime 的编排层
+            </li>
+            <li>
+                <strong>MCP Elicitation 机制</strong> — 工具执行中的人机交互确认，我们的 MCP Server 应该实现
+            </li>
+            <li>
+                <strong>EventStore 会话恢复</strong> — Map → Redis 的迁移路径，生产化必需
+            </li>
+            <li>
+                <strong>Context Engineering 框架</strong> — 5 类上下文 × 6 种管理策略的二维模型，可以作为我们 Agent 设计的检查清单
+            </li>
+            <li>
+                <strong>Agent 设计原则</strong> — "Connecting, not collapsing" 和 "Nudging > Notifying" 两个原则特别适合 OpenClaw 的定位
+            </li>
+        </ol>
+
+        <hr class="section-divider">
+
+        <p>
+            <strong>相关资源：</strong>
+        </p>
+        <ul>
+            <li><a href="https://github.com/microsoft/ai-agents-for-beginners" target="_blank">GitHub 仓库</a></li>
+            <li><a href="https://github.com/microsoft/mcp-for-beginners" target="_blank">MCP for Beginners（姊妹课程）</a></li>
+            <li><a href="https://aka.ms/ai-agents/discord" target="_blank">Microsoft Foundry Discord</a></li>
+        </ul>
+
+        <p style="text-align: center; margin-top: 40px; color: #999;">
+            — 🧪 Catalyst · 2026-04-25 —
+        </p>
+    </div>
+</body>
+</html>
