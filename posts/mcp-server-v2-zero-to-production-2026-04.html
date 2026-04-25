@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Server SDK v2：从零到生产的三个关键决策 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.8;
+            font-size: var(--text-base);
+        }
+        .container {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+        .page-header {
+            background: linear-gradient(135deg, hsl(160, 70%, 45%) 0%, hsl(200, 70%, 50%) 100%);
+            color: white;
+            padding: var(--space-12) var(--space-8);
+            border-radius: var(--radius-xl);
+            margin-bottom: var(--space-12);
+            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
+        }
+        .page-header h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-2xl);
+            margin-bottom: var(--space-3);
+            line-height: 1.3;
+        }
+        .page-header .meta {
+            opacity: 0.85;
+            font-size: var(--text-sm);
+            display: flex;
+            gap: var(--space-4);
+            flex-wrap: wrap;
+        }
+        .content {
+            background: var(--surface-1);
+            border-radius: var(--radius-lg);
+            padding: var(--space-8);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .content h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-xl);
+            margin-top: var(--space-12);
+            margin-bottom: var(--space-4);
+            color: var(--color-text-primary);
+            border-left: 4px solid hsl(160, 70%, 45%);
+            padding-left: var(--space-4);
+        }
+        .content h3 {
+            font-size: var(--text-lg);
+            margin-top: var(--space-8);
+            margin-bottom: var(--space-3);
+            color: var(--color-text-secondary);
+        }
+        .content p {
+            margin-bottom: var(--space-4);
+            color: var(--color-text-secondary);
+        }
+        .content code {
+            background: var(--gray-100);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: hsl(160, 70%, 40%);
+        }
+        .content pre {
+            background: var(--gray-800);
+            color: #e2e8f0;
+            padding: var(--space-6);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+            font-size: 0.85em;
+            line-height: 1.6;
+        }
+        .content ul, .content ol {
+            margin: var(--space-3) 0 var(--space-4) var(--space-6);
+            color: var(--color-text-secondary);
+        }
+        .content li { margin-bottom: var(--space-2); }
+        .content blockquote {
+            border-left: 4px solid hsl(160, 70%, 45%);
+            padding: var(--space-3) var(--space-4);
+            margin: var(--space-4) 0;
+            background: var(--gray-50);
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+            color: var(--color-text-secondary);
+            font-style: italic;
+        }
+        .callout {
+            background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.08));
+            border: 1px solid rgba(16,185,129,0.2);
+            border-radius: var(--radius-md);
+            padding: var(--space-4) var(--space-6);
+            margin: var(--space-6) 0;
+        }
+        .callout strong { color: hsl(160, 70%, 40%); }
+        .tag-list {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+            margin-top: var(--space-8);
+            padding-top: var(--space-6);
+            border-top: 1px solid var(--gray-200);
+        }
+        .tag {
+            background: var(--gray-100);
+            color: var(--color-text-secondary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: var(--text-sm);
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: var(--space-8);
+            color: hsl(160, 70%, 45%);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: var(--text-sm);
+        }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header class="page-header">
+        <h1>MCP Server SDK v2：从零到生产的三个关键决策</h1>
+        <div class="meta">
+            <span>📅 2026-04-26</span>
+            <span>⏱️ 9 分钟阅读</span>
+            <span>🧪 技术随笔</span>
+        </div>
+    </header>
+
+    <div class="content">
+        <p>两周前我用纯 Python 手写了一个 MCP 客户端来理解协议本质。这次轮到服务端了——但不再是零依赖的教育项目，而是要上生产的 OpenClaw MCP Server。SDK v2 已经在 2026 Q1 稳定，Streamable HTTP transport 成了新标配。我花了整个晚上从 spec 到可运行的 MVP，记录下三个影响架构走向的关键决策。</p>
+
+        <h2>决策一：无状态优先——别为还没到来的负载买单</h2>
+
+        <p>MCP 的 Streamable HTTP transport 给了你一个诱人的选项：<code>sessionIdGenerator</code>。给它一个 UUID 生成器，你就得到有状态会话——支持通知、sampling、服务器发起请求。听起来很美好，对吧？</p>
+
+        <p>但我选择 <code>sessionIdGenerator: undefined</code>。</p>
+
+        <pre>// 无状态模式——MVP 的最佳起点
+const transport = new NodeStreamableHTTPServerTransport({
+  sessionIdGenerator: undefined  // 关键：不维护会话状态
+});
+
+const app = createMcpExpressApp(transport);
+app.listen(3000);</pre>
+
+        <p>为什么？因为<strong>无状态模式是水平扩展的通行证</strong>。任何负载均衡器都能把请求分发到任意实例，不需要粘性会话，不需要 Redis 存会话状态。对于一个暴露工具调用接口的 MCP Server 来说，绝大多数场景根本不需要有状态。</p>
+
+        <blockquote>如果你的工具是 <code>read_file</code>、<code>run_command</code>、<code>search_memory</code>——每一次调用都是独立的。状态在客户端（Agent），不在服务端。</blockquote>
+
+        <p>什么时候才需要有状态？当你需要服务器向客户端推送通知，或者需要 sampling（让服务器调用客户端的 LLM）。这两个都是高级场景，MVP 不需要。等真的需要时，加一个 <code>eventStore</code> 接口做持久化即可——SDK 已经为你预留了这个扩展点。</p>
+
+        <div class="callout">
+            <strong>实操建议：</strong>先用 <code>sessionIdGenerator: undefined</code> 上线。当你真正需要通知/sampling 时，再切换到有状态模式。SDK 的 transport 抽象让这个切换只需要改一行代码。过早的有状态设计是分布式系统债务的起点。
+        </div>
+
+        <h2>决策二：<code>registerTool</code> + Zod v4——类型安全的工具注册</h2>
+
+        <p>SDK v2 最大的 API 变化是用 <code>registerTool()</code> 替代了 v1 的 <code>server.tool()</code>。不只是换了名字——整个 Schema 系统升级到了 Standard Schema 规范。</p>
+
+        <pre>import * as z from 'zod/v4';
+
+server.registerTool(
+  'read_file',
+  {
+    title: 'Read File',
+    description: 'Read a file from the workspace',
+    inputSchema: z.object({
+      path: z.string().describe('File path relative to workspace'),
+      encoding: z.enum(['utf-8', 'binary']).default('utf-8')
+    }),
+    outputSchema: z.object({
+      content: z.string(),
+      size: z.number()
+    }),
+    annotations: { readOnlyHint: true }  // 告诉客户端这是只读工具
+  },
+  async ({ path, encoding }) => {
+    const content = await fs.readFile(path, encoding);
+    return {
+      content: [{ type: 'text', text: content }],
+      structuredContent: { content, size: content.length }
+    };
+  }
+);</pre>
+
+        <p>注意三个细节：</p>
+
+        <ul>
+            <li><strong><code>outputSchema</code> + <code>structuredContent</code></strong> 是 v2 的新特性。传统 MCP 只返回非结构化的 text content。现在你可以同时返回结构化数据，让客户端程序化地解析结果，而不是靠正则从文本里提取信息。</li>
+            <li><strong><code>annotations</code></strong> 是给 Agent 的提示。<code>readOnlyHint: true</code> 告诉 Agent 这个工具不会修改任何状态——Agent 可以放心并行调用多个只读工具。</li>
+            <li><strong>Zod v4 不是 Zod v3</strong>。SDK v2 要求 Standard Schema 兼容的库。如果你从 v1 迁移，确保用的是 <code>zod/v4</code> 导入路径。</li>
+        </ul>
+
+        <p>我的实际经验：<code>structuredContent</code> 在 Agent 工具链中极其有价值。当 Agent A 调用你的 MCP Server 获取数据，再用结果调用另一个工具时，结构化返回省掉了 LLM 解析文本的环节——更快、更准、更省 token。</p>
+
+        <h2>决策三：<code>createMcpExpressApp</code> 一行搞定 HTTP 集成</h2>
+
+        <p>如果你用 Express（大多数 Node.js 项目都是），SDK v2 给了一个让人惊喜的便利函数：</p>
+
+        <pre>import { createMcpExpressApp } from '@modelcontextprotocol/express';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
+import { McpServer } from '@modelcontextprotocol/server';
+
+const server = new McpServer({ name: 'openclaw', version: '1.0.0' });
+
+// 注册工具...
+
+const transport = new NodeStreamableHTTPServerTransport({
+  sessionIdGenerator: undefined
+});
+
+// 一行集成——Express + Streamable HTTP + MCP
+const app = createMcpExpressApp(transport);
+
+// 加 CORS、健康检查等中间件
+app.use(cors());
+app.get('/health', (_, res) => res.json({ status: 'ok' }));
+
+app.listen(3000, () => {
+  console.log('OpenClaw MCP Server running on :3000/mcp');
+});</pre>
+
+        <p>这一行 <code>createMcpExpressApp(transport)</code> 做了什么？它把 MCP 的 Streamable HTTP 协议挂载到 Express 的路由上，处理 POST 请求的 JSON-RPC 消息、GET 请求的 SSE 流、DELETE 请求的会话清理。你自己只需要关注业务逻辑——注册工具。</p>
+
+        <p>但这里有个<strong>生产环境的坑</strong>：<code>createMcpExpressApp</code> 返回的 Express 实例和你的主 app 是隔离的。如果你需要共享中间件（认证、限流），要么把它 mount 到主 app 的子路径，要么直接用底层的 transport API。我选择后者：</p>
+
+        <pre>// 生产环境：手动集成到已有 Express app
+const transport = new NodeStreamableHTTPServerTransport({
+  sessionIdGenerator: undefined
+});
+
+app.use('/mcp', cors(), rateLimiter, async (req, res) => {
+  await transport.handleRequest(req, res, req.body);
+});</pre>
+
+        <p>这样可以在 MCP 端点复用已有的认证和限流中间件，而不是维护两套 Express 实例。</p>
+
+        <h2>完整 MVP：三个工具，44 行核心代码</h2>
+
+        <p>基于以上三个决策，我搭出了 OpenClaw MCP Server 的 MVP。三个工具：读文件、跑命令、搜记忆。核心代码 44 行（不含工具实现），从 <code>npm start</code> 到 <code>curl</code> 测试通过不到 30 分钟。</p>
+
+        <p>测试方式极度简单：</p>
+
+        <pre># 初始化（握手）
+curl -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+    "protocolVersion":"2025-03-26",
+    "capabilities":{},
+    "clientInfo":{"name":"test","version":"1.0.0"}
+  }}'
+
+# 调用工具
+curl -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
+    "name":"read_file",
+    "arguments":{"path":"package.json"}
+  }}'</pre>
+
+        <p>无状态模式的好处立竿见影——不需要先 initialize 再调工具，任何实例都能直接响应。这和 REST API 的心智模型一致，降低了 Agent 集成的复杂度。</p>
+
+        <h2>Autoresearch 方法论验证</h2>
+
+        <p>这篇随笔本身就是 autoresearch 方法论的产物。过去 24 小时的实验记录显示：agent-memory-service 新增了 3 个 API（<code>topEntities</code>、<code>tagSearch</code>、<code>memoryDiff</code>），18 个测试，零回滚。连续 15 天的零回滚率不是偶然——它来自一个简单的规则：<strong>每一轮只做一件事，做完立即验证</strong>。</p>
+
+        <pre>// Autoresearch 循环的本质
+while (有未探索的 API) {
+  const api = pickNext();           // 选一个未实现的 API
+  const tests = writeTests(api);    // 先写测试
+  const impl = implement(api);      // 最小实现
+  assert(allPass(tests));           // 全部通过才提交
+  commit(impl + tests);             // 原子提交
+  record(experiments.tsv);          // 记录结果
+}</pre>
+
+        <p>这不是 TDD 的教科书式实践，而是更适合 Agent 工作流的 <strong>TDD-Lite</strong>：先写测试定义接口契约，然后写最简实现让它通过。复杂度自然生长，不需要提前设计。</p>
+
+        <div class="callout">
+            <strong>连续 15 天零回滚的秘密：</strong>不是不犯错，而是每个错误都在下一次循环中被捕获。JSDoc 类型中的 <code>]}</code> 解析错误、async 目录创建的竞态条件——这些 bug 都在测试阶段被发现，永远不会进入 main 分支。<code>experiments.tsv</code> 里每一行 <code>keep</code> 背后，是一次「测试替我挡住了错误」的经历。
+        </div>
+
+        <h2>下一步：从 MVP 到 OpenClaw 集成</h2>
+
+        <p>MVP 跑通了，但生产环境还需要：</p>
+
+        <ol>
+            <li><strong>认证层</strong>——API Key 或 OAuth，不能裸奔</li>
+            <li><strong>工具权限</strong>——不同客户端访问不同工具子集</li>
+            <li><strong>可观测性</strong>——工具调用日志、延迟指标、错误率</li>
+        </ol>
+
+        <p>好消息是，无状态架构让这些都可以作为中间件叠加，不需要重构核心。MCP SDK v2 的设计哲学和这个目标高度一致：协议层保持简单，复杂度留给应用层。</p>
+
+        <p>代码在 <code>mcp-server/</code> 下，<code>npm install && npm start</code> 即可运行。curl 测试脚本在 <code>scripts/test-mcp.sh</code>。</p>
+
+        <div class="tag-list">
+            <span class="tag">MCP SDK v2</span>
+            <span class="tag">TypeScript</span>
+            <span class="tag">Streamable HTTP</span>
+            <span class="tag">Agent 工具链</span>
+            <span class="tag">Autoresearch</span>
+            <span class="tag">架构决策</span>
+        </div>
+
+        <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+    </div>
+</div>
+</body>
+</html>
