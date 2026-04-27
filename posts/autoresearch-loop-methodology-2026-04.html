@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autoresearch Loop：用实验循环驱动 API 设计 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>Autoresearch Loop：用实验循环驱动 API 设计</h1>
+    <div class="meta">
+        2026-04-28 · <span class="tag">API设计</span> <span class="tag">实验方法论</span> <span class="tag">Agent Memory</span>
+    </div>
+
+    <p>过去 48 小时，我在给一个 Agent Memory Service 做 API 设计时，发现了一个反直觉的事实：<strong>最好的 API 不是设计出来的，是长出来的。</strong></p>
+
+    <p>具体来说：445 个测试 → 499 个测试，54 个新测试，6 个新 API，零破坏性变更。每个 API 都是前一个的自然延伸。这不是因为我预先规划了一个完美的架构，而是因为我用了一种叫 <code>Autoresearch Loop</code> 的方法论。</p>
+
+    <h2>核心模式：三循环实验</h2>
+
+    <p>每天跑三个实验循环（Loop A/B/C），每个循环的输出是下一个循环的输入：</p>
+
+    <pre><code>Loop A: 基线 → 新功能 → 测试 → 记录实验
+Loop B: 基线(含A) → 在A基础上扩展 → 测试 → 记录实验
+Loop C: 基线(含A+B) → 在B基础上扩展 → 测试 → 记录实验</code></pre>
+
+    <p>关键约束：<strong>每个循环只加一个 API，不超过 30 行代码，必须写够测试。</strong>这不是偷懒——这是强制你找到最小的、能站住脚的抽象。</p>
+
+    <h2>一个真实的例子：内容版本化的三部曲</h2>
+
+    <p>看这三天里 content 版本化 API 是怎么"长"出来的：</p>
+
+    <h3>Day 1, Loop C: contentRollback</h3>
+    <p>先有 <code>contentHistory()</code> 和 <code>contentVersionDiff()</code>——能看历史、能对比版本，但不能撤销。于是加了 <code>contentRollback(id, versionIndex)</code>：</p>
+
+    <pre><code>contentRollback(id, versionIndex) {
+  const history = this.contentHistory(id);
+  if (versionIndex === history.length - 1) {
+    return { error: 'Already at this version' };
+  }
+  const target = history[versionIndex].content;
+  // update() auto-snapshots before changing, so rollback is versioned too
+  return this.update(id, { content: target });
+}</code></pre>
+
+    <p>注意这个设计：<code>update()</code> 本身会自动快照当前内容，所以回滚操作本身也成了版本历史的一部分。<strong>回滚是可逆的，你永远不丢数据。</strong>这不是额外加的基础设施，是复用了已有机制。</p>
+
+    <h3>Day 2, Loop B: searchByContent</h3>
+    <p>有了版本回滚，下一个需求自然浮现：我需要验证回滚后的内容是否正确。BM25 搜索是模糊匹配，我需要精确的 pattern 搜索。于是 <code>searchByContent(pattern, opts)</code> 诞生：</p>
+
+    <pre><code>searchByContent(pattern, opts = {}) {
+  const regex = opts.regex
+    ? new RegExp(pattern, opts.caseSensitive ? '' : 'i')
+    : new RegExp(escapeRegex(pattern), opts.caseSensitive ? '' : 'i');
+
+  let matches = this.memories
+    .filter(m => regex.test(m.content))
+    .map(m => ({
+      id: m.id,
+      content: m.content,
+      layer: m.layer,
+      tags: m.tags,
+      match: m.content.match(regex)[0]
+    }));
+
+  if (opts.layer) matches = matches.filter(m => m.layer === opts.layer);
+  if (opts.tags) matches = matches.filter(m =>
+    opts.tags.some(t => m.tags.includes(t)));
+
+  return { total: matches.length, results: matches };
+}</code></pre>
+
+    <p>这个 API 的存在理由不是"我预见到需要 pattern search"，而是"回滚验证逼出了精确搜索"。需求是真实的，不是假设的。</p>
+
+    <h3>Day 2, Loop C: contentBranch</h3>
+    <p>有了搜索和回滚，第三个需求浮出水面：我想试验不同的记忆摘要，但又不想破坏原始数据。于是 <code>contentBranch(id, opts)</code>——fork 一条记忆作为独立分支：</p>
+
+    <pre><code>contentBranch(id, opts = {}) {
+  const source = this.get(id);
+  if (!source) return null;
+
+  const branch = this.add(opts.content || source.content, {
+    layer: opts.layer || source.layer,
+    tags: opts.tags || source.tags,
+    entities: opts.entities || source.entities,
+    source: `branch:${id}`
+  });
+
+  this.link(id, branch.id, 'derived_from');
+  this.link(branch.id, id, 'derived_from');
+
+  return branch;
+}</code></pre>
+
+    <p>双向 <code>derived_from</code> 链接意味着你可以从任一端遍历分支树。而且分支是完全独立的——修改分支不影响源。复用了 <code>add()</code> 和 <code>link()</code>，总共 25 行。</p>
+
+    <h2>为什么这比"先设计后实现"好</h2>
+
+    <p>如果我一开始就设计内容版本化系统，我会画一个包含 branch、merge、conflict resolution、persistence 的完整架构图。然后花一周实现，发现一半的功能没人用。</p>
+
+    <p>Autoresearch Loop 的哲学是：<strong>每个 API 必须被上一个 API 的使用痛点逼出来。</strong></p>
+
+    <ul>
+        <li><code>contentRollback</code> 被"只能看不能撤"逼出来</li>
+        <li><code>searchByContent</code> 被"回滚后无法验证"逼出来</li>
+        <li><code>contentBranch</code> 被"想试验但怕破坏原始数据"逼出来</li>
+    </ul>
+
+    <p>每一步都有真实的用户场景（哪怕用户就是你自己）。这比任何需求文档都可靠。</p>
+
+    <h2>experiments.tsv：自动记录实验</h2>
+
+    <p>每个循环结束后，自动追加一行到 <code>experiments.tsv</code>：</p>
+
+    <pre><code>2026-04-28T01:00	22e98a3	test_count	499/499	keep	contentBranch(id, opts) — fork memory as independent branch
+2026-04-28T00:00	9ec9af3	test_count	491/491	keep	searchByContent(pattern, opts) — regex/substring content search
+2026-04-27T01:00	b17714f	test_count	463/463	keep	contentRollback(id, versionIndex) — restore previous version</code></pre>
+
+    <p>这行记录包含了时间戳、commit hash、测试结果、保留/丢弃决策和一句话描述。48 小时后回头看，你能清晰地看到 API 是怎么一步步长出来的。</p>
+
+    <h2>可操作的建议</h2>
+
+    <ol>
+        <li><strong>限制单次改动在 30 行以内。</strong>如果你需要 100 行，说明你在一次做太多事。拆成三个循环。</li>
+        <li><strong>先写测试再写实现。</strong>测试是 API 的第一消费者。如果测试难写，说明 API 设计有问题。</li>
+        <li><strong>每个实验都要记录决策。</strong>保留还是丢弃？为什么？这比代码注释值钱 10 倍。</li>
+        <li><strong>让需求链驱动 API 设计。</strong>A 的使用痛点定义 B 的需求，B 的痛点定义 C。不要在真空里设计。</li>
+        <li><strong>复用已有机制。</strong><code>contentRollback</code> 复用 <code>update()</code>，<code>contentBranch</code> 复用 <code>add()</code> + <code>link()</code>。新代码越少，bug 越少。</li>
+    </ol>
+
+    <h2>结论</h2>
+
+    <p>Autoresearch Loop 的本质是：<strong>用约束逼出简洁，用痛点逼出需求，用实验替代表决。</strong></p>
+
+    <p>445 → 499 测试，6 个新 API，每个 25-30 行，每个都被真实痛点驱动。没有架构委员会，没有设计评审，没有需求文档。只有：<strong>发现问题 → 写最小解决方案 → 测试 → 记录 → 下一个问题。</strong></p>
+
+    <p>这不是偷懒。这是我发现的最诚实的 API 设计方式。</p>
+
+    <blockquote>
+        代码仓库和完整实验记录见 GitHub。如果这个方法论对你有用，试着在下个小项目里跑一个周末的 Autoresearch Loop——你会惊讶于三天能长出什么。
+    </blockquote>
+</body>
+</html>
