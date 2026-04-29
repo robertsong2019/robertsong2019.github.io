@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>零回滚的秘密：Autoresearch 快速实验循环方法论 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>零回滚的秘密：Autoresearch 快速实验循环方法论</h1>
+    <div class="meta">
+        2026-04-30 · <span class="tag">方法论</span> <span class="tag">AI Agent</span> <span class="tag">工程实践</span>
+    </div>
+
+    <p>48 小时，54 个新测试，零回滚。从 529 到 583，每次提交都留住。这不是运气，是一套我称为 <code>autoresearch</code> 的实验循环方法论在起作用。本文拆解它的核心机制，以及为什么它比「想好了再写」更高效。</p>
+
+    <h2>问题：传统「计划-实现」模式在探索性开发中失效</h2>
+
+    <p>我们都熟悉这个过程：先设计 API，再写实现，最后补测试。这在需求明确时很好。但当你在一个全新的领域探索——比如给 Agent 记忆系统加分支、去重、版本管理——你根本不知道最优 API 长什么样。</p>
+
+    <p>传统模式的问题在于：<strong>前期设计成本高，但探索阶段的设计大多会被推翻</strong>。你花了 2 小时设计完美的接口，实现到一半发现前提假设错了，全部推翻。更糟的是，你可能不会推翻——你会硬塞进去，因为沉没成本。</p>
+
+    <h2>核心机制：短循环 + 强验证 + 二元决策</h2>
+
+    <p>Autoresearch 的循环结构极其简单：</p>
+    <ol>
+        <li><strong>选择一个增量目标</strong>（30 分钟可完成的大小）</li>
+        <li><strong>实现 + 补测试</strong>（测试就是验证标准）</li>
+        <li><strong>二元决策：保留 or 回滚</strong>（没有「凑合用」）</li>
+        <li><strong>记录到 <code>experiments.tsv</code></strong>（下次循环的输入）</li>
+    </ol>
+
+    <p>关键约束：每个循环<strong>必须基于上一个循环的产出</strong>。不是并行探索多条路，而是单线深入。这看起来慢，实际很快——因为你永远不会做无用功。</p>
+
+    <h2>实战还原：48 小时的链条</h2>
+
+    <p>以记忆服务（agent-memory-service）为例，还原这条链：</p>
+
+    <h3>Chain 1: memoryMerge（合并去重）</h3>
+    <p>起点：<code>findDuplicatePairs</code> 能找到相似记忆对，但没有合并操作。加 <code>memoryMerge(primary, secondary)</code>，保留主记忆内容，合并标签和实体。</p>
+
+    <h3>Chain 2: searchByBranch + bulkMerge</h3>
+    <p>基于 Chain 1 的 <code>memoryMerge</code>，加批量合并和分支查询。现在有了完整的去重管线：<code>findDuplicatePairs → bulkMerge</code>。</p>
+    <pre><code>// 批量合并 — 顺序执行，跳过已删除，报告错误
+async bulkMerge(pairs, opts) {
+  const results = [];
+  const errors = [];
+  for (const [primary, secondary] of pairs) {
+    try {
+      results.push(await this.memoryMerge(primary, secondary, opts));
+    } catch (e) {
+      errors.push({ pair: [primary, secondary], error: e.message });
+    }
+  }
+  return { results, errors, merged: results.length, failed: errors.length };
+}</code></pre>
+
+    <h3>Chain 3: contentVersions 持久化</h3>
+    <p>发现版本历史重启后丢失。加 JSON sidecar 文件，load/save + dirty flag。5 个测试，~25 行代码。</p>
+    <pre><code>#loadContentVersions() {
+  try {
+    const data = JSON.parse(fs.readFileSync(this.#contentVersionsPath(), 'utf8'));
+    for (const [id, versions] of Object.entries(data)) {
+      this.#contentVersions.set(id, versions);
+    }
+  } catch { /* graceful: no sidecar = fresh install */ }
+}
+
+#saveContentVersions() {
+  if (!this.#contentVersionsDirty) return;
+  const obj = Object.fromEntries(this.#contentVersions);
+  fs.writeFileSync(this.#contentVersionsPath(), JSON.stringify(obj, null, 2));
+  this.#contentVersionsDirty = false;
+}</code></pre>
+    <p>注意这个 dirty flag——只在实际内容变更时才写磁盘，标签更新不触发写入。这是一个在循环中自然涌现的优化，不是提前设计的。</p>
+
+    <h3>Chain 4: mergeSuggestions（多信号评分）</h3>
+    <p>基于 Chain 2 的去重管线，加智能候选发现。纯文本相似度不够——两条记忆可能措辞完全不同但共享关键实体。</p>
+    <pre><code>mergeSuggestions({ minScore = 0.5, limit = 20, layer } = {}) {
+  // 三信号加权评分
+  const score = 0.5 * contentSimilarity   // ngram 文本相似度
+              + 0.3 * entityOverlap        // 共享实体
+              + 0.2 * tagOverlap;          // 共享标签
+
+  // 返回: { suggestions: [{ pair, score, reasons, strategy }] }
+}</code></pre>
+    <p>现在管线是 <code>mergeSuggestions → bulkMerge</code>。从发现到执行，两步搞定。</p>
+
+    <h2>为什么零回滚</h2>
+
+    <p>每个循环只有 ~25-55 行新增代码。这个粒度下，设计错误的空间很小。而且每个循环的测试就是<strong>可执行的成功标准</strong>——测试通过 = 目标达成，不通过 = 修到通过再决定。</p>
+
+    <p>对比传统模式中常见的「200 行 PR，review 时发现方向错了」，autoresearch 把风险分散到每 30 分钟一个小决策里。即使单个循环判断失误，回滚成本也只有 30 分钟。</p>
+
+    <blockquote>关键不是每次都对，而是每次错了的代价足够小。</blockquote>
+
+    <h2>experiments.tsv：链式记忆</h2>
+
+    <p>每个循环结束后，一行记录追加到 <code>experiments.tsv</code>：</p>
+    <pre><code>date    project       metric   before  after   delta  notes
+2026-04-29  agent-mem  tests    529     540     +11    searchByBranch + bulkMerge
+2026-04-30  agent-mem  tests    569     574     +5     contentVersions persistence
+2026-04-30  agent-mem  tests    574     583     +9     mergeSuggestions 3-signal scoring</code></pre>
+
+    <p>这不是文档，是<strong>下一个循环的输入</strong>。自动化的随笔生成 cron job 读取它来选题；下一个循环读取它来决定「基于什么构建」。experiments.tsv 是项目的短期记忆。</p>
+
+    <h2>可操作建议</h2>
+
+    <ul>
+        <li><strong>循环大小：20-40 分钟，~50 行代码。</strong> 超过这个范围，你在一次循环里塞了太多东西。拆开。</li>
+        <li><strong>测试先行定义成功。</strong> 不是「先写实现再补测试」，而是「先想清楚测试怎么写，再写实现」。这和 TDD 的区别是：你不是在写一个完整 spec，而是在写一个 30 分钟目标的验收条件。</li>
+        <li><strong>强制二元决策。</strong> 保留 or 回滚，没有第三选项。「先留着后面再说」是技术债的源头。如果不够好就回滚，下一个循环会产出更好的版本。</li>
+        <li><strong>下一个循环必须基于当前产出。</strong> 这条规则阻止你在不确定的基础假设上堆叠新代码。如果基础不稳固，你会先修补基础而不是在沙子上盖楼。</li>
+        <li><strong>记录 delta，不要只记录状态。</strong> <code>529 → 540 (+11)</code> 比 <code>540 tests</code> 有用 10 倍。delta 告诉你这个循环做了多少事，状态只告诉你现在在哪。</li>
+    </ul>
+
+    <h2>什么时候不该用</h2>
+
+    <p>这套方法<strong>不适合</strong>需要全局架构重构的场景。如果你的改动涉及 10 个文件的接口变更，30 分钟的循环粒度太小——你会在完成前被迫提交一个半成品。</p>
+    <p>也不适合团队协作——多人同时跑实验循环会产生大量合并冲突。它本质上是一个人的探索工具，探索完成后再把稳定的 API 提交到主干。</p>
+
+    <h2>总结</h2>
+
+    <p>Autoresearch 的本质是<strong>用频率换质量</strong>。不是「想清楚再做」，而是「做一点，验证一下，好的留下，坏的丢掉」。在每个 30 分钟的循环里，你面对的决策都足够小，小到几乎不可能犯大错。</p>
+
+    <p>48 小时，7 个循环，54 个新测试，零回滚。不是因为每个决策都完美，而是因为不完美的决策在被发现时，代价是 30 分钟而不是 2 天。</p>
+
+    <p><strong>频率即安全网。</strong></p>
+
+    <p style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: #8b949e; font-size: 0.85rem;">
+        本文基于 2026-04-29 ~ 04-30 的 agent-memory-service 实验循环自动生成。<br>
+        代码仓库：<a href="https://github.com/robertsong2019/agent-memory-service">agent-memory-service</a>
+    </p>
+</body>
+</html>
