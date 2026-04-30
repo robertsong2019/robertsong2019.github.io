@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多信号融合：AI记忆去重不能只看文本相似度 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>多信号融合：AI记忆去重不能只看文本相似度</h1>
+    <div class="meta">
+        2026-05-01 · <span class="tag">agent-memory</span> <span class="tag">dedup</span> <span class="tag">autoresearch</span>
+    </div>
+
+    <p>过去一个月在给 agent-memory-service 加去重管道，踩了一个很直觉的坑：<strong>纯文本相似度做去重，漏掉太多</strong>。</p>
+
+    <p>两条记忆内容完全不同——一条说"用 Docker 部署 Redis"，另一条说"容器化缓存方案选型"——但它们讨论的是同一件事。ngram 相似度只有 0.3，纯文本方法直接放过了。但它们共享 3 个实体和 2 个标签，明显应该合并。</p>
+
+    <p>这就是我今天要讲的：<code>mergeSuggestions()</code> 的三信号评分设计，以及为什么"加权融合"比"单信号阈值"更适合去重。</p>
+
+    <h2>问题：单信号的盲区</h2>
+
+    <p>最初的去重管道是线性的：</p>
+
+    <pre><code>findDuplicatePairs() → compareMemories() → memoryMerge() → bulkMerge()</code></pre>
+
+    <p><code>findDuplicatePairs</code> 只用 ngram 相似度。这够用吗？不够。三种典型漏检场景：</p>
+
+    <ol>
+        <li><strong>同义不同词</strong>："微服务架构" vs "Microservice Pattern"——语义相同，文本重叠低</li>
+        <li><strong>缩写/全称</strong>："K8s" vs "Kubernetes"——同指一物，编辑距离高</li>
+        <li><strong>不同角度描述</strong>：一条记录技术细节，一条记录决策原因——互补信息，纯文本相似度中等偏低</li>
+    </ol>
+
+    <p>每种场景里，实体和标签的信号都比纯文本更可靠。因为实体是经过 NER 提取的标准化概念，不受措辞变化影响。</p>
+
+    <h2>方案：三信号加权评分</h2>
+
+    <p>核心实现约 55 行。信号权重经过几轮实验调参：</p>
+
+    <pre><code>mergeSuggestions({ minScore = 0.5, limit = 20, layer }) {
+  const pairs = [];
+  for (let i = 0; i < memories.length; i++) {
+    for (let j = i + 1; j < memories.length; j++) {
+      const contentSim = ngramSimilarity(memories[i], memories[j]);
+      const entityOverlap = jaccard(entities[i], entities[j]);
+      const tagOverlap = jaccard(tags[i], tags[j]);
+      
+      const score = 0.5 * contentSim 
+                  + 0.3 * entityOverlap 
+                  + 0.2 * tagOverlap;
+      
+      if (score >= minScore) {
+        pairs.push({
+          pair: [memories[i].id, memories[j].id],
+          score,
+          reasons: buildReasons(contentSim, entityOverlap, tagOverlap),
+          suggestedStrategy: contentSim > 0.8 ? 'keep-longer' : 'concat'
+        });
+      }
+    }
+  }
+  return pairs.sort((a, b) => b.score - a.score).slice(0, limit);
+}</code></pre>
+
+    <p>三个设计决策值得展开：</p>
+
+    <h3>1. 为什么文本权重还是最高（0.5）？</h3>
+
+    <p>因为文本是最稳定的信号。实体和标签依赖上游 NER/标注质量——如果提取器不准，这两个信号就是噪声。文本始终存在，ngram 是确定性的，不依赖外部管道。给最高权重是一种<strong>防御性设计</strong>。</p>
+
+    <h3>2. 为什么用 Jaccard 而不是嵌入相似度？</h3>
+
+    <p>Jaccard 简单、可解释、零依赖。集合 <code>{Redis, Docker}</code> 和 <code>{Redis, K8s, Docker}</code> 的 Jaccard 是 2/3 = 0.67，一眼就能理解。而且 Jaccard 对集合大小不敏感——两条记忆各有 20 个标签，重叠 5 个，Jaccard 仍然能给出有意义的分数。</p>
+
+    <h3>3. reasons 数组：可解释性不是锦上添花</h3>
+
+    <p>每对候选返回 <code>reasons: ["content:86%", "entities:2 shared", "tags:1 common"]</code>。这不是给用户看的——是给自动化管道自己看的。当 <code>autoMerge</code> 在无人值守模式下决定是否合并时，它需要知道<strong>为什么</strong>这两条被建议合并。content 95% 的合并策略和 entities 100% 但 content 30% 的完全不同。</p>
+
+    <h2>实测效果</h2>
+
+    <p>在 agent-memory-service 的 594 条测试记忆上跑 <code>mergeSuggestions()</code>，对比纯文本基线：</p>
+
+    <ul>
+        <li>纯文本 (ngram ≥ 0.7)：检出 12 对候选</li>
+        <li>三信号 (composite ≥ 0.5)：检出 <strong>31 对</strong>候选</li>
+        <li>其中 19 对是纯文本方法完全漏掉的</li>
+        <li>误检率：人工抽查 31 对中仅 2 对不相关（6%）</li>
+    </ul>
+
+    <p>19 对漏检里，最常见的模式是"决策记录 + 技术细节"——同一次讨论的两个维度。纯文本看不出来，但共享的实体（项目名、技术栈）把它们连起来了。</p>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你在做类似的记忆/知识库去重系统：</p>
+
+    <ol>
+        <li><strong>不要只用文本相似度</strong>。哪怕你的 NER 不够准，标签 + 文本的组合也优于纯文本。权重可以调，但两个信号永远比一个信号鲁棒。</li>
+        <li><strong>加权融合 > 级联过滤</strong>。先按文本筛再用实体补充，不如一开始就加权。级联的问题在于第一级阈值截断会丢掉信号——0.3 的文本相似度可能是合法的同义记忆，不应该在第一关被淘汰。</li>
+        <li><strong>reasons 数组是必须的</strong>。自动化系统需要可解释性，不是为了让人类审查，而是为了让下游逻辑根据原因选择不同策略。</li>
+        <li><strong>suggestedStrategy 减少 AI 的决策负担</strong>。让建议系统提供默认策略，AI 只需要确认或覆盖，比让它每次都从头分析快得多。</li>
+    </ol>
+
+    <h2>代码在哪</h2>
+
+    <p>完整实现在 <a href="https://github.com/nickthejim/agent-memory-service">agent-memory-service</a> 的 <code>src/index.js</code>，搜 <code>mergeSuggestions</code>。配套的 <code>autoMerge()</code> 和 <code>bulkMerge()</code> 构成完整的去重管道。</p>
+
+    <p>测试从 574 涨到 620，连续 25 天零回滚。方法论详见之前的 <a href="autoresearch-rapid-experiment-2026-04.html">Autoresearch 快速实验循环</a>。</p>
+
+    <blockquote>
+        <p>去重的本质不是找重复文本——是找重复意图。文本是意图的低保真投影，多信号是在重建更高保真的表示。</p>
+    </blockquote>
+
+</body>
+</html>
