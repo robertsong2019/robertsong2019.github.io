@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 之间如何建立信任？A2A v1.0 的签名卡片与信任缺口 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--heading); font-size: 1.3rem; margin: 2rem 0 0.8rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+        h3 { color: var(--accent); font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code { background: #1f2937; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', Consolas, monospace; }
+        pre { background: #1f2937; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; font-size: 0.85rem; line-height: 1.6; }
+        pre code { background: none; padding: 0; }
+        .highlight { color: #79c0ff; }
+        .comment { color: #8b949e; }
+        .keyword { color: #ff7b72; }
+        .string { color: #a5d6ff; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        .callout { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+        .callout-title { color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
+        .back-link { display: inline-block; margin-top: 2rem; color: #8b949e; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <h1>Agent 之间如何建立信任？<br>A2A v1.0 的签名卡片与信任缺口</h1>
+    <p class="meta">2026-05-03 · 罗嵩 · 基于 autoresearch 方法论</p>
+
+    <p>A2A（Agent-to-Agent）协议在 2026 年 3 月发布了 v1.0，引入了一个被大多数人忽略但极其关键的变化：<strong>Signed Agent Cards</strong>。这不仅是一个签名机制的升级——它揭示了多 Agent 系统中最深层的设计问题：<em>通信协议和信任协议是两个不同的层</em>。</p>
+
+    <h2>问题：Agent Card 的"信仰之跃"</h2>
+
+    <p>在 v0.x 时代，Agent Card 是纯 JSON。任何服务器都可以声称自己是任何 Agent，声明任何能力。当一个编排者（Orchestrator）决定把任务委托给哪个 Agent 时，它实际上在做一件很荒谬的事——读一份自述简历，然后信了。</p>
+
+    <blockquote>这就像你在网上招人，候选人自己写简历，你没有任何验证手段，然后就把公司钥匙交给了他。</blockquote>
+
+    <p>v1.0 用 JWS（JSON Web Signature）签名 Agent Card，将签名与发布者域名绑定。这是一个好的开始，但只是信任问题的第一层。</p>
+
+    <h2>Signed Agent Cards：身份层的密码学保证</h2>
+
+    <p>v1.0 的签名机制核心是 JCS（JSON Canonicalization Scheme，RFC 8785）+ JWS（RFC 7515）的组合：</p>
+
+    <pre><code><span class="keyword">import</span> json
+<span class="keyword">from</span> jose <span class="keyword">import</span> jws
+
+<span class="keyword">def</span> <span class="highlight">canonicalize_and_sign</span>(card: dict, private_key_pem: bytes) -> str:
+    <span class="comment"># 1. 排除 signatures 字段（防止循环依赖）</span>
+    card_copy = {k: v <span class="keyword">for</span> k, v <span class="keyword">in</span> card.items() <span class="keyword">if</span> k != <span class="string">"signatures"</span>}
+    
+    <span class="comment"># 2. JCS 规范化：确定性 JSON 序列化</span>
+    canonical = json.dumps(card_copy, sort_keys=<span class="keyword">True</span>,
+                          separators=(<span class="string">','</span>, <span class="string">':'</span>)).encode(<span class="string">'utf-8'</span>)
+    
+    <span class="comment"># 3. JWS RS256 签名</span>
+    <span class="keyword">return</span> jws.sign(canonical.decode(), private_key_pem, algorithm=<span class="string">"RS256"</span>)</code></pre>
+
+    <p>关键设计决策：<strong>签名时排除 <code>signatures</code> 字段</strong>。这避免了循环引用，也是 RFC 8785 规范的要求。签名存储在 Agent Card 的 <code>signatures</code> 数组中，支持多个签名者（多签场景）。</p>
+
+    <p>验证端则通过 DNS 或 PKI 获取公钥，验证签名与域名一致。这意味着你至少能确认："这个 Agent Card 确实由 example.com 域名持有者签署。"</p>
+
+    <h2>信任缺口：签名≠可信</h2>
+
+    <p>这里是大多数人会犯的错误——认为签名解决了信任问题。签名只解决了<strong>身份验证</strong>（这个 Agent 是它声称的那个），但没有解决<strong>行为可信</strong>（这个 Agent 的实际表现与声明一致）。</p>
+
+    <p>我用一个双层模型来描述这个缺口：</p>
+
+    <pre><code><span class="keyword">class</span> <span class="highlight">TrustEngine</span>:
+    <span class="string">"""双层信任模型：身份层 + 行为层"""</span>
+    
+    <span class="keyword">def</span> evaluate(self, agent_card, interaction_history):
+        <span class="comment"># Layer 1: 身份信任（密码学保证，确定性）</span>
+        identity_trust = self.verify_jws_signature(agent_card)
+        
+        <span class="comment"># Layer 2: 行为信任（概率性，基于历史）</span>
+        behavioral_trust = self.compute_reputation(interaction_history)
+        
+        <span class="comment"># 信任路由：两层都通过才委托敏感任务</span>
+        <span class="keyword">if</span> identity_trust >= <span class="string">"verified"</span> <span class="keyword">and</span> behavioral_trust >= <span class="string">0.7</span>:
+            <span class="keyword">return</span> <span class="string">"delegate"</span>       <span class="comment"># 委托任务</span>
+        <span class="keyword">elif</span> identity_trust >= <span class="string">"verified"</span>:
+            <span class="keyword">return</span> <span class="string">"sandbox"</span>       <span class="comment"># 沙箱执行，限制权限</span>
+        <span class="keyword">else</span>:
+            <span class="keyword">return</span> <span class="string">"reject"</span>        <span class="comment"># 拒绝交互</span></code></pre>
+
+    <p>行为层的信任评分可以基于 EigenTrust 算法（P2P 网络中的经典声誉协议）——每个 Agent 对交互过的其他 Agent 打分，通过传递性传播信任值。这与身份层的 JWS 签名互补：一个是密码学保证，一个是概率性保证。</p>
+
+    <h2>Extension 的 <code>required</code> 字段：信任的强制执行</h2>
+
+    <p>v1.0 另一个被低估的特性是 Extension 的 <code>required</code> 标记。它允许 Agent 在卡片中声明："如果你不支持我的信任扩展，我们就不交互。"</p>
+
+    <pre><code>{
+  <span class="string">"extensions"</span>: [{
+    <span class="string">"uri"</span>: <span class="string">"https://a2a-protocol.org/ext/trust-v1"</span>,
+    <span class="string">"required"</span>: <span class="keyword">true</span>,
+    <span class="string">"params"</span>: {
+      <span class="string">"minReputationScore"</span>: <span class="string">0.8</span>,
+      <span class="string">"auditLogRequired"</span>: <span class="keyword">true</span>
+    }
+  }]
+}</code></pre>
+
+    <p>在受监管场景（金融、医疗），这不是可选项——<code>required: true</code> 让合规成为协议层面的约束，而不是应用层的君子协定。</p>
+
+    <h2>可操作建议</h2>
+
+    <ol>
+        <li><strong>现在就实现签名验证。</strong> 即使你不用 EigenTrust 等复杂信任模型，JWS 验证是最小可行信任层。部署一个 Agent Card 验证中间件，拦截所有未签名的 Agent Card。</li>
+        <li><strong>设计你的信任扩展。</strong> 定义你的 Trust Extension schema——至少包含声誉评分、审计日志、行为契约三个维度。用 <code>required: false</code> 开始，逐步收紧。</li>
+        <li><strong>记录每次交互。</strong> 行为信任的基础是数据。为每个 Agent 交互记录结果（成功/失败/偏差），这是未来声誉评分的燃料。</li>
+        <li><strong>沙箱先于信任。</strong> 新 Agent 上线时，先用沙箱模式运行（限制权限、记录行为），积累足够行为数据后再提升信任等级。</li>
+    </ol>
+
+    <h2>我的观点</h2>
+
+    <p>A2A 协议做了一个聪明的架构决策：<strong>信任是独立的上层</strong>。它不试图在通信协议里解决信任问题，而是提供了 Extension 机制让你插入自己的信任层。这意味着你可以根据场景选择不同的信任模型——企业内部可能用 PKI + RBAC，开放网络可能用 EigenTrust + 审计链。</p>
+
+    <p>但这也意味着如果你不主动建设信任层，你的多 Agent 系统就是建立在"信仰"上的。签名 Agent Card 是基础设施，不是解决方案。真正的信任需要在生产中用代码和数据构建。</p>
+
+    <div class="callout">
+        <div class="callout-title">🔑 核心洞察</div>
+        <p>A2A v1.0 的签名卡片解决了"你是谁"的问题，但"你靠不靠谱"是另一个完全独立的问题。通信协议和信任协议是两个层——混淆它们是大多数多 Agent 系统安全漏洞的根源。</p>
+    </div>
+
+    <p>研究代码和完整 JWS 签名/验证实现已推送到 <a href="https://github.com/robertsong2019">GitHub</a>。包含可运行的 Trust Engine demo，6 个断言全部通过。</p>
+
+    <a href="/" class="back-link">← 返回首页</a>
+</body>
+</html>
