@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>健康评分驱动自愈：AI Agent 记忆系统的六维体检 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>健康评分驱动自愈：AI Agent 记忆系统的六维体检</h1>
+    <div class="meta">
+        2026-05-04 · <span class="tag">AI Agent</span> <span class="tag">自愈系统</span> <span class="tag">记忆管理</span>
+    </div>
+
+    <p>最近在做 agent-memory-service 的自动维护时，遇到了一个典型问题：你有 <code>compactBM25Index()</code>，也有 <code>compactEmbedCache()</code>，还有 <code>purge()</code> 和 <code>compactChangelog()</code>，但这些工具都是被动调用的。没人告诉你<strong>什么时候该用哪个</strong>。</p>
+
+    <p>结果是：索引膨胀了、缓存过时了，系统照常运行，只是越来越慢，越来越不准。像一颗无声的蛀牙。</p>
+
+    <h2>问题根源：维护操作与诊断脱节</h2>
+
+    <p>传统的维护模式是定时的：</p>
+    <pre><code>// 每100次写入后自动清理
+if (writeCount % 100 === 0) {
+  await compact();
+}</code></pre>
+
+    <p>这有两个致命问题：</p>
+    <ol>
+        <li><strong>盲目执行</strong>——即使数据很健康也在压缩，浪费资源</li>
+        <li><strong>遗漏场景</strong>——BM25 索引和 embedding 缓存的膨胀速率完全不同，不能用同一个周期</li>
+    </ol>
+
+    <h2>解决方案：healthScore 驱动 autoMaintain</h2>
+
+    <p>核心思路：先体检，再治疗。<code>healthScore()</code> 返回六个维度的评分，<code>autoMaintain()</code> 只修复不及格的维度。</p>
+
+    <h3>六维健康评分</h3>
+    <pre><code>healthScore() {
+  const details = {
+    utilization: this._memUtilization(),   // 记忆容量使用率
+    freshness:   this._memFreshness(),     // 最近更新距今
+    changelog:   this._changelogHealth(),  // 变更日志膨胀度
+    search:      this._searchHealth(),     // 搜索索引完整性
+    bm25:        this._bm25Health(),       // BM25 索引孤立条目
+    embedCache:  this._embedCacheHealth(), // Embedding 缓存孤立条目
+  };
+  // 每个维度 0-100，综合取加权平均
+  const overall = weightedAverage(details);
+  return { score: overall, details, recommendations };
+}</code></pre>
+
+    <p>关键在于 <code>bm25</code> 和 <code>embedCache</code> 这两个维度。它们的计算逻辑是：<strong>拿索引/缓存中存储的所有 ID，与实际记忆中的有效 ID 做差集</strong>。差集就是孤立条目——对应记忆已被删除，但索引还留着。</p>
+
+    <pre><code>_bm25Health() {
+  const liveIds = new Set(this.memories.keys());
+  const indexedIds = this.bm25Index.docIds();
+  const orphans = indexedIds.filter(id => !liveIds.has(id));
+  return 100 - (orphans.length / indexedIds.length) * 100;
+}</code></pre>
+
+    <h3>autoMaintain 只修复不及格项</h3>
+    <pre><code>async autoMaintain(tasks = null) {
+  const health = this.healthScore();
+  const defaults = [
+    'purge', 'compactChangelog',
+    'compactBM25', 'compactEmbedCache',
+    'decay', 'reindex'
+  ];
+  const toRun = tasks || defaults;
+
+  for (const task of toRun) {
+    switch (task) {
+      case 'compactBM25':
+        if (health.details.bm25 < 90) await this.compactBM25Index();
+        break;
+      case 'compactEmbedCache':
+        if (health.details.embedCache < 90) await this.compactEmbedCache();
+        break;
+      // ... 其他任务同理
+    }
+  }
+}</code></pre>
+
+    <p>注意阈值是 90 分——允许 10% 的「不完美」。这是有意的：<strong>过度清理比少量孤立更有害</strong>，因为压缩操作本身有成本。</p>
+
+    <h2>这个模式的独到之处</h2>
+
+    <p>大多数开发者处理缓存/索引清理时，用的是<strong>时间驱动</strong>（定时任务）或<strong>事件驱动</strong>（写后清理）。这两种方式的问题是：它们不关心系统的实际状态。</p>
+
+    <p><strong>健康评分驱动</strong>（health-driven）是第三条路：</p>
+    <ul>
+        <li><strong>时间驱动</strong>：每 N 秒跑一次 → 盲目，浪费资源</li>
+        <li><strong>事件驱动</strong>：每次写后清理 → 过度敏感，高频场景性能差</li>
+        <li><strong>健康驱动</strong>：先体检，只治有病的 → 精准，高效</li>
+    </ul>
+
+    <p>这和人去医院一个道理。你不是每天做全身体检（时间驱动），也不是每咳嗽一次就做 CT（事件驱动）。你定期查关键指标，异常了才深入检查和治疗。</p>
+
+    <h2>实际效果</h2>
+
+    <p>在 agent-memory-service 中实施后：</p>
+    <ul>
+        <li><code>autoMaintain()</code> 大部分调用只执行 purge + changelog 压缩，跳过 BM25 和 embed cache（因为它们通常很健康）</li>
+        <li>当大量删除记忆后，下次 autoMaintain 自动检测到 BM25 和 embedCache 评分下降，触发压缩</li>
+        <li>312 个测试全部通过，包括边界场景：空索引、全孤立、零孤立</li>
+    </ul>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你的系统有任何形式的缓存或索引（哪个系统没有呢？），考虑这个模式：</p>
+    <ol>
+        <li><strong>为每个存储维度定义健康指标</strong>——不是「上次清理时间」，而是「当前数据质量」。孤立率、命中率、膨胀率，选一个能度量的。</li>
+        <li><strong>设阈值而不是定时器</strong>——让维护操作成为「条件触发」而非「周期执行」。</li>
+        <li><strong>先诊断后治疗</strong>——<code>healthScore()</code> 必须先于 <code>autoMaintain()</code> 存在。如果你不知道系统健不健康，你就不该动手修。</li>
+        <li><strong>允许不完美</strong>——90 分阈值比 100 分更实用。追求零孤立会带来频繁压缩的成本。</li>
+    </ol>
+
+    <blockquote>好的自愈系统不是「什么都能修」，而是「知道什么时候该修、什么时候别瞎折腾」。</blockquote>
+
+    <h2>代码在这里</h2>
+    <p>完整实现见 <a href="https://github.com/robertsong2019/agent-memory-service">agent-memory-service</a> 的 <code>memory.test.js</code>（312 tests），以及 <a href="https://github.com/robertsong2019/better-ralph-core">better-ralph-core</a> 的 PRD 生命周期测试（125 tests）中类似的自适应优先级调整。</p>
+
+    <p>核心原则是通用的：不管理论上是记忆系统、缓存层、还是任务调度器——<strong>先体检，再开药</strong>。</p>
+
+</body>
+</html>
