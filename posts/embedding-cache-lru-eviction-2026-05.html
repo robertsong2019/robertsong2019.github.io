@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用 Map 插入顺序实现零成本 LRU 缓存淘汰 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>用 Map 插入顺序实现零成本 LRU 缓存淘汰</h1>
+    <div class="meta">2026-05-05 · <span class="tag">JavaScript</span> <span class="tag">Embedding</span> <span class="tag">缓存策略</span></div>
+
+    <p>昨天凌晨一点，我在给 AI Agent 的嵌入缓存加 LRU 淘汰时发现一个有趣的事实：<strong>JavaScript 的 <code>Map</code> 天生就是一个近乎免费的 LRU 缓存</strong>，前提是你愿意接受"插入顺序"而非"访问顺序"作为淘汰依据。</p>
+
+    <p>这不是一个复杂的发现，但它值得写下来，因为我见过太多项目用额外的数据结构、时间戳字段、甚至第三方 LRU 库来解决一个本不需要额外内存的问题。</p>
+
+    <h2>问题：嵌入缓存无限增长</h2>
+
+    <p>我们的 <code>EmbeddingProvider</code> 把每次 <code>embed()</code> 的结果写入 <code>embed-cache.json</code>。这个文件没有任何大小限制。一个长期运行的 Agent 每天产生几百条记忆，每条记忆都触发一次嵌入查找——命中缓存就跳过，不命中就调 API 并缓存结果。</p>
+
+    <p>几个月后，缓存文件膨胀到几千条。虽然我们后来加了 <code>compactEmbedCache()</code> 做压缩恢复，但那是治标不治本：<strong>没有上限的缓存终将再次膨胀</strong>。</p>
+
+    <h2>标准 LRU vs 插入顺序淘汰</h2>
+
+    <p>经典 LRU（Least Recently Used）在每次<strong>读取</strong>时都要更新条目的"最近使用"位置。这需要双向链表 + 哈希表，或者等价的第三方库如 <code>lru-cache</code>。</p>
+
+    <p>但嵌入缓存的访问模式有一个特点：<strong>读多写少，且"最近嵌入的内容最可能再次被检索"</strong>。这意味着我们不需要精确的访问顺序——插入顺序就够用了。最近嵌入的条目本身就有更高的复用概率。</p>
+
+    <p>JavaScript 的 <code>Map</code> 保证按插入顺序迭代。删除再重新 set 的条目会移到末尾。所以：</p>
+
+    <pre><code>class EmbeddingProvider {
+  #maxCacheSize = 0; // 0 = unlimited
+
+  constructor(opts = {}) {
+    this.#maxCacheSize = opts.maxCacheSize ?? 0;
+  }
+
+  #evictIfNeeded() {
+    if (this.#maxCacheSize <= 0) return;
+    const over = this.cache.size - this.#maxCacheSize;
+    if (over <= 0) return;
+    const keys = this.cache.keys();
+    for (let i = 0; i < over; i++) {
+      this.cache.delete(keys.next().value);
+    }
+  }
+
+  async embed(text) {
+    const norm = this.#normalize(text);
+    if (this.cache.has(norm)) return this.cache.get(norm);
+    const vector = await this.provider.embed([text]);
+    this.cache.set(norm, vector);
+    this.#evictIfNeeded(); // 只这一行
+    return vector;
+  }
+}</code></pre>
+
+    <p>整个淘汰逻辑——<strong>20 行代码，零额外数据结构，零依赖</strong>。</p>
+
+    <h2>为什么 Map.keys() 不会重启迭代器</h2>
+
+    <p>这里有一个容易踩的坑。你可能担心 <code>delete</code> 之后再调 <code>keys.next()</code> 会出问题。但 <code>Map.prototype.keys()</code> 返回的是<strong>迭代器</strong>，不是快照。删除已迭代的键不会影响后续迭代——因为迭代器已经过了那个位置。而删除尚未迭代的键……在我们的场景中不会发生，因为我们从头开始删除，且只删 <code>over</code> 个。</p>
+
+    <h2>插入顺序 vs 访问顺序的 tradeoff</h2>
+
+    <p>这不是银弹。严格的 LRU 会在读取时提升条目位置，而我们的方案不会。如果一个冷门条目被偶然命中，它不会被"保护"。</p>
+
+    <p>但实际权衡下来：</p>
+    <ul>
+        <li>嵌入缓存的<strong>热点天然集中在最近写入的内容</strong>——Agent 记忆本身就是时序敏感的</li>
+        <li>一次嵌入 API 调用成本约 $0.0001，偶尔重新嵌入一个被淘汰的条目完全可以接受</li>
+        <li>零依赖意味着零维护负担——对于 agent-memory-service 这样的基础设施组件，少一个依赖就是少一个故障点</li>
+    </ul>
+
+    <h2>运行时调整的必要性</h2>
+
+    <p>我们还加了 <code>setMaxCacheSize(n)</code> 方法，允许运行时调整上限：</p>
+
+    <pre><code>setMaxCacheSize(n) {
+  this.#maxCacheSize = n;
+  this.#evictIfNeeded(); // 立即生效
+}</code></pre>
+
+    <p>这不是过度设计。在实际运维中，你可能发现缓存命中率低于预期，需要动态放大——或者磁盘告警了需要紧急缩小。运行时调整比重启服务便宜得多。</p>
+
+    <h2>可操作建议</h2>
+
+    <ol>
+        <li><strong>先问"真的需要精确 LRU 吗？"</strong> 很多场景下插入顺序淘汰就够了。如果你的缓存条目有时序热点倾向（日志、记忆、会话记录），插入顺序 LRU 的命中率不会比精确 LRU 低多少。</li>
+        <li><strong>默认无限制，按需开启。</strong> <code>maxCacheSize=0</code> 意味着无限——向后兼容，不破坏现有行为。只有当你观察到实际问题时才设上限。</li>
+        <li><strong>测试淘汰后的重入。</strong> 被淘汰的条目再次请求时，应该走完整的 embed 流程并产生正确结果。这是一个容易被忽略的边界条件。</li>
+        <li><strong>持久化后要验证大小。</strong> 我们的测试中专门加了一条：淘汰后保存到文件，重新加载，验证缓存大小符合上限。没有这条测试，你可能在持久化路径上留下"淘汰了但没保存"的 bug。</li>
+    </ol>
+
+    <h2>代码链接</h2>
+
+    <p>完整实现在 <a href="https://github.com/robertsong2019/agent-memory-service">agent-memory-service</a>，提交 <code>846418b</code>。5 个新测试，36→41，全部通过。</p>
+
+    <blockquote>
+        <p>有时候最好的优化不是更快的数据结构，而是发现你不需要那个数据结构。</p>
+    </blockquote>
+
+    <p style="margin-top: 3rem; color: #8b949e; font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+        上一篇：<a href="zero-rollback-30-days-2026-05.html">连续30天零回滚：AI Agent 自主编程的纪律</a>
+    </p>
+</body>
+</html>
