@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>缓存驱逐的三重奏：LRU + TTL + Compact 实战 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>缓存驱逐的三重奏：LRU + TTL + Compact 实战</h1>
+    <div class="meta">
+        2026-05-06 · <span class="tag">系统设计</span> <span class="tag">Embedding</span> <span class="tag">AI Agent</span>
+    </div>
+
+    <p>昨天凌晨，我的 AI Agent 在自主迭代中给 <code>EmbeddingProvider</code> 加了一层 TTL 缓存驱逐。这是继 LRU 驱逐和 Compact 恢复之后的第三层缓存策略。三种机制各管一件事，合在一起意外地优雅。值得展开聊聊。</p>
+
+    <h2>问题：向量缓存为什么需要驱逐？</h2>
+
+    <p>Embedding 计算不便宜——每次调用 API 都要花 token 和延迟。所以几乎所有做语义搜索的系统都会缓存：同一个文本只 embed 一次，下次直接取向量。</p>
+
+    <p>但缓存不管理就是内存泄漏。你的 agent 持续运行，记忆库不断膨胀，缓存跟着涨。两个具体问题：</p>
+
+    <ul>
+        <li><strong>容量问题</strong> — 缓存条目无限增长，内存爆掉</li>
+        <li><strong>新鲜度问题</strong> — 文本已更新，但缓存的向量还是旧的</li>
+    </ul>
+
+    <p>第一个问题 LRU 能解。第二个问题，LRU 完全无能为力——如果一个条目频繁访问但源数据已经变了，LRU 反而会把它钉在缓存里。</p>
+
+    <h2>第一层：LRU — 管容量</h2>
+
+    <p>经典做法，没什么好说的。设置 <code>maxCacheSize</code>，超出时踢掉最久没用的：</p>
+
+    <pre><code>embed(text) {
+  if (this.#cache.has(text)) {
+    this.#lruOrder.delete(text);
+    this.#lruOrder.add(text);  // 移到末尾
+    return this.#cache.get(text);
+  }
+  const vector = await this._computeEmbedding(text);
+  this.#setCache(text, vector);  // 内部检查 LRU 淘汰
+  return vector;
+}</code></pre>
+
+    <p>注意实现细节：<code>lruOrder</code> 用 <code>Map</code> 的插入顺序语义，比维护一个双向链表简单得多。删除是 O(1)，重排也是 O(1)。在条目数不超过几万的场景下完全够用。</p>
+
+    <h2>第二层：TTL — 管新鲜度</h2>
+
+    <p>这是昨天加的。核心想法：每个缓存条目记录插入时间戳，读取时检查是否过期：</p>
+
+    <pre><code>embed(text) {
+  if (this.#cache.has(text)) {
+    const entry = this.#cache.get(text);
+    // TTL 检查：过期则透明重新 embed
+    if (this.#cacheTTL > 0 && Date.now() - entry.ts > this.#cacheTTL) {
+      this.#cache.delete(text);
+      // fall through to re-embed below
+    } else {
+      this.#touchLRU(text);
+      return entry.vector;
+    }
+  }
+  const vector = await this._computeEmbedding(text);
+  this.#setCache(text, { vector, ts: Date.now() });
+  return vector;
+}</code></pre>
+
+    <p>几个设计决策值得说：</p>
+
+    <ol>
+        <li><strong>默认关闭</strong>（<code>cacheTTL=0</code>）。不打破现有用户的行为。opt-in 比默认开启安全。</li>
+        <li><strong>透明驱逐</strong>。调用方不需要知道缓存过期了——重新 embed 后自动更新缓存。API 表面零变化。</li>
+        <li><strong>运行时可调</strong>。<code>setCacheTTL(ms)</code> 让你在测试或不同场景中动态切换策略。</li>
+    </ol>
+
+    <p>还有一个 <code>evictExpired()</code> 做批量清理，适合在心跳或低峰期调用：</p>
+
+    <pre><code>evictExpired() {
+  if (this.#cacheTTL === 0) return 0;
+  const now = Date.now();
+  let evicted = 0;
+  for (const [key, entry] of this.#cache) {
+    if (now - entry.ts > this.#cacheTTL) {
+      this.#cache.delete(key);
+      this.#lruOrder.delete(key);
+      evicted++;
+    }
+  }
+  return evicted;
+}</code></pre>
+
+    <h2>第三层：Compact — 管恢复</h2>
+
+    <p>缓存持久化到磁盘后，文件可能损坏（进程中断、磁盘满）。Compact 策略是在 <code>loadCache()</code> 时验证每个条目：</p>
+
+    <pre><code>loadCache() {
+  const raw = JSON.parse(fs.readFileSync(this.#cachePath, 'utf8'));
+  let loaded = 0;
+  for (const [key, val] of Object.entries(raw)) {
+    const vector = val.vector ?? val;  // 兼容新旧格式
+    if (Array.isArray(vector) && vector.length > 0) {
+      this.#cache.set(key, {
+        vector,
+        ts: val.ts ?? Date.now()
+      });
+      loaded++;
+    }
+  }
+  return loaded;
+}</code></pre>
+
+    <p>注意那个 <code>val.vector ?? val</code> — 这是向后兼容的关键。旧格式是 <code>{key: [0.1, 0.2, ...]}</code>，新格式是 <code>{key: {vector: [...], ts: 12345}}</code>。一行代码解决迁移，不需要 migration script。</p>
+
+    <h2>三种策略如何配合</h2>
+
+    <p>画个决策树：</p>
+
+    <pre><code>请求 embed(text)
+  ├─ 缓存命中？
+  │   ├─ TTL 过期？ → 重新 embed（透明更新）
+  │   └─ 未过期 → 返回缓存（刷新 LRU 位置）
+  ├─ 缓存未命中？
+  │   ├─ 缓存已满？ → LRU 淘汰最旧条目
+  │   └─ 有空间 → 直接加入
+  └─ 持久化时 → Compact 验证 + 存储时间戳
+
+低峰期/心跳：
+  └─ evictExpired() → 批量清理过期条目</code></pre>
+
+    <p>每一层独立工作，不互相依赖，但组合起来覆盖了缓存生命周期的所有阶段。这是我认为最值得学的部分：<strong>好的系统设计不是一个大而全的机制，而是几个正交的小机制叠加。</strong></p>
+
+    <h2>集成测试发现的真实 Bug</h2>
+
+    <p>写完 TTL 驱逐后，Agent 接着写了 session 生命周期的集成测试。测的是 <code>initialize_session → get_iteration_context → add_iteration_result → 持久化</code> 这条完整链路。</p>
+
+    <p>集成测试发现了一个单元测试不可能抓到的 bug：<code>Path</code> 对象无法 JSON 序列化。</p>
+
+    <pre><code># memory_manager.py 中的 _save_project_context()
+# before (有 bug)
+def _save_project_context(self):
+    data = asdict(self.project_context)  # 包含 Path 对象!
+    json.dump(data, f)  # PosixPath 不是 JSON serializable → 静默失败
+
+# after (修复)
+def _save_project_context(self):
+    data = asdict(self.project_context)
+    data = json.loads(json.dumps(data, default=str))  # Path → str
+    json.dump(data, f)</code></pre>
+
+    <p>为什么单元测试没抓到？因为单元测试 mock 了文件系统，而 <code>asdict()</code> 在单元测试中返回的路径碰巧是字符串（测试用的相对路径）。只有真实文件系统中才出现 <code>PosixPath</code>。</p>
+
+    <blockquote>经验法则：单元测试验证逻辑，集成测试验证胶水。两者都要有。</blockquote>
+
+    <h2>可操作的建议</h2>
+
+    <ol>
+        <li><strong>缓存设计从三个维度思考</strong>：容量（LRU）、新鲜度（TTL）、恢复（Compact/校验）。不要只做一个。</li>
+        <li><strong>向后兼容是强制要求</strong>。用 <code>val.vector ?? val</code> 这种模式，一行代码兼容新旧格式，比 migration script 可靠。</li>
+        <li><strong>集成测试不是奢侈品</strong>。这次一个简单的端到端测试就抓到了数据类 + 序列化的真实 bug。写 6 个集成测试花的时间，比排查线上数据丢失少得多。</li>
+        <li><strong>默认关闭新行为</strong>。<code>cacheTTL=0</code> 表示"不启用"。这让你的新功能可以合并进主分支而不影响任何人。</li>
+        <li><strong>透明优于显式</strong>。TTL 过期时自动重新 embed，调用方无感知。如果你需要调用方手动处理过期，你的抽象层错了。</li>
+    </ol>
+
+    <p>最终数据：48 个 embed 测试全部通过，156 个项目测试全部通过，零回归。三层缓存策略各约 30 行代码，总计不到 100 行，覆盖了缓存从创建到驱逐到持久化的完整生命周期。</p>
+
+    <p>有时候好的工程不是加功能，而是在正确的维度上加正确的薄层。</p>
+</body>
+</html>
