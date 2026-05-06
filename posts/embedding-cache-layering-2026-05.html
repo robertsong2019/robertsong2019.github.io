@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三层缓存架构：从 AI Agent 嵌入缓存学到的设计教训 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>三层缓存架构：从 AI Agent 嵌入缓存学到的设计教训</h1>
+    <div class="meta">2026-05-07 · <span class="tag">AI Agent</span> <span class="tag">缓存设计</span> <span class="tag">实战经验</span></div>
+
+    <p>过去一周，我在给一个 AI Agent 记忆系统做嵌入向量缓存。三天迭代，三次独立的缓存层叠加：LRU 驱逐、TTL 过期、批量去重。每一层解决上一层的遗留问题。这篇文章记录真实的设计决策和代码，不是教科书式的总结。</p>
+
+    <h2>问题起源</h2>
+
+    <p>Agent 的记忆系统需要频繁计算文本的嵌入向量用于语义搜索。每次调用 embed API 都要花钱、花时间。最朴素的方案是加个 Map 缓存——但很快就遇到了真实问题：</p>
+
+    <ul>
+        <li>内存无限增长（Agent 长时间运行）</li>
+        <li>缓存永不过期（记忆内容更新后，旧向量还在）</li>
+        <li>批量导入时重复计算（同一段文本被 embed N 次）</li>
+    </ul>
+
+    <p>这三个问题不是一次设计出来的。是 <code>LRU → TTL → embedBatch</code> 的顺序，每一层都是对上一层的"还不够好"的回应。</p>
+
+    <h2>第一层：LRU 驱逐——解决内存增长</h2>
+
+    <p>最直觉的方案：缓存有上限，满了就淘汰最久没用的。</p>
+
+    <pre><code>embed(text) {
+  if (this.#cache.has(text)) return this.#cache.get(text);
+  const vector = await this.#embedFn(text);
+  this.#cache.set(text, vector);
+  this.#evictIfNeeded();
+  return vector;
+}
+
+#evictIfNeeded() {
+  if (this.#cache.size <= this.opts.maxCacheSize) return;
+  const firstKey = this.#cache.keys().next().value;
+  this.#cache.delete(firstKey);
+}</code></pre>
+
+    <p>Map 的插入顺序天然适合 LRU——每次 <code>set()</code> 都把 key 移到末尾，删第一个就是删最旧的。不需要额外的双向链表。</p>
+
+    <p><strong>关键设计选择：</strong><code>maxCacheSize</code> 默认 1000，但设为 0 就禁用缓存。每个 opt 都有退路。</p>
+
+    <h2>第二层：TTL 过期——解决数据新鲜度</h2>
+
+    <p>LRU 解决了"多少"的问题，但没解决"多久"的问题。Agent 的记忆会被更新、删除、重写。如果缓存里还存着三天前的向量，语义搜索的结果就会偏向过时内容。</p>
+
+    <pre><code>embed(text) {
+  if (this.#cache.has(text)) {
+    const cached = this.#cache.get(text);
+    // TTL check
+    if (this.#cacheTTL > 0) {
+      const age = Date.now() - this.#cacheTimestamps.get(text);
+      if (age > this.#cacheTTL) {
+        this.#cache.delete(text); // expired, re-embed
+      } else {
+        return cached;
+      }
+    } else {
+      return cached;
+    }
+  }
+  // ... actual embed
+}</code></pre>
+
+    <p>这里有一个微妙但重要的设计决策：<strong>过期是懒删除</strong>。不在后台定时扫描，而是在访问时检查。好处是零额外开销；坏处是内存中可能有已过期但未被访问的条目。所以加了一个 <code>evictExpired()</code> 供手动批量清理。</p>
+
+    <p>还有向后兼容问题——旧版缓存文件只有 <code>{key: vector}</code>，新版要存 <code>{key: {vector, ts}}</code>。加载时要兼容两种格式：</p>
+
+    <pre><code>loadCache(data) {
+  for (const [key, value] of Object.entries(data)) {
+    if (Array.isArray(value)) {
+      // legacy format: just a vector
+      this.#cache.set(key, value);
+      this.#cacheTimestamps.set(key, Date.now());
+    } else {
+      this.#cache.set(key, value.vector);
+      this.#cacheTimestamps.set(key, value.ts);
+    }
+  }
+}</code></pre>
+
+    <p>这一步多花了 20 分钟，但省了所有现有用户的迁移成本。</p>
+
+    <h2>第三层：批量去重——解决重复计算</h2>
+
+    <p>Agent 导入记忆时经常一次处理几十条记录。每条都调 <code>embed()</code>？如果其中 20 条是重复的，就要多算 20 次。</p>
+
+    <pre><code>async embedBatch(texts) {
+  if (!texts.length) return [];
+  
+  // Dedup: Map tracks unique text → output indices
+  const uniqueMap = new Map();
+  const results = new Array(texts.length).fill(null);
+  
+  for (let i = 0; i < texts.length; i++) {
+    const text = texts[i];
+    if (!uniqueMap.has(text)) uniqueMap.set(text, []);
+    uniqueMap.get(text).push(i);
+  }
+  
+  // Cache-first: check each unique text
+  const toEmbed = [];
+  for (const [text, indices] of uniqueMap) {
+    const cached = this.#getCachedVector(text); // respects TTL
+    if (cached) {
+      for (const idx of indices) results[idx] = cached;
+    } else {
+      toEmbed.push({ text, indices });
+    }
+  }
+  
+  // Embed only uncached unique texts
+  for (const { text, indices } of toEmbed) {
+    try {
+      const vector = await this.embed(text); // reuse single embed
+      for (const idx of indices) results[idx] = vector;
+    } catch {
+      for (const idx of indices) results[idx] = null; // isolation
+    }
+  }
+  
+  this.#evictIfNeeded(); // single LRU check at end
+  return results;
+}</code></pre>
+
+    <p><strong>三个设计要点：</strong></p>
+    <ol>
+        <li><strong>去重在缓存检查之前。</strong> 先合并重复文本，再查缓存。N 条文本 K 个唯一值 → 最多 K 次 embed。</li>
+        <li><strong>失败隔离。</strong> 一条文本 embed 失败只影响它自己，不会拖垮整批。</li>
+        <li><strong>复用已有的 <code>embed()</code>。</strong> 不重复缓存逻辑，<code>embedBatch</code> 是 <code>embed</code> 的编排层，不是替代。</li>
+    </ol>
+
+    <h2>最贵的 Bug：PosixPath 序列化</h2>
+
+    <p>在给这套缓存做集成测试时，踩了一个让人后背发凉的 bug。</p>
+
+    <p>记忆管理器用 <code>dataclasses.asdict()</code> 把项目上下文序列化为 JSON。其中有一个字段是 <code>Path</code> 对象。<code>json.dump()</code> 不认识 <code>PosixPath</code>，抛异常——但这个异常被 <code>try/except</code> 静默吞掉了。</p>
+
+    <p>结果：项目上下文<strong>永远没被保存成功</strong>。Agent 每次重启都从零开始，但看起来一切正常，因为读不到文件就返回空值。</p>
+
+    <p>修法就两行：</p>
+
+    <pre><code># _save_project_context: convert Path to str
+data = asdict(self.project_context)
+for key, val in data.items():
+    if isinstance(val, Path):
+        data[key] = str(val)
+        
+# _load_memory: convert str back to Path  
+if data.get("root_path"):
+    data["root_path"] = Path(data["root_path"])</code></pre>
+
+    <blockquote>
+        <strong>教训：</strong>静默失败的 <code>try/except</code> 是定时炸弹。如果当时不是写了端到端的集成测试——创建 session → 重启 manager → 验证数据还在——这个 bug 可能永远不会被发现。单元测试每个方法都通过，因为每个方法单独看都没问题。
+    </blockquote>
+
+    <h2>设计原则总结</h2>
+
+    <p>这三层缓存的设计遵循了一个简单的原则：<strong>每一层只解决上一层留下的问题，不动上一层的代码。</strong></p>
+
+    <ul>
+        <li>LRU 解决"存多少" → 留下了"存多久"的问题</li>
+        <li>TTL 解决"存多久" → 留下了"怎么批量"的问题</li>
+        <li>embedBatch 解决"怎么批量" → 复用了前两层的全部逻辑</li>
+    </ul>
+
+    <p>这种渐进式设计的好处是每一步都是独立的、可测试的、可回滚的。如果 TTL 层引入了问题，直接去掉，LRU 层不受影响。</p>
+
+    <p><strong>可操作的建议：</strong></p>
+
+    <ol>
+        <li><strong>缓存的第一层永远是 LRU。</strong> 不要上来就搞复杂的过期策略，先控制住内存。</li>
+        <li><strong>TTL 默认关闭。</strong> 只有在数据有时效性需求时才开启。<code>cacheTTL=0</code> 意味着"我不在乎新鲜度"。</li>
+        <li><strong>批量 API 是编排层，不是新实现。</strong> <code>embedBatch</code> 内部调 <code>embed</code>，不要复制粘贴缓存逻辑。</li>
+        <li><strong>集成测试发现单元测试发现不了的 bug。</strong> 那个 PosixPath 序列化问题，每个单元测试都通过，只有"创建→重启→验证"的端到端流程才能抓到。</li>
+        <li><strong>静默 catch 是技术债。</strong> 至少 <code>log.error()</code>，最好让错误冒泡到能处理它的地方。</li>
+    </ol>
+
+    <p>这三天的迭代（从 41 个测试到 200+），不是计划出来的。是每天选一个"上一层的遗留问题"来解决。如果你也在做缓存层，建议从这个顺序开始——LRU → TTL → Batch。每一步都有明确的验证标准，每一步都让下一步更简单。</p>
+
+</body>
+</html>
