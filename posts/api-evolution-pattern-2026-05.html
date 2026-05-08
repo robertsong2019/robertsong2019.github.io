@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一个 Context Store 的24小时进化史：从25个测试到48个 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        .back { display: inline-block; margin-top: 2rem; color: #8b949e; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <h1>一个 Context Store 的24小时进化史：从25个测试到48个</h1>
+    <div class="meta">
+        <span class="tag">Python</span> <span class="tag">API设计</span> <span class="tag">Agent开发</span> <span class="tag">TDD</span>
+        <br>2026-05-09 · 罗嵩
+    </div>
+
+    <p>过去的24小时里，我的 AI Agent 在一个叫 <code>agent-context-store</code> 的项目上连续做了4次自主迭代。测试从25个涨到48个，新增7个API方法，零回滚。这不是一个关于"AI多厉害"的故事——这是一个关于<strong>API设计中的隐性债务</strong>，以及如何用小手术而非大重构来消除它的故事。</p>
+
+    <h2>起点：一个看起来够用的 Store</h2>
+
+    <p><code>ContextStore</code> 是 Agent 的短期记忆层。核心接口很简洁：<code>put(key, content, tags)</code>、<code>get(key)</code>、<code>search(query)</code>、<code>delete(key)</code>。25个测试全绿。看起来没问题。</p>
+
+    <p>但问题是——Agent 在实际使用中反复撞墙。</p>
+
+    <h2>第一刀：<code>get()</code> 的副作用陷阱</h2>
+
+    <p>这是最阴险的一种设计缺陷。<code>get("key")</code> 在返回内容的同时，会顺带<strong>删除过期的条目</strong>。这意味着：</p>
+
+    <pre><code># 你只是想检查一个条目是否存在
+entry = store.get("config")
+# 但如果它过期了，它已经被删了！
+
+# 你想搜索未过期的条目
+for key in store.list():
+    entry = store.get(key)  # 每次get都可能删掉别的条目！
+    # list()返回的key在你遍历时已经失效了</code></pre>
+
+    <p>这不是 bug，是设计债。<code>get()</code> 承担了"读取"和"清理"两个职责。</p>
+
+    <p>修复：<code>exists(key)</code> — 纯检查，无副作用。</p>
+
+    <pre><code>def exists(self, key: str) -> bool:
+    entry = self._data.get(key)
+    return entry is not None and not entry.expired</code></pre>
+
+    <blockquote>设计原则：<strong>检查状态的操作不应该改变状态</strong>。这不是新发现——C++ 的 <code>const</code> 方法、React 的纯组件都在说同一件事。但当你的 <code>get()</code> 里混入了副作用，这条原则就被静默违反了。</blockquote>
+
+    <h2>第二刀：多标签过滤的无奈</h2>
+
+    <p>Agent 给条目打了多个标签（<code>python</code>、<code>ai</code>、<code>production</code>），但 <code>list(tag="python")</code> 只支持单标签。要找"既是 Python 又是生产环境"的条目？手动遍历。</p>
+
+    <p><code>search_by_tags(tags, match_all=False)</code> 解决了这个问题。关键设计决策是 <code>match_all</code> 参数——默认 OR，可选 AND：</p>
+
+    <pre><code>def search_by_tags(self, tags, match_all=False):
+    results = []
+    tag_set = {t.lower() for t in tags}
+    for key, entry in self._data.items():
+        if entry.expired:
+            continue
+        entry_tags = {t.lower() for t in entry.tags}
+        if match_all:
+            if tag_set.issubset(entry_tags):
+                results.append((key, entry))
+        else:
+            if tag_set & entry_tags:
+                results.append((key, entry))
+    return sorted(results, key=lambda x: x[1].updated_at, reverse=True)</code></pre>
+
+    <blockquote>观点：<strong>默认 OR 而非 AND</strong>，因为 OR 更宽容——漏掉结果比错过结果好。这在搜索交互中是常识（Google 就是 OR 语义），但在 API 设计中经常被忽略。</blockquote>
+
+    <h2>第三刀：<code>retag()</code> — 为什么改个标签这么难？</h2>
+
+    <p>想给已有条目加个标签？流程是：<code>get()</code> 内容 → <code>delete()</code> 条目 → <code>put()</code> 新标签。副作用：<code>created_at</code> 被重置，条目变"新"了。</p>
+
+    <p><code>retag(key, add_tags, remove_tags)</code> 是一个15行的方法，但它解决了一个真实痛点——<strong>元数据操作不应该要求重建数据</strong>。</p>
+
+    <pre><code>def retag(self, key, add_tags=None, remove_tags=None):
+    entry = self._data.get(key)
+    if not entry or entry.expired:
+        return None
+    tags = set(entry.tags)
+    if add_tags:
+        tags.update(add_tags)
+    if remove_tags:
+        remove_lower = {t.lower() for t in remove_tags}
+        tags = {t for t in tags if t.lower() not in remove_lower}
+    entry.tags = sorted(tags)
+    entry.updated_at = datetime.now()
+    self._save()
+    return entry</code></pre>
+
+    <p>注意大小写不敏感的删除：<code>remove_tags=["python"]</code> 能删掉 <code>"Python"</code>。这种细节在 API 文档里容易被忽略，但在使用中是高频困惑点。</p>
+
+    <h2>第四刀：正则搜索与内容追加</h2>
+
+    <p>最后两轮迭代加了 <code>search_regex(pattern, search_fields)</code> 和 <code>append(key, text)</code>。</p>
+
+    <p><code>search_regex</code> 的价值在于：<strong>子串搜索无法表达模式</strong>。你要找所有版本号？<code>search("version")</code> 会匹配"Version 2.3.1"和"version control"，但你真正想要的是 <code>version \d+\.\d+\.\d+</code>。</p>
+
+    <pre><code># 精确匹配 semver 格式
+results = store.search_regex(r"v?\d+\.\d+\.\d+", search_fields=["content"])
+
+# 只在 key 里搜索
+results = store.search_regex(r"^config\.", search_fields=["key"])</code></pre>
+
+    <p><code>append</code> 解决的是 Agent 的日志场景：Agent 在执行任务时不断追加状态更新到同一个 key。之前每次追加都要 <code>get() + put()</code>，风险是 <code>created_at</code> 丢失。现在：</p>
+
+    <pre><code>store.append("task-001", "步骤3完成：数据清洗")
+# created_at 不变，content 自动用换行连接</code></pre>
+
+    <h2>模式：手术式 API 扩展</h2>
+
+    <p>回头看这24小时，有一个清晰的模式：</p>
+
+    <ol>
+        <li><strong>发现痛点</strong>：Agent 在使用中反复做 "get → modify → put" 的 workaround</li>
+        <li><strong>识别根因</strong>：不是缺功能，是接口职责混乱（get 带副作用）或缺失（没有 tag 编辑）</li>
+        <li><strong>最小手术</strong>：加一个方法，10-35行代码，不改已有代码</li>
+        <li><strong>测试驱动</strong>：先写测试描述期望行为，再实现</li>
+        <li><strong>验证无回归</strong>：全量测试跑过才提交</li>
+    </ol>
+
+    <p>这不是大重构。每个方法都是独立的、正交的、不互相依赖的。它们可以一个一个地加，也可以一个一个地删，不会影响已有功能。</p>
+
+    <h2>三个可操作的建议</h2>
+
+    <p><strong>1. 审计你的 <code>get()</code> 方法族。</strong> 如果 <code>get()</code> 有任何副作用（缓存失效、状态变更、事件触发），加一个纯查询方法。这是最容易藏 bug 的地方。</p>
+
+    <p><strong>2. 元数据操作应该独立于数据操作。</strong> 改标签不应该要求重建内容。改 TTL 不应该要求重写内容。如果你发现 "改 X 要先 get 再 put"，那就是一个 API 缺口。</p>
+
+    <p><strong>3. 默认宽松，选项严格。</strong> <code>search_by_tags</code> 默认 OR。<code>search_regex</code> 默认搜所有字段。<code>append</code> 默认换行分隔。让简单场景一行代码搞定，复杂场景通过参数打开。这就是 <a href="https://stackoverflow.blog/2020/03/02/best-practices-for-rest-api-design/">"Make the common case fast"</a> 在 API 层面的体现。</p>
+
+    <h2>结语</h2>
+
+    <p>48个测试，7个新方法，24小时。没有一次重写，没有一次回滚。每个方法都是在使用中"撞墙"后的精确修补。这不是炫技——这是 API 设计最朴素的原则：<strong>让调用者说人话，不要让调用者翻越你设计的障碍</strong>。</p>
+
+    <p>好的 API 不是设计出来的，是<strong>用出来</strong>的。</p>
+
+    <a href="/" class="back">← 返回首页</a>
+</body>
+</html>
