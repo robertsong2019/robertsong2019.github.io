@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 的搜索原语设计：从 substring 到可组合查询 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>AI Agent 的搜索原语设计：从 substring 到可组合查询</h1>
+    <div class="meta">
+        2026-05-10 · <span class="tag">AI Agent</span> <span class="tag">API 设计</span> <span class="tag">Autoresearch</span>
+    </div>
+
+    <p>过去一周，我在 <code>agent-context-store</code> 上跑了十几个实验循环，从 39 个测试一路涨到 58 个。在这个过程中，一个原本不起眼的 <code>search()</code> 方法，经历了一系列渐进式扩展，最终变成了一套可组合的查询原语。这个过程揭示了一些关于 Agent API 设计的反直觉洞察。</p>
+
+    <h2>起点：substring 搜索够用吗？</h2>
+
+    <p>最初的 <code>search(query)</code> 只做子串匹配——遍历所有 entry，检查 content、key、tags 里是否包含查询字符串。对于简单场景足够了：</p>
+
+    <pre><code>store.put("user:42:email", "alice@example.com")
+store.put("user:42:phone", "138-0013-8000")
+results = store.search("alice")  # 找到了
+</code></pre>
+
+    <p>但 Agent 的真实使用场景很快就暴露了问题。当你需要查找所有邮箱地址时，<code>search("@")</code> 返回的可能是邮箱，也可能是 "@" 符号本身。当你需要查找语义版本号时，<code>"v1.2.3"</code> 可以匹配，但 <code>"version \d+\.\d+\.\d+"</code> 这种模式就无能为力了。</p>
+
+    <blockquote>传统做法是加一个万能的 <code>filter(callback)</code>。但这对 Agent 来说是个陷阱——LLM 生成 callback 的可靠性远不如调用命名明确的 API。</blockquote>
+
+    <h2>扩展 1：search_regex 与字段定向</h2>
+
+    <p>第一个扩展是 <code>search_regex(pattern, search_fields)</code>。这个设计的关键决策不是"加正则"，而是 <strong>search_fields 参数</strong>：</p>
+
+    <pre><code># 只在 key 中搜索命名空间模式
+store.search_regex(r"user:\d+:", search_fields=["key"])
+
+# 在 content 中搜索语义版本号
+store.search_regex(r"v?\d+\.\d+\.\d+", search_fields=["content"])
+</code></pre>
+
+    <p>为什么不让 <code>search_fields</code> 也加到原来的 <code>search()</code> 里？因为 <strong>语义分离</strong>：<code>search()</code> 是模糊搜索（未来可能加 fuzzy matching），<code>search_regex()</code> 是精确模式匹配。两者的返回值格式相同（<code>list[tuple[str, Entry]]</code>），但匹配逻辑截然不同。混在一起会让调用者困惑。</p>
+
+    <p>这里有一个 Agent API 设计的原则：<strong>命名明确的窄 API > 一个万能的宽 API</strong>。人类开发者可以读文档理解 <code>filter(fn)</code> 的行为，但 LLM 更容易正确使用 <code>search_regex(pattern)</code>，因为函数名本身就编码了意图。</p>
+
+    <h2>扩展 2：multi_search 的单次遍历优化</h2>
+
+    <p>当 Agent 需要同时查找多个关键词时（比如检查用户 profile 是否包含" banned"、"suspended"、"locked"），朴素做法是调用 N 次 <code>search()</code>。每次都遍历整个 store。</p>
+
+    <p><code>multi_search(queries)</code> 的设计很简单——单次遍历，同时检查所有 query：</p>
+
+    <pre><code>results = store.multi_search(["banned", "suspended", "locked"])
+# 返回 {query: [(key, score)]}
+# 单次 O(N*M) 而非 N 次 O(N*M)
+</code></pre>
+
+    <p>这不是什么高深的算法。但它的价值在于 <strong>API 层面表达了"批量"语义</strong>。Agent 看到 <code>multi_search</code> 就知道这是一次性查多个东西，不会傻到写循环调 <code>search()</code>。</p>
+
+    <blockquote>API 是给 LLM 的指令。函数名是最短的 prompt。</blockquote>
+
+    <h2>扩展 3：search_by_prefix 与命名空间模式</h2>
+
+    <p>最实用的扩展可能是 <code>search_by_prefix(prefix)</code>。Agent 经常用冒号分隔的 key 做命名空间：<code>user:42:email</code>、<code>session:abc:token</code>。前缀搜索是这类模式的核心操作：</p>
+
+    <pre><code># 获取某个用户的所有数据
+user_data = store.search_by_prefix("user:42:")
+# → [("user:42:email", Entry(...)), ("user:42:phone", Entry(...))]
+
+# 获取所有活跃会话
+sessions = store.search_by_prefix("session:")
+</code></pre>
+
+    <p>注意，前缀搜索理论上可以用 <code>search_regex(r"^user:42:")</code> 实现。但 <code>search_by_prefix</code> 有两个优势：</p>
+
+    <ol>
+        <li><strong>语义明确</strong>——调用者意图一目了然</li>
+        <li><strong>性能优化空间</strong>——未来可以换用 trie 或排序索引，无需改调用方</li>
+    </ol>
+
+    <h2>可组合性的真正含义</h2>
+
+    <p>回头看这四个搜索 API：</p>
+
+    <ul>
+        <li><code>search(query)</code> — 模糊子串搜索</li>
+        <li><code>search_regex(pattern, fields)</code> — 正则 + 字段定向</li>
+        <li><code>search_by_prefix(prefix)</code> — 命名空间前缀</li>
+        <li><code>multi_search(queries)</code> — 批量搜索</li>
+    </ul>
+
+    <p>它们共享相同的返回格式，但不共享实现。这不是"DRY 原则的违反"，而是<strong>接口统一 + 实现分化的设计</strong>。每个 API 解决一个明确的查询模式，调用方（LLM）不需要理解一个通用查询语言的 DSL。</p>
+
+    <p>这和 Unix 哲学异曲同工：<code>grep</code>、<code>find</code>、<code>awk</code> 各自做一件事，而不是一个万能的 <code>query --mode=regex --scope=filename --field=name</code>。</p>
+
+    <h2>Autoresearch 方法论的实际运作</h2>
+
+    <p>这些 API 不是一次性设计出来的。每一个都经历了完整的实验循环：</p>
+
+    <ol>
+        <li>识别真实 API 缺口（不是假想的）</li>
+        <li>写 3-5 个测试用例先定义行为</li>
+        <li>实现最小代码让测试通过</li>
+        <li>全部测试通过 → 保留；任何回归 → 回滚</li>
+        <li>记录到 <code>experiments.tsv</code></li>
+    </ol>
+
+    <pre><code># experiments.tsv 片段
+2026-05-09  27e20c4  39/39  keep  search_regex + field targeting
+2026-05-09  cfc8132  48/48  keep  append() + expire_in() + age()
+2026-05-09  92a0c4c  54/54  keep  search_by_prefix + snapshot/restore
+2026-05-09  193072b  58/58  keep  multi_search batch queries
+</code></pre>
+
+    <p>连续 44 天零回滚率。不是因为代码完美，而是因为每次改动的范围足够小，测试覆盖足够明确，回滚成本趋近于零。</p>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你也在设计 Agent 使用的内部 API，这里有三个实操建议：</p>
+
+    <p><strong>1. 优先窄命名 API。</strong>与其设计 <code>query(filter_type, filter_value, ...)</code>，不如设计 <code>search()</code>、<code>search_regex()</code>、<code>search_by_prefix()</code>。LLM 正确使用前者的概率远高于后者。</p>
+
+    <p><strong>2. 统一返回格式，分化实现。</strong>所有搜索方法返回 <code>list[tuple[str, Entry]]</code>，调用方不需要记忆不同的返回结构。但内部实现可以各自优化。</p>
+
+    <p><strong>3. 用 experiments.tsv 追踪 API 演化。</strong>每一行记录：时间、commit、测试数、保留/回滚、描述。这不是文档，是决策日志。当你需要回答"为什么 API 长这样"时，experiments.tsv 比任何设计文档都可靠。</p>
+
+    <p>好的 Agent API 不是设计出来的，是演化出来的。关键是让每一步演化都有测试守护、有日志记录、有回滚能力。速度不重要，方向和纪律才重要。</p>
+
+</body>
+</html>
