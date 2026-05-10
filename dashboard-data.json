@@ -1,43 +1,38 @@
 {
-  "lastUpdated": "2026-05-09T22:00:00Z",
-  "generatedAt": "2026-05-10 06:00 CST",
-  "actionRequired": [
-    { "job": "project-testing-morning", "status": "error", "note": "Last run failed (3h ago), needs investigation" }
+  "updatedAt": "2026-05-11T06:00:00+08:00",
+  "updatedAtUTC": "2026-05-10T22:00:00Z",
+  "cronJobs": [
+    {"id": "f38e0365", "name": "dashboard-update-morning", "schedule": "0 6 * * *", "status": "running", "lastRun": "<1m ago"},
+    {"id": "9b2a8701", "name": "github-trending-daily", "schedule": "0 7 * * *", "status": "ok", "lastRun": "23h ago"},
+    {"id": "2c714952", "name": "github-trending-deep", "schedule": "0 8 * * *", "status": "ok", "lastRun": "22h ago"},
+    {"id": "610a8d6d", "name": "github-creative-evening", "schedule": "0 19 * * *", "status": "ok", "lastRun": "11h ago"},
+    {"id": "265091b6", "name": "deep-exploration-evening", "schedule": "0 20 * * *", "status": "ok", "lastRun": "10h ago"},
+    {"id": "bb46cb70", "name": "deep-exploration-evening-utc", "schedule": "0 12 * * * UTC", "status": "ok", "lastRun": "10h ago"},
+    {"id": "13a2f284", "name": "code-lab-evening", "schedule": "0 21 * * *", "status": "ok", "lastRun": "9h ago"},
+    {"id": "ce2fb615", "name": "tool-development-evening", "schedule": "0 22 * * *", "status": "ok", "lastRun": "8h ago"},
+    {"id": "78eac6fc", "name": "key-development-1", "schedule": "0 23 * * *", "status": "ok", "lastRun": "7h ago"},
+    {"id": "88679f9e", "name": "key-development-2", "schedule": "0 0 * * *", "status": "ok", "lastRun": "6h ago"},
+    {"id": "b0fd7e8d", "name": "key-development-3", "schedule": "0 1 * * *", "status": "ok", "lastRun": "5h ago"},
+    {"id": "fd0515b0", "name": "knowledge-organization", "schedule": "0 2 * * *", "status": "ok", "lastRun": "4h ago"},
+    {"id": "f7510f1f", "name": "project-testing-morning", "schedule": "0 3 * * *", "status": "ok", "lastRun": "3h ago"},
+    {"id": "77a5bcc6", "name": "documentation-morning", "schedule": "0 4 * * *", "status": "ok", "lastRun": "2h ago"},
+    {"id": "686ec55c", "name": "essay-generation-morning", "schedule": "0 5 * * *", "status": "ok", "lastRun": "1h ago"}
   ],
-  "activeNow": [
-    { "job": "dashboard-update-morning", "status": "running" }
+  "activeSessions": [
+    {"type": "direct", "model": "glm-5.1", "usage": "53k/205k (26%)", "lastActive": "10h ago"},
+    {"type": "direct", "model": "glm-5.1", "usage": "51k/205k (25%)", "lastActive": "10h ago"},
+    {"type": "direct", "model": "glm-5.1", "usage": "61k/205k (30%)", "lastActive": "11h ago"},
+    {"type": "direct", "model": "glm-5.1", "usage": "35k/205k (17%)", "lastActive": "22h ago"},
+    {"type": "direct", "model": "glm-5.1", "usage": "25k/205k (12%)", "lastActive": "23h ago"},
+    {"type": "direct", "model": "glm-5.1", "usage": "30k/205k (15%)", "lastActive": "24h ago"},
+    {"type": "direct:feishu", "model": "glm-5.1", "usage": "43k/205k (21%)", "lastActive": "45h ago"},
+    {"type": "direct:wecom", "model": "glm-5.1", "usage": "19k/205k (9%)", "lastActive": "41d ago"}
   ],
-  "crons": [
-    { "name": "dashboard-update-morning", "schedule": "6:00 AM daily", "lastRun": "2026-05-09T22:00:00Z", "status": "running", "errors": 0 },
-    { "name": "github-trending-daily", "schedule": "7:00 AM daily", "lastRun": "2026-05-08T23:00:00Z", "status": "ok", "errors": 0 },
-    { "name": "github-trending-deep", "schedule": "8:00 AM daily", "lastRun": "2026-05-09T00:00:00Z", "status": "ok", "errors": 0 },
-    { "name": "github-creative-evening", "schedule": "7:00 PM daily", "lastRun": "2026-05-09T11:00:00Z", "status": "ok", "errors": 0 },
-    { "name": "deep-exploration-evening", "schedule": "8:00 PM daily (×2)", "lastRun": "2026-05-09T12:00:00Z", "status": "ok", "errors": 0 },
-    { "name": "code-lab-evening", "schedule": "9:00 PM daily", "lastRun": "2026-05-09T13:00:00Z", "status": "ok", "errors": 0 },
-    { "name": "tool-development-evening", "schedule": "10:00 PM daily", "lastRun": "2026-05-09T14:00:00Z", "status": "ok", "errors": 0 },
-    { "name": "key-development-1", "schedule": "11:00 PM daily", "lastRun": "2026-05-09T15:00:00Z", "status": "ok", "errors": 0 },
-    { "name": "key-development-2", "schedule": "12:00 AM daily", "lastRun": "2026-05-09T16:00:00Z", "status": "ok", "errors": 0 },
-    { "name": "key-development-3", "schedule": "1:00 AM daily", "lastRun": "2026-05-09T17:00:00Z", "status": "ok", "errors": 0 },
-    { "name": "knowledge-organization-morning", "schedule": "2:00 AM daily", "lastRun": "2026-05-09T18:00:00Z", "status": "ok", "errors": 0 },
-    { "name": "project-testing-morning", "schedule": "3:00 AM daily", "lastRun": "2026-05-09T19:00:00Z", "status": "error", "errors": 1 },
-    { "name": "documentation-morning", "schedule": "4:00 AM daily", "lastRun": "2026-05-09T20:00:00Z", "status": "ok", "errors": 0 },
-    { "name": "essay-generation-morning", "schedule": "5:00 AM daily", "lastRun": "2026-05-09T21:00:00Z", "status": "ok", "errors": 0 }
-  ],
-  "sessions": {
-    "totalSessions": 43,
-    "recentSessions": [
-      { "key": "agent:main:main", "label": "Main session", "updatedAt": "2026-05-09T21:47:00Z", "totalTokens": 186000, "ctxPercent": 91, "model": "glm-5.1" },
-      { "key": "agent:main:feishu", "label": "Feishu chat", "updatedAt": "2026-05-08T09:00:00Z", "totalTokens": 43000, "ctxPercent": 21, "model": "glm-5.1" },
-      { "key": "agent:main:wecom", "label": "WeCom chat", "updatedAt": "2026-03-31T00:00:00Z", "totalTokens": 19000, "ctxPercent": 9, "model": "glm-5.1" }
-    ],
-    "cronSessions24h": 30,
-    "oldestActive": "53d ago (glm-5, cron)"
-  },
-  "system": {
-    "host": "VM-0-5-ubuntu",
-    "model": "zai/glm-5.1",
-    "channel": "feishu",
-    "os": "Linux 6.8.0-71-generic (x64)",
-    "node": "v22.22.1"
+  "summary": {
+    "totalCronJobs": 15,
+    "cronJobsOk": 14,
+    "cronJobsRunning": 1,
+    "activeSessionsCount": 8,
+    "model": "glm-5.1"
   }
 }
