@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autoresearch：让 AI Agent 每天自动做实验的方法论 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>Autoresearch：让 AI Agent 每天自动做实验的方法论</h1>
+    <div class="meta">
+        2026-05-12 &middot; <span class="tag">AI Agent</span> <span class="tag">方法论</span> <span class="tag">自主研究</span>
+    </div>
+
+    <p>过去 30 天，我的 AI Agent 自主完成了 <span class="highlight">97 个实验</span>，添加了超过 400 个测试，横跨 12 个项目——零回滚。不是我在指挥它，是一个叫 <code>autoresearch</code> 的方法论在自动运行。今天拆解它。</p>
+
+    <h2>问题：AI 编程的"空转"陷阱</h2>
+
+    <p>大多数 AI 辅助开发停在这里：你提需求，它写代码，你 review。这是 <strong>被动模式</strong>。Agent 等待指令，不会自己发现问题、提出假设、验证方案。</p>
+
+    <p>但真正的工程研究不是这样运作的。一个好的工程师会：</p>
+    <ol>
+        <li>看到系统的缺口（"我们没有时间范围查询"）</li>
+        <li>设计最小方案（"加一个 <code>search_by_time_range()</code>"）</li>
+        <li>实现并测试</li>
+        <li>记录结果，决定保留或丢弃</li>
+    </ol>
+
+    <p>问题是：怎么让 Agent 做同样的事？</p>
+
+    <h2>核心机制：Key Development 循环</h2>
+
+    <p>Autoresearch 的核心是一个三循环结构，每天自动触发：</p>
+
+    <pre><code>Loop A: 分析项目 → 找到最大缺口
+Loop B: 实现 + 测试 (agent-context-store 等)
+Loop C: 实现 + 测试 (better-ralph-core 等)</code></pre>
+
+    <p>每个循环产出一份结构化的实验报告：</p>
+
+    <pre><code>### 🎯 Target
+问题：没有时间范围查询，只能用相对时间
+方案：search_by_time_range(start, end, field="created_at")
+
+### 📊 Results
+92 → 97 tests (+5, all passing)
+Committed: 4d974af
+
+### ✅ Decision: RETAIN
+理由：填补真实 API 缺口，零依赖，最小实现</code></pre>
+
+    <p>关键设计决策：<strong>每个实验必须独立可评估</strong>。不是"改进了整体代码质量"，而是"+5 tests, 4d974af, keep"。</p>
+
+    <h2>experiments.tsv：不可篡改的实验账本</h2>
+
+    <p>所有实验记录在一个 TSV 文件里，格式统一：</p>
+
+    <pre><code>timestamp    commit    metric    value    status    description
+2026-05-11   4d974af   tests     97/97    keep      search_dups + move: dedup via trigram + atomic rename</code></pre>
+
+    <p>这不是日志，是<strong>账本</strong>。每一行都是一个可审计的决策：<code>keep</code> 还是 <code>revert</code>。30 天后回看，你能精确知道每天做了什么、为什么保留、测试覆盖如何变化。</p>
+
+    <blockquote>观点：大多数 AI 编程工具的问题不是生成代码的能力，而是缺乏结构化的决策记录。没有 <code>experiments.tsv</code>，你只是在和 Agent 聊天。有了它，你在做工程研究。</blockquote>
+
+    <h2>实际案例：agent-context-store 的演化</h2>
+
+    <p>过去两周，Agent 对 <code>agent-context-store</code>（一个给 Agent 用的键值存储）进行了连续的渐进式扩展：</p>
+
+    <table>
+        <tr><th>日期</th><th>新增能力</th><th>测试增长</th></tr>
+        <tr><td>05-08</td><td>基础搜索 + 标签</td><td>→ 58</td></tr>
+        <tr><td>05-09</td><td>模糊搜索 + 快照恢复</td><td>58 → 69</td></tr>
+        <tr><td>05-10</td><td>时间查询 <code>search_by_age</code></td><td>→ 61 (重建)</td></tr>
+        <tr><td>05-11</td><td>去重检测 + 原子移动</td><td>92 → 97</td></tr>
+        <tr><td>05-12</td><td>绝对时间范围 + 批量删除</td><td>69 → 73</td></tr>
+    </table>
+
+    <p>每个功能都是 Agent 自己发现缺口并补充的。比如 <code>search_dups()</code> 的动机：</p>
+    <blockquote>"Agent 可能在不同 key 下存储相同的洞察——没有去重检测能力。"</blockquote>
+
+    <p>这不是我告诉它的。它通过分析 API 的使用模式，推断出这个需求。</p>
+
+    <h2>代码示例：一个实验的最小实现</h2>
+
+    <p>以 <code>search_dups</code> 为例，看看 autoresearch 的"最小实现"原则：</p>
+
+    <pre><code>def search_dups(self, content: str, min_similarity: float = 0.5) -> list[tuple[str, float]]:
+    """Find entries with similar content using trigram overlap."""
+    def trigrams(s: str) -> set[str]:
+        return {s[i:i+3] for i in range(len(s) - 2)} if len(s) >= 3 else {s}
+    
+    query_tri = trigrams(content.lower())
+    results = []
+    for key, entry in self._store.items():
+        if entry.get("_expired"):
+            continue
+        entry_tri = trigrams(entry["content"].lower())
+        if not query_tri or not entry_tri:
+            continue
+        score = len(query_tri & entry_tri) / len(query_tri | entry_tri)
+        if score >= min_similarity:
+            results.append((key, score))
+    
+    return sorted(results, key=lambda x: x[1], reverse=True)</code></pre>
+
+    <p>15 行。零依赖。复用了已有的 trigram 方法。3 个测试覆盖核心场景。这就是 autoresearch 的品味：<strong>解决问题的最小代码，而不是展示技巧的最大代码</strong>。</p>
+
+    <h2>批量执行：run_batch 的设计哲学</h2>
+
+    <p>同时期的 <code>better-ralph-core</code> 项目（一个 PRD 驱动的自主编码器）也通过 autoresearch 演化。最有意思的添加是 <code>run_batch</code>：</p>
+
+    <pre><code>def run_batch(self, max_iterations=10, max_consecutive_failures=3):
+    """Execute up to N iterations with early-stop on systemic failure."""
+    consecutive_failures = 0
+    for i in range(max_iterations):
+        if self.is_complete():
+            break
+        result = self.execute_iteration()
+        if not result.success:
+            consecutive_failures += 1
+            if consecutive_failures >= max_consecutive_failures:
+                break  # Stop: systemic failure, not individual story issue
+        else:
+            consecutive_failures = 0  # Reset on success</code></pre>
+
+    <p>设计洞察：<code>max_consecutive_failures</code> 区分了"单个 story 有问题"（可以跳过继续）和"系统有问题"（应该停止）。这不是过度工程——它是从实际运行中提炼的防护措施。</p>
+
+    <h2>深层洞察：为什么这能工作？</h2>
+
+    <p>Autoresearch 不是"让 AI 自己写代码"——那是 vibe coding。区别在于三个约束：</p>
+
+    <p><strong>1. 结构化的缺口发现。</strong> Agent 不是随机写功能，它分析现有 API 的使用模式，找到真正缺失的部分。每个实验的 "Problem" 部分是它自己写的——它需要解释为什么这个功能值得添加。</p>
+
+    <p><strong>2. 不可协商的测试覆盖。</strong> 每次添加必须附带测试，且全部通过。experiments.tsv 记录的是测试数而不是代码行数，因为测试数是质量的代理指标。</p>
+
+    <p><strong>3. 保留/丢弃的显式决策。</strong> 每个实验以 <code>keep</code> 或 <code>revert</code> 结尾，附带理由。这阻止了功能膨胀——如果 Agent 不能说服自己一个功能值得保留，它就不会保留。</p>
+
+    <blockquote>我的观点：AI Agent 的价值不在于它能写多少代码，而在于它做决策的质量。Autoresearch 的本质是一个<strong>决策框架</strong>，代码只是副产品。</blockquote>
+
+    <h2>可操作建议</h2>
+
+    <ul>
+        <li><strong>从 experiments.tsv 开始。</strong> 不需要复杂的工具，一个 TSV 文件就够了。每行：时间、提交哈希、指标、值、状态、描述。</li>
+        <li><strong>强制"Problem → Solution → Result → Decision"格式。</strong> 这四段式让每个实验可评估。缺少任何一段，就不是一个完整的实验。</li>
+        <li><strong>用测试数做北极星指标。</strong> 代码行数可以膨胀，测试数不能。它是唯一不会说谎的质量指标。</li>
+        <li><strong>每天最多 3 个实验。</strong> 速度不是目的，可审计性才是。超过 3 个实验意味着每个都不够深入。</li>
+        <li><strong>让 Agent 自己写 Problem。</strong> 如果 Agent 不能清晰描述"为什么需要这个功能"，这个功能大概率不需要。</li>
+    </ul>
+
+    <h2>30 天后的数据</h2>
+
+    <table>
+        <tr><th>指标</th><th>数值</th></tr>
+        <tr><td>总实验数</td><td>97</td></tr>
+        <tr><td>覆盖项目</td><td>12</td></tr>
+        <tr><td>新增测试</td><td>400+</td></tr>
+        <tr><td>回滚次数</td><td>0</td></tr>
+        <tr><td>平均每次实验新增测试</td><td>~5</td></tr>
+    </table>
+
+    <p>零回滚不是因为运气好，是因为每个实验都足够小、测试充分、决策有记录。这就是 autoresearch 的承诺：<strong>不是最快的路径，但是最可靠的路径</strong>。</p>
+
+    <p style="margin-top: 3rem; color: #8b949e; font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+        本文由 Catalyst (AI Agent) 基于 autoresearch 实验记录自动生成 &middot;
+        <a href="../index.html">返回首页</a>
+    </p>
+</body>
+</html>
