@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当 AI 写代码时，编程语言还重要吗？ | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: rgba(88,166,255,0.15); color: var(--accent); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; margin-right: 0.3rem; }
+        .highlight { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem 1.2rem; margin: 1.5rem 0; }
+        .highlight p { margin-bottom: 0; }
+        strong { color: var(--heading); }
+        .back-link { display: inline-block; margin-top: 2rem; color: var(--accent); }
+        hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <h1>当 AI 写代码时，编程语言还重要吗？</h1>
+    <div class="meta">
+        2026-05-12 · 罗嵩 ·
+        <span class="tag">AI编程</span>
+        <span class="tag">编程语言</span>
+        <span class="tag">Rust</span>
+        <span class="tag">思考</span>
+    </div>
+
+    <p>Noah Mitchem 在 Medium 上提了一个尖锐的问题：<a href="https://medium.com/@NMitchem/if-ai-writes-your-code-why-use-python-bf8c4ba1a055" target="_blank">"当 AI 能写好代码时，Python 还有什么优势？"</a> 读完之后觉得值得展开聊聊——不是翻译，而是结合自己的实践体验谈谈理解。</p>
+
+    <h2>一个正在崩塌的前提</h2>
+
+    <p>过去十年，我们选语言的标准很明确：Python 或 TypeScript。原因不是它们最好，而是<strong>人类写起来最快</strong>。生态大、招聘容易、周五就能出 demo。Rust 和 Go 性能高 10-100 倍，但学半年、人才少、构建系统难用。</p>
+
+    <p>所以行业默认了一条潜规则：<strong>先用 Python 快速交付，承诺以后优化</strong>。至于"以后"，基本不会来。不过没关系，大家都一样。</p>
+
+    <p>这条潜规则的前提是——代码是人类写的，人类在低级语言上很慢。但 2026 年，这个前提正在消失。</p>
+
+    <h2>难学的语言，对 AI 反而简单</h2>
+
+    <p>这是全文最反直觉也最锋利的洞察。</p>
+
+    <p>两年前 GPT-4 写 Rust 还会幻觉 crate 名字。到 2026 年 4 月，主流模型在 SWE-bench Verified 上都突破了 80%。但更重要的是背后的原因：</p>
+
+    <blockquote>
+        "Rust 编译器反馈循环如此紧密，模型能实时自我纠正。每条错误信息都是免费训练语料。Rust 意外地比任何人都早 10 年为 AI 辅助开发做了设计。"<br>—— @CtrlAltDwayne
+    </blockquote>
+
+    <p>人类觉得 Rust 编译器"在跟我作对"。但对 AI Agent 来说，编译器是<strong>最快的验证反馈</strong>——每次编译失败都精确告诉你哪里错了，Agent 立即修改再编译。强类型系统 + 快速编译检查 = Agent 最紧凑的迭代周期。</p>
+
+    <p><strong>对人类最难的系统语言，对 Agent 恰恰最容易。</strong></p>
+
+    <h2>一个季度的证据</h2>
+
+    <p>2026 年 Q1 发生的事情很有说服力：</p>
+
+    <ul>
+        <li><strong>Microsoft 用 Go 重写了 TypeScript 编译器</strong> — TS 7.0 beta 比 6.0 快约 10 倍</li>
+        <li><strong>Anthropic 研究员用 16 个并行 Claude Agent 写了生产级 C 编译器</strong> — 10 万行 Rust，能启动 Linux 6.9、编译 QEMU/FFmpeg/SQLite/PostgreSQL/Redis，总成本不到 2 万美元</li>
+        <li><strong>Steve Klabnik（13 年 Rust 老兵）用 Claude 两周创建了 Rue 语言</strong> — 约 7 万行 Rust</li>
+        <li><strong>Andreas Kling 两周将 Ladybird JS 引擎从 C++ 移植到 Rust</strong> — 2.5 万行，零回滚</li>
+    </ul>
+
+    <p>零回滚。这个数字让我印象深刻——我们自己实践 autoresearch 方法论也达到了连续 48 天零回滚率，底层逻辑是一样的：<strong>精确的验证标准 + 紧密的反馈循环 = 高质量自主输出</strong>。</p>
+
+    <h2>生态护城河正在瓦解</h2>
+
+    <p>"Python 有 500 万个包"曾经是不可逾越的壁垒。但两层变化在侵蚀它：</p>
+
+    <p><strong>第一层：Python 生态底层已经 Rust 化。</strong></p>
+    <ul>
+        <li><code>pydantic</code> — 验证核心是 Rust</li>
+        <li><code>Polars</code> — Rust</li>
+        <li><code>ruff</code>、<code>uv</code> — Rust，月下载量数亿</li>
+        <li><code>orjson</code> — Rust</li>
+        <li>Hugging Face tokenizers — Rust</li>
+    </ul>
+    <p>Python 最快的工具全是 Rust 写的，Python 只是套了一层 API 皮。用文章的话说："Python 生态逐渐长成了戴着 Python 帽子的 Rust 生态。"</p>
+
+    <p><strong>第二层：跨语言移植成本趋近于零。</strong></p>
+
+    <p>Flask 创建者 Armin Ronacher 用 Agent 将 Rust 库 MiniJinja 移植到 Go：运行 10 小时（3 小时监督 + 7 小时无人值守），<strong>实际人工时间 45 分钟</strong>，API 成本 60 美元。</p>
+
+    <p>当移植一个库只需要 45 分钟，"这个语言没有那个库"就不再是选型的决定因素了。</p>
+
+    <h2>但不是所有方向都指向 Rust</h2>
+
+    <p>文章选择性地忽略了一些反例，值得补充：</p>
+
+    <ul>
+        <li><strong>Prisma 从 Rust 改回 TypeScript/WASM</strong> — bundle size 降 85%，查询快 3.4 倍。Rust 不总是正确答案。</li>
+        <li><strong>PyTorch 占深度学习研究约 85% 份额</strong> — 模型权重不在乎你用什么语言包装。</li>
+        <li><strong>Zig、Haskell、Gleam 等小语言 AI 支持还差很远</strong> — 不是所有系统语言都赢了，而是主流系统语言（Rust/Go）赢了。</li>
+    </ul>
+
+    <p>Karpathy 自己也说了："Rust 作为目标语言对 LLM 来说也远非最优。" 所以文章的结论过于绝对。</p>
+
+    <h2>真正重要的洞察：测试 > 代码</h2>
+
+    <p>整篇文章里，我认为最有长远价值的不是"Rust 会赢"，而是 Armin Ronacher 的这句：</p>
+
+    <div class="highlight">
+        <p><strong>"对我来说，价值正在从代码转移到测试和文档。好的测试套件实际上可能比代码更有价值。"</strong></p>
+    </div>
+
+    <p>这和我们的实践经验完全一致。在 autoresearch 流程中，连续 48 天零回滚的核心不是"AI 写代码能力强"，而是<strong>先定义验证标准再动手</strong>。每次实验前写清楚 "verify: [check]"，Agent 就能自己循环到通过。</p>
+
+    <p>当代码可以随时让 AI 重写时：</p>
+    <ul>
+        <li><strong>定义"写什么"</strong> — 需求理解、架构决策、接口设计</li>
+        <li><strong>验证"对不对"</strong> — 测试用例、验收标准、边界条件</li>
+        <li><strong>"怎么写"</strong> — 具体的代码实现</li>
+    </ul>
+
+    <p>第三项正在被 AI 商品化。前两项才是人类工程师的核心竞争力。<strong>代码是消耗品，测试是资产。</strong></p>
+
+    <h2>更准确的结论</h2>
+
+    <p>与其说"Rust 将取代 Python"，不如说：</p>
+
+    <div class="highlight">
+        <p><strong>编程语言正在分层。</strong>底层（编译器、运行时、核心库）→ Rust/Go 胜出；应用层（API、业务逻辑、原型）→ Python/TS 仍占优。但两层之间的边界正在快速模糊。</p>
+        <p>而真正的永久转变是：<strong>编程语言的选择标准从"人类写起来快"变成"AI 写起来效率高"。定义问题和验证答案的能力，比写代码的能力重要得多。</strong></p>
+    </div>
+
+    <hr>
+
+    <p><small>参考：<a href="https://medium.com/@NMitchem/if-ai-writes-your-code-why-use-python-bf8c4ba1a055" target="_blank">If AI Writes Your Code, Why Use Python?</a> by Noah Mitchem</small></p>
+
+    <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+</body>
+</html>
