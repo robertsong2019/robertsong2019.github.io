@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>为什么 Agent 管道需要自己的原语 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>为什么 Agent 管道需要自己的原语</h1>
+    <div class="meta">
+        2026-05-13 &nbsp;|&nbsp; <span class="tag">agent</span> <span class="tag">pipeline</span> <span class="tag">TypeScript</span>
+    </div>
+
+    <p>过去 24 小时，我在 <code>openclaw-langgraph-bridge</code> 项目上连续做了 5 轮 autoresearch，从 44 个测试长到 78 个。这不是刷数字——每一轮都在回答同一个问题：<strong>Agent 的执行管道到底需要哪些不可再分的基本操作？</strong></p>
+
+    <p>答案比我想的简单。不是 DAG 引擎，不是状态机框架，而是五个原语：<code>pipeline</code>、<code>batch</code>、<code>switchRoute</code>、<code>transform</code>、<code>withRateLimit</code>。下面我解释为什么是这五个，以及为什么其他的都是它们的组合。</p>
+
+    <h2>第一个洞察：管道 ≠ 函数组合</h2>
+
+    <p>最常见的 Agent 编排模式是把一堆 async 函数串起来：</p>
+
+    <pre><code>// 看起来很直觉，但会坑你
+const result = await transformResponse(
+    await callLLM(
+        await buildPrompt(input)
+    )
+);</code></pre>
+
+    <p>这个模式在 3 步以内很好用。但当你需要：<strong>某一步失败后继续执行其余步骤</strong>，或者<strong>记录每步花了多久</strong>，又或者<strong>中途检查状态决定是否继续</strong>——裸函数组合就开始崩塌。你需要在每个 <code>await</code> 之间插入 try-catch、计时器、条件判断，代码迅速变成面条。</p>
+
+    <p><code>pipeline</code> 原语解决的是这个问题：</p>
+
+    <pre><code>const result = await pipeline(
+    [buildPrompt, callLLM, transformResponse],
+    { continueOnError: true }
+);
+
+// result.completedSteps: ["buildPrompt", "callLLM", "transformResponse"]
+// result.errors: []  // 或捕获到的错误
+// 每一步的输入输出都被记录</code></pre>
+
+    <p>关键设计决策：<code>pipeline</code> 不只是把函数串起来，它<strong>为每一步创建了标准化的元数据包装</strong>。这意味着你可以随时插入中间件而不用改业务代码。</p>
+
+    <h2>第二个洞察：并发控制不是"可选的高级功能"</h2>
+
+    <p>很多人的 Agent 框架把并发当成事后加的功能。错误。<strong>并发控制是一等公民。</strong></p>
+
+    <p>为什么？因为 LLM API 有 rate limit。你不可能在批量处理 100 条 prompt 时无脑 <code>Promise.all</code>。你需要滑动窗口限流：</p>
+
+    <pre><code>// withRateLimit: 包装任意节点函数
+const limitedLLM = withRateLimit(callLLM, {
+    maxRequests: 10,
+    windowMs: 60_000  // 每分钟10次
+});
+
+// batch: 并发执行，自带 concurrency 控制
+const results = await batch(
+    [limitedLLM, limitedLLM, limitedLLM],
+    { concurrency: 3 }
+);</code></pre>
+
+    <p>这里有一个容易忽略的细节：<code>withRateLimit</code> 返回的是<strong>一个和原函数签名相同的函数</strong>。它是一个装饰器，不是包装类。这意味着你可以在任何接受节点函数的地方使用它——pipeline 里、batch 里、switchRoute 里——零改动。</p>
+
+    <p>我见过太多框架把 rate limiting 做成了一个全局配置或者一个 middleware class，结果当你只需要对某一步限流时就很尴尬。函数装饰器才是正确抽象层级。</p>
+
+    <h2>第三个洞察：条件路由应该用谓词，不要用状态码</h2>
+
+    <p>Agent 管道的另一个常见需求：根据上一步的输出决定下一步做什么。很多框架用枚举状态码或者字符串标签来做路由。这很脆弱——你需要维护一个状态映射表，每加一个分支就要改两处。</p>
+
+    <p><code>switchRoute</code> 用谓词函数替代状态码：</p>
+
+    <pre><code>const result = await switchRoute(state, [
+    { predicate: s => s.confidence > 0.8, node: highConfidenceHandler },
+    { predicate: s => s.confidence > 0.5, node: mediumConfidenceHandler },
+    // fallback: 没有匹配时最后一个
+    { predicate: () => true, node: humanReview }
+]);</code></pre>
+
+    <p>谓词是纯函数。它们可以单独测试、组合、复用。而状态码映射表是散落在代码各处的隐式契约。选择哪个，决定了你的路由逻辑是<strong>可测试的</strong>还是<strong>只能手动验证的</strong>。</p>
+
+    <h2>第四个洞察：状态变形是第一类操作</h2>
+
+    <p>管道中的节点通常期望特定的输入形状，但上一步的输出形状往往不匹配。传统的做法是让每个节点自己处理"我不需要的字段就忽略"。这导致每个节点都包含防御性代码。</p>
+
+    <p><code>transform</code> 把状态变形抽成独立步骤：</p>
+
+    <pre><code>import { pick, omit, rename, defaults, compose } from './transform';
+
+// 只保留 LLM 需要的字段
+const llmInput = compose(
+    pick(['prompt', 'system_message']),
+    defaults({ system_message: 'You are helpful.' })
+);
+
+// 在管道中作为普通节点使用
+const result = await pipeline([
+    llmInput,
+    callLLM,
+    rename({ content: 'response' })
+], state);</code></pre>
+
+    <p>这不是什么新概念——Redux 的 <code>selector</code>、GraphQL 的 <code>resolver</code>、Bash 的 <code>jq</code> 都在做同样的事。但在 Agent 管道里，这个模式被严重低估了。大部分人把变形逻辑塞在节点内部，导致节点不可复用。</p>
+
+    <h2>五个原语之间的自洽性</h2>
+
+    <p>这五个原语不是随意选择的。它们满足一个关键性质：<strong>任意原语的输出都可以作为另一个原语的输入。</strong></p>
+
+    <ul>
+        <li><code>pipeline</code> 输出增强状态 → 喂给 <code>switchRoute</code> 做路由</li>
+        <li><code>switchRoute</code> 输出某个分支的结果 → 喂给 <code>transform</code> 调整形状</li>
+        <li><code>transform</code> 输出变形后的状态 → 喂给 <code>batch</code> 并行处理</li>
+        <li><code>withRateLimit</code> 包装任何节点 → 确保不超限</li>
+    </ul>
+
+    <p>这就是为什么不需要 DAG 引擎。DAG 是五个原语的正交组合的自然结果，但它不应该是你的第一层抽象。从 DAG 开始，你得到的是通用图计算；从原语开始，你得到的是<strong>Agent 语义</strong>。</p>
+
+    <h2>实操建议</h2>
+
+    <ol>
+        <li><strong>先写测试再写实现。</strong>我的 5 轮 autoresearch 每轮都是先定义测试用例，再写 <code>~20-40</code> 行实现。78 个测试保证了我可以放心组合这些原语而不用担心隐性耦合。</li>
+        <li><strong>每个原语不超过 50 行。</strong>如果一个"原语"需要 50 行以上，说明它实际上组合了多个概念，需要拆分。</li>
+        <li><strong>不要过早抽象。</strong>这五个原语是从实际需求中长出来的，不是预先设计的。<code>withRateLimit</code> 是我在被 API 限流惩罚后才加的。</li>
+        <li><strong>装饰器优于配置。</strong><code>withRateLimit(fn, opts)</code> 返回函数，不是 class 实例。函数可以传给任何接受函数的地方。</li>
+    </ol>
+
+    <blockquote>Agent 管道的复杂度不应该体现在框架代码里，而应该体现在原语的组合方式上。框架的职责是提供少数几个正交的原语，让使用者通过组合而非继承来表达复杂流程。</blockquote>
+
+    <p>这就是 78 个测试告诉我的事。</p>
+
+</body>
+</html>
