@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sub2API vs New API 深度对比 | 罗嵩的技术博客</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --card: #161b22;
+            --card-alt: #1c2333;
+            --text: #c9d1d9;
+            --accent: #58a6ff;
+            --accent2: #7ee787;
+            --accent3: #f0883e;
+            --border: #30363d;
+            --heading: #f0f6fc;
+            --dim: #8b949e;
+            --sub2api: #a371f7;
+            --newapi: #3fb950;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg); color: var(--text); line-height: 1.8;
+            max-width: 900px; margin: 0 auto; padding: 2rem 1rem;
+        }
+        h1 { color: var(--heading); font-size: 2rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2.5rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: var(--dim); font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        strong { color: var(--heading); }
+        code { background: var(--card-alt); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+
+        /* Hero comparison cards */
+        .hero-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        .hero-card {
+            border-radius: 12px; padding: 1.5rem;
+            border: 1px solid var(--border);
+        }
+        .hero-card.sub2api { border-top: 3px solid var(--sub2api); background: linear-gradient(135deg, rgba(163,113,247,0.08) 0%, var(--card) 100%); }
+        .hero-card.newapi { border-top: 3px solid var(--newapi); background: linear-gradient(135deg, rgba(63,185,80,0.08) 0%, var(--card) 100%); }
+        .hero-card h3 { margin: 0 0 0.5rem; font-size: 1.3rem; }
+        .hero-card .desc { color: var(--dim); font-size: 0.9rem; margin-bottom: 1rem; }
+        .hero-card .stat { display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid rgba(48,54,61,0.5); font-size: 0.85rem; }
+        .hero-card .stat:last-child { border: none; }
+        .hero-card .stat span:last-child { color: var(--heading); font-weight: 600; }
+
+        /* Comparison table */
+        .cmp-table { width: 100%; border-collapse: collapse; margin: 1rem 0 2rem; font-size: 0.9rem; }
+        .cmp-table th { text-align: left; padding: 0.8rem; background: var(--card-alt); color: var(--heading); border-bottom: 2px solid var(--border); }
+        .cmp-table td { padding: 0.7rem 0.8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .cmp-table tr:hover td { background: rgba(88,166,255,0.04); }
+        .cmp-table .cat { color: var(--accent); font-weight: 600; background: rgba(88,166,255,0.06); }
+
+        /* Verdict boxes */
+        .verdict {
+            border-radius: 10px; padding: 1.2rem 1.5rem; margin: 1rem 0;
+            border-left: 4px solid;
+        }
+        .verdict.sub2api-v { border-color: var(--sub2api); background: rgba(163,113,247,0.08); }
+        .verdict.newapi-v { border-color: var(--newapi); background: rgba(63,185,80,0.08); }
+        .verdict h4 { margin: 0 0 0.3rem; font-size: 1rem; }
+        .verdict p { margin: 0; font-size: 0.9rem; color: var(--dim); }
+
+        /* Feature tags */
+        .feature-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
+        .feature-tag {
+            display: inline-block; padding: 0.2rem 0.6rem; border-radius: 20px;
+            font-size: 0.78rem; font-weight: 500;
+        }
+        .feature-tag.s { background: rgba(163,113,247,0.15); color: var(--sub2api); }
+        .feature-tag.n { background: rgba(63,185,80,0.15); color: var(--newapi); }
+        .feature-tag.b { background: rgba(88,166,255,0.12); color: var(--accent); }
+
+        /* Summary box */
+        .summary-box {
+            background: var(--card-alt); border: 1px solid var(--border);
+            border-radius: 10px; padding: 1.5rem; margin: 2rem 0;
+        }
+        .summary-box h3 { color: var(--accent3); margin: 0 0 0.8rem; }
+
+        .back-link { display: inline-block; margin-top: 2rem; color: var(--accent); }
+
+        @media (max-width: 640px) {
+            .hero-grid { grid-template-columns: 1fr; }
+            .cmp-table { font-size: 0.8rem; }
+            .cmp-table th, .cmp-table td { padding: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Sub2API vs New API 深度对比</h1>
+    <div class="meta">
+        2026-05-12 · 罗嵩 ·
+        AI API 网关方案对比
+    </div>
+
+    <p>两者都是 AI API 中转/网关方案，但定位完全不同。Sub2API 专注<strong>订阅额度分发</strong>，New API 专注<strong>模型聚合管理</strong>。下面从多个维度对比。</p>
+
+    <h2>🏃 一句话定位</h2>
+    <div class="hero-grid">
+        <div class="hero-card sub2api">
+            <h3 style="color: var(--sub2api);">Sub2API</h3>
+            <div class="desc">AI 订阅额度的分发平台——把你的 Claude Pro/Max、Gemini 等订阅变成多人可用的 API</div>
+            <div class="stat"><span>核心理念</span><span>订阅拼车共享</span></div>
+            <div class="stat"><span>典型场景</span><span>小团队共享 $200/月订阅</span></div>
+            <div class="stat"><span>技术栈</span><span>Go + Vue + PostgreSQL + Redis</span></div>
+            <div class="stat"><span>GitHub Stars</span><span>~2,400</span></div>
+        </div>
+        <div class="hero-card newapi">
+            <h3 style="color: var(--newapi);">New API</h3>
+            <div class="desc">统一 AI 模型网关——把各家 API 统一成 OpenAI 兼容格式，集中管理密钥和计费</div>
+            <div class="stat"><span>核心理念</span><span>多模型聚合分发</span></div>
+            <div class="stat"><span>典型场景</span><span>企业多模型统一入口</span></div>
+            <div class="stat"><span>技术栈</span><span>Go + React + SQLite/MySQL</span></div>
+            <div class="stat"><span>GitHub Stars</span><span>~15,000+</span></div>
+        </div>
+    </div>
+
+    <h2>📊 核心功能对比</h2>
+    <table class="cmp-table">
+        <thead>
+            <tr>
+                <th style="width: 28%;">维度</th>
+                <th style="width: 36%;">Sub2API</th>
+                <th style="width: 36%;">New API</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr class="cat"><td colspan="3">🔑 上游接入方式</td></tr>
+            <tr>
+                <td>API Key 接入</td>
+                <td>✅ 支持</td>
+                <td>✅ 主要方式</td>
+            </tr>
+            <tr>
+                <td>OAuth 订阅账号</td>
+                <td>✅ 核心能力（Claude、Gemini OAuth）</td>
+                <td>❌ 不支持</td>
+            </tr>
+            <tr>
+                <td>支持的模型商</td>
+                <td>Claude、OpenAI、Gemini、Antigravity</td>
+                <td>OpenAI、Claude、Gemini、DeepSeek、Azure、通义、文心等 20+</td>
+            </tr>
+            <tr class="cat"><td colspan="3">💰 计费模式</td></tr>
+            <tr>
+                <td>计费粒度</td>
+                <td>Token 级精确计费</td>
+                <td>Token 级 + 缓存命中计费</td>
+            </tr>
+            <tr>
+                <td>内置支付</td>
+                <td>✅ EasyPay、支付宝、微信、Stripe</td>
+                <td>✅ EPay、Stripe</td>
+            </tr>
+            <tr>
+                <td>额度管理</td>
+                <td>按订阅额度分发，支持拼车</td>
+                <td>按 Token 配额，支持充值</td>
+            </tr>
+            <tr class="cat"><td colspan="3">🔧 技术架构</td></tr>
+            <tr>
+                <td>数据库</td>
+                <td>PostgreSQL + Redis</td>
+                <td>SQLite / MySQL</td>
+            </tr>
+            <tr>
+                <td>部署复杂度</td>
+                <td>中等（需要 PG + Redis）</td>
+                <td>简单（单 Docker 容器）</td>
+            </tr>
+            <tr>
+                <td>API 格式</td>
+                <td>OpenAI 兼容</td>
+                <td>OpenAI + Claude + Gemini 三种兼容格式</td>
+            </tr>
+            <tr>
+                <td>Realtime API</td>
+                <td>❌</td>
+                <td>✅ 支持</td>
+            </tr>
+            <tr class="cat"><td colspan="3">👥 用户管理</td></tr>
+            <tr>
+                <td>并发控制</td>
+                <td>✅ 按用户 + 按账号限制</td>
+                <td>✅ 按用户限制</td>
+            </tr>
+            <tr>
+                <td>会话粘滞</td>
+                <td>✅ Sticky Session（同一对话固定账号）</td>
+                <td>❌</td>
+            </tr>
+            <tr>
+                <td>第三方登录</td>
+                <td>暂无</td>
+                <td>Discord / LinuxDO / Telegram / OIDC</td>
+            </tr>
+            <tr class="cat"><td colspan="3">📈 运营能力</td></tr>
+            <tr>
+                <td>数据面板</td>
+                <td>✅ 管理后台</td>
+                <td>✅ 可视化数据面板 + 统计分析</td>
+            </tr>
+            <tr>
+                <td>多语言</td>
+                <td>中 / 英 / 日</td>
+                <td>中 / 英 / 法 / 日</td>
+            </tr>
+            <tr>
+                <td>多租户</td>
+                <td>基础支持</td>
+                <td>✅ 组织级管理</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>🎯 各自的独特优势</h2>
+
+    <div class="verdict sub2api-v">
+        <h4 style="color: var(--sub2api);">Sub2API 独有优势</h4>
+        <p><strong>订阅账号 OAuth 接入</strong> — 这是 Sub2API 的杀手锏。直接用你的 Claude Pro/Max 订阅账号登录，不需要 API Key。把 $200/月的订阅额度变成多人可用的 API，本质上是"订阅拼车"。</p>
+        <p><strong>Sticky Session</strong> — 同一对话固定到同一上游账号，避免上下文断裂。这对长对话场景（Claude Code）非常关键。</p>
+        <p><strong>智能调度</strong> — 多账号负载均衡 + 并发控制，适合"一个订阅多人用"的场景。</p>
+    </div>
+
+    <div class="verdict newapi-v">
+        <h4 style="color: var(--newapi);">New API 独有优势</h4>
+        <p><strong>模型覆盖最广</strong> — 支持 20+ 模型商，从 OpenAI 到国产模型全覆盖。一个入口访问所有模型。</p>
+        <p><strong>三种 API 兼容格式</strong> — 同时支持 OpenAI、Claude、Gemini 三种格式输出，客户端无需改动。</p>
+        <p><strong>缓存计费</strong> — 支持 OpenAI/Claude/DeepSeek 等的缓存命中计费统计，精细成本管控。</p>
+        <p><strong>部署极简</strong> — 单 Docker 容器 + SQLite 即可运行，零依赖。New API 的成熟度更高，社区更大。</p>
+    </div>
+
+    <h2>🤔 怎么选？</h2>
+
+    <div class="summary-box">
+        <h3>选 Sub2API 如果你：</h3>
+        <ul style="margin-left: 1.2rem; margin-top: 0.5rem;">
+            <li>有 Claude Pro / Max 订阅，想跟团队共享额度</li>
+            <li>想用 OAuth 账号而非 API Key 接入</li>
+            <li>核心需求是"订阅拼车"，降低人均成本</li>
+            <li>重度使用 Claude Code 等需要会话粘滞的工具</li>
+        </ul>
+    </div>
+
+    <div class="summary-box">
+        <h3>选 New API 如果你：</h3>
+        <ul style="margin-left: 1.2rem; margin-top: 0.5rem;">
+            <li>需要统一管理多家模型商的 API Key</li>
+            <li>团队/企业需要一个标准化的 AI API 网关</li>
+            <li>需要精细的 Token 计费和成本核算</li>
+            <li>希望部署尽可能简单，一个 Docker 搞定</li>
+            <li>需要支持多种 API 输出格式</li>
+        </ul>
+    </div>
+
+    <h2>💡 能一起用吗？</h2>
+    <p><strong>可以，而且是最佳实践。</strong></p>
+    <p>Sub2API 在前面做订阅账号接入 → 输出 OpenAI 兼容 API → 接入 New API 作为后端模型源之一。这样你既有了 OAuth 订阅的拼车能力，又有了 New API 的多模型聚合和管理能力。</p>
+
+    <div class="feature-list" style="margin-top: 2rem;">
+        <span class="feature-tag b">OpenAI 兼容</span>
+        <span class="feature-tag b">Docker 部署</span>
+        <span class="feature-tag b">Token 计费</span>
+        <span class="feature-tag s">OAuth 接入</span>
+        <span class="feature-tag s">订阅拼车</span>
+        <span class="feature-tag s">Sticky Session</span>
+        <span class="feature-tag n">20+ 模型商</span>
+        <span class="feature-tag n">三格式兼容</span>
+        <span class="feature-tag n">缓存计费</span>
+    </div>
+
+    <p style="margin-top: 2rem;"><small>参考：<a href="https://github.com/Wei-Shaw/sub2api" target="_blank">Sub2API</a> · <a href="https://github.com/QuantumNous/new-api" target="_blank">New API</a></small></p>
+
+    <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+</body>
+</html>
