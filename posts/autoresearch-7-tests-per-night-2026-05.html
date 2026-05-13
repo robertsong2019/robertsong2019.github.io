@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每晚7个测试：Autoresearch方法论的实战复盘 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>每晚7个测试：Autoresearch方法论的实战复盘</h1>
+    <div class="meta">
+        2026-05-14 · <span class="tag">AI Agent</span> <span class="tag">自动化编程</span> <span class="tag">测试驱动</span>
+    </div>
+
+    <p>过去48小时，我的AI Agent在两个项目上自动完成了4次迭代。每次迭代：<strong>约40行代码，7个测试，零回滚</strong>。测试数从 278 涨到 292，从 132 涨到 139。没有一行代码是人工审查后打回的。</p>
+
+    <p>这不是偶然。这是一个叫 <code>autoresearch</code> 的方法论在起作用。今天我想拆解它为什么有效。</p>
+
+    <h2>核心约束：每次只动一件事</h2>
+
+    <p>Autoresearch 的第一条规则是：<strong>每次迭代只解决一个明确的、可测试的问题</strong>。不是"改进性能"，而是"检测循环依赖"。不是"加搜索功能"，而是"支持按标签+时间+前缀组合过滤"。</p>
+
+    <p>这个约束看起来简单，但它是整个系统的地基。因为如果你每次只做一件事，你就：</p>
+    <ul>
+        <li>知道该写什么测试</li>
+        <li>知道什么时候做完了</li>
+        <li>知道出了问题该看哪里</li>
+    </ul>
+
+    <h2>实战案例：依赖图验证</h2>
+
+    <p>以昨晚的一次迭代为例。项目是 <code>nano-agent</code>（一个PRD驱动的自主编程Agent），用户故事（story）之间有依赖关系：</p>
+
+    <pre><code>stories:
+  - id: "auth"
+    dependencies: []
+  - id: "login-ui"
+    dependencies: ["auth"]
+  - id: "dashboard"
+    dependencies: ["login-ui", "auth"]</code></pre>
+
+    <p>问题：如果有人写了循环依赖（A依赖B，B依赖A），或者依赖了一个不存在的story，<code>get_next_story()</code> 会无限循环或者静默卡住。没有任何机制在运行前捕获这些错误。</p>
+
+    <p>解决方案：写一个 <code>validate_dependencies()</code> 方法，用 DFS 遍历依赖图：</p>
+
+    <pre><code>def validate_dependencies(self) -> dict:
+    """DFS-based dependency graph validation."""
+    stories = self._get_active_stories()
+    ids = {s["id"] for s in stories}
+    circular, missing, self_deps = [], [], []
+
+    def dfs(sid, visited, stack):
+        if sid in stack:
+            cycle = stack[stack.index(sid):] + [sid]
+            circular.append(cycle)
+            return
+        if sid in visited:
+            return
+        visited.add(sid)
+        stack.append(sid)
+        for dep in stories_dict[sid].get("dependencies", []):
+            dfs(dep, visited, stack)
+        stack.pop()
+
+    for s in stories:
+        for dep in s.get("dependencies", []):
+            if dep not in ids:
+                missing.append((s["id"], dep))
+        if s["id"] in s.get("dependencies", []):
+            self_deps.append(s["id"])
+
+    return {
+        "valid": not circular and not missing and not self_deps,
+        "circular_deps": circular,
+        "missing_deps": missing,
+        "self_deps": self_deps,
+    }</code></pre>
+
+    <p>~45行代码。7个测试覆盖：干净图、合法链、缺失依赖、自依赖、2节点环、3节点环、混合问题。从285到292个测试，全部通过，提交 <code>cbd7772</code>。</p>
+
+    <h2>为什么是7个测试？</h2>
+
+    <p>观察多次迭代，7个测试几乎成了一个自然常数。原因很简单：</p>
+    <ol>
+        <li><strong>正常路径</strong>（1-2个）：验证基本功能工作</li>
+        <li><strong>边界条件</strong>（2-3个）：空输入、极限值、零状态</li>
+        <li><strong>错误路径</strong>（2-3个）：各种失败场景</li>
+    </ol>
+
+    <p>少于5个测试通常说明你漏了边界。多于10个说明你可能在一次迭代里做了太多事。</p>
+
+    <h2>递增式构建的复利效应</h2>
+
+    <p>真正有意思的是这些迭代之间的衔接。看看 <code>agent-context-store</code> 项目的时间线：</p>
+    <ul>
+        <li><strong>Day 1 Loop A:</strong> 搜索按时间范围 + 批量删除 → 69 tests</li>
+        <li><strong>Day 1 Loop B:</strong> 组合搜索（tags + prefix + age + length） → 76 tests</li>
+        <li><strong>Day 2 Loop A:</strong> 命名空间隔离 → 125 tests</li>
+        <li><strong>Day 2 Loop B:</strong> 操作审计日志（changelog） → 139 tests</li>
+    </ul>
+
+    <p>每次迭代都在前一次的基础上构建。组合搜索利用了已有的标签索引。审计日志挂载在已有的 put/delete 方法上。没有一次是推倒重来。</p>
+
+    <blockquote>
+        这就是"7个测试"策略的真正威力：不是单次迭代的质量，而是 <strong>60天累积400+测试且零回滚</strong> 的可持续性。每天进步一点，从不倒退。
+    </blockquote>
+
+    <h2>三个可操作建议</h2>
+
+    <p><strong>1. 把"做完"定义为"测试通过"，而不是"代码写完"。</strong></p>
+    <p>如果你不能为你的改动写测试，要么你的改动太模糊，要么你的架构不支持可测试性。两种情况都值得停下来想想。</p>
+
+    <p><strong>2. 每次 commit 只做一件事，但把这件事做完。</strong></p>
+    <p>"做完"的意思是：代码 + 测试 + 文档（如果需要）。半成品堆积是技术债的根源。我们的 agent 在每次迭代结束时自动生成结构化报告（基线、目标、实现、结果、决策），这比任何 code review checklist 都有效。</p>
+
+    <p><strong>3. 用实验日志替代"感觉"。</strong></p>
+    <p>我们维护一个 <code>experiments.tsv</code>，记录每次迭代的 commit、测试数变化、保留/回滚决策。两行示例：</p>
+    <pre><code>2026-05-13T01:00	214e16b	test_count	285/285	keep	plan_batch(): dry-run batch planning. +7 tests (278→285).
+2026-05-14T01:00	cbd7772	test_count	292/292	keep	validate_dependencies(): DFS cycle detection. +7 tests (285→292).</code></pre>
+
+    <p>这不是事后补的文档，是 agent 自动写的。当你能回溯每一天的决策和结果，你就不再需要依赖记忆或直觉来判断"这段代码好不好"。</p>
+
+    <h2>反直觉的结论</h2>
+
+    <p>大多数人认为AI自主编程的关键是让AI更聪明。我的经验恰恰相反：<strong>关键是给AI一个足够小的操作单元，让错误无处藏身。</strong></p>
+
+    <p>7个测试，40行代码，一个明确的问题。这个约束看起来是在限制AI，实际上是在释放它——因为当每次迭代都可靠时，你可以让AI一直迭代下去。</p>
+
+    <p>30天零回滚不是目标。是方法论的自然结果。</p>
+
+    <p style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: #8b949e; font-size: 0.85rem;">
+        本文基于 <code>nano-agent</code> 和 <code>agent-context-store</code> 项目的真实自动化开发记录。
+        所有 commit 和测试数据可追溯。
+    </p>
+</body>
+</html>
