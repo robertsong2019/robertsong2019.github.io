@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 记忆为什么需要版本历史和命名空间？ | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--heading); font-size: 1.3rem; margin: 2rem 0 0.8rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+        h3 { color: var(--accent); font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code { background: #1f2937; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', Consolas, monospace; }
+        pre { background: #1f2937; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; font-size: 0.85rem; line-height: 1.6; }
+        pre code { background: none; padding: 0; }
+        .highlight { color: #79c0ff; }
+        .comment { color: #8b949e; }
+        .keyword { color: #ff7b72; }
+        .string { color: #a5d6ff; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        .callout { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+        .callout-title { color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
+        .back-link { display: inline-block; margin-top: 2rem; color: #8b949e; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <h1>Agent 记忆为什么需要版本历史和命名空间？</h1>
+    <div class="meta">
+        📅 2026-05-15 &nbsp;|&nbsp; 🏷️ AI Agent · 记忆系统 · Autoresearch &nbsp;|&nbsp; ⏱️ 8 分钟
+    </div>
+
+    <p>
+        在构建 Agent 记忆系统时，大多数人会卡在一个直觉上：<code>put(key, value)</code> 不就够了吗？存进去、取出来，完事。
+    </p>
+    <p>
+        但当你的 Agent 开始<strong>持续运行</strong>——不是一次性对话，而是数周甚至数月不断学习、更新、协作——你会发现两个被忽视的致命问题：
+    </p>
+    <ol>
+        <li><strong>覆盖即丢失</strong>：Agent 更新了一条记忆，旧值永久消失。如果更新是错的呢？没有撤销键。</li>
+        <li><strong>共享即碰撞</strong>：多个 Agent 用同一个存储，key 冲突只是时间问题。Agent A 写 <code>task:status</code>，Agent B 也写 <code>task:status</code>，互相覆盖。</li>
+    </ol>
+    <p>
+        本文记录我在 <code>agent-context-store</code> 项目中如何用两个极简设计解决这两个问题，以及背后的思考过程。
+    </p>
+
+    <h2>问题一：put() 的静默覆盖</h2>
+
+    <p>
+        我的 <code>ContextStore</code> 最初的 <code>put()</code> 长这样：
+    </p>
+
+<pre><code><span class="keyword">def</span> <span class="highlight">put</span>(self, key, content, tags=None):
+    <span class="keyword">if</span> key <span class="keyword">in</span> self._data:
+        self._data[key].content = content  <span class="comment"># 旧值？没了。</span>
+    <span class="keyword">else</span>:
+        self._data[key] = Entry(content, tags)
+</code></pre>
+
+    <p>
+        当 Agent 在运行中不断修正自己的记忆——比如把 "用户喜欢 Python" 更新为 "用户喜欢 TypeScript，之前说错了"——这条更新本身是有价值的。但旧值被静默丢弃了。
+    </p>
+    <p>
+        你可能会说："加个 changelog 不就行了？" 我确实加了。Changelog 记录了 <em>什么时间改了什么 key</em>，但没记录 <em>改之前是什么</em>。就像 Git 的 log 只显示 commit message 但没有 diff——有用，但不够。
+    </p>
+
+    <h3>版本历史的极简实现</h3>
+
+    <p>
+        核心思路：<strong>在每次 mutation 之前，把当前状态快照到版本列表</strong>。不是持久化每次读取，不是记录完整的 diff 算法，就是一个 append-only list：
+    </p>
+
+<pre><code><span class="keyword">def</span> <span class="highlight">put</span>(self, key, content, tags=None):
+    <span class="keyword">if</span> key <span class="keyword">in</span> self._data:
+        e = self._data[key]
+        <span class="comment"># 变更前，保存快照</span>
+        self._versions.setdefault(key, []).append({
+            <span class="string">'content'</span>: e.content,
+            <span class="string">'tags'</span>: list(e.tags),
+            <span class="string">'updated_at'</span>: e.updated_at,
+            <span class="string">'saved_at'</span>: time.time()
+        })
+        e.content = content
+        e.updated_at = time.time()
+</code></pre>
+
+    <p>
+        然后暴露几个查询 API：
+    </p>
+
+<pre><code><span class="comment"># 查看某个 key 的全部历史版本</span>
+history = store.get_history(<span class="string">"user:preference"</span>)
+
+<span class="comment"># 回滚到 2 个版本之前</span>
+store.rollback(<span class="string">"user:preference"</span>, steps=<span class="highlight">2</span>)
+
+<span class="comment"># 比较第 0 版和第 3 版的差异</span>
+diff = store.diff_versions(<span class="string">"user:preference"</span>, v1=<span class="highlight">0</span>, v2=<span class="highlight">3</span>)
+<span class="comment"># => {'content_equal': False, 'length_diff': 42,</span>
+<span class="comment">#     'tags_added': ['typescript'], 'tags_removed': ['python']}</span>
+</code></pre>
+
+    <p>
+        <code>diff_versions()</code> 不做逐行 diff（那样会引入依赖且场景有限），而是比较内容是否相同、长度差异、标签增删、时间跨度。这些信息对 Agent 来说已经足够判断"这两个版本之间发生了什么级别的变化"。
+    </p>
+
+    <div class="callout">
+        <div class="callout-title">💡 设计决策：为什么不在 create 时也存版本？</div>
+        <p>
+            因为 create 是"从无到有"，没有"之前是什么"的问题。只有 update 才会产生信息丢失。这个区分让版本列表只存有意义的数据，避免零号版本全是空的占位。
+        </p>
+    </div>
+
+    <h2>问题二：多 Agent 共享存储的命名碰撞</h2>
+
+    <p>
+        当你有一个 <code>ContextStore</code> 实例被多个 Agent 共享时，场景是这样的：
+    </p>
+
+<pre><code>store = ContextStore()
+agent_a.use(store)  <span class="comment"># Agent A 写入 task:status = "in_progress"</span>
+agent_b.use(store)  <span class="comment"># Agent B 写入 task:status = "blocked"</span>
+<span class="comment"># Agent A 读取 task:status → "blocked" 💥</span>
+</code></pre>
+
+    <p>
+        最常见的解法是给 key 加前缀（<code>agent_a:task:status</code>），但这把隔离责任推给了调用方——每个 Agent 的代码都要记得加前缀，漏了就炸。
+    </p>
+
+    <h3>命名空间：零成本的隔离</h3>
+
+    <p>
+        我的方案是让 <code>namespace()</code> 返回一个全新的、独立的 <code>ContextStore</code> 实例：
+    </p>
+
+<pre><code><span class="keyword">def</span> <span class="highlight">namespace</span>(self, name: str) -> <span class="string">'ContextStore'</span>:
+    <span class="keyword">if</span> name <span class="keyword">not in</span> self._namespaces:
+        ns = ContextStore()  <span class="comment"># 全新实例，不共享任何数据</span>
+        self._namespaces[name] = ns
+    <span class="keyword">return</span> self._namespaces[name]
+</code></pre>
+
+    <p>
+        使用方式：
+    </p>
+
+<pre><code>store = ContextStore()
+
+<span class="comment"># 每个 Agent 拿到自己的独立存储</span>
+researcher = store.namespace(<span class="string">"researcher"</span>)
+writer = store.namespace(<span class="string">"writer"</span>)
+
+researcher.put(<span class="string">"task:status"</span>, <span class="string">"searching"</span>)
+writer.put(<span class="string">"task:status"</span>, <span class="string">"drafting"</span>)
+
+<span class="comment"># 互不干扰</span>
+<span class="keyword">assert</span> researcher.get(<span class="string">"task:status"</span>).content == <span class="string">"searching"</span>
+<span class="keyword">assert</span> writer.get(<span class="string">"task:status"</span>).content == <span class="string">"drafting"</span>
+</code></pre>
+
+    <p>
+        关键决策：<strong>命名空间之间不共享任何数据，包括父 store</strong>。这不是继承体系，而是租户隔离。你不需要知道其他 namespace 里有什么，也不应该能访问。
+    </p>
+
+    <p>
+        管理接口也很简单：
+    </p>
+
+<pre><code>store.list_namespaces()     <span class="comment"># ['researcher', 'writer']</span>
+store.namespace_size(<span class="string">"researcher"</span>)  <span class="comment"># 5</span>
+store.drop_namespace(<span class="string">"researcher"</span>)  <span class="comment"># 清理，True if existed</span>
+</code></pre>
+
+    <h2>两个设计的共同哲学</h2>
+
+    <p>
+        回顾这两个功能，它们共享几个设计原则：
+    </p>
+
+    <h3>1. 零外部依赖</h3>
+    <p>
+        版本历史用 list + dict，命名空间用 dict + 新实例。没有引入任何库。这不是"拒绝依赖"的教条，而是因为问题本身就足够简单——简单到标准库完全够用。当你发现需要引入 <code>deepdiff</code> 或 <code>redis</code> 才能解决"记住旧值"或"隔离存储"这种问题时，大概率是过度设计了。
+    </p>
+
+    <h3>2. 只在 mutation 时付出成本</h3>
+    <p>
+        版本快照只在 <code>put()</code> 的 update 路径触发，create 不存。命名空间只在 <code>namespace()</code> 被调用时才创建。读取操作零额外开销。这意味着如果你不用这些功能，你完全不付任何代价。
+    </p>
+
+    <h3>3. additive 而非 breaking</h3>
+    <p>
+        两个功能都是在不修改任何已有 API 签名的前提下添加的。<code>_versions</code> 和 <code>_namespaces</code> 是新的内部字段，不影响已有的 <code>put/get/delete</code> 行为。所有 159 个测试中，前 145 个完全不需要修改。
+    </p>
+
+    <h2>Autoresearch 的实验节奏</h2>
+
+    <p>
+        这两个功能是 Autoresearch 方法论的一次完整循环。在 <code>agent-context-store</code> 这个项目上，从 69 个测试起步，经历了这样的节奏：
+    </p>
+
+<pre><code>Day 1: 搜索 + 批量删除              69 → 76  (+7)
+Day 2: 采样 + 统计 + diff             76 → 106 (+30)
+Day 2: 内容操作 + 清理               106 → 124 (+18)
+Day 2: 导入导出 + 合并               124 → 132 (+8)
+Day 2: 分组 + 摘要 + 标签云          132 → 132 (refactor)
+Day 3: Changelog 审计                132 → 139 (+7)
+Day 3: 批量重命名 + 交集 + 统计      139 → 145 (+6)
+Day 4: 版本历史                      145 → 153 (+8)  ← 今天
+Day 4: 命名空间                      153 → 159 (+6)  ← 今天
+</code></pre>
+
+    <p>
+        注意 Day 2 的爆发（+56 个测试）。那不是因为那天特别高产，而是因为<strong>基础 CRUD 已经稳定，之上可以快速组合出高层功能</strong>。这跟产品开发的规律一样：基础设施做对了，上层功能指数级加速。
+    </p>
+
+    <div class="callout">
+        <div class="callout-title">🎯 可操作建议</div>
+        <ul>
+            <li><strong>如果你的 Agent 有记忆</strong>：检查你的 <code>put()</code> 是否静默覆盖。如果是，加一个版本快照。5 行代码，不引入任何依赖。</li>
+            <li><strong>如果你有多个 Agent</strong>：不要用 key 前缀做隔离。用命名空间（或等价的独立实例）。前缀是约定，命名空间是保证。</li>
+            <li><strong>如果你在做持续集成</strong>：测试数量是一个很好的进度指标。不是追求覆盖率数字，而是每个新功能都有对应的测试证明它工作。</li>
+        </ul>
+    </div>
+
+    <blockquote>
+        Changelog 告诉你"发生了什么"，版本历史告诉你"之前是什么"。两者组合才是完整的审计链。对于会自己修改自己记忆的 Agent，这是不可省略的基础设施。
+    </blockquote>
+
+    <a href="/" class="back-link">← 返回首页</a>
+</body>
+</html>
