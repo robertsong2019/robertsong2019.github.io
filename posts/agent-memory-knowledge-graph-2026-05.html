@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>从字典到知识图谱：AI Agent 记忆系统的进化路径 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>从字典到知识图谱：AI Agent 记忆系统的进化路径</h1>
+    <div class="meta">
+        2026-05-16 · <span class="tag">AI Agent</span> <span class="tag">记忆系统</span> <span class="tag">知识图谱</span>
+    </div>
+
+    <p>大多数 AI Agent 的记忆系统就是一个 <code>dict</code>——存进去，取出来，完事。这在单次对话里够用，但当你需要 agent 记住跨会话的知识、理解条目之间的关系、或者让多个 agent 协作时，字典就不够了。过去几周我在 <code>agent-context-store</code> 项目上的实验，走出了一条清晰的进化路径：从扁平字典到带标签的存储，再到命名空间隔离，最后到类型化交叉引用的知识图谱。这条路径每一步都是自然生长的，不是过度设计。</p>
+
+    <h2>起点：为什么扁平字典不够</h2>
+
+    <p>最早的 ContextStore 本质上是一个持久化的字典：</p>
+
+    <pre><code>store = ContextStore("./data")
+store.put("task:001", {"status": "done", "result": "..."})
+item = store.get("task:001")</code></pre>
+
+    <p>它工作得很好——直到你需要回答这些问题：</p>
+    <ul>
+        <li>"哪些条目和 <code>task:001</code> 相关？"</li>
+        <li>"agent A 和 agent B 的数据能隔离吗？"</li>
+        <li>"上次 checkpoint 到现在，哪些任务完成了？"</li>
+    </ul>
+
+    <p>这些都是真实的多 agent 场景中遇到的问题。标签（tags）解决了分类问题，但不能表达 <em>关系</em>。"A 依赖 B"和"A 和 B 有相同标签"是截然不同的语义。</p>
+
+    <h2>第一步：命名空间——多 Agent 隔离</h2>
+
+    <p>最直觉的需求：多个 agent 共享一个 store 时，数据会互相污染。</p>
+
+    <pre><code># 没有 namespace：agent 之间 key 冲突
+store.put("latest_task", agent_a_data)  # 被 B 覆盖！
+
+# 有 namespace：天然隔离
+store_a = store.namespace("agent_a")
+store_b = store.namespace("agent_b")
+store_a.put("latest_task", data_a)  # 互不干扰</code></pre>
+
+    <p>实现极其简单——懒创建子 ContextStore，存在一个 <code>_namespaces</code> 字典里。约 25 行代码，6 个新测试，零外部依赖。关键是<strong>完全隔离</strong>：命名空间之间、命名空间与父 store 之间，共享零数据。</p>
+
+    <p>这带来一个重要的设计洞察：<strong>隔离不需要独立的实例</strong>。一个 <code>namespace()</code> 调用就够了。比给每个 agent 创建独立 ContextStore 实例简单得多，同时保持了隔离性。</p>
+
+    <h2>第二步：类型化交叉引用——从存储到图谱</h2>
+
+    <p>命名空间解决了"谁的数据"的问题，但没有解决"数据之间有什么关系"的问题。这是从存储到知识图谱的关键跳跃。</p>
+
+    <pre><code># 建立关系
+store.add_xref("auth:module", "user:model", "depends_on")
+store.add_xref("auth:module", "session:handler", "depends_on")
+store.add_xref("user:model", "auth:module", "used_by")
+
+# 查询：auth 模块依赖什么？
+store.get_xrefs("auth:module", direction="out")
+# → [{key: "user:model", rel: "depends_on"},
+#    {key: "session:handler", rel: "depends_on"}]
+
+# 反向查询：谁依赖 user:model？
+store.get_xrefs("user:model", direction="in")
+# → [{key: "auth:module", rel: "depends_on"}]
+
+# 图遍历：从 auth 出发，两跳内能到达哪些节点？
+store.xref_neighbors("auth:module", max_depth=2)
+# → {1: ["user:model", "session:handler"],
+#    2: ["db:pool"]}</code></pre>
+
+    <p>核心数据结构只有两个：<code>_xrefs</code>（正向引用）和 <code>_xrefs_bwd</code>（反向引用）。每个引用是 <code>{target, rel}</code> 的字典。<code>xref_neighbors</code> 用 BFS 做多跳遍历。</p>
+
+    <p>为什么不用现成的图数据库？因为 <strong>agent 的记忆不需要 Neo4j</strong>。一个 agent 的上下文条目通常在几百到几千条，关系在几十到几百条。用两个字典 + BFS 就能覆盖所有查询场景，零运维成本。图数据库是当你的图有百万节点时的选择，不是起步时该考虑的。</p>
+
+    <h2>第三步：Checkpoint Diff——给 Agent 装上进度条</h2>
+
+    <p>有了数据存储和关系图谱，下一个问题是：<strong>agent 怎么知道自己做了多少？</strong></p>
+
+    <pre><code># 保存两个时间点的快照
+cp_morning = orchestrator.save_checkpoint()
+# ... agent 跑了一整天 ...
+cp_evening = orchestrator.save_checkpoint()
+
+# 对比
+diff = RalphOrchestrator.checkpoint_diff(cp_morning, cp_evening)
+print(diff["stories_added"])      # 新完成了哪些 story
+print(diff["elapsed_iterations"]) # 跑了多少轮
+print(diff["numeric_changes"])    # 各项指标的变化</code></pre>
+
+    <p>这是一个静态方法，不依赖任何实例状态。它的输入就是两个普通的字典（checkpoint 序列化后的 JSON），输出是结构化的差异报告。约 35 行实现，7 个测试。</p>
+
+    <p>这个功能打开了一个有趣的可能性：agent 可以基于 diff 生成每日工作报告。"今天完成了 3 个 story，新增了 5 个依赖关系，上下文条目从 47 增长到 63。"——不需要人工写日志，数据就在那里。</p>
+
+    <h2>进化路径的三个原则</h2>
+
+    <p>回顾这几周的实验，我总结出三条原则：</p>
+
+    <p><strong>1. 等痛点出现再加功能。</strong>命名空间是在多 agent 协作时 key 冲突了才加的。交叉引用是在需要回答"A 依赖什么"时才加的。没有一个功能是"觉得以后可能有用"而提前设计的。</p>
+
+    <p><strong>2. 用最简数据结构解决问题。</strong>命名空间就是一个嵌套字典。交叉引用就是两个平行的字典 + BFS。没有引入任何外部依赖。当你能用 <code>dict[str, list[dict]]</code> 解决问题时，不要上 graph database。</p>
+
+    <p><strong>3. 每步都是增量，不是重写。</strong>从 153 个测试到 178 个测试，每一步都是加法。API 永远向后兼容。这让"零回滚"成为可能——不是纪律的胜利，是方法论的必然结果。</p>
+
+    <h2>下一步：记忆自动压缩</h2>
+
+    <p>有了知识图谱之后，最自然的下一步是<strong>自动压缩</strong>。当一个 agent 的上下文条目超过阈值时，系统可以自动合并相关条目（通过 xref 找到关联组），用 LLM 生成摘要，替换原始条目。这就是人类记忆的工作方式——细节淡去，关系留下。</p>
+
+    <p>这不是科幻。在当前架构上，实现路径很清晰：<code>xref_neighbors</code> 找关联组 → LLM 摘要 → 替换原始条目 → 保留 xref 关系。大概 50 行核心代码。</p>
+
+    <p>从字典到知识图谱，不是一次性的架构升级，而是一系列小而确定的步骤。每一步解决一个真实痛点，每一步都是 25-65 行代码。这就是 agent 基础设施应该有的进化节奏。</p>
+
+    <blockquote>
+        <p>项目：<code>agent-context-store</code> — 178/178 测试通过，零回滚<br>
+        相关：<code>better-ralph</code> orchestrator — 299/299 测试通过，含 checkpoint_diff</p>
+    </blockquote>
+</body>
+</html>
