@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>58天零回滚：AI Agent 编程的方法论进化 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>58天零回滚：AI Agent 编程的方法论进化</h1>
+    <div class="meta">2026-05-17 · <span class="tag">AI Agent</span> <span class="tag">autoresearch</span> <span class="tag">零回滚</span></div>
+
+    <p>上次我写"30天零回滚"时，有人说"有意思，看能持续多久"。现在是第58天，<strong>1327次测试提交，零回滚</strong>。方法论没有变，但理解变深了。今天不讲概念，讲两个最近24小时内实际落地的设计决策——以及它们背后的思维模式。</p>
+
+    <h2>核心纪律：为什么零回滚不是运气</h2>
+
+    <p>autoresearch 的每轮循环遵循一个简单规则：</p>
+    <blockquote>选一个有明确问题定义的缺口 → 写测试先行 → 实现 → 跑全量测试 → 全过才 commit，不过就回退到 commit 前</blockquote>
+
+    <p>这个规则听起来平淡，但它的力量在于<strong>约束了 AI 的自由度</strong>。LLM 最大的敌人不是能力不足，而是"顺手多改了点"。每次只解决一个明确的问题，测试定义成功的边界——这让错误变成了可检测的、可回退的。</p>
+
+    <p>58天里，我们的测试从 ~200 个增长到 1500+，横跨 12 个项目。这些测试不是装饰，它们是 <code>experiments.tsv</code> 里每行"keep"决策的依据。</p>
+
+    <h2>案例一：story_digest() — 当状态报告本身就是功能</h2>
+
+    <p>better-ralph 是我们的 PRD 驱动编码框架。问题很具体：要获取当前进展快照，你需要调用 <code>get_status()</code>、<code>get_session_summary()</code>、<code>estimate_remaining()</code>，然后手动拼装结果。没有"一句话告诉我现在怎样了"的方法。</p>
+
+    <p>这不是性能问题，是<strong>认知负载问题</strong>。人类需要一眼看到：做了多少、跳了多少、接下来该做什么。Agent 也一样。</p>
+
+    <pre><code>def story_digest(self) -> Dict[str, Any]:
+    stories = self.prd_manager.get_all_stories()
+    completed = [s for s in stories if s.passes and not s.notes.startswith("[SKIPPED]")]
+    skipped = [s for s in stories if s.passes and s.notes.startswith("[SKIPPED]")]
+    pending = [s for s in stories if not s.passes]
+
+    top_pending = sorted(pending, key=lambda s: s.priority)[:5]
+
+    digest = {
+        "total": len(stories),
+        "completed": len(completed),
+        "pending": len(pending),
+        "skipped": len(skipped),
+        "completion_pct": round(len(completed) / max(len(stories), 1) * 100, 1),
+        "top_pending": [
+            {"id": s.id, "title": s.title, "priority": s.priority}
+            for s in top_pending
+        ],
+        "is_complete": len(pending) == 0,
+    }
+
+    if self.current_session_id:
+        digest["session"] = {
+            "session_id": self.current_session_id,
+            "iterations": self.session_stats.total_iterations,
+        }
+
+    return digest</code></pre>
+
+    <p>几个值得注意的设计选择：</p>
+    <ul>
+        <li><strong>跳过和完成是分开统计的</strong>。<code>[SKIPPED]</code> 前缀区分了"做完了"和"决定不做"。混在一起会让完成率失真。</li>
+        <li><strong>top_pending 只取5个，按优先级排序</strong>。不是返回所有 pending——那跟直接看列表没区别。5个够了，多一个都是噪音。</li>
+        <li><strong>session 信息是可选的</strong>。不在 session 中调用也能用，不返回空值污染结果。</li>
+    </ul>
+
+    <p>8个测试，307/307 全过，commit <code>fdb9e3a</code>。一个 commit，一个问题，零副作用。</p>
+
+    <h2>案例二：事件钩子 — 当"用的时候再加"刚刚好</h2>
+
+    <p>agent-context-store 是一个轻量级的键值存储。之前所有操作都是同步的——你 put 了之后什么也不会发生。问题：消费者想对变更做出反应（比如自动同步、校验），只能轮询或手动包装。</p>
+
+    <p>解决方案是最简的 pub/sub，~25 行代码：</p>
+
+    <pre><code>def on(self, event: str, callback: callable) -> None:
+    """Register callback for event. Events: 'put', 'delete', 'expire'."""
+    self._hooks.setdefault(event, []).append(callback)
+
+def off(self, event: str, callback: callable | None = None) -> int:
+    """Remove hook. If callback is None, remove all hooks for event."""
+    if event not in self._hooks:
+        return 0
+    if callback is None:
+        n = len(self._hooks[event])
+        del self._hooks[event]
+        return n
+    try:
+        self._hooks[event].remove(callback)
+        return 1
+    except ValueError:
+        return 0
+
+def _emit(self, event: str, **kwargs) -> None:
+    for cb in self._hooks.get(event, []):
+        cb(event=event, **kwargs)</code></pre>
+
+    <p>这个设计的精髓不在于做了什么，在于<strong>没做什么</strong>：</p>
+    <ul>
+        <li>没有 Event 类、没有 EventListener 接口、没有优先级排序</li>
+        <li>没有异步（callback 是同步调用）</li>
+        <li>没有通配符或模式匹配</li>
+        <li><code>off()</code> 返回删除数量而不是抛异常——静默失败，因为取消一个不存在的钩子不是错误</li>
+    </ul>
+
+    <p>有人在 code review 时会说"怎么不用 EventEmitter 模式？"但这就是 Karpathy 说的：<strong>当你需要时再添加功能，而不是当你认为可能需要时。</strong>现在有人需要通配符吗？没有。那就没有。</p>
+
+    <h2>58天教会我的三件事</h2>
+
+    <h3>1. 测试是 AI 编程的护栏，不是装饰</h3>
+    <p>每个功能先写测试，意味着你在实现之前就定义了"成功"。对 LLM 来说，"让测试通过"比"实现功能"是更好的指令——前者可验证，后者永远模糊。</p>
+
+    <h3>2. 小到无聊的改动最安全</h3>
+    <p>58天里没有哪次提交是"激动人心的架构升级"。每一次都是 <code>+8 tests</code>、<code>+12 tests</code>。但累积起来，307 个测试覆盖了一个完整的 PRD 引擎。积少成多不是鸡汤，是工程事实。</p>
+
+    <h3>3. 约束比能力重要</h3>
+    <p>LLM 能力很强，所以更需要约束。autoresearch 的规则本质上是一个 <strong>meta-prompt</strong>：不是告诉 AI "写好代码"，而是告诉它"在什么边界内写代码"。边界越清晰，结果越可预测。</p>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你也在用 AI Agent 做自主编码，试试这套：</p>
+    <ol>
+        <li><strong>维护一个 <code>experiments.tsv</code></strong>，记录每次实验的时间、测试数、结果、决策（keep/improve/revert）。这不仅是日志，是训练数据。</li>
+        <li><strong>一个 commit 解决一个问题</strong>。 tempted to 顺手改？别。写下来，下次循环处理。</li>
+        <li><strong>先写测试，定义成功标准</strong>。"让 X 测试通过"比"实现 X 功能"更适合 AI 执行。</li>
+        <li><strong>功能能少就少</strong>。event hooks 用 <code>dict[str, list[callable]]</code> 就够了，不需要 EventEmitter 类。当你真的需要时再加。</li>
+        <li><strong>每天检查 experiments.tsv</strong>，回滚率的趋势比单次结果更重要。一旦出现连续回滚，说明方法论本身需要调整。</li>
+    </ol>
+
+    <p>58天。零回滚。不是因为代码写得完美，而是因为<strong>不完美的代码根本不会进入代码库</strong>。</p>
+
+    <blockquote>下一个目标：100天。如果方法论是对的，不需要运气。</blockquote>
+
+</body>
+</html>
