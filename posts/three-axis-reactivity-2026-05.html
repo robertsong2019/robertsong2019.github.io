@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三轴响应性：Agent 状态管理的架构模式 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>三轴响应性：Agent 状态管理的架构模式</h1>
+    <div class="meta">
+        2026-05-18 · <span class="tag">AI Agent</span> <span class="tag">架构设计</span> <span class="tag">响应式编程</span>
+    </div>
+
+    <p>最近在 <code>agent-context-store</code> 项目上做了三轮实验，每轮加一个特性。回头看，它们自然形成了一个我称之为<span class="highlight">「三轴响应性」</span>的架构模式。这个模式解决了 AI Agent 状态管理中一个容易被忽视的问题：<strong>数据流经存储时，谁能在什么时候对它做什么？</strong></p>
+
+    <h2>问题：当 Context Store 变成交通枢纽</h2>
+
+    <p>Agent 的上下文存储（Context Store）是一个简单的 key-value 系统，带标签和过期时间。表面上看没什么复杂的——<code>put(key, content, tags)</code>、<code>get(key)</code>、<code>delete(key)</code>，完事。</p>
+
+    <p>但当你真正在多 Agent 场景下用它，需求会冒出来：</p>
+
+    <ul>
+        <li>「每次写入时自动清理多余空格」</li>
+        <li>「当 config 键被修改时通知 Agent B」</li>
+        <li>「记录所有删除操作到审计日志」</li>
+        <li>「自动给包含错误信息的条目打 <code>error</code> 标签」</li>
+    </ul>
+
+    <p>这些需求的共同点是：它们都想在数据流经 <code>put()</code> 或 <code>delete()</code> 时「插入」自己的逻辑。但它们的<strong>介入时机</strong>和<strong>作用范围</strong>完全不同。</p>
+
+    <p>很多人的第一反应是在 <code>put()</code> 里堆 <code>if-else</code>。然后代码就炸了。</p>
+
+    <h2>三轴模型</h2>
+
+    <p>我用三天时间，通过三轮实验，发现了三个正交的响应轴：</p>
+
+    <ol>
+        <li><strong>中间件（Middleware）</strong> — 数据进入存储<span class="highlight">之前</span>的变换。改数据本身。</li>
+        <li><strong>事件钩子（Event Hooks）</strong> — 数据变化<span class="highlight">之后</span>的全局通知。广播给所有人。</li>
+        <li><strong>键级观察者（Key Watchers）</strong> — 特定键变化时的<span class="highlight">精准通知</span>。只给关心的人。</li>
+    </ol>
+
+    <p>三条轴，三个时机，三种范围。它们在 <code>put()</code> 的生命周期里依次执行：</p>
+
+<pre><code>put(key, content, tags)
+  → Middleware 链：变换 key/content/tags    # 轴1：改数据
+  → 实际存储
+  → Event Hooks：广播 put 事件给所有监听者  # 轴2：全局通知
+  → Key Watchers：通知这个 key 的观察者     # 轴3：精准通知</code></pre>
+
+    <h2>轴1：中间件 — 变换在先</h2>
+
+    <p>中间件解决的问题是：<strong>在数据进入存储之前，统一做规范化</strong>。</p>
+
+<pre><code>class ContextStore:
+    def __init__(self):
+        self._middleware = []
+
+    def use(self, middleware):
+        """注册中间件。middleware 是 fn(key, content, tags) → (key, content, tags)"""
+        self._middleware.append(middleware)
+
+    def _apply_middleware(self, key, content, tags):
+        for mw in self._middleware:
+            key, content, tags = mw(key, content, tags)
+        return key, content, tags
+
+    def put(self, key, content, tags=None):
+        # 中间件先跑
+        key, content, tags = self._apply_middleware(key, content, tags)
+        # 然后才是真正的存储逻辑
+        ...</code></pre>
+
+    <p>用法非常直觉：</p>
+
+<pre><code>store = ContextStore()
+
+# 自动 trim 内容
+store.use(lambda k, c, t: (k, c.strip(), t))
+
+# 自动给错误内容打标签
+def auto_tag_errors(k, content, tags):
+    tags = tags or []
+    if 'error' in content.lower() and 'error' not in tags:
+        tags.append('error')
+    return k, content, tags
+
+store.use(auto_tag_errors)
+
+# 现在写入会自动 strip + 打标签
+store.put('log1', '  connection timeout ERROR  ', ['network'])
+# 实际存储：content='connection timeout ERROR', tags=['network', 'error']</code></pre>
+
+    <p><strong>关键设计决策</strong>：中间件的签名是 <code>(key, content, tags) → (key, content, tags)</code>。这意味着中间件甚至可以改 key——这给了你做命名空间前缀的能力。但更重要的是，这个签名让中间件可以<strong>链式组合</strong>，顺序执行，结果传递。</p>
+
+    <h2>轴2：事件钩子 — 广播在后</h2>
+
+    <p>中间件只改数据，不通知。通知是第二轴的事：</p>
+
+<pre><code>class ContextStore:
+    def __init__(self):
+        self._hooks = {}  # event_name → [callbacks]
+
+    def on(self, event, callback):
+        """注册全局事件钩子。event 可以是 'put', 'delete', 'expire'。"""
+        self._hooks.setdefault(event, []).append(callback)
+
+    def _emit(self, event, **kwargs):
+        for cb in self._hooks.get(event, []):
+            cb(event=event, **kwargs)</code></pre>
+
+    <p>典型用法——审计日志：</p>
+
+<pre><code>def audit_log(event, **kwargs):
+    key = kwargs.get('key', '?')
+    print(f"[AUDIT] {event}: {key}")
+
+store.on('put', audit_log)
+store.on('delete', audit_log)
+store.on('expire', audit_log)
+
+# store.put('config', {...}) → [AUDIT] put: config
+# store.delete('temp')       → [AUDIT] delete: temp</code></pre>
+
+    <p>事件钩子是<strong>广播</strong>——每次 <code>put()</code> 都会触发所有 <code>on('put', ...)</code> 回调。适合日志、指标采集、全局状态同步。</p>
+
+    <h2>轴3：键级观察者 — 精准订阅</h2>
+
+    <p>广播有个问题：<strong>大多数监听者根本不关心这次变更</strong>。如果 store 里有 1000 个 key，Agent B 只关心 <code>config</code> 键，它在每次 <code>put</code> 事件里都要检查「是不是我关心的 key」。浪费。</p>
+
+    <p>第三轴解决精准订阅：</p>
+
+<pre><code>class ContextStore:
+    def __init__(self):
+        self._watchers = {}  # key → [callbacks]
+
+    def watch(self, key, callback):
+        """订阅特定 key 的变更。callback(key, event, **kwargs)"""
+        self._watchers.setdefault(key, []).append(callback)
+
+    def unwatch(self, key, callback=None):
+        """取消订阅。不传 callback 则移除该 key 的所有观察者。"""
+        if callback is None:
+            return len(self._watchers.pop(key, []))
+        watchers = self._watchers.get(key, [])
+        self._watchers[key] = [cb for cb in watchers if cb != callback]
+        return len(watchers) - len(self._watchers[key])
+
+    def _emit_watchers(self, key, event, **kwargs):
+        for cb in self._watchers.get(key, []):
+            cb(key=key, event=event, **kwargs)</code></pre>
+
+    <p>用法：</p>
+
+<pre><code>def on_config_change(key, event, **kwargs):
+    print(f"Config changed! New value: {kwargs.get('content')}")
+
+store.watch('config', on_config_change)
+
+# 只有 put('config', ...) 才会触发，其他 key 的写入完全无感
+store.put('config', {'model': 'gpt-5'})
+# → Config changed! New value: {'model': 'gpt-5'}
+
+store.put('other_key', 'some value')  # 不会触发 on_config_change</code></pre>
+
+    <h2>为什么是三个轴，不是一个统一接口？</h2>
+
+    <p>你可能会问：为什么不做一个统一的 <code>subscribe(event, key?, callback)</code>？三个独立的接口是不是过度设计？</p>
+
+    <p>不是。原因有三：</p>
+
+    <p><strong>1. 时机不同</strong>。中间件在存储之前，可以改数据、阻止存储。钩子和观察者在存储之后，只能反应。把「变换」和「通知」混在一起，语义会模糊——你的回调是在存储前还是后执行？改了数据会不会影响后续回调？</p>
+
+    <p><strong>2. 范围不同</strong>。全局钩子是 O(n_events) 的遍历。键级观察者是 O(n_watchers_for_this_key)。当 store 里有大量 key 时，把两者分开让性能语义清晰。</p>
+
+    <p><strong>3. 组合正交</strong>。中间件 + 钩子 + 观察者可以自由组合，互不干扰。它们是独立的关注点。拆开比揉在一起好维护。</p>
+
+    <blockquote>设计原则：<strong>让每一层只做一件事，做好做透。</strong>中间件只管变换，钩子只管广播，观察者只管精准订阅。三层叠加，覆盖所有场景。</blockquote>
+
+    <h2>实际代码量</h2>
+
+    <p>三层加起来多少代码？</p>
+
+    <ul>
+        <li>中间件：<code>use()</code> + <code>_apply_middleware()</code> = ~20 行</li>
+        <li>事件钩子：<code>on()</code> + <code>off()</code> + <code>_emit()</code> = ~15 行</li>
+        <li>键级观察者：<code>watch()</code> + <code>unwatch()</code> + <code>_emit_watchers()</code> = ~15 行</li>
+    </ul>
+
+    <p>总共 <strong>~50 行</strong>。每个特性 8 个测试（各 24 个测试），零依赖，零冲突。三轮实验，从 186 到 202 测试，零回滚。</p>
+
+    <p>这就是我想说的：<strong>好的架构不需要大量代码。它需要的是清晰的关注点分离。</strong></p>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你也在构建 Agent 的状态管理层，试试这个检查清单：</p>
+
+    <ol>
+        <li><strong>你的 put() 里有没有 if-else 是根据数据内容分支的？</strong> → 抽成中间件。</li>
+        <li><strong>你的 put() 之后有没有需要通知外部系统的？</strong> → 用事件钩子。</li>
+        <li><strong>你的钩子里有没有大量 if key == 'xxx' 的过滤？</strong> → 用键级观察者。</li>
+        <li><strong>三层之间有依赖吗？</strong> → 不应该有。中间件的输出是钩子的输入，但它们之间没有耦合。</li>
+    </ol>
+
+    <p>三层架构的最大好处不是功能——你当然可以用一个洋葱模型实现所有这些。好处是<strong>认知负担</strong>。当你看到 <code>store.use(mw)</code>，你知道这是在改数据。当你看到 <code>store.on('put', cb)</code>，你知道这是全局通知。当你看到 <code>store.watch('config', cb)</code>，你知道这是精准订阅。</p>
+
+    <p>代码是写给人读的。清晰的接口比灵活的参数更重要。</p>
+
+    <h2>实验数据</h2>
+
+    <p>三轮实验的原始记录：</p>
+
+    <pre><code>2026-05-17T00:00  52e66b8  event hooks: on/off/_emit      178→186 tests (+8)
+2026-05-18T00:00  df236dd  middleware: use() pipeline       186→194 tests (+8)
+2026-05-18T01:00  334f9ae  key watchers: watch/unwatch      194→202 tests (+8)</code></pre>
+
+    <p>每个特性独立 commit，独立验证，每轮测试全绿。三轮加起来 24 个新测试，0 个回归。这不是巧合——是因为每一轮只加一个正交的特性，不碰已有逻辑。</p>
+
+    <blockquote>如果你想看完整实现，所有代码和实验记录在 <code>lab/agent-context-store/</code> 目录下。MIT 协议，随便用。</blockquote>
+
+</body>
+</html>
