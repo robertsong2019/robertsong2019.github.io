@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 上下文存储的三层响应式设计：Hooks、Watchers 与 Middleware | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--heading); font-size: 1.3rem; margin: 2rem 0 0.8rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+        h3 { color: var(--accent); font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code { background: #1f2937; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', Consolas, monospace; }
+        pre { background: #1f2937; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; font-size: 0.85rem; line-height: 1.6; }
+        pre code { background: none; padding: 0; }
+        .highlight { color: #79c0ff; }
+        .comment { color: #8b949e; }
+        .keyword { color: #ff7b72; }
+        .string { color: #a5d6ff; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        .callout { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+        .callout-title { color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
+        .back-link { display: inline-block; margin-top: 2rem; color: #8b949e; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <a class="back-link" href="../index.html">← 返回首页</a>
+    <h1>Agent 上下文存储的三层响应式设计：Hooks、Watchers 与 Middleware</h1>
+    <p class="meta">2026-05-19 · agent-context-store · 从 186 到 223 个测试的演进</p>
+
+    <p>大多数 agent 框架把"记忆"当成一个简单的字典：存进去、取出来。但当 agent 开始在长时间运行的会话中维护状态——对话上下文、工具结果缓存、用户偏好——你会发现纯粹的 CRUD 远远不够。你需要的是<strong>响应式</strong>：当数据变化时，相关方要自动收到通知；当数据写入时，某些规则要自动执行。</p>
+
+    <p>在构建 <code>agent-context-store</code> 的过程中，我逐步演化出了三个正交的响应式机制：全局事件钩子（Hooks）、精确键监听（Watchers）、和写入前中间件（Middleware）。三者各管一面，组合起来覆盖了 agent 状态管理的绝大部分需求。这篇文章分享这套设计背后的思考过程和具体的实现代码。</p>
+
+    <h2>第一层：全局广播——Event Hooks</h2>
+
+    <p>最先出现的是事件钩子。动机很简单：我想在数据变化时做日志记录、触发通知、或者做级联更新。这些都是<strong>不关心具体是哪个 key 变了，只关心"有东西变了"</strong>的场景。</p>
+
+    <p>实现用了一个最朴素的事件映射：</p>
+
+    <pre><code><span class="comment"># _hooks: dict[str, list[callable]]</span>
+
+<span class="keyword">def</span> <span class="highlight">on</span>(self, event: str, callback: callable) -> None:
+    <span class="string">"""Register callback for event ('put', 'delete', 'expire')."""</span>
+    self._hooks.setdefault(event, []).append(callback)
+
+<span class="keyword">def</span> <span class="highlight">_emit</span>(self, event: str, **kwargs):
+    <span class="keyword">for</span> cb <span class="keyword">in</span> self._hooks.get(event, []):
+        cb(event=event, **kwargs)</code></pre>
+
+    <p>在 <code>put()</code> 里加一行 <code>self._emit("put", key=key, entry=entry)</code>，在 <code>delete()</code> 里加一行 <code>self._emit("delete", key=key)</code>——就这些。没有继承，没有装饰器，没有元类。三行代码给你一个完整的发布-订阅系统。</p>
+
+    <p>使用方式：</p>
+
+    <pre><code>store.on(<span class="string">"put"</span>, <span class="keyword">lambda</span> **kw: print(f<span class="string">"写入: {kw['key']}"</span>))
+store.on(<span class="string">"expire"</span>, cleanup_handler)
+
+store.put(<span class="string">"config"</span>, <span class="string">"v2"</span>)
+<span class="comment"># 输出: 写入: config</span></code></pre>
+
+    <h2>第二层：精确订阅——Key Watchers</h2>
+
+    <p>有了 hooks 之后，很快遇到了一个新场景：agent 需要监听某个特定的配置 key 变化来调整行为。用全局 hook 然后在回调里 <code>if key == "config"</code>？可以工作，但每个 key 的监听者都要过滤所有事件，这既浪费也不优雅。</p>
+
+    <blockquote>如果你发现自己在事件回调里写 if 过滤，说明你需要一个更精确的订阅原语。</blockquote>
+
+    <p>于是加了 <code>watch(key, callback)</code>——只订阅特定 key 的变化：</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">watch</span>(self, key: str, callback: callable) -> None:
+    <span class="string">"""Register per-key watcher. Fires on put/delete for this key only."""</span>
+    self._watchers.setdefault(key, []).append(callback)
+
+<span class="keyword">def</span> <span class="highlight">_emit_watchers</span>(self, key: str, event: str, **kwargs):
+    <span class="keyword">for</span> cb <span class="keyword">in</span> self._watchers.get(key, []):
+        cb(key=key, event=event, **kwargs)</code></pre>
+
+    <p>关键设计决策：<code>watch</code> 和 <code>on</code> 是<strong>完全独立</strong>的。它们不共享存储，不互相触发。这是刻意的——hooks 是全局广播通道，watchers 是精确订阅通道。你可以在同一个 store 上同时用两种模式，互不干扰。</p>
+
+    <pre><code><span class="comment"># 监听特定 key 的变化</span>
+store.watch(<span class="string">"user_preference"</span>, <span class="keyword">lambda</span> **kw: update_ui(kw[<span class="string">"key"</span>]))
+
+<span class="comment"># 也可以取消监听</span>
+removed = store.unwatch(<span class="string">"user_preference"</span>)
+<span class="comment"># removed = 被移除的 watcher 数量</span></code></pre>
+
+    <h2>第三层：写入变换——Middleware Pipeline</h2>
+
+    <p>hooks 和 watchers 都是"事后"响应——数据已经写入了，你再做反应。但有些场景需要"事前"干预：自动给 entry 打标签、对内容做清洗、或者强制给所有 key 加前缀做命名空间隔离。</p>
+
+    <p>Middleware 填补的就是这个空缺——在 <code>put()</code> 实际写入之前，对 key、content、tags 做变换：</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">use</span>(self, middleware: callable) -> None:
+    <span class="string">"""Register middleware. Called before put().
+    Signature: fn(key, content, tags) -> (key, content, tags)
+    """</span>
+    self._middleware.append(middleware)
+
+<span class="keyword">def</span> <span class="highlight">_apply_middleware</span>(self, key, content, tags):
+    <span class="keyword">for</span> mw <span class="keyword">in</span> self._middleware:
+        key, content, tags = mw(key, content, tags)
+    <span class="keyword">return</span> key, content, tags</code></pre>
+
+    <p>使用示例——自动打标签 + 内容清洗：</p>
+
+    <pre><code><span class="comment"># 自动给以 "cache:" 开头的 key 加 "ephemeral" 标签</span>
+<span class="keyword">def</span> <span class="highlight">auto_tag_cache</span>(key, content, tags):
+    <span class="keyword">if</span> key.startswith(<span class="string">"cache:"</span>):
+        tags = list(tags) + [<span class="string">"ephemeral"</span>]
+    <span class="keyword">return</span> key, content, tags
+
+<span class="comment"># 强制截断超长内容</span>
+<span class="keyword">def</span> <span class="highlight">truncate_content</span>(key, content, tags):
+    <span class="keyword">if</span> len(content) > 10000:
+        content = content[:10000] + <span class="string">"...[truncated]"</span>
+    <span class="keyword">return</span> key, content, tags
+
+store.use(auto_tag_cache)
+store.use(truncate_content)
+
+store.put(<span class="string">"cache:api_result"</span>, big_response)
+<span class="comment"># key 不变, content 被截断, tags 自动加了 "ephemeral"</span></code></pre>
+
+    <p>中间件按注册顺序依次执行，形成一个管道。每个中间件接收上一个的输出作为输入。这和 Express.js 的中间件模式是同一个思想，只不过作用域更小——只管写入前的变换。</p>
+
+    <h2>为什么是三层而不是一层？</h2>
+
+    <p>一个常见的问题是：为什么不把这三个功能合并成一个统一的事件系统？答案在于<strong>关注点分离</strong>：</p>
+
+    <ul>
+        <li><strong>Middleware（写入前）</strong>：变换数据。关心的是"数据应该长什么样"。</li>
+        <li><strong>Hooks（写入后，全局）</strong>：触发副作用。关心的是"发生了什么事"。</li>
+        <li><strong>Watchers（写入后，精确）</strong>：监听特定变化。关心的是"这个 key 变了没有"。</li>
+    </ul>
+
+    <p>把"写入前变换"和"写入后通知"混在一起，你会得到一个既复杂又脆弱的系统。AngularJS 的 digest cycle 就是前车之鉴——数据和响应混在一个循环里，debug 到怀疑人生。</p>
+
+    <p>三层设计的好处是每一层都可以独立测试。我的测试从 186 增长到 223（+37 个新测试），每一层新增测试时都完全不影响其他层：</p>
+
+    <pre><code><span class="comment"># Middleware 测试：验证变换管道</span>
+<span class="keyword">def</span> test_middleware_chain():
+    store.use(<span class="keyword">lambda</span> k, c, t: (k.upper(), c, t))
+    store.use(<span class="keyword">lambda</span> k, c, t: (k, c + <span class="string">"_suffix"</span>, t))
+    store.put(<span class="string">"hello"</span>, <span class="string">"world"</span>)
+    <span class="keyword">assert</span> store.get(<span class="string">"HELLO"</span>) == <span class="string">"world_suffix"</span>
+
+<span class="comment"># Watcher 测试：验证精确触发</span>
+<span class="keyword">def</span> test_watcher_fires_only_for_watched_key():
+    calls = []
+    store.watch(<span class="string">"target"</span>, <span class="keyword">lambda</span> **kw: calls.append(kw[<span class="string">"key"</span>]))
+    store.put(<span class="string">"target"</span>, <span class="string">"v1"</span>)
+    store.put(<span class="string">"other"</span>, <span class="string">"v2"</span>)
+    <span class="keyword">assert</span> calls == [<span class="string">"target"</span>]  <span class="comment"># 只触发了一次</span></code></pre>
+
+    <h2>实战组合：CAS + TTL + Reactivity</h2>
+
+    <p>这三个机制组合起来，可以构建出强大的 agent 状态管理模式。以最近加入的 CAS（Compare-And-Set）为例：</p>
+
+    <pre><code><span class="comment"># Agent 安全更新配置：只在内容匹配时才写入</span>
+current = store.get(<span class="string">"config"</span>)
+entry, updated = store.put_if_match(
+    <span class="string">"config"</span>,
+    expected=current,        <span class="comment"># 期望当前值</span>
+    new_content=<span class="string">"v3"</span>,       <span class="comment"># 新值</span>
+    ttl=3600                 <span class="comment"># 1小时过期</span>
+)
+
+<span class="keyword">if</span> updated:
+    <span class="comment"># CAS 成功 → hooks 和 watchers 自动触发</span>
+    <span class="comment"># 其他 agent 通过 watcher 收到通知</span>
+    <span class="keyword">pass</span>
+<span class="keyword">else</span>:
+    <span class="comment"># CAS 失败 → 其他 agent 先改了，需要重新读取</span>
+    current = store.get(<span class="string">"config"</span>)</code></pre>
+
+    <p>CAS 成功时，middleware 先执行（变换数据），然后 hooks 和 watchers 各自触发（通知相关方）。这个组合天然防止了 lost update 问题，同时保持了完整的响应式能力。</p>
+
+    <h2>可操作的建议</h2>
+
+    <ol>
+        <li><strong>先从 hooks 开始。</strong>如果你的 agent 只需要"数据变了做点事"，hooks 就够了。别过度设计。</li>
+        <li><strong>当你发现自己在 hook 回调里写 key 过滤时，加 watchers。</strong>这是自然的演进信号。</li>
+        <li><strong>当你需要自动变换写入数据时，加 middleware。</strong>但要注意顺序——中间件的注册顺序就是执行顺序。</li>
+        <li><strong>三者组合时，执行顺序是固定的：</strong>Middleware → 写入 → Hooks → Watchers。记住这个顺序，它和 HTTP 中间件的 "洋葱模型" 不同——这里没有"响应回来"的阶段。</li>
+        <li><strong>每个新机制先用测试验证独立性，再测组合。</strong>我在 37 个新测试中，只有最后几个是组合测试。</li>
+    </ol>
+
+    <div class="callout">
+        <div class="callout-title">💡 核心洞察</div>
+        Agent 状态管理不需要复杂的事件总线或响应式框架。三个朴素的原语——写入前变换、全局通知、精确订阅——覆盖了绝大多数场景。关键不是每个原语有多强大，而是它们之间的边界有多清晰。
+    </div>
+
+    <p>agent-context-store 的完整实现在 <a href="https://github.com/nicholaschenai/agent-context-store">GitHub</a> 上。223 个测试，零外部依赖，一个 Python 文件。简单的工具，如果边界划对了，可以解决复杂的问题。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
