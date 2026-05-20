@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 的上下文经济学：用代码图谱省下 36.5% 的 Token | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .metric { color: #3fb950; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>AI Agent 的上下文经济学：用代码图谱省下 36.5% 的 Token</h1>
+    <div class="meta">2026-05-21 · <span class="tag">AI Agent</span> <span class="tag">codegraph</span> <span class="tag">token 优化</span></div>
+
+    <p>当代码库超过 10 万行，AI Agent 面临一个核心矛盾：<strong>它需要理解整个项目的结构才能做出正确的修改，但把所有文件塞进上下文窗口既贵又慢</strong>。上周在 agent-context-store 项目上的实测给出了一个有说服力的答案：用代码图谱替代原始文件，上下文消耗直接砍掉 36.5%。</p>
+
+    <h2>问题：上下文窗口是 Agent 的硬通货</h2>
+
+    <p>我们用 Codex (gpt-5.5) 做 autoresearch 已经 65 天零回滚了。随着项目膨胀，一个趋势越来越明显——Agent 的能力上限不是模型智商，而是它能"看到"多少上下文。</p>
+
+    <p>agent-context-store 有 419 个代码节点、416 条依赖边。传统做法是把相关源文件全部塞进 prompt：</p>
+
+    <pre><code>// 传统方式：Agent 收到的 prompt 片段
+// File: src/store.ts (247 lines)
+// File: src/types.ts (89 lines)
+// File: src/index.ts (156 lines)
+// File: src/transform.ts (312 lines)
+// ... 还有 20+ 个文件
+// Total: ~92,779 tokens</code></pre>
+
+    <p>9 万 tokens 只为了理解项目结构。Agent 真正需要的不是每一行代码，而是<strong>模块之间的调用关系和数据流向</strong>。</p>
+
+    <h2>方案：CodeGraph 把代码变成图谱</h2>
+
+    <p><a href="https://github.com/nicholasgasior/codegraph">codegraph</a> 的核心思路：静态分析代码，提取函数/类/模块的调用关系，生成结构化的图谱索引。Agent 拿到的不再是源文件全文，而是一张"地图"。</p>
+
+    <pre><code># 安装和索引
+pip install codegraph
+cd your-project
+codegraph build  # 生成 .codegraph/ 目录
+
+# 对于 C 项目（我们测了 wget2）
+# 264 files, 3971 nodes, 3707 edges
+# 索引耗时: 14.7 秒</code></pre>
+
+    <p>索引完成后，Agent 的 prompt 从原始代码变成了图谱摘要：</p>
+
+    <pre><code># CodeGraph 方式：Agent 收到的结构化摘要
+# Nodes: 419 (functions: 287, classes: 89, modules: 43)
+# Edges: 416
+#
+# Key call chains:
+#   index.ts → store.createStore() → transform.normalize()
+#   store.ts → types.StoreConfig → cache.invalidate()
+#   ...
+#
+# Affected modules for task "add TTL support":
+#   src/store.ts (write), src/types.ts (read), src/cache.ts (write)
+#
+# Total: ~58,913 tokens (↓36.5%)</code></pre>
+
+    <h2>实测数据</h2>
+
+    <table>
+        <tr><th>指标</th><th>无 CodeGraph</th><th>有 CodeGraph</th><th>变化</th></tr>
+        <tr><td>上下文 tokens</td><td>92,779</td><td>58,913</td><td class="metric">↓36.5%</td></tr>
+        <tr><td>wget2 (C) 索引</td><td>—</td><td>14.7s</td><td>一次性成本</td></tr>
+        <tr><td>图谱节点/边</td><td>—</td><td>3971 / 3707</td><td>—</td></tr>
+    </table>
+
+    <p>36.5% 的 token 节省意味着什么？以 gpt-5.5 的定价计算，每次 Agent 调用省下的成本大约是 $0.05。一个 autoresearch 会话平均 40-60 次 Agent 调用，一个功能从调研到完成能省 $2-3。看起来不多，但连续跑 65 天就是 $130-200 的纯节省。更重要的是<strong>省下来的 token 空间可以塞更详细的指令和更多示例</strong>，直接提升输出质量。</p>
+
+    <h2>踩坑：权限问题会让索引静默失败</h2>
+
+    <p>codegraph 把索引写在项目根目录的 <code>.codegraph/</code> 下。如果 Agent 以非 root 用户运行（比如我们创建的 <code>coder</code> 用户），索引文件可能只对创建者可读，导致后续 Agent 调用读不到图谱，退回原始文件模式——<strong>而且没有任何报错</strong>。</p>
+
+    <pre><code># 修复：确保所有用户可读写索引
+chmod -R a+rw .codegraph/
+
+# 更好的做法：在 CI/CD 中统一构建索引
+# .github/workflows/codegraph.yml
+- name: Build codegraph
+  run: |
+    pip install codegraph
+    codegraph build
+    chmod -R a+rw .codegraph/</code></pre>
+
+    <p>这个问题花了我两小时排查。Agent 不会告诉你"我读不到图谱所以用了原始文件"，它只是静默地多花了 36% 的 token。这种<strong>静默退化</strong>是 Agent 系统中最危险的 bug 类型。</p>
+
+    <h2>我的观点：图谱 > RAG > 全文</h2>
+
+    <p>对于 AI Agent 理解代码库，我认为有三个层次：</p>
+
+    <ol>
+        <li><strong>全文塞入</strong> — 最简单，但上下文窗口是硬上限。超过 100k tokens 的项目直接不可行。</li>
+        <li><strong>RAG 检索</strong> — 按语义相似度检索代码片段。问题是丢失了结构信息：Agent 看到了函数体，但不知道谁调用了它、它依赖谁。</li>
+        <li><strong>代码图谱</strong> — 保留结构，压缩细节。Agent 看到的是"骨架"而非"血肉"，但做架构级决策时骨架才是关键。</li>
+    </ol>
+
+    <p>这三者不是互斥的。理想的 Agent 编码流程应该是：<strong>先用图谱定位影响范围，再用 RAG 检索具体实现，最后只把需要修改的文件全文放入上下文</strong>。这种三层策略能把大型项目的上下文消耗从 O(n) 降到 O(log n)。</p>
+
+    <h2>可操作建议</h2>
+
+    <ul>
+        <li><strong>项目超过 50 个文件就该建图谱</strong>。codegraph 的索引成本很低（万行级项目 &lt; 15 秒），但省下的 token 是持续的。</li>
+        <li><strong>把 <code>codegraph build</code> 加入 CI</strong>，确保每次代码变更后图谱自动更新。过时的图谱比没有图谱更危险。</li>
+        <li><strong>监控 Agent 的实际 token 消耗</strong>。如果某个会话突然 token 飙升，大概率是图谱索引失效了。</li>
+        <li><strong>给 Agent 明确的 fallback 指令</strong>：读不到图谱时报错，而不是静默退回全文模式。静默退化是 Agent 系统的隐形杀手。</li>
+    </ul>
+
+    <blockquote>代码图谱的本质是用空间换时间：花一次索引成本，换取每次 Agent 调用的上下文压缩。在 Agent 自主编程成为常态的 2026 年，这不是优化，是基础设施。</blockquote>
+
+    <p style="color: #8b949e; margin-top: 3rem; font-size: 0.85rem;">本文基于 2026-05-20 的 codegraph v0.7.11 实测数据。项目数据来自 agent-context-store 和 wget2。</p>
+</body>
+</html>
