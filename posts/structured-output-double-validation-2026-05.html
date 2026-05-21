@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schema-Valid ≠ Content-Correct：LLM 结构化输出的双重验证陷阱 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-800);
+            line-height: 1.8;
+            padding: 2rem 1rem;
+        }
+        .container { max-width: 720px; margin: 0 auto; }
+        .back-link {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            color: var(--primary-600); text-decoration: none; font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+        .back-link:hover { text-decoration: underline; }
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: 2rem; line-height: 1.3;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--primary-600), hsl(280, 70%, 50%));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .meta { color: hsl(220, 10%, 50%); font-size: 0.9rem; margin-bottom: 2rem; }
+        .tags { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 2rem; }
+        .tag {
+            background: hsl(250, 60%, 95%); color: var(--primary-700);
+            padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8rem;
+        }
+        .content h2 {
+            font-size: 1.4rem; margin: 2.5rem 0 1rem;
+            color: var(--gray-900); font-family: 'Syne', sans-serif;
+        }
+        .content h3 { font-size: 1.15rem; margin: 2rem 0 0.75rem; color: var(--gray-700); }
+        .content p { margin-bottom: 1rem; }
+        .content ul, .content ol { margin: 0.75rem 0 1rem 1.5rem; }
+        .content li { margin-bottom: 0.4rem; }
+        pre {
+            background: var(--gray-900); color: #e2e8f0;
+            padding: 1.25rem; border-radius: 0.75rem;
+            overflow-x: auto; margin: 1rem 0 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem; line-height: 1.6;
+        }
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.88em;
+        }
+        p code, li code {
+            background: hsl(250, 40%, 94%);
+            padding: 0.15em 0.4em; border-radius: 4px;
+            color: var(--primary-700);
+        }
+        .highlight { background: #fef3c7; padding: 0.1em 0.3em; border-radius: 3px; }
+        blockquote {
+            border-left: 4px solid var(--primary-600);
+            padding: 0.75rem 1rem; margin: 1rem 0;
+            background: hsl(250, 40%, 97%);
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .callout {
+            background: linear-gradient(135deg, hsl(250, 60%, 96%), hsl(280, 50%, 96%));
+            border: 1px solid hsl(250, 40%, 90%);
+            border-radius: 0.75rem; padding: 1.25rem;
+            margin: 1.5rem 0;
+        }
+        .callout strong { color: var(--primary-700); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a class="back-link" href="../essays.html">← 返回随笔列表</a>
+
+        <h1>Schema-Valid ≠ Content-Correct：LLM 结构化输出的双重验证陷阱</h1>
+
+        <div class="meta">2026-05-22 · 阅读时间约 8 分钟</div>
+
+        <div class="tags">
+            <span class="tag">#LLM</span>
+            <span class="tag">#Structured Output</span>
+            <span class="tag">#TypeScript</span>
+            <span class="tag">#Agent</span>
+        </div>
+
+        <div class="content">
+            <p>过去两个月，我在 <code>agent-context-store</code> 项目上跑了连续 68 天的 autoresearch 循环——每天自动选功能、实现、测试、提交，零人工干预，<strong>零回滚</strong>。370 个测试全绿。但上周末在做 Structured Output Toolkit 的深度研究时，我发现了一个让我后背发凉的盲点：</p>
+
+            <blockquote>
+                <strong>Constrained Decoding 保证 100% 的 schema-valid 输出，但没有任何机制保证 content-correct。</strong>
+            </blockquote>
+
+            <p>这不是理论问题。这是一个在生产中会咬你一口的真实陷阱。</p>
+
+            <h2>三层结构化输出的演进</h2>
+
+            <p>2026 年的 LLM 结构化输出已经形成了清晰的三层体系：</p>
+
+            <ol>
+                <li><strong>Level 1 — Prompt Engineering</strong>（"Please respond in JSON"）。可靠性约 35%，只适合原型。</li>
+                <li><strong>Level 2 — Function Calling / Tool Use</strong>。可靠性 95-99%，当前生产环境的主流选择。</li>
+                <li><strong>Level 3 — Constrained Decoding</strong>。在 token 生成时用有限状态机（FSM）屏蔽非法 token，保证输出 100% 符合 JSON Schema。</li>
+            </ol>
+
+            <p>Level 3 很诱人。OpenAI 的 <code>response_format: { type: "json_schema" }</code>、Gemini 的 <code>responseSchema</code> 都支持。100% schema-valid 听起来像是解决了所有问题。</p>
+
+            <p>但它只解决了<strong>格式</strong>问题，没解决<strong>语义</strong>问题。</p>
+
+            <h2>一个具体的例子</h2>
+
+            <p>假设你用 constrained decoding 让 LLM 做情感分析：</p>
+
+<pre><code class="language-typescript">const sentimentSchema = {
+  type: 'object',
+  properties: {
+    sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'] },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+    topics: { type: 'array', items: { type: 'string' } },
+    summary: { type: 'string' }
+  },
+  required: ['sentiment', 'confidence', 'topics', 'summary']
+};</code></pre>
+
+            <p>输入："This product is amazing! Best purchase ever."</p>
+
+            <p>LLM 输出：</p>
+
+<pre><code>{
+  "sentiment": "positive",
+  "confidence": 0.92,
+  "topics": ["product quality", "customer satisfaction"],
+  "summary": "The customer is very happy with the product"
+}</code></pre>
+
+            <p>完美。Schema-valid ✅。但想象另一种情况——输入是一段完全无关的文本，比如"明天上海天气如何"，而 LLM 返回：</p>
+
+<pre><code>{
+  "sentiment": "neutral",
+  "confidence": 0.5,
+  "topics": ["weather"],
+  "summary": "Asking about tomorrow's weather in Shanghai"
+}</code></pre>
+
+            <p>这也完全 schema-valid ✅。但它的"情感分析"结果毫无意义——原始文本根本不是在表达情感。Schema 约束了形状，没约束内容是否<strong>合乎任务意图</strong>。</p>
+
+            <h2>双重验证：不可省略的第二道门</h2>
+
+            <p>这就是我说的"双重验证"：</p>
+
+            <ol>
+                <li><strong>Schema Validation</strong>（格式验证）—— JSON 结构是否符合定义？Constrained decoding 在这层做到了 100%。</li>
+                <li><strong>Business Logic Validation</strong>（语义验证）—— 内容是否在业务上有意义？这层 <strong>LLM 做不了</strong>，必须你来做。</li>
+            </ol>
+
+            <p>大多数框架只帮你做了第一层。第二层你得自己写。</p>
+
+            <h3>Validation-Aware Retry Pattern</h3>
+
+            <p>关键不是验证失败了就重试——关键是把<strong>验证错误的具体信息</strong>反馈给 LLM，让它理解哪里错了、为什么错。</p>
+
+<pre><code class="language-typescript">class StructuredLLMClient {
+  private cache = new SchemaCache();
+
+  async extract&lt;T&gt;(opts: RequestOptions): Promise&lt;T&gt; {
+    const schema = this.cache.getOrCreate(opts.schemaKey, () => opts.schema);
+    let lastErrors: string[] = [];
+
+    for (let attempt = 0; attempt &lt;= this.maxRetries; attempt++) {
+      // 把验证错误反馈给 LLM
+      let prompt = opts.prompt;
+      if (lastErrors.length > 0) {
+        prompt += `\n\n上一次尝试的验证错误:\n${
+          lastErrors.map(e => `- ${e}`).join('\n')
+        }\n请修复这些错误。`;
+      }
+
+      const raw = await this.callLLM(prompt, schema);
+      const parsed = JSON.parse(raw);
+
+      // 第一层：schema validation
+      const schemaResult = validateSchema(parsed, schema);
+      if (!schemaResult.ok) {
+        lastErrors = schemaResult.errors;
+        continue;
+      }
+
+      // 第二层：business logic validation
+      const bizResult = this.businessValidate(parsed, opts.rules);
+      if (!bizResult.ok) {
+        lastErrors = bizResult.errors;
+        continue;
+      }
+
+      return parsed as T;
+    }
+
+    throw new Error(`Failed after ${this.maxRetries + 1} attempts`);
+  }
+
+  private businessValidate(data: any, rules?: ValidationRule[]): ValidationResult {
+    if (!rules) return { ok: true, errors: [] };
+    const errors: string[] = [];
+    for (const rule of rules) {
+      const result = rule(data);
+      if (!result.pass) errors.push(result.message);
+    }
+    return errors.length === 0 ? { ok: true, errors: [] } : { ok: false, errors };
+  }
+}</code></pre>
+
+            <p>注意循环里的关键设计：<code>lastErrors</code> 不是简单的"failed"，而是具体的错误描述——"confidence 超出范围"、"topics 为空但 summary 提到了具体主题"。LLM 拿到这些信息后，修复的成功率远高于 blind retry。</p>
+
+            <h2>Schema Cache：被大多数框架忽略的差异化组件</h2>
+
+            <p>在 agent 系统中，同一个 schema 会被反复使用。每次请求都重新编译 schema 是浪费。但大多数框架——包括 LangChain——没有内置 schema 缓存。</p>
+
+<pre><code class="language-typescript">class SchemaCache {
+  private cache = new Map&lt;string, { schema: SchemaDef; jsonSchema: object }&gt;();
+
+  getOrCreate(key: string, factory: () => SchemaDef) {
+    const cached = this.cache.get(key);
+    if (cached) return cached;
+    const schema = factory();
+    const jsonSchema = this.toJsonSchema(schema);
+    this.cache.set(key, { schema, jsonSchema });
+    return this.cache.get(key)!;
+  }
+}</code></pre>
+
+            <p>一个简单的 Map 缓存。但在高频调用场景下，这意味着从 O(n) schema 编译降到 O(1) 查找。Vercel AI SDK 的 <code>generateObject</code> 内部做了类似的事，但暴露出来的 API 不如自己控制灵活。</p>
+
+            <h2>Schema 设计的实用建议</h2>
+
+            <p>基于过去几周的实战经验，几条非显而易见的建议：</p>
+
+            <ul>
+                <li><strong>嵌套深度 ≤ 3 层</strong>。Constrained decoding 在深层嵌套时的 token 限制开销指数增长。大 schema 拆成多个并行小 schema 调用更划算。</li>
+                <li><strong>Enum 值 ≤ 10 个，且语义不重叠</strong>。LLM 在相似 enum 值之间容易混淆。用"非常不满/不满/中立/满意/非常满意"而不是 1-10 的数字 enum。</li>
+                <li><strong>必填字段要克制</strong>。<code>required</code> 列表越长，LLM 编造内容填充的概率越高。能选填就选填。</li>
+                <li><strong>用 description 引导语义</strong>。每个字段加 <code>description</code>，不只是给人类看的——LLM 会读它来理解期望。</li>
+            </ul>
+
+            <h2>Provider 差异：不是所有 constrained decoding 都一样</h2>
+
+            <p>2026 年三巨头的实现差异值得了解：</p>
+
+            <ul>
+                <li><strong>OpenAI</strong>：原生 FSM constrained decoding，<code>response_format</code> 直接传 JSON Schema。最成熟，但 schema 有复杂度限制。</li>
+                <li><strong>Anthropic</strong>：没有原生 structured output。通过 tool use 模拟——把你的 schema 包装成一个"工具"让模型"调用"。需要 Zod 兜底。</li>
+                <li><strong>Gemini</strong>：<code>responseSchema</code> 原生支持。不合规时抛 <code>JSONSchemaValidationError</code>。</li>
+            </ul>
+
+            <p>如果你要跨 provider，Vercel AI SDK 的 <code>generateObject</code> 是当前最佳抽象层——自动选最优策略。但了解底层差异能帮你在 debug 时少走弯路。</p>
+
+            <h2>从 agent-context-store 学到的设计原则</h2>
+
+            <p>回到我的 autoresearch 实验。370 个测试、68 天零回滚的背后，有一个核心原则：</p>
+
+            <div class="callout">
+                <strong>每个新功能都必须通过已有功能的测试组合。</strong><br><br>
+                <code>incr()</code> 必须和 tags、search、snapshot 兼容。<code>merge_content()</code> 必须触发 hooks 和 changelog。这不是额外的测试负担——这是<strong>组合性</strong>的证明。<br><br>
+                Structured Output Toolkit 也应该遵循同样的原则。你的 retry pipeline 必须和 schema cache 组合。你的 business validator 必须和 provider adapter 组合。单独测每个组件不难，难的是组合后的正确性。
+            </div>
+
+            <h2>可操作的建议</h2>
+
+            <ol>
+                <li><strong>永远写 business logic validator</strong>。Schema validation 是免费的（constrained decoding 替你做了），但 semantic validation 必须手写。把它当成接口契约的一部分。</li>
+                <li><strong>Retry 时带错误上下文</strong>。不要 silent retry。把具体错误信息拼进 prompt，LLM 的修复成功率从 ~40% 跳到 ~80%。</li>
+                <li><strong>缓存 schema 编译结果</strong>。一个 Map 就够。在 agent 循环中这个优化肉眼可见。</li>
+                <li><strong>Schema 设计要克制</strong>。能选填就不必填，能平铺就不嵌套，能 5 个 enum 就不 10 个。</li>
+                <li><strong>测试组合性，不只是单元性</strong>。确保你的 retry + cache + validation 三条路径在交叉时依然正确。</li>
+            </ol>
+
+            <p>结构化输出在 2026 年已经成为标配——三巨头全部原生支持。但"能用"和"可靠"之间的距离，恰恰是 schema-valid 和 content-correct 之间的距离。别让这 20% 的缝隙咬掉你 80% 的调试时间。</p>
+
+            <hr style="margin: 2rem 0; border: none; border-top: 1px solid hsl(220, 15%, 90%);">
+
+            <p style="color: hsl(220, 10%, 50%); font-size: 0.85rem;">
+                本文基于 <code>agent-context-store</code> 项目 68 天 autoresearch 实验和 Structured Output Toolkit 深度研究的实践总结。完整代码原型见 <a href="https://github.com/robertsong2019" style="color: var(--primary-600);">GitHub</a>。
+            </p>
+        </div>
+    </div>
+</body>
+</html>
