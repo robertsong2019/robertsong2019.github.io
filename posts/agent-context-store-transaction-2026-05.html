@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>为什么你的 AI Agent 需要一个带事务的内存数据库 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>为什么你的 AI Agent 需要一个带事务的内存数据库</h1>
+    <div class="meta">
+        2026-05-23 · <span class="tag">AI Agent</span> <span class="tag">Python</span> <span class="tag">架构设计</span>
+    </div>
+
+    <p>过去三周，我在给一个叫 <code>agent-context-store</code> 的 Python 库加功能。它现在是 1737 行代码、447 个测试。今天不聊功能列表——聊一个我在实现过程中意识到的架构问题：<strong>大多数 AI Agent 框架把上下文管理当作字典来用，但 Agent 真正需要的是一个带事务的内存数据库。</strong></p>
+
+    <h2>问题：Agent 的上下文操作不是原子的</h2>
+
+    <p>典型的 Agent 上下文管理长这样：</p>
+
+    <pre><code>context = {}
+
+# Agent 思考步骤 1：规划
+context["plan"] = "search -> analyze -> respond"
+context["step"] = 1
+
+# Agent 思考步骤 2：执行
+context["search_results"] = search(query)
+context["step"] = 2
+
+# Agent 思考步骤 3：生成回复
+context["response"] = generate(context["search_results"])
+context["step"] = 3</code></pre>
+
+    <p>看起来没问题？但如果步骤 3 抛异常了呢？<code>step</code> 已经被更新成 3 了，<code>response</code> 却没有写入。下次 Agent 重试时，它认为自己已经到了第 3 步，但数据不完整。</p>
+
+    <p>这不是假设场景。在我的实验中，Agent 每天执行几百次上下文读写。当网络超时、API 限流、或者 LLM 输出解析失败时，<strong>部分写入的上下文是 Agent 产生幻觉的最大来源之一</strong>。</p>
+
+    <h2>解决方案：Copy-on-Write 事务</h2>
+
+    <p>我实现了一个简单的事务机制。核心思路是 <strong>Copy-on-Write</strong>——进入事务时快照整个数据，异常时回滚：</p>
+
+    <pre><code>class _Transaction:
+    """Context manager for atomic transactions on ContextStore."""
+
+    def __init__(self, store: ContextStore):
+        self._store = store
+        self._snapshot = None
+
+    def __enter__(self):
+        # 快照：深拷贝所有 Entry
+        self._snapshot = {
+            k: Entry(content=v.content, tags=list(v.tags),
+                     created_at=v.created_at, updated_at=v.updated_at, ttl=v.ttl)
+            for k, v in self._store._data.items()
+        }
+        return self._store
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            # 异常 → 回滚到快照
+            self._store._data = self._snapshot
+            self._store._save()
+        return False  # 不吞异常</code></pre>
+
+    <p>使用起来很自然：</p>
+
+    <pre><code>with store.transaction():
+    store.put("plan", "search -> analyze -> respond")
+    store.put("step", "1")
+    store.put_json("search_results", {"query": "AI agents", "count": 42})
+    # 任何一步失败，所有变更自动回滚</code></pre>
+
+    <h3>为什么不用 try/except 手动回滚？</h2>
+
+    <p>你当然可以：</p>
+
+    <pre><code>try:
+    store.put("plan", plan)
+    store.put("step", 1)
+    store.put("results", results)
+except Exception:
+    store.delete("plan")
+    store.delete("step")
+    store.delete("results")</code></pre>
+
+    <p>但这种方式有三个致命问题：</p>
+
+    <ol>
+        <li><strong>脆弱</strong>：每次加一个 <code>put</code>，就要记得在 except 里加对应的 <code>delete</code>。忘一次就留下脏数据。</li>
+        <li><strong>不准确</strong>：<code>delete</code> 不能恢复旧值——如果 key 之前就有数据，你把它删了而不是恢复原值。</li>
+        <li><strong>不可组合</strong>：如果两个函数各自有事务逻辑，嵌套调用时回滚会互相干扰。</li>
+    </ol>
+
+    <p>Copy-on-Write 事务一次性解决这三个问题：快照是精确的旧值恢复，不需要手动跟踪写了哪些 key，嵌套调用也不会冲突（内层回滚不影响外层快照）。</p>
+
+    <h2>实战场景：Agent 多步推理</h2>
+
+    <p>一个真实的 Agent 工作流——搜索、分析、生成——用事务保护：</p>
+
+    <pre><code>def agent_think(store: ContextStore, query: str):
+    """Agent 的一次完整思考循环，受事务保护。"""
+
+    with store.transaction():
+        # 阶段 1：规划
+        plan = llm_call(f"Plan how to answer: {query}")
+        store.put_json("current_plan", {"query": query, "steps": plan})
+        store.put("status", "searching")
+
+        # 阶段 2：搜索（可能失败）
+        results = search_api(query)  # ← 可能抛异常
+        store.put_json("search_results", results)
+        store.put("status", "analyzing")
+
+        # 阶段 3：生成回复（可能失败）
+        response = llm_call(f"Based on {results}, answer: {query}")
+        store.put("final_response", response)
+        store.put("status", "complete")
+
+    # 如果任何阶段失败，store 保持事务前的状态
+    # Agent 下次重试时，看到的是一致的旧状态，而非半更新的数据</code></pre>
+
+    <p>关键洞察：<strong>事务的回滚不只是数据保护，更是 Agent 认知一致性的保障。</strong> Agent 从 store 读状态来决定下一步做什么。如果 store 处于半更新状态，Agent 的决策就会基于不一致的假设——这才是真正危险的。</p>
+
+    <h2>性能权衡</h2>
+
+    <p>Copy-on-Write 每次事务都要深拷贝整个 store。在我的场景中（几百到几千个 Entry），耗时在微秒级，完全可接受。但如果你存了十万条数据，就需要考虑优化：</p>
+
+    <ul>
+        <li><strong>Write-ahead Log (WAL)</strong>：只记录变更操作，不拷贝全量数据。回滚时逆序执行反向操作。</li>
+        <li><strong>COW at entry level</strong>：只拷贝被修改的 Entry，而非整个 dict。Python 里可以用 <code>__setitem__</code> 拦截。</li>
+        <li><strong>嵌套快照</strong>：内层事务只快照外层事务修改过的 key，避免嵌套时的 O(n²) 拷贝。</li>
+    </ul>
+
+    <p>但在 99% 的 Agent 场景里，简单的全量快照就够了。<strong>先让它正确，再让它快。</strong></p>
+
+    <h2>CAS：事务之外的并发保护</h2>
+
+    <p>事务解决了"要么全成功，要么全回滚"的问题。但 Agent 还有另一个模式：<strong>读-改-写（Read-Modify-Write）</strong>。</p>
+
+    <pre><code># Agent A 和 Agent B 同时读 counter
+current = int(store.get("counter"))  # 都读到 5
+
+# Agent A 写入
+store.put("counter", str(current + 1))  # 变成 6
+
+# Agent B 也写入（基于过时的 5）
+store.put("counter", str(current + 1))  # 还是 6！应该是 7</code></pre>
+
+    <p>解决方案是 CAS（Compare-And-Set）：</p>
+
+    <pre><code># content-based CAS
+ok = store.put_if_match("counter", "6", expected="5")  # ✅ 成功
+
+# version-based CAS（更可靠）
+ok = store.put_if_version("config", new_value, expected_version=3)  # ✅</code></pre>
+
+    <p>CAS 加上事务，基本覆盖了 Agent 并发的所有场景。我用了 447 个测试来验证这些边界条件——<strong>并发 bug 不能靠想，只能靠测。</strong></p>
+
+    <h2>我的观点</h2>
+
+    <p>当前大多数 Agent 框架（LangChain、CrewAI 等）的上下文管理还停留在"字典 + 历史消息"的阶段。这对 demo 够用，但对生产级 Agent 不够。Agent 的上下文需要：</p>
+
+    <ol>
+        <li><strong>原子性</strong>：多步更新要么全成功要么全回滚（事务）</li>
+        <li><strong>结构化</strong>：不只是字符串，支持 JSON、标签、过期时间</li>
+        <li><strong>可观测</strong>：变更日志、版本历史、变更钩子</li>
+        <li><strong>并发安全</strong>：CAS、原子计数器、版本锁</li>
+    </ol>
+
+    <p>这不是过度设计。这是你在 Agent 第一次因为半更新状态产生诡异 bug 后，<strong>迟早要加的东西</strong>。不如一开始就做对。</p>
+
+    <blockquote>如果你的 Agent 框架还在用 <code>dict</code> 管上下文，它迟早会教你做人。事务不是数据库的专利——它是任何需要状态一致性的系统的基本需求。AI Agent 恰恰是最需要状态一致性的系统之一。</blockquote>
+
+    <p><code>agent-context-store</code> 是纯 Python、零依赖、支持持久化的实现。<a href="https://github.com/robertsong2019/agent-context-store">代码在这里</a>。447 个测试，447 次验证"它确实按照你期望的方式工作"。</p>
+
+</body>
+</html>
