@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>技术债不是坏代码，是过时的决策——从Bun的Zig→Rust重写说起 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: rgba(88,166,255,0.15); color: var(--accent); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; margin-right: 0.3rem; }
+        .highlight { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem 1.2rem; margin: 1.5rem 0; }
+        .highlight p { margin-bottom: 0; }
+        strong { color: var(--heading); }
+        .back-link { display: inline-block; margin-top: 2rem; color: var(--accent); }
+        hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+        .timeline { border-left: 2px solid var(--accent); padding-left: 1.5rem; margin: 1.5rem 0; }
+        .timeline-item { margin-bottom: 1rem; position: relative; }
+        .timeline-item::before { content: ''; position: absolute; left: -1.65rem; top: 0.6rem; width: 8px; height: 8px; background: var(--accent); border-radius: 50%; }
+        .timeline-date { color: #8b949e; font-size: 0.85rem; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>技术债不是坏代码，是过时的决策</h1>
+    <p style="color: #8b949e; font-size: 1.1rem; margin-bottom: 0.5rem;">从 Bun 的 Zig→Rust 重写说起</p>
+    <div class="meta">
+        2026-05-22 · 罗嵩 ·
+        <span class="tag">技术债</span>
+        <span class="tag">Bun</span>
+        <span class="tag">Zig</span>
+        <span class="tag">Rust</span>
+        <span class="tag">工程决策</span>
+    </div>
+
+    <p>2026年5月14日，Bun 发布了一个里程碑版本：核心运行时从 Zig 重写为 Rust。6755 个提交，二进制体积缩小 3-8 MB，性能不降反升。</p>
+
+    <p>这不是一次普通的重构。这是一次关于<strong>"什么才算技术债"</strong>的教科书级案例。</p>
+
+    <h2>一、先理解Bun为什么要选Zig</h2>
+
+    <p>2021年，Jarred Sumner 用 Zig 启动 Bun 项目，目标很简单：做一个比 Node.js 和 Deno 都快的 JavaScript 运行时。</p>
+
+    <p>Zig 有几个当时看起来很对的理由：</p>
+
+    <ul>
+        <li><strong>手动内存管理 + 无隐藏控制流</strong> — 对运行时这种性能敏感场景，每一微秒都算数</li>
+        <li><strong>comptime（编译期计算）</strong> — 把运行时开销挪到编译时，直接跟 V8 和 JavaScriptCore 竞争</li>
+        <li><strong>直接互操作 C</strong> — 无缝调用 libuv、JavaScriptCore 等 C 库，零 FFI 开销</li>
+        <li><strong>创始人个人优势</strong> — Sumner 深度参与 Zig 社区，是这个语言的顶级专家</li>
+    </ul>
+
+    <p>结果也证明这个选择是对的：Bun 的启动速度、包管理性能、SQLite 集成全面碾压 Node.js，迅速积累了大量用户。</p>
+
+    <div class="highlight">
+        <p>💡 <strong>关键洞察</strong>：在 0→1 阶段，技术选型的第一标准不是"最合理的"，而是"创始人最能发挥的"。Zig 给了 Bun 差异化竞争力和极快的初期速度。</p>
+    </div>
+
+    <h2>二、转折点：当项目长大了</h2>
+
+    <p>Bun 从一个人的 side project 成长为一个需要团队协作、社区贡献、企业用户信赖的运行时。这时候 Zig 的问题开始暴露：</p>
+
+    <table>
+        <tr>
+            <th>维度</th>
+            <th>Zig（2021年选择时）</th>
+            <th>Rust（2026年迁移目标）</th>
+        </tr>
+        <tr>
+            <td>语言版本</td>
+            <td>0.x，API 不稳定</td>
+            <td>1.x，稳定版</td>
+        </tr>
+        <tr>
+            <td>开发者池</td>
+            <td>全球几千人</td>
+            <td>全球几十万人</td>
+        </tr>
+        <tr>
+            <td>第三方生态</td>
+            <td>几乎没有</td>
+            <td>crates.io 海量高质量库</td>
+        </tr>
+        <tr>
+            <td>招聘难度</td>
+            <td>极难，且多为爱好者</td>
+            <td>成熟人才市场</td>
+        </tr>
+        <tr>
+            <td>工具链稳定性</td>
+            <td>每次升级可能 break</td>
+            <td>编译器承诺向后兼容</td>
+        </tr>
+        <tr>
+            <td>企业采用信心</td>
+            <td>低 — pre-1.0 语言</td>
+            <td>高 — 已被 AWS、Google、Microsoft 验证</td>
+        </tr>
+    </table>
+
+    <p>用一句话概括：<strong>Zig 适合一个人写，Rust 适合一个团队维护。</strong></p>
+
+    <h2>三、重新定义"技术债"</h2>
+
+    <p>我们通常把技术债理解为"写得不好的代码"——没重构的函数、过时的架构、硬编码的配置。但 Bun 的案例揭示了一个更深层的真相：</p>
+
+    <div class="highlight">
+        <p>⚠️ <strong>技术债 ≠ 坏代码。技术债 = 在新阶段不再最优的旧决策。</strong></p>
+    </div>
+
+    <p>Bun 的 Zig 代码写得很好。每一行都是高质量的系统级代码。但它在 2026 年的上下文中，成了最大的技术债——不是因为代码质量，而是因为<strong>决策的上下文变了</strong>：</p>
+
+    <ul>
+        <li>阶段变了：从"证明概念"到"生产运行时"</li>
+        <li>团队变了：从"创始人个人秀"到"多人协作"</li>
+        <li>用户变了：从"早期尝鲜者"到"企业生产环境"</li>
+        <li>市场变了：从"差异化竞争"到"长期可靠承诺"</li>
+    </ul>
+
+    <h2>四、技术决策的生命周期</h2>
+
+    <p>每个技术决策都有自己的"半衰期"。我画了一个简单的四阶段模型：</p>
+
+    <div class="timeline">
+        <div class="timeline-item">
+            <strong>阶段一：创始人优势期（0→1）</strong>
+            <p class="timeline-date">选你最强的工具，最大化个人杠杆率</p>
+            <p>Bun 选 Zig — Sumner 是 Zig 专家，一个人写出碾压 Node 的运行时</p>
+        </div>
+        <div class="timeline-item">
+            <strong>阶段二：扩展瓶颈期（1→10）</strong>
+            <p class="timeline-date">个人优势变成团队瓶颈</p>
+            <p>需要更多人，但 Zig 开发者招不到；工具链不稳定，维护成本飙升</p>
+        </div>
+        <div class="timeline-item">
+            <strong>阶段三：决策重估期</strong>
+            <p class="timeline-date">旧决策的边际成本开始超过边际收益</p>
+            <p>团队精力花在修工具链而不是做产品；每个新贡献者都要学一门没人用的语言</p>
+        </div>
+        <div class="timeline-item">
+            <strong>阶段四：战略迁移期（10→100）</strong>
+            <p class="timeline-date">用短期痛苦换取长期自由度</p>
+            <p>6755 个提交重写为 Rust，一次性还清，换来更大的团队、更稳定的工具链、更广的生态</p>
+        </div>
+    </div>
+
+    <h2>五、这不是孤例</h2>
+
+    <p>Bun 不是第一个做这种迁移的，也不会是最后一个：</p>
+
+    <ul>
+        <li><strong>Discord</strong>：Go → Rust（消息存储服务，因为 Go 的 GC 延迟无法接受）</li>
+        <li><strong>Figma</strong>：C++ → Rust（多人协同引擎重写）</li>
+        <li><strong>Linux 内核</strong>：2022 年正式接纳 Rust 作为第二语言</li>
+        <li><strong>GitHub Copilot</strong>：早期用多种语言实验，最终收敛到 TypeScript + Rust</li>
+    </ul>
+
+    <p>共同规律：<strong>在验证阶段用最快的路径跑通，在扩展阶段用最稳的路径重来。</strong></p>
+
+    <h2>六、对我们的启示</h2>
+
+    <p>作为每天在做技术决策的工程师，Bun 的案例给了三个实用教训：</p>
+
+    <h3>1. 不要追求"一步到位"的选型</h3>
+    <p>没有哪个选型能同时满足 0→1 和 10→100 的需求。接受"现在最优 ≠ 永远最优"，给自己留重来的勇气。</p>
+
+    <h3>2. 定期审视决策的上下文</h3>
+    <p>不是看代码好不好，而是看<strong>做出决策时的那些前提条件是否还成立</strong>。团队规模变了、用户量变了、市场环境变了——任何一个变化都可能让旧决策成为技术债。</p>
+
+    <h3>3. 重写的最佳时机是"还撑得住"的时候</h3>
+    <p>Bun 选在用户增长期做重写，而不是等到 Zig 真的撑不住了。在还有余力的时候还债，远比在崩溃边缘做急救好。很多项目死掉不是因为不该重写，而是因为<strong>重写得太晚</strong>。</p>
+
+    <hr>
+
+    <h2>结语</h2>
+
+    <p>技术债这个词容易让人产生一种道德判断——好像欠债是因为当初"做得不好"。但 Bun 的故事告诉我们：</p>
+
+    <blockquote>
+        <p>最好的技术决策，也可能在时间推移中变成最大的技术债。这不是错误，这是成长的代价。</p>
+    </blockquote>
+
+    <p>6755 个提交重写一门运行时的核心语言，需要的不仅是技术能力，更是<strong>承认"我曾经最好的决策已经过时了"</strong>的勇气。</p>
+
+    <p>这大概就是工程成熟度的标志——不是做出完美决策，而是在决策过时的时候，果断地推翻自己。</p>
+
+    <hr>
+    <p style="color: #8b949e; font-size: 0.85rem;">
+        参考：
+        <a href="https://bun.sh/blog" target="_blank">Bun Official Blog</a> ·
+        <a href="https://ziglang.org/" target="_blank">Zig Language</a> ·
+        <a href="https://www.rust-lang.org/" target="_blank">Rust Language</a>
+    </p>
+
+    <a class="back-link" href="index.html">← 返回首页</a>
+</body>
+</html>
