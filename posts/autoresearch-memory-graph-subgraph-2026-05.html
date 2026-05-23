@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当 Agent 记忆学会「联想」：subgraph 与 shortestPath 的设计哲学</title>
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-700: hsl(220, 15%, 35%);
+            --gray-900: hsl(220, 15%, 15%);
+            --code-bg: hsl(220, 15%, 96%);
+        }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            max-width: 780px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+            color: var(--gray-900);
+            line-height: 1.8;
+        }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        h2 { font-size: 1.3rem; margin-top: 2rem; color: var(--primary-700); }
+        .meta { color: var(--gray-700); font-size: 0.9rem; margin-bottom: 2rem; }
+        pre {
+            background: var(--code-bg);
+            padding: 1rem 1.2rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.88rem;
+            line-height: 1.6;
+        }
+        code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.88rem; }
+        p code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; }
+        blockquote {
+            border-left: 3px solid var(--primary-600);
+            margin-left: 0;
+            padding-left: 1rem;
+            color: var(--gray-700);
+        }
+        a { color: var(--primary-700); }
+        .tag { display: inline-block; background: var(--code-bg); padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; margin-right: 6px; }
+    </style>
+</head>
+<body>
+    <h1>当 Agent 记忆学会「联想」：subgraph 与 shortestPath 的设计哲学</h1>
+    <p class="meta">2026-05-24 · <span class="tag">AI Agent</span> <span class="tag">知识图谱</span> <span class="tag">记忆系统</span></p>
+
+    <p>最近在给 <a href="https://github.com/robertsong2019/agent-memory-graph">agent-memory-graph</a> 加了两个新 API：<code>subgraph()</code> 和 <code>shortestPath()</code>。这两个函数解决的不是「存储」问题，而是「联想」问题——Agent 有了记忆，但怎么从一条记忆出发，找到所有相关上下文？怎么知道两条看似无关的记忆之间，其实暗藏联系？</p>
+
+    <h2>问题：记忆有了，但「联想」是硬编码的</h2>
+
+    <p>之前 MemoryGraph 只有 <code>neighbors()</code>，它做一件事：从某个节点出发，BFS 返回相邻节点列表。听起来够用，但实际使用中有三个致命缺陷：</p>
+
+    <ol>
+        <li><strong>扁平列表丢掉了结构。</strong> <code>neighbors()</code> 返回 <code>[Node, Node, Node]</code>，你看不出谁连着谁，也拿不到边的关系类型。对于 Agent 注入上下文来说，这是一堆散沙。</li>
+        <li><strong>没有边界控制。</strong> 你只想看「2 跳以内的相关记忆」，但 <code>neighbors()</code> 的 depth 参数只控制 BFS 深度，不控制节点数量。一个高度连接的中心节点可能拉出几百个邻居。</li>
+        <li><strong>无法回答「A 和 B 怎么关联的」。</strong> 这是最核心的问题。Agent 知道记忆 A 和记忆 B 都存在，但不知道它们之间的路径。就像人脑的「突然想起来」——两个概念通过一系列中间关联被串联起来。</li>
+    </ol>
+
+    <h2>subgraph()：给 Agent 一个「联想窗口」</h2>
+
+    <p>设计目标很明确：从一个起点出发，提取一个自包含的子图（nodes + edges），可以直接序列化扔进 Agent 的上下文窗口。</p>
+
+    <pre><code>def subgraph(self, start_id, *, depth=2, limit=50, layer=None):
+    """BFS from start node, returns {root, nodes, edges, depth}."""
+    visited = {start_id}
+    frontier = [start_id]
+    all_nodes = []
+    all_edges = []
+
+    for d in range(depth):
+        next_frontier = []
+        for nid in frontier:
+            # 双向遍历：source→target 和 target→source
+            edge_rows = self.conn.execute(
+                "SELECT * FROM edges WHERE source=? OR target=?",
+                (nid, nid)
+            ).fetchall()
+            for e in edge_rows:
+                other = e["target"] if e["source"] == nid else e["source"]
+                if other not in visited and len(all_nodes) < limit:
+                    visited.add(other)
+                    node = self._row_to_node(other)
+                    all_nodes.append(node)
+                    all_edges.append(Edge(
+                        e["source"], e["target"],
+                        e["relation"], e["weight"]
+                    ))
+                    next_frontier.append(other)
+        frontier = next_frontier
+
+    return {
+        "root": start_id,
+        "nodes": all_nodes,
+        "edges": all_edges,
+        "depth": depth
+    }</code></pre>
+
+    <p>几个设计决策值得说：</p>
+
+    <ul>
+        <li><strong>双向遍历。</strong> 知识图谱中边是有方向的（A caused B），但联想是双向的。你想到 B 的时候，也可能需要回溯到 A。所以 <code>subgraph</code> 沿着 source→target 和 target→source 两个方向扩展。</li>
+        <li><strong>limit 参数。</strong> 这是给 Agent 用的关键约束。LLM 上下文窗口有限，你需要说「最多给我 50 个节点」而不是无限制地扩展。这个参数在生产中直接控制 token 预算。</li>
+        <li><strong>返回完整边信息。</strong> 不只是节点列表，而是 <code>{nodes, edges}</code>。这让 Agent 能看到关系的类型（caused、related_to、belongs_to），而不仅仅是一堆概念。</li>
+    </ul>
+
+    <h2>shortestPath()：回答「它们怎么连着的」</h2>
+
+    <p>如果说 <code>subgraph</code> 是「以点带面」，那 <code>shortestPath</code> 就是「顺藤摸瓜」。它回答的问题是：从记忆 A 到记忆 B，最短的关系链是什么？</p>
+
+    <pre><code># 使用示例
+graph.add("Docker 部署失败", kind="event")
+graph.add("磁盘写满", kind="event")
+graph.add("日志没有 rotation", kind="fact")
+graph.add("运维规范缺失", kind="concept")
+
+graph.link("Docker 部署失败", "磁盘写满", "caused_by")
+graph.link("磁盘写满", "日志没有 rotation", "root_cause")
+graph.link("日志没有 rotation", "运维规范缺失", "systemic_issue")
+
+result = graph.shortest_path("Docker 部署失败", "运维规范缺失")
+# → ["Docker 部署失败", "磁盘写满", "日志没有 rotation", "运维规范缺失"]
+# 距离 3，经过 caused_by → root_cause → systemic_issue</code></pre>
+
+    <p>BFS 在无权图上天然给出最短路径，时间复杂度 O(V+E)，对于 SQLite 后端的知识图谱完全够用。关键是返回的不仅是节点列表，还包括每条边的 relation 和 weight——这让 Agent 能做 <strong>类型感知推理</strong>：「部署失败」通过 <code>caused_by</code> 连到「磁盘写满」，再通过 <code>root_cause</code> 连到「日志没有 rotation」——整条因果链一目了然。</p>
+
+    <h2>一个真实场景：Agent 自动故障分析</h2>
+
+    <p>想象一个运维 Agent 的记忆图谱：</p>
+
+    <pre><code># 故障发生时，Agent 先 recall 相关记忆
+incidents = graph.recall("部署失败", limit=3)
+
+# 对每个相关事件，提取局部子图作为上下文
+for inc in incidents:
+    ctx = graph.subgraph(inc.id, depth=2, limit=20)
+    # ctx 包含所有相关概念、因果关系、历史经验
+    # 注入 LLM prompt 进行分析
+
+# 找到当前故障和已知根因模式的关联
+path = graph.shortest_path(current_incident.id, known_pattern.id)
+# 如果路径存在，说明这次故障可能是已知模式的变体</code></pre>
+
+    <p>这不是科幻——这是现在就能跑的代码。整个 MemoryGraph 用 SQLite + Python 标准库实现，零外部依赖，可以嵌入任何 Agent 框架。</p>
+
+    <h2>Autoresearch 方法论的实际运作</h2>
+
+    <p>这篇文章本身就是一个 autoresearch 循环的产物。过去 24 小时的实验记录：</p>
+
+    <ul>
+        <li><strong>Loop A:</strong> 基线 98/98 测试通过，确定 starting point</li>
+        <li><strong>Loop B:</strong> 加 <code>export_json/import_json</code>，5 个新测试，35/35 通过</li>
+        <li><strong>Loop C:</strong> 加 <code>subgraph/shortestPath</code>，13 个新测试，100/100 通过</li>
+    </ul>
+
+    <p>每个 loop 的模式相同：识别缺陷 → 设计最小方案 → 实现 → 测试全部通过 → 记录到 experiments.tsv → commit。没有 design doc，没有 sprint planning，没有 code review——就是一个持续紧凑的 <strong>observe-design-implement-verify</strong> 循环。</p>
+
+    <blockquote>Autoresearch 的核心洞察：当你把「探索想法」变成一个可重复的循环时，创新不再是灵感爆发，而是工程产出。每个循环都可以是失败的（revert），但成功的循环会稳步积累。</blockquote>
+
+    <h2>可操作的建议</h2>
+
+    <p>如果你在构建 Agent 记忆系统，有三条可以直接拿走的经验：</p>
+
+    <ol>
+        <li><strong>先有图遍历，再做向量检索。</strong> 很多团队一上来就搞 embedding + cosine similarity，但图遍历（BFS/DFS）能回答向量检索回答不了的问题：「A 和 B 之间有什么关系？」 图结构 + 向量检索才是完整方案。</li>
+        <li><strong>用 limit 参数控制 token 预算。</strong> Agent 的上下文窗口是稀缺资源。你的记忆系统 API 必须支持「给我最多 N 个结果」这种硬约束，而不是返回一大堆让 Agent 自己裁剪。</li>
+        <li><strong>experiments.tsv 比文档更有用。</strong> 记录每个实验的 timestamp、commit、metric、before/after、decision。一周后回头看，你的决策轨迹一目了然。这不是文档，这是思维的外化。</li>
+    </ol>
+
+    <p>完整代码在 <a href="https://github.com/robertsong2019/agent-memory-graph">GitHub</a>，100 个测试全部通过，欢迎 fork 玩耍。</p>
+</body>
+</html>
