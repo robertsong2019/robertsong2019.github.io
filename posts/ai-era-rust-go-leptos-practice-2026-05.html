@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 时代 Rust、Go 与全栈框架实践总结 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: rgba(88,166,255,0.15); color: var(--accent); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; margin-right: 0.3rem; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; }
+        th, td { padding: 0.6rem 0.8rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); font-weight: 600; }
+        td { color: var(--text); }
+        .highlight { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem 1.2rem; margin: 1.5rem 0; }
+        .highlight p { margin-bottom: 0; }
+        strong { color: var(--heading); }
+        .back-link { display: inline-block; margin-top: 2rem; color: var(--accent); }
+        hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <h1>AI 时代 Rust、Go 与全栈框架实践总结</h1>
+    <div class="meta">
+        2026-05-24 · 罗嵩 ·
+        <span class="tag">Rust</span>
+        <span class="tag">Go</span>
+        <span class="tag">Leptos</span>
+        <span class="tag">AI编程</span>
+        <span class="tag">全栈框架</span>
+    </div>
+
+    <p>这轮实验的起点很朴素：AI 写代码的时代，Rust 和 Go 到底各自适合做什么？Rust 全栈框架（Leptos/Dioxus）能不能替代 React/Next.js？Go 后端在 AI 辅助开发中到底有多快？</p>
+
+    <p>不是理论分析，是写了一堆东西之后的实际感受。</p>
+
+    <h2>这轮实际做了什么</h2>
+
+    <ul>
+        <li><strong>Rust 命令行工具</strong> — 写了一批 Linux 风格的 ps、top、pstree、readelf、objdump、JSON 解析器。这些任务边界清晰、类型约束强，AI 写起来很顺。</li>
+        <li><strong>Go 后端服务</strong> — API 服务、前后端联调、AI 模型转发接口。标准库开箱即用，AI 生成正确代码的概率很高。</li>
+        <li><strong>Leptos 全栈系统 × 2</strong> — 汽车需求管理系统（<code>leptos-requirements-fullstack</code>）和教育游戏内容工作台（<code>leptos-edu-game-studio</code>）。完整的前后端一体架构。</li>
+    </ul>
+
+    <h2>Rust：长期工程质量工具</h2>
+
+    <p>Rust 的核心价值不在"快"，而在<strong>不让错误溜过去</strong>。</p>
+
+    <p>类型系统强、<code>enum</code>/<code>Result</code>/<code>Option</code> 表达状态和错误路径非常自然、所有权模型消除一类内存问题。AI 写 Rust 时，编译器就是最好的搭档——每次编译失败都是精确反馈，"看起来能跑但运行时崩"的情况比 Python 少得多。</p>
+
+    <p>这轮写 CLI 工具和解析器的体验最好。原因很简单：<strong>边界清晰、输入输出明确、类型约束强</strong>。这种任务恰好是 Rust 的甜区。</p>
+
+    <h3>Rust 的甜区</h3>
+
+    <ul>
+        <li>命令行工具（ps、top、JSON 解析器）</li>
+        <li>协议/文件解析器（readelf、objdump）</li>
+        <li>高性能核心模块</li>
+        <li>复杂状态机业务逻辑</li>
+        <li>规则引擎和核心算法</li>
+    </ul>
+
+    <h2>Leptos 全栈：有价值，但不是现在</h2>
+
+    <p>Leptos/Dioxus 的核心卖点是<strong>一套 Rust 类型系统贯穿前后端</strong>：</p>
+
+    <pre><code>前端：Rust + Leptos → WASM
+后端：Rust + Axum / Server Functions
+共享类型：Rust struct / enum
+构建检查：cargo check / cargo leptos build</code></pre>
+
+    <p>实际好处确实有：</p>
+
+    <ul>
+        <li>前后端共享类型，不用维护 Go struct + TS interface + JSON schema 三份定义</li>
+        <li>Server Functions 让前端像调用函数一样调后端</li>
+        <li><code>enum</code> 统一用于后端逻辑、前端展示、按钮状态</li>
+        <li>重构时编译器直接指出所有受影响位置</li>
+    </ul>
+
+    <p>但短板也很明显：</p>
+
+    <ul>
+        <li><strong>首次构建慢</strong> — 耐心等待是常态</li>
+        <li><strong>UI 组件库生态不足</strong> — 表格、图表、富文本、可视化编辑器，都要自己拼</li>
+        <li><strong>前端调试体验不如 React</strong></li>
+        <li><strong>AI 对 React/TS 的训练样本更多</strong> — 复杂 UI 生成时 React 仍然更稳</li>
+    </ul>
+
+    <div class="highlight">
+        <p>Rust 全栈适合 AI 长期维护<strong>复杂、强类型、状态明确</strong>的系统，不一定适合最快的 Web 原型开发。</p>
+    </div>
+
+    <h2>Go：当前最务实的 Web 后端选择</h2>
+
+    <p>Go 在 AI 辅助开发中的表现可以用四个字概括：<strong>简单直接</strong>。</p>
+
+    <ul>
+        <li>语法简单，AI 很容易生成正确代码</li>
+        <li>标准库强，HTTP 服务开箱即用</li>
+        <li>编译快、部署简单，一个二进制搞定</li>
+        <li>后端生态成熟</li>
+    </ul>
+
+    <p>图片生成网站、中国古籍网站、AI 转发后端——如果目标是快速出效果，Go 后端就是最务实的选择。</p>
+
+    <h2>技术选型决策表</h2>
+
+    <p>这轮实验后，我的判断是这样的：</p>
+
+    <table>
+        <thead>
+            <tr><th>场景</th><th>推荐</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>快速 Web 原型</td><td>Go / Next.js / Python</td></tr>
+            <tr><td>后端 API 服务</td><td>Go</td></tr>
+            <tr><td>命令行工具</td><td>Rust 或 Go</td></tr>
+            <tr><td>协议解析 / 文件解析</td><td>Rust</td></tr>
+            <tr><td>高性能核心模块</td><td>Rust</td></tr>
+            <tr><td>强状态机业务系统</td><td>Rust</td></tr>
+            <tr><td>复杂前端 UI</td><td>React / Next</td></tr>
+            <tr><td>长期强类型全栈系统</td><td>Rust 全栈（可考虑）</td></tr>
+        </tbody>
+    </table>
+
+    <h2>分工建议</h2>
+
+    <p>比较现实的技术路线：</p>
+
+    <pre><code>Go：Web 后端、API、业务服务、MVP、管理后台
+Rust：CLI、解析器、协议处理、高性能模块、核心算法、复杂状态机
+React/Vue/原生前端：成熟 Web UI</code></pre>
+
+    <p>如果系统长期复杂化，再考虑 Rust 全栈用于强类型内部系统、配置平台、编辑器、规则系统。但在快速原型阶段，<strong>不建议为了"全 Rust"而牺牲开发速度</strong>。</p>
+
+    <h2>AI 开发真正需要什么</h2>
+
+    <p>不是语言之争，而是约束之争。AI 开发真正需要的是：</p>
+
+    <ol>
+        <li><strong>明确的业务边界</strong> — 任务范围清晰</li>
+        <li><strong>清晰的数据结构</strong> — 类型定义明确</li>
+        <li><strong>可运行的测试和构建命令</strong> — 验证标准可执行</li>
+        <li><strong>编译器或类型系统给出反馈</strong> — 自动纠错闭环</li>
+        <li><strong>文件结构不要过度复杂</strong> — 上下文窗口有限</li>
+    </ol>
+
+    <p>Rust 对 AI 的帮助来自<strong>强约束</strong>；Go 对 AI 的帮助来自<strong>简单和直接</strong>。两者都是好的约束，只是作用于不同的场景。</p>
+
+    <hr>
+
+    <blockquote>
+        <p>Rust 是长期工程质量工具，Go 是当前更务实的 Web 后端原型工具。AI 时代不是只选一种语言，而是让 AI 在合适的约束和生态里完成合适的任务。</p>
+    </blockquote>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</body>
+</html>
