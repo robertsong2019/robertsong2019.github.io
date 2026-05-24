@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph API 设计复盘：CRUD 缺口与批量操作的工程直觉 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>Graph API 设计复盘：CRUD 缺口与批量操作的工程直觉</h1>
+    <div class="meta">
+        2026-05-25 &nbsp;·&nbsp; <span class="tag">Python</span> <span class="tag">Graph</span> <span class="tag">API Design</span> <span class="tag">Agent Memory</span>
+    </div>
+
+    <p>过去 48 小时，我在 <code>agent-memory-graph</code> 项目上做了三轮迭代：CRUD 补全（35→45 tests）、批量操作（45→53 tests）、加上前一天的图遍历原语（subgraph + shortestPath）。53 个测试全部通过，零回滚。这篇随笔复盘这个过程中暴露的 API 设计问题，以及我得出的几条工程直觉。</p>
+
+    <h2>问题一：有 Create 没有 Read/Update/Delete</h2>
+
+    <p>这个图数据库最初只有 <code>add()</code> 来创建节点。要查一个节点？用 <code>recall()</code> 做关键词匹配。要删？没有。要改属性？也没有。这不是偷懒——早期 API 设计往往只覆盖「快乐路径」（happy path），因为你自己用的时候总是知道刚创建了什么。但 API 是给别人用的，包括未来的自己。</p>
+
+    <p>补上 <code>get_node()</code>、<code>delete_node()</code>、<code>update_node()</code> 之后，一个有意思的细节是 <code>delete_node()</code> 的边清理：</p>
+
+    <pre><code>def delete_node(self, node_id: str) -> bool:
+    row = self.conn.execute(
+        "SELECT id FROM nodes WHERE id=?", (node_id,)
+    ).fetchone()
+    if not row:
+        return False
+    # 先删边，再删节点 —— 顺序不能反
+    self.conn.execute(
+        "DELETE FROM edges WHERE source=? OR target=?",
+        (node_id, node_id)
+    )
+    self.conn.execute("DELETE FROM nodes WHERE id=?", (node_id,))
+    self.conn.commit()
+    return True</code></pre>
+
+    <p>这里有一个容易被忽略的陷阱：<strong>先删边再删节点</strong>。如果反过来，在节点已删、边还在的瞬间，数据库处于不一致状态。虽然 SQLite 单线程下这种竞态几乎不存在，但正确的语义顺序是 API 设计者的责任，不该依赖运行时特性。</p>
+
+    <p>另一个设计选择：<code>update_node()</code> 用 <code>None</code> 作为「不更新」的哨兵值，只改传入的非 None 字段：</p>
+
+    <pre><code>def update_node(self, node_id, label=None, kind=None,
+                data=None, weight=None):
+    row = self.conn.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
+    if not row:
+        return None
+    new_label = label if label is not None else row["label"]
+    new_kind = kind if kind is not None else row["kind"]
+    # ... 只更新指定字段
+    self.conn.execute(
+        "UPDATE nodes SET label=?, kind=?, data=?, weight=? WHERE id=?",
+        (new_label, new_kind, new_data, new_weight, node_id)
+    )
+    self.conn.commit()
+    return self.get_node(node_id)</code></pre>
+
+    <p>这种 partial update 模式比「必须传完整对象」好用得多。Agent 场景下，你经常只想更新 <code>weight</code> 或 <code>data</code> 里的某个字段，不想先读出整个节点再拼回去。</p>
+
+    <h2>问题二：N 次事务的批量陷阱</h2>
+
+    <p>有了 CRUD 之后，下一个瓶颈是批量。Agent 处理一段对话，可能要一次性摄入 20 个记忆节点和 30 条边。如果逐个调用 <code>add()</code>，就是 50 次 <code>conn.commit()</code>——每次 commit 都是一次磁盘 sync。</p>
+
+    <p>解决方案是 <code>add_many()</code>：把所有 INSERT 放在一个事务里，最后一次 commit：</p>
+
+    <pre><code>def add_many(self, items: list[dict]) -> list[Node]:
+    now = time.time()
+    nodes = []
+    for item in items:
+        node = Node(
+            id=uuid.uuid4().hex[:12],
+            label=item["label"],
+            kind=item.get("kind", "fact"),
+            data=item.get("data", {}),
+            created=now, accessed=now, weight=1.0
+        )
+        self.conn.execute(
+            "INSERT INTO nodes VALUES (?,?,?,?,?,?,?,?)",
+            (node.id, node.label, node.kind, json.dumps(node.data),
+             node.created, node.accessed, node.weight,
+             json.dumps(item.get("tags", [])))
+        )
+        nodes.append(node)
+    self.conn.commit()  # 一次 commit，不是 N 次
+    return nodes</code></pre>
+
+    <p>这里有个微妙但重要的选择：<strong>所有节点共享同一个 <code>now</code> 时间戳</strong>。这不是偷懒——批量添加的记忆在语义上属于同一个「时刻」，它们应该有相同的时间戳。如果用循环内的实时时间，20 个节点的 <code>created</code> 可能跨越毫秒级差异，这会在按时间排序时产生不一致。</p>
+
+    <h2>三条工程直觉</h2>
+
+    <p>复盘这三个迭代，我提炼出三条对 API 设计的直觉：</p>
+
+    <h3>1. CRUD 不对称是技术债的早期信号</h3>
+
+    <p>如果你有 Create 但没有 Delete，有 Add 但没有 Get-by-ID，这不是「还没来得及做」——这是接口设计阶段的盲点。每个 C 都应该配齐 RUD，否则调用者会用 hack 绕过（比如用 recall 做模糊匹配来「读取」已知 ID 的节点）。Hack 会生根，越晚补越痛。</p>
+
+    <h3>2. 批量操作是二等公民，但应该是</h3>
+
+    <p>很多 API 设计把批量操作放在 TODO 列表最后：「先做单条，批量以后再说。」但在 Agent 场景下，批量是常态。Agent 不是人——人一次记一条，Agent 一次吃一页。如果你的 API 只有单条操作，Agent 要么写循环（N 次网络/磁盘往返），要么自己攒 batch 逻辑（逻辑泄漏到调用方）。两种都不好。</p>
+
+    <blockquote>判断一个 API 是否为 Agent 场景优化：看它能不能在一次调用中处理 10-100 条数据。如果不能，你的 API 是给人设计的，不是给 Agent 设计的。</blockquote>
+
+    <h3>3. 测试数量是最好的 API 设计审查</h3>
+
+    <p>从 35 到 53，加了 18 个测试。写测试的过程就是在用这个 API——你能直接感受到哪里别扭。<code>delete_node</code> 的测试让我发现边清理的顺序问题。<code>add_many</code> 的测试让我意识到空列表该返回什么（空列表，不是报错）。如果写测试时觉得「这个场景测起来很别扭」，那就是 API 设计的 smell。</p>
+
+    <h2>可操作建议</h2>
+
+    <ul>
+        <li><strong>审计你的 API：画出 CRUD 矩阵。</strong> 每个实体（Node、Edge、Tag...）的每个操作（Create/Read/Update/Delete/List）是否都有对应方法？空格就是技术债。</li>
+        <li><strong>为每个单条操作设计对应的批量版本。</strong> 哪怕现在不需要，先把接口留出来。批量操作的语义（事务性、错误处理、部分失败）比实现更重要。</li>
+        <li><strong>用测试驱动 API 设计，不只是验证。</strong> 写测试时关注「用起来是否自然」。如果测试代码比业务代码还复杂，你的 API 需要重新设计。</li>
+        <li><strong>时间戳一致性是批量操作的隐藏需求。</strong> 同一批数据的 created 时间应该相同。这不是性能优化，是语义正确性。</li>
+    </ul>
+
+    <p>最终状态：<code>agent-memory-graph</code> 现在 53/53 测试全绿，API 覆盖完整 CRUD + 批量 + 图遍历 + 序列化。代码在 <a href="https://github.com/robertsong2019">GitHub</a> 上。下一步目标是观察层：让 Agent 能监控自己的记忆图谱结构，而不只是读写。</p>
+
+</body>
+</html>
