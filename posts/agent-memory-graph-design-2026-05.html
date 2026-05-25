@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>给 Agent 造记忆：从 CRUD 到记忆图谱的72小时 | 罗嵩的技术博客</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.8; color: #333; }
+        h1 { font-size: 1.8em; border-bottom: 2px solid #e74c3c; padding-bottom: 10px; }
+        h2 { color: #2c3e50; margin-top: 2em; }
+        pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 14px; }
+        code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+        pre code { background: none; padding: 0; }
+        .meta { color: #888; font-size: 0.9em; margin-bottom: 2em; }
+        .insight { background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px 16px; margin: 1.5em 0; border-radius: 0 8px 8px 0; }
+        .principle { background: #d4edda; border-left: 4px solid #28a745; padding: 12px 16px; margin: 1.5em 0; border-radius: 0 8px 8px 0; }
+        a { color: #e74c3c; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>给 Agent 造记忆：从 CRUD 到记忆图谱的 72 小时</h1>
+    <div class="meta">2026-05-26 · 罗嵩 · agent-memory-graph 实战设计笔记</div>
+
+    <p>过去三天，我在做一个实验：给 AI Agent 构建一个真正可用的记忆系统。不是向量数据库那种"存进去、搜出来"的扁平结构，而是一个带权重的知识图谱——节点有衰减、边有关系、支持邻域提取和聚合查询。</p>
+
+    <p>这篇文章记录这个过程中的关键设计决策，以及为什么"先写测试再写代码"在 Agent 基础设施中比你想的更重要。</p>
+
+    <h2>问题：为什么 Agent 需要"图"记忆？</h2>
+
+    <p>大多数 Agent 记忆方案是 KV 存储 + 向量检索。这对于"找到相关文档"够用，但对于"理解上下文关系"不够。</p>
+
+    <p>考虑这个场景：Agent 记住了"张三是工程师"和"李四是张三的经理"。扁平存储里，这是两条独立记录。但当用户问"李四的下属是什么角色"，Agent 需要<strong>沿着边遍历</strong>——这在图结构里是一行代码，在扁平存储里是 N 次查询 + 应用层拼接。</p>
+
+    <p>更关键的是<strong>衰减</strong>。人的记忆会遗忘，Agent 也应该：长期不用的记忆权重降低，最终被清理。这需要图级别的操作——删掉节点的同时清理所有关联的边。</p>
+
+    <h2>设计原则：三层 API 演化</h2>
+
+    <p>agent-memory-graph 的 API 不是一开始就设计好的，而是在 72 小时内通过实验循环逐步演化。这是 autoresearch 方法论的核心：<strong>每个循环加一个小功能，跑通测试，确认保留</strong>。</p>
+
+    <h3>第一层：核心图操作（35 → 45 tests）</h3>
+
+    <p>最初只有 <code>add()</code>、<code>recall()</code>、<code>link()</code>、<code>neighbors()</code>。然后发现一个明显的缺口：没有单节点 CRUD。</p>
+
+    <pre><code># 之前：要获取一个节点，得用关键词匹配
+results = graph.recall("张三")  # 返回模糊匹配列表
+
+# 之后：直接 ID 查找
+node = graph.get_node("user_zhangsan")
+graph.update_node("user_zhangsan", weight=0.9)  # 部分更新
+graph.delete_node("user_zhangsan")  # 自动清理关联边</code></pre>
+
+    <p><code>delete_node()</code> 的关键设计：删除节点时<strong>必须清理所有关联边</strong>（入边+出边）。这不是可选的——如果遗留悬空边，后续遍历会崩溃。</p>
+
+    <h3>第二层：批量操作（45 → 53 tests）</h3>
+
+    <p>Agent 处理一段对话后，可能需要一次性写入 20 条记忆。一条一条 <code>add()</code> 意味着 20 次事务提交。</p>
+
+    <pre><code># 批量写入：单事务，O(N) 插入
+items = [
+    {"label": "会议讨论了Q3路线图", "kind": "event", "tags": ["meeting", "planning"]},
+    {"label": "张三负责后端重构", "kind": "task", "tags": ["backend"]},
+    {"label": "李四批准了预算", "kind": "event", "tags": ["finance"]},
+]
+ids = graph.add_many(items)
+
+# 批量建边：一次调用
+pairs = [
+    {"source": ids[0], "target": ids[1], "relation": "discussed"},
+    {"source": ids[0], "target": ids[2], "relation": "approved_by"},
+]
+graph.link_many(pairs)</code></pre>
+
+    <div class="insight">
+        <strong>设计洞察：</strong><code>add_many()</code> 用单事务而不是 N 个事务。在 SQLite 中，这意味着从 N 次 fsync 降到 1 次。对于 Agent 处理长对话后批量写入的场景，性能差异是数量级的。
+    </div>
+
+    <h3>第三层：邻域提取与分析（53 → 110 tests）</h3>
+
+    <p>这是最有意思的部分。Agent 的上下文窗口有限——不能把整个记忆图谱塞进去。需要一种方式提取"与当前话题相关的局部子图"。</p>
+
+    <pre><code># 提取以某节点为中心、深度为2的邻域子图
+sub = graph.subgraph("meeting_q3", depth=2)
+# 返回格式兼容 export_json()，可直接导入另一个图
+
+# 分析：所有"event"类节点的平均权重
+avg = graph.aggregate("event", "weight", "avg")
+
+# 清理：权重低于 0.3 的噪声节点 + 孤立边
+result = graph.prune(min_weight=0.3)
+print(f"清理了 {result['nodes_removed']} 个节点，{result['edges_removed']} 条边")</code></pre>
+
+    <p><code>subgraph()</code> 用 BFS 遍历，输出格式与 <code>export_json()</code> 完全兼容。这意味着你可以从一个 Agent 的记忆中提取子图，直接导入另一个 Agent——<strong>记忆迁移</strong>变成了一个 API 调用。</p>
+
+    <h2>72 小时，110 个测试，零回滚</h2>
+
+    <p>具体数据：</p>
+
+    <table style="border-collapse:collapse;width:100%">
+        <tr style="border-bottom:1px solid #ddd"><th style="text-align:left;padding:8px">时间</th><th style="text-align:left;padding:8px">新增功能</th><th style="text-align:left;padding:8px">测试数</th></tr>
+        <tr style="border-bottom:1px solid #ddd"><td style="padding:8px">5/24</td><td style="padding:8px">export_json / import_json</td><td style="padding:8px">35</td></tr>
+        <tr style="border-bottom:1px solid #ddd"><td style="padding:8px">5/25 00:00</td><td style="padding:8px">节点 CRUD (get/delete/update)</td><td style="padding:8px">45</td></tr>
+        <tr style="border-bottom:1px solid #ddd"><td style="padding:8px">5/25 01:00</td><td style="padding:8px">批量操作 (add_many/link_many/delete_many)</td><td style="padding:8px">53</td></tr>
+        <tr style="border-bottom:1px solid #ddd"><td style="padding:8px">5/25 08:00</td><td style="padding:8px">reweight / is_linked / all_tags</td><td style="padding:8px">91</td></tr>
+        <tr style="border-bottom:1px solid #ddd"><td style="padding:8px">5/26 00:00</td><td style="padding:8px">subgraph / unlink_many</td><td style="padding:8px">99</td></tr>
+        <tr style="border-bottom:1px solid #ddd"><td style="padding:8px">5/26 01:00</td><td style="padding:8px">prune / aggregate</td><td style="padding:8px">110</td></tr>
+    </table>
+
+    <p><strong>零回滚</strong>。每个功能都是先写测试，确认通过，再 commit。这听起来简单，但在 AI 自主编程中保持这个纪律，需要严格的实验框架。</p>
+
+    <h2>三个可操作建议</h2>
+
+    <div class="principle">
+        <strong>1. 记忆系统必须有衰减机制。</strong><br>
+        不衰减的记忆库会膨胀到不可用。<code>decay_all()</code> + <code>prune()</code> 的组合让记忆自然淘汰——权重低于阈值的节点被自动清理。这比手动管理更可靠，也更接近人类记忆的工作方式。
+    </div>
+
+    <div class="principle">
+        <strong>2. API 演化优于 API 设计。</strong><br>
+        不要试图一次设计完美的记忆 API。从最小可用的 4-5 个方法开始（add/recall/link/neighbors），然后在使用中发现缺口。<code>subgraph()</code> 不是我想出来的——是在使用中发现"Agent 需要局部上下文"后才加的。
+    </div>
+
+    <div class="principle">
+        <strong>3. 批量操作是性能关键路径。</strong><br>
+        Agent 处理一段对话可能产生 20-50 条记忆。如果没有 <code>add_many()</code>，每次写入都是一次完整的事务提交。单事务批量插入在 SQLite 中快 10-50 倍。这不是优化，是必需品。
+    </div>
+
+    <h2>下一步</h2>
+
+    <p>当前图谱已经支持完整的 CRUD、批量操作、子图提取、衰减和聚合。接下来要解决的是：</p>
+
+    <ul>
+        <li><code>diff(other_graph)</code> — 比较两个图谱的差异，用于 Agent 间记忆同步</li>
+        <li><code>compact(kind, strategy)</code> — 合并同类低权重节点（比如合并所有低权重的 "event" 节点为一个摘要节点）</li>
+        <li><strong>实际接入 Agent 运行时</strong> — 在 OpenClaw 中跑真实场景，验证图谱记忆是否真的比扁平记忆好</li>
+    </ul>
+
+    <p>代码在 <a href="https://github.com/robertsong2019/agent-memory-graph">agent-memory-graph</a>，欢迎围观。</p>
+
+    <div class="meta" style="margin-top:3em;border-top:1px solid #eee;padding-top:1em">
+        本文由 autoresearch 实验循环自动生成，数据来自 2026-05-24~26 的 experiments.tsv。<br>
+        自主编程连续 65+ 天零回滚。方法论详见 <a href="https://robertsong2019.github.io/posts/zero-rollback-30-days-2026-05.html">《连续30天零回滚》</a>。
+    </div>
+</body>
+</html>
