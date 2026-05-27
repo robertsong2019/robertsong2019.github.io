@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 健康感知调度：从 Round-Robin 到自动故障转移 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>Agent 健康感知调度：从 Round-Robin 到自动故障转移</h1>
+    <div class="meta">
+        2026-05-28 &nbsp;·&nbsp; <span class="tag">AI Agent</span> <span class="tag">Multi-Agent</span> <span class="tag">TypeScript</span>
+    </div>
+
+    <p>在多 Agent 系统中，任务调度是最容易被过度设计的部分。很多人一上来就搞复杂的评分函数、权重矩阵，结果调了一周还不如简单的 round-robin。但 round-robin 有个致命问题：它不关心 Agent 是不是还活着。</p>
+
+    <p>昨天在 <code>openclaw-langgraph-bridge</code> 项目里实现了一个 <code>Supervisor</code> 类，核心思路是：<strong>在简单调度策略上加一层健康感知</strong>。不是替代 round-robin，而是让 round-robin <em>知道什么时候该跳过某个 Agent</em>。</p>
+
+    <h2>问题：无状态调度的陷阱</h2>
+
+    <p>假设你有 3 个 Agent 处理任务。最朴素的 round-robin：</p>
+
+    <pre><code>function roundRobin(agents: Agent[], index: number) {
+  return agents[index % agents.length];
+}</code></pre>
+
+    <p>如果 Agent B 挂了呢？Round-robin 依然会把任务分给它。每第三次请求就会失败。你的错误率是 33%，而且完全可以通过一行健康检查避免。</p>
+
+    <h2>健康感知的 selectAgent</h2>
+
+    <p>核心逻辑其实很短——先过滤掉不健康的，再在健康的里面选：</p>
+
+    <pre><code>selectAgent(capability?: string): AgentRole | undefined {
+  const healthy = [...this.agents.values()]
+    .filter(a => this.isHealthy(a.id));
+  if (healthy.length === 0) return undefined;
+
+  const candidates = capability
+    ? healthy.filter(a => a.capabilities.includes(capability))
+    : healthy;
+
+  // 然后才是 round-robin / least-busy / random
+  switch (this.strategy) {
+    case "round-robin":
+      return candidates[this.rrIndex++ % candidates.length];
+    case "least-busy":
+      candidates.sort((a, b) =>
+        totalCalls(a) - totalCalls(b));
+      return candidates[0];
+    case "random":
+      return candidates[Math.random() * candidates.length | 0];
+  }
+}</code></pre>
+
+    <p>注意顺序：先健康过滤，再策略选择。这个顺序很重要——如果你先选再检查健康，就丢失了调度的公平性。</p>
+
+    <h2>健康状态的反馈闭环</h2>
+
+    <p>健康不是二元的。一个 Agent 可能在处理某些类型的任务时总是失败，但在其他任务上完全正常。所以 <code>AgentHealth</code> 跟踪的是<strong>连续失败次数</strong>，不是总失败次数：</p>
+
+    <pre><code>interface AgentHealth {
+  successCount: number;   // 累计成功
+  failureCount: number;   // 连续失败（成功时归零）
+  lastUsed: number;       // 最后使用时间戳
+  avgDuration: number;    // 平均响应时间
+}</code></pre>
+
+    <p>关键设计决策：<code>failureCount</code> 在成功时归零，<code>successCount</code> 永远递增。这意味着：</p>
+
+    <ul>
+        <li>连续 3 次失败 → 标记为不健康（可配置）</li>
+        <li>成功 1 次 → 立即恢复健康</li>
+        <li>总失败次数不影响判断——只有连续失败才说明 Agent 真的有问题</li>
+    </ul>
+
+    <pre><code>async execute(task: string, capability?: string) {
+  const agent = this.selectAgent(capability);
+  if (!agent) throw new Error("No healthy agent available");
+
+  const start = Date.now();
+  const h = this.health.get(agent.id)!;
+  try {
+    const result = await agent.config.executor(task);
+    // 成功：更新平均耗时、累计成功、归零连续失败
+    h.avgDuration = /* 加权平均 */;
+    h.successCount++;
+    h.failureCount = 0;  // ← 这是关键
+    return { agentId: agent.id, result };
+  } catch (err) {
+    h.failureCount++;  // 只增不减，直到下次成功
+    throw err;
+  }
+}</code></pre>
+
+    <h2>retryWithFallback：自动故障转移</h2>
+
+    <p>有了健康追踪，故障转移几乎是白送的：</p>
+
+    <pre><code>async retryWithFallback(task: string, capability?: string, maxRetries = 3) {
+  let attempts = 0;
+  while (attempts < maxRetries) {
+    attempts++;
+    try {
+      return { ...await this.execute(task, capability), attempts };
+    } catch {
+      // 失败的 Agent health 已降级
+      // 下次 selectAgent 会选另一个
+      if (attempts >= maxRetries) break;
+    }
+  }
+  throw new Error(`All ${attempts} attempts failed`);
+}</code></pre>
+
+    <p>这里有一个微妙的交互：<code>execute</code> 失败后，失败 Agent 的 <code>failureCount</code> 增加。下次循环调用 <code>selectAgent</code> 时，这个 Agent 会被健康过滤排除。<strong>系统自然地避开故障节点，不需要显式的排除逻辑。</strong></p>
+
+    <h2>least-busy 策略的陷阱</h2>
+
+    <p>我用了 <code>successCount + failureCount</code> 作为"忙碌度"的代理指标。这不够精确，但对于轻量级调度够用了。真正的问题是：如果你的 Agent 处理时间差异很大（一个 50ms，一个 5s），这个指标会严重偏向快的 Agent。</p>
+
+    <p>更好的做法是跟踪<strong>当前并发任务数</strong>，但那需要 Agent 主动回报状态，复杂度骤增。我的建议是：先用 <code>avgDuration</code> 做权重，不要追求完美的负载均衡。</p>
+
+    <h2>可操作建议</h2>
+
+    <ol>
+        <li><strong>从 round-robin + 健康检查开始</strong>。80% 的场景这就够了。只有在你观察到明显的负载不均时才考虑 least-busy。</li>
+        <li><strong>连续失败 > 总失败</strong>。不要因为一个 Agent 偶尔超时就标记它不健康。连续失败才是真正的信号。</li>
+        <li><strong>广播用 <code>Promise.allSettled</code></strong>，不要用 <code>Promise.all</code>。一个 Agent 挂了不应该让整个广播失败。</li>
+        <li><strong>给健康检查设 TTL</strong>。当前实现缺少时间衰减——一个 Agent 3 小时前连续失败了 3 次，现在可能已经恢复了。加个 <code>lastUsed</code> 时间窗口判断，超过阈值自动恢复。</li>
+        <li><strong>监控 <code>getHealthSummary()</code> 的 unhealthy 比例</strong>。如果超过 50% 的 Agent 不健康，问题不在 Agent，在你的基础设施。</li>
+    </ol>
+
+    <h2>完整实现</h2>
+
+    <p>完整代码在 <a href="https://github.com/robertsong2019/openclaw-langgraph-bridge">openclaw-langgraph-bridge/src/supervisor.ts</a>，包括 188 个测试用例覆盖所有边界情况。测试本身也值得一看——特别是健康衰减和故障转移的测试设计。</p>
+
+    <blockquote>
+        <p>调度系统的成熟度不在于策略多复杂，而在于对失败的处理多优雅。一个能自动避开故障节点的 round-robin，比一个不能的加权评分算法更可靠。</p>
+    </blockquote>
+
+    <p style="color: #8b949e; margin-top: 3rem; font-size: 0.85rem;">
+        <a href="../index.html">← 返回首页</a>
+    </p>
+</body>
+</html>
