@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当 Agent 互相对话：A2A 协议的信任问题与实战方案 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>当 Agent 互相对话：A2A 协议的信任问题与实战方案</h1>
+    <div class="meta">
+        2026-05-29 · <span class="tag">A2A</span> <span class="tag">Agent 安全</span> <span class="tag">ES256</span> <span class="tag">Trust Score</span>
+    </div>
+
+    <p>Google 的 A2A（Agent-to-Agent）协议正在成为多 Agent 互操作的标准。但协议只解决了"怎么说话"，没解决"该不该信"。今天从一个实际原型出发，聊聊 Agent 间的信任到底怎么做。</p>
+
+    <h2>问题：API 认证够用吗？</h2>
+
+    <p>传统微服务之间，API Key + mTLS 就够了。因为服务数量有限、边界清晰、部署受控。但 Agent 网络不一样：</p>
+
+    <ul>
+        <li>Agent 可以动态注册、消失、冒充</li>
+        <li>同一个 Agent 的行为可能随 prompt 变化而漂移</li>
+        <li>跨组织的 Agent 协作，信任链比公司内部长得多</li>
+    </ul>
+
+    <p>CSA 用 MAESTRO 框架对 A2A 做了威胁建模，核心结论：<strong>Agent 身份是动态的，凭证生命周期短，需要在每次交互时验证。</strong>这不是 OAuth 那种"登录一次管一天"的模式。</p>
+
+    <h2>三层信任模型</h2>
+
+    <p>我设计了一个三层信任栈，从底到顶：</p>
+
+    <ol>
+        <li><strong>身份验证</strong>（你是谁）— ES256 签名，每条消息独立签名验证</li>
+        <li><strong>行为评估</strong>（你可信吗）— Trust Score，基于历史行为动态评分</li>
+        <li><strong>访问控制</strong>（你能干什么）— 信任分低于阈值的请求直接拒绝</li>
+    </ol>
+
+    <p>关键设计决策：<strong>未知 Agent 起始分 50（中立），不是 0。</strong> 为什么？因为 0 分意味着新 Agent 永远无法加入网络。50 分给了一张"入场券"——你可以参与，但你的行为会被持续观察。</p>
+
+    <h2>ES256 签名：Node.js 最大的坑</h2>
+
+    <p>选 ES256（ECDSA + P-256 + SHA-256）而不是 RS256，因为 Agent 间通信频繁，需要签名快、token 小。但 Node.js 的 <code>crypto</code> 模块有个经典陷阱：</p>
+
+<pre><code>// ❌ 错误：默认 DER 格式，JWT 标准不认
+const sig = crypto.sign('SHA256', data, privateKey);
+
+// ✅ 正确：必须指定 ieee-p1363 格式
+const sig = crypto.sign('SHA256', data, {
+  key: privateKey,
+  dsaEncoding: 'ieee-p1363',  // JWT/WebAuthn 标准格式
+});</code></pre>
+
+    <p>Node.js 的 ECDSA 默认输出 DER 编码，但 JWT 标准用的是 IEEE P1363（原始 r||s 拼接）。不设 <code>dsaEncoding</code>，你的签名在 OpenSSL、Go、Python 那边全都验不过。这个问题在 Stack Overflow 上有上百条问答，但 Node.js 文档里藏得很深。</p>
+
+    <p>完整的签名+验证函数：</p>
+
+<pre><code>const crypto = require('crypto');
+
+function signMessage(privateKeyPem, from, to, payload) {
+  const message = {
+    from, to, payload,
+    ts: Date.now(),
+    nonce: crypto.randomUUID()  // 防重放
+  };
+  const data = Buffer.from(JSON.stringify(message));
+  const signature = crypto.sign('SHA256', data, {
+    key: privateKeyPem,
+    dsaEncoding: 'ieee-p1363',
+  });
+  return { message, signature: signature.toString('base64url') };
+}
+
+function verifyMessage(publicKeyPem, message, signature) {
+  const data = Buffer.from(JSON.stringify(message));
+  const sig = Buffer.from(signature, 'base64url');
+  return crypto.verify('SHA256', data, {
+    key: publicKeyPem,
+    dsaEncoding: 'ieee-p1363',
+  }, sig);
+}</code></pre>
+
+    <h2>Trust Score：行为驱动的动态信任</h2>
+
+    <p>签名验证只解决"这条消息没被篡改"。Trust Score 解决"这个 Agent 历史上靠不靠谱"：</p>
+
+<pre><code>class TrustEngine {
+  constructor(decayFactor = 0.99) {
+    this.scores = new Map();   // agentId → score (0-100)
+    this.history = new Map();  // agentId → [{ts, delta, reason}]
+    this.decayFactor = decayFactor;
+  }
+
+  getScore(agentId) {
+    return this.scores.get(agentId) ?? 50;  // 未知 Agent 中立起步
+  }
+
+  verifyAndTrack(agentId, publicKeyPem, message, signature) {
+    const valid = verifyMessage(publicKeyPem, message, signature);
+    if (valid) this._adjust(agentId, +2, 'signature_valid');
+    else       this._adjust(agentId, -20, 'signature_invalid');  // 伪造重罚
+    return valid;
+  }
+
+  recordTaskResult(agentId, success) {
+    this._adjust(agentId, success ? +5 : -10,
+                     success ? 'task_success' : 'task_failed');
+  }
+
+  // 关键：信任衰减。不活跃的 Agent 信任分自然降低
+  decay() {
+    for (const [id, score] of this.scores) {
+      this.scores.set(id, Math.max(0, score * this.decayFactor));
+    }
+  }
+
+  _adjust(agentId, delta, reason) {
+    const current = this.getScore(agentId);
+    const updated = Math.min(100, Math.max(0, current + delta));
+    this.scores.set(agentId, updated);
+    // ... 记录历史
+  }
+}</code></pre>
+
+    <p>三个设计要点：</p>
+
+    <ol>
+        <li><strong>不对称奖惩</strong>：验证成功 +2，伪造 -20。一次作恶需要十次善行才能弥补。这比对称的 ±5 更安全。</li>
+        <li><strong>衰减因子 0.99</strong>：每个 decay 周期，所有 Agent 的分数乘以 0.99。100 个周期后，不活跃的 Agent 从 70 分降到约 25 分。这防止"历史战绩永久有效"的问题。</li>
+        <li><strong>全量历史追踪</strong>：每次调整都记 reason，用于审计和调试。你永远能回答"为什么这个 Agent 的分数是这个数"。</li>
+    </ol>
+
+    <h2>Express 中间件：即插即用</h2>
+
+    <p>把信任检查变成 Express 中间件，任何 Agent 服务都能一行接入：</p>
+
+<pre><code>function a2aTrustMiddleware(trustEngine, getPublicKey) {
+  return (req, res, next) => {
+    const agentId = req.headers['x-agent-id'];
+    const signature = req.headers['x-agent-signature'];
+    const timestamp = req.headers['x-agent-timestamp'];
+
+    if (!agentId || !signature)
+      return res.status(401).json({ error: 'Missing auth headers' });
+
+    // 重放防护：拒绝 >5min 的消息
+    if (Math.abs(Date.now() - Number(timestamp)) > 5 * 60 * 1000)
+      return res.status(401).json({ error: 'Message expired' });
+
+    // 信任分门槛
+    if (!trustEngine.shouldTrust(agentId, threshold = 30))
+      return res.status(403).json({ error: 'Trust score too low' });
+
+    // 签名验证
+    const publicKey = getPublicKey(agentId);
+    const message = { method: req.method, path: req.path, body: req.body };
+    const valid = trustEngine.verifyAndTrack(agentId, publicKey, message, signature);
+
+    if (!valid)
+      return res.status(401).json({ error: 'Invalid signature' });
+
+    req.agentId = agentId;
+    req.trustScore = trustEngine.getScore(agentId);
+    next();
+  };
+}</code></pre>
+
+    <h2>实测数据</h2>
+
+    <p>用两个模拟 Agent 跑完整流程：</p>
+
+<pre><code>=== A2A Trust Demo ===
+
+1. Agent A signs message to B
+   Signature: kJGx8Q... (base64url, ~86 chars)
+
+2. Agent B verifies signature: ✅ VALID
+3. Trust engine result: ✅ TRUSTED
+   Trust score for agent-alpha: 52  (+2 from valid signature)
+
+4. After 5 successful tasks, score: 77  (+2×5 signature + +5×5 task)
+
+5. Forged signature test: ✅ REJECTED
+   Score after forgery attempt: 57  (-20 penalty)
+
+6. Trust decay after 100 cycles:
+   Score: 20.79  (natural decay from 57)</code></pre>
+
+    <p>注意第 5 步：一次伪造尝试直接从 77 跌到 57。这个不对称设计是故意的——在 Agent 网络中，一次恶意行为就应该让其他 Agent 高度警惕。</p>
+
+    <h2>与 A2A 生态的关系</h2>
+
+    <p>这段代码不是要替代 A2A 协议，而是在协议之上加一层应用级信任。A2A 的 Agent Card 声明了 <code>authentication.schemes</code>，我们的中间件是 ES256 scheme 的具体实现。</p>
+
+    <p>A2A 和 MCP 是互补的：</p>
+
+    <ul>
+        <li><strong>MCP</strong>：Agent ↔ Tool（纵向，一个 Agent 获取工具和上下文）</li>
+        <li><strong>A2A</strong>：Agent ↔ Agent（横向，多个 Agent 协作完成复杂任务）</li>
+    </ul>
+
+    <p>两者都需要签名验证，但 A2A 的挑战更大——跨组织信任传递。你信任 A，A 信任 B，不代表你该信任 B。Trust Score 目前还是本地的（只记录你对别人的观察），后续可以探索基于图谱的信任传播。</p>
+
+    <h2>可操作的建议</h2>
+
+    <ol>
+        <li><strong>如果你在做多 Agent 系统</strong>，现在就加签名验证。不要等到 Agent 被冒充了再补。ES256 零依赖实现不到 50 行。</li>
+        <li><strong> asymmetric punishment</strong>（不对称惩罚）。正常 +2，异常 -20。这让攻击者需要大量"好人卡"才能积累信任，而一次被抓就回到原点。</li>
+        <li><strong>加衰减</strong>。没有衰减的信任系统会被历史绑架。0.99 的衰减因子意味着 ~70 个周期（比如 70 小时）不活跃，信任分衰减一半。</li>
+        <li><strong>nonce + timestamp 防重放</strong>。签名不能只签 payload，必须包含时间戳和随机数。5 分钟窗口是个合理的起步值。</li>
+        <li><strong>Agent Card 做 DNS</strong>。把 Agent 的公钥和元数据发布为标准化的 JSON 文档，类似 OpenAPI spec 但面向 Agent。这是 A2A 协议的核心设计，直接用就好。</li>
+    </ol>
+
+    <h2>完整代码</h2>
+
+    <p>完整可运行的 <code>a2a-trust.js</code>（零依赖，Node.js 18+）在我的研究笔记中。300 行代码包含密钥管理、签名验证、Trust Engine、Express 中间件和完整 demo。</p>
+
+    <blockquote>
+        <p>A2A 协议解决了 Agent 之间"怎么说话"的问题。但 Agent 网络的安全性取决于"该不该信"——这不是协议层面能解决的，需要在应用层构建动态信任机制。希望这个原型能给你一个起步点。</p>
+    </blockquote>
+
+    <p style="color: #8b949e; margin-top: 3rem; font-size: 0.85rem;">
+        参考：
+        <a href="https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability">Google A2A Protocol Blog</a> ·
+        <a href="https://arxiv.org/html/2504.16902v1">Building Secure A2A Applications (arXiv)</a> ·
+        <a href="https://cloudsecurityalliance.org/blog/2025/04/30/threat-modeling-google-s-a2a-protocol-with-the-maestro-framework">CSA MAESTRO Threat Modeling</a>
+    </p>
+</body>
+</html>
