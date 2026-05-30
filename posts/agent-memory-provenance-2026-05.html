@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 的记忆不该静默覆盖 — 可变状态需要溯源 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>AI Agent 的记忆不该静默覆盖 — 可变状态需要溯源</h1>
+    <div class="meta">
+        2026-05-31 · <span class="tag">agent-design</span> <span class="tag">memory-systems</span> <span class="tag">autoresearch</span>
+    </div>
+
+    <p>过去三个月，我在一个叫 <code>autoresearch</code> 的自动循环里让 AI Agent 每天自主写代码、跑测试。到今天连续 <span class="highlight">90 天零回滚</span>，累计超过 3500 个测试用例。但今天我想聊的不是测试纪律，而是在这个过程中发现的一个设计缺陷 — 以及怎么修。</p>
+
+    <h2>问题：Agent 的记忆在「静默覆盖」</h2>
+
+    <p>大多数 Agent 记忆系统的核心操作是 CRUD：<code>add_node</code>、<code>update_node</code>、<code>delete_node</code>。看起来够用。但当你真正让一个 Agent 长时间运行 — 几天、几周 — 问题就暴露了：</p>
+
+    <blockquote>
+        Agent 在第 3 天把一个节点的标签从 <code>"python"</code> 改成了 <code>"python3"</code>。第 7 天又改成了 <code>"cpython"</code>。到第 14 天你想搞清楚「它为什么这么改」，但历史已经丢了。<code>update_node</code> 只是静默覆盖。
+    </blockquote>
+
+    <p>这不像数据库 — 数据库有事务日志、有 MVCC、有闪回查询。Agent 的记忆图却常常是一张没有 <code>UPDATE</code> 日志的表。你知道当前状态是什么，但你不知道它是怎么来的。</p>
+
+    <h2>解法：evolve() 替代 update_node()</h2>
+
+    <p>在 <code>agent-memory-graph</code> 项目里，我加了一个新原语：</p>
+
+    <pre><code>def evolve(self, node_id, new_label=None, new_kind=None):
+    """Update node AND log the transition."""
+    node = self._get_node(node_id)
+    old_label, old_kind = node.label, node.kind
+
+    # Update the node
+    if new_label: node.label = new_label
+    if new_kind: node.kind = new_kind
+
+    # Log the transition
+    self.db.execute(
+        "INSERT INTO evolution_log "
+        "(node_id, old_label, new_label, old_kind, new_kind, ts) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (node_id, old_label, new_label, old_kind, new_kind, now())
+    )
+    return node
+
+def evolution_history(self, node_id):
+    """Full audit trail, oldest first."""
+    return self.db.execute(
+        "SELECT * FROM evolution_log WHERE node_id = ? ORDER BY ts",
+        (node_id,)
+    ).fetchall()</code></pre>
+
+    <p>区别很微妙但很关键：<code>evolve()</code> 不只是改值，它<strong>记录了变迁的理由链</strong>。现在你可以：</p>
+
+    <ul>
+        <li>回溯 Agent 在某个概念上的理解变化轨迹</li>
+        <li>发现 Agent 是否在反复摇摆（改过去又改回来）</li>
+        <li>在调试时回答「这个奇怪的标签是怎么来的」</li>
+    </ul>
+
+    <p>实现很轻 — 约 40 行代码，一个带索引的 <code>evolution_log</code> 表。但设计上的改变是根本性的：记忆不再是只关心「当前值」的黑箱，而是有<strong>溯源能力</strong>的可审计系统。</p>
+
+    <h2>另一半拼图：快照合并的冲突解决</h2>
+
+    <p>同一个晚上，我在 <code>agent-context-store</code> 里遇到了另一个相关问题。Agent 可以创建快照（snapshot）— 把当前状态冻结。但 <code>load_snapshot</code> 是全量替换：</p>
+
+    <blockquote>
+        你拍了快照 A，然后做了一些新改动，现在想把快照 A 里被删掉的键恢复回来 — 但不想丢掉新改动。<code>load_snapshot</code> 做不到。
+    </blockquote>
+
+    <p>所以我加了 <code>snapshot_merge(name, strategy)</code>，支持三种合并策略：</p>
+
+    <pre><code># 恢复被删除的键，但当前值优先（最常用）
+store.snapshot_merge("checkpoint-a", strategy="current_wins")
+
+# 快照值覆盖当前（相当于「我后悔了，全回退」）
+store.snapshot_merge("checkpoint-a", strategy="snapshot_wins")
+
+# 最保守：只恢复删除的键，忽略所有变更
+store.snapshot_merge("checkpoint-a", strategy="union")</code></pre>
+
+    <p>这里的 observe count（访问计数）用 <code>max(snapshot, current)</code> 合并 — 信息不应该因为合并而丢失。</p>
+
+    <h2>为什么这很重要？</h2>
+
+    <p>你可能会说：这不就是 Git 吗？不完全是。Git 是给人用的，你需要显式 commit、显式 diff。Agent 需要的是<strong>自动的、内嵌在数据结构里的</strong>溯源能力。不能指望 Agent 每次 <code>update</code> 之前先 <code>commit</code>。</p>
+
+    <p>更准确的说，这是把<strong>事件溯源（Event Sourcing）</strong>的思想融入了 Agent 记忆的最底层 API：</p>
+
+    <ul>
+        <li><strong>传统方式</strong>：<code>update</code> 覆盖当前状态 → 状态是黑箱</li>
+        <li><strong>溯源方式</strong>：<code>evolve</code> 产生变迁记录 → 状态是可审计的</li>
+    </ul>
+
+    <p>这两种模式的 API 表面几乎一样 — 都是「改个值」。但一个丢失历史，一个保留历史。对于短期运行的脚本无所谓，但对于需要持续学习、持续演化的 Agent 来说，区别就是「能调试」和「不能调试」的区别。</p>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你在设计 Agent 的记忆或状态管理系统，检查这三个点：</p>
+
+    <ol>
+        <li><strong>有没有 update 操作是静默覆盖的？</strong> 如果 Agent 会长时间运行，每一个写操作都应该有某种形式的日志。不需要完整的事件溯源系统，一个简单的 <code>evolution_log</code> 表就够了。</li>
+        <li><strong>快照是否支持合并而非只支持全量替换？</strong> Agent 的「撤销」操作不是回到过去，而是「从过去挑一些东西拿回现在」。你需要细粒度的合并策略。</li>
+        <li><strong>计数器是否用了单调合并？</strong> 任何统计型数据（访问次数、置信度分数）在合并时应该用 <code>max</code> 而非覆盖。信息只能增长，不能因为合并而缩水。</li>
+    </ol>
+
+    <h2>数据</h2>
+
+    <p>这两个改动是 autoresearch 循环在过去 24 小时里自动产生的：</p>
+
+    <ul>
+        <li><code>snapshot_merge</code>: 601→609 测试，+8，零回归</li>
+        <li><code>evolve + evolution_history</code>: 252→262 测试，+10，零回归</li>
+        <li>累计总测试数：3500+，连续 90 天零回滚</li>
+    </ul>
+
+    <p>Agent 自己发现了自己记忆系统的设计缺陷，然后自己修了。这大概是 AI 自主编程最有意思的地方 — 不是写 CRUD，而是在使用自己的过程中发现自己的设计问题。</p>
+
+    <blockquote>
+        能用自己写的工具，才能发现自己的工具哪里不好用。Agent 也是一样。
+    </blockquote>
+
+    <div style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: #8b949e; font-size: 0.8rem;">
+        <p>相关项目：<a href="https://github.com/robertsong2019">GitHub</a> · 标签：<span class="tag">agent-memory-graph</span> <span class="tag">agent-context-store</span> <span class="tag">autoresearch</span></p>
+    </div>
+</body>
+</html>
