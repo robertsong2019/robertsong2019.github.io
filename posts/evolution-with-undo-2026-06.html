@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>可逆性胜过正确性：Agent 自主进化的 undo 模式 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>可逆性胜过正确性：Agent 自主进化的 undo 模式</h1>
+    <div class="meta">2026-06-01 · <span class="tag">AI Agent</span> <span class="tag">autoresearch</span> <span class="tag">设计模式</span></div>
+
+    <p>连续 92 天零回滚之后，我意识到一件反直觉的事：<span class="highlight">让 AI Agent 安全地自主编程，核心不是让它不犯错，而是让每个操作都可以撤销。</span></p>
+
+    <p>这不是什么新哲学——数据库有 WAL、Git 有 revert、编辑器有 undo。但当对象从数据变成 Agent 自身的认知结构时，可逆性的设计就变得微妙了。</p>
+
+    <h2>问题：当 Agent 进化自己的知识图谱</h2>
+
+    <p>在 <code>agent-memory-graph</code> 项目中，Agent 维护一个知识图谱，节点可以随时间「进化」——标签变了、类型变了。最初的 API 很简单：</p>
+
+<pre><code>class MemoryGraph:
+    def evolve(self, node_id, new_label=None, new_kind=None):
+        """进化一个节点，记录历史"""
+        node = self._nodes.get(node_id)
+        if not node:
+            return None
+        step = {
+            "step": len(node.evolution_log),
+            "old_label": node.label,
+            "old_kind": node.kind,
+            "new_label": new_label or node.label,
+            "new_kind": new_kind or node.kind,
+            "timestamp": time.time()
+        }
+        node.label = step["new_label"]
+        node.kind = step["new_kind"]
+        node.evolution_log.append(step)
+        return step
+</code></pre>
+
+    <p>看起来不错。但实际使用中出了一个模式：Agent 在夜间自主运行时，偶尔会错误地进化节点——比如把一个 <code>concept</code> 节点改成了 <code>tool</code>。第二天人类检查时，历史里已经有了 3-4 条进化记录，想回退到正确状态要么手动逐条反转（注入更多噪音），要么删库重来。</p>
+
+    <blockquote>没有 undo 的进化，是一扇单向门。对自主 Agent 来说，单向门意味着风险累积。</blockquote>
+
+    <h2>解法：revert_evolution —— 回到任意一步</h2>
+
+    <p>核心思路：<strong>进化日志本身就是 undo 的依据</strong>。每一步记录了 old/new，所以回退到第 N 步只需要截断日志并恢复第 N 步的值：</p>
+
+<pre><code>def revert_evolution(self, node_id, step_index):
+    """回退到进化历史的指定步骤"""
+    node = self._nodes.get(node_id)
+    if not node or step_index >= len(node.evolution_log):
+        return None
+    
+    target = node.evolution_log[step_index]
+    # 截断：删除 step_index 之后的所有步骤
+    node.evolution_log = node.evolution_log[:step_index + 1]
+    # 恢复：回到那一步的 new_* 值
+    node.label = target["new_label"]
+    node.kind = target["new_kind"]
+    return {"reverted_to": step_index, 
+            "label": node.label, 
+            "kind": node.kind}
+</code></pre>
+
+    <p>关键设计决策：<strong>不是「撤销最后一步」，而是「回到任意一步」。</strong> 因为在实际场景中，错误可能不是最后一步发生的——可能是第 2 步出错，但第 3、4 步是正确的。你需要回到第 2 步重新分支，而不是丢弃所有后续进化。</p>
+
+    <h2>模式：可逆操作的三要素</h2>
+
+    <p>从这次实践中，我提炼出一个设计模式，适用于任何 Agent 自主修改自身状态的场景：</p>
+
+    <h3>1. 完整记录 before/after</h3>
+
+    <p>不只是记录「改成了什么」，还要记录「从什么改来的」。这是 undo 的基础。我们的 evolution log 每步都包含 <code>old_label</code>/<code>new_label</code>，这让回退操作成了纯计算，不需要额外存储。</p>
+
+<pre><code># 好的设计：记录完整状态转移
+step = {"old": "concept", "new": "tool", "step": 3}
+
+# 坏的设计：只记录结果，丢失回退路径
+step = {"changed_to": "tool", "step": 3}
+</code></pre>
+
+    <h3>2. 截断而非追加</h3>
+
+    <p>一种直觉是「反向操作」——添加一条新的 evolution 记录把 tool 改回 concept。但这样历史会变得混乱：你看到 5 步进化，实际只有 3 次真正的变化，另外 2 次是「撤回」。</p>
+
+    <p><strong>截断日志</strong>是更干净的方式：回退到第 N 步意味着删除 N+1 之后的所有记录，然后恢复状态。历史永远是从初始状态到当前状态的线性路径。</p>
+
+    <h3>3. 批量操作支持原子视角</h3>
+
+    <p>同一天加的另一个方法 <code>batch_evolve</code>：</p>
+
+<pre><code>def batch_evolve(self, mapping):
+    """批量进化多个节点"""
+    results = []
+    for item in mapping:
+        node_id = item.get("node_id")
+        result = self.evolve(
+            node_id,
+            new_label=item.get("new_label"),
+            new_kind=item.get("new_kind")
+        )
+        results.append(result)
+    return results
+</code></pre>
+
+    <p>看起来很普通，但它的价值在于：<strong>人类审查时，一次 batch_evolve 调用就是一个原子操作。</strong> 比起看到 10 条独立的 evolve 记录并逐条审查，你可以把整个 batch 标记为「这次夜间运行的批量更新」，一次性接受或回退。</p>
+
+    <h2>92 天零回滚背后的真正原因</h2>
+
+    <p>很多人问我 autoresearch 方法论为什么能持续 92 天零回滚。答案不是「AI 写的代码特别正确」。实际上 AI 写的代码经常有小问题——类型不匹配、边界条件遗漏。</p>
+
+    <p>真正的原因是<strong>每一层都有可逆性</strong>：</p>
+
+    <ul>
+        <li><strong>方法级</strong>：每个新方法都有对应的边界测试，失败时不合并</li>
+        <li><strong>功能级</strong>：experiments.tsv 记录每次实验的 baseline 和结果，bad 实验标记为 <code>revert</code></li>
+        <li><strong>状态级</strong>：像 <code>revert_evolution</code> 这样的方法，让 Agent 自身的状态变更可以撤销</li>
+        <li><strong>Git 级</strong>：每个实验是独立 commit，git revert 就能回退整个实验</li>
+    </ul>
+
+    <p><span class="highlight">安全不是来自不犯错，而是来自每一层都有回退路径。</span></p>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你在构建自主 Agent 系统，问自己三个问题：</p>
+
+    <ol>
+        <li><strong>Agent 修改的每个状态，有没有 before/after 记录？</strong> 如果没有，你无法知道发生了什么，更无法撤销。</li>
+        <li><strong>回退是追加操作还是截断操作？</strong> 追加式回退会让历史变得难以理解。截断式回退保持历史的线性清晰。</li>
+        <li><strong>批量操作是否提供原子视角？</strong> Agent 一次可能修改 10 个东西。人类需要能一次性审查和回退，而不是逐条处理。</li>
+    </ol>
+
+    <blockquote>最后一点感想：数据库领域用了几十年才从「手动 SQL」进化到「migration + rollback」。Agent 系统现在正处在类似的转折点——从「手动 API 调用」到「自动 evolution + 自动 revert」。那些一开始就把可逆性设计进去的系统，会比事后补救的系统走得远得多。</blockquote>
+
+    <p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+        本文基于 autoresearch 方法论的真实实验数据。agent-memory-graph 项目当前 286/286 测试全通过。
+        <br>相关项目：<a href="https://github.com/robertsong2019/agent-memory-graph">agent-memory-graph</a> · 
+        <a href="https://robertsong2019.github.io">博客主页</a>
+    </p>
+</body>
+</html>
