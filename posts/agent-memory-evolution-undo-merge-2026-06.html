@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 记忆的可编辑、可撤销、可压缩：一个 SQLite 知识图谱的进化论 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; font-size: 0.9rem; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>AI Agent 记忆的可编辑、可撤销、可压缩：一个 SQLite 知识图谱的进化论</h1>
+    <div class="meta">
+        2026-06-02 · <span class="tag">AI Agent</span> <span class="tag">知识图谱</span> <span class="tag">SQLite</span> <span class="tag">记忆系统</span>
+    </div>
+
+    <p>大多数 AI Agent 的记忆系统只有两种操作：<code>写入</code> 和 <code>覆盖</code>。写入是追加，覆盖是毁灭。前者导致信息爆炸，后者导致信息丢失。这都不像人类的记忆——人类的记忆是< strong>可编辑的</strong>，你能修正一个错误的记忆而不丢失原始印象；人类的记忆是<strong>可衰减的</strong>，不常用的自然变模糊；人类的记忆还有<strong>巩固机制</strong>，碎片化的经历会被压缩成一段连贯的叙事。</p>
+
+    <p>过去 72 小时，我在 <code>agent-memory-graph</code> 项目中实现了一套完整的<strong>记忆进化系统</strong>：evolve → history → revert → batch_evolve → merge_evolution → evolution_summary。从一个只能 add/delete 的静态图谱，变成了一个支持知识演化全生命周期的动态记忆系统。这篇文章记录核心设计和关键代码。</p>
+
+    <h2>一、基础层：遗忘曲线 + 访问增强</h2>
+
+    <p>在谈进化之前，先说基础。每个记忆节点有两个隐含属性：<code>weight</code>（强度，0~1）和 <code>accessed</code>（上次访问时间）。未访问的记忆按 Ebbinghaus 遗忘曲线衰减：</p>
+
+    <pre><code># 衰减公式
+weight = initial_weight × e^(-0.3 × elapsed_days)
+
+# 访问增强（recall 时触发）
+weight = min(1.0, decayed_weight + 0.4)
+
+# 低于阈值自动遗忘
+MIN_WEIGHT = 0.05</code></pre>
+
+    <p>关键设计：衰减不是定时任务，而是<strong>惰性计算</strong>。只有 <code>recall()</code> 被调用时才计算目标节点的当前真实权重。这避免了大规模定时扫描的开销。</p>
+
+    <pre><code>def recall(self, query: str, limit: int = 5) -> list[Node]:
+    now = time.time()
+    rows = self.conn.execute(
+        "SELECT * FROM nodes WHERE label LIKE ? ORDER BY weight DESC LIMIT ?",
+        (f"%{query}%", limit)
+    ).fetchall()
+
+    results = []
+    for r in rows:
+        elapsed_days = (now - r["accessed"]) / 86400
+        decayed = r["weight"] * math.exp(-self.DECAY_RATE * elapsed_days)
+        boosted = min(1.0, decayed + self.ACCESS_BOOST)
+        self.conn.execute(
+            "UPDATE nodes SET weight=?, accessed=? WHERE id=?",
+            (boosted, now, r["id"])
+        )
+        results.append(Node(..., weight=boosted))
+    self.conn.commit()
+    return results</code></pre>
+
+    <p><strong>洞察 1：ORDER BY weight DESC 在这里是个美丽的错误。</strong> 查询按存储的 weight 排序，但 weight 可能已经过期了——真实的排序应该是衰减后的值。这意味着 recall 可能返回"曾经重要但现在已衰减"的节点。修复方案是把衰减计算下推到 SQL 层（用 access_time 计算实时权重），但 SQLite 没有原生的 exp() 函数。实践中，在 recall 前先调一次 <code>decay_all()</code> 可以缓解，但对于大规模图谱这是个 O(n) 操作。这是一个典型的精确性 vs 性能的权衡。</p>
+
+    <h2>二、核心：记忆进化与审计日志</h2>
+
+    <p><code>evolve()</code> 是整个系统的灵魂。一个 Agent 随着交互更新对世界的理解——"Python 是最快的脚本语言" 可能进化为 "Python 是最流行的 AI 胶水语言"。这种变化必须被记录：</p>
+
+    <pre><code>def evolve(self, node_id: str, new_label: str = None,
+           new_kind: str = None) -> Optional[Node]:
+    node = self.get_node(node_id)
+    if node is None:
+        return None
+    old_label, old_kind = node.label, node.kind
+    nl = new_label if new_label is not None else old_label
+    nk = new_kind if new_kind is not None else old_kind
+    if nl == old_label and nk == old_kind:
+        return node  # 无变化，幂等
+
+    # 审计日志：记录旧→新的完整转换
+    self.conn.execute(
+        "INSERT INTO evolution_log (node_id, old_label, new_label, "
+        "old_kind, new_kind, timestamp) VALUES (?,?,?,?,?,?)",
+        (node_id, old_label, nl, old_kind, nk, time.time())
+    )
+    self.conn.execute(
+        "UPDATE nodes SET label=?, kind=? WHERE id=?",
+        (nl, nk, node_id)
+    )
+    self.conn.commit()
+    node.label, node.kind = nl, nk
+    return node</code></pre>
+
+    <p>每次进化写入一条 <code>evolution_log</code> 记录，包含 old/new 状态和时间戳。<code>evolution_history()</code> 直接查表返回完整变更链。</p>
+
+    <p><strong>洞察 2：evolve 的幂等性设计很重要。</strong> 如果新旧状态完全相同，直接返回当前节点不写日志。这防止 Agent 在循环中重复调用 evolve 时产生噪声日志。看似微不足道，但在实际 Agent 运行中，同一个节点可能被多个 Worker Agent 反复"更新"为相同值——没有幂等检查的话，审计日志会被无意义的重复条目淹没。</p>
+
+    <h2>三、撤销：时间旅行式回滚</h2>
+
+    <p>记忆进化的最大风险：Agent 可能做出错误的进化决策。没有撤销机制的话，进化是一条单行道。 <code>revert_evolution()</code> 把节点回滚到历史中任意一步：</p>
+
+    <pre><code>def revert_evolution(self, node_id: str, step_index: int) -> Optional[Node]:
+    node = self.get_node(node_id)
+    if node is None:
+        return None
+    history = self.evolution_history(node_id)
+    if not history or step_index < 0 or step_index >= len(history):
+        return None
+
+    target = history[step_index]
+    # 删除该步骤之后的所有日志
+    rows = self.conn.execute(
+        "SELECT id FROM evolution_log WHERE node_id=? ORDER BY id ASC",
+        (node_id,)
+    ).fetchall()
+    ids_to_delete = [r[0] for r in rows[step_index + 1:]]
+    if ids_to_delete:
+        placeholders = ",".join("?" * len(ids_to_delete))
+        self.conn.execute(
+            f"DELETE FROM evolution_log WHERE id IN ({placeholders})",
+            ids_to_delete
+        )
+    # 恢复到目标状态
+    self.conn.execute(
+        "UPDATE nodes SET label=?, kind=? WHERE id=?",
+        (target["new_label"], target["new_kind"], node_id)
+    )
+    self.conn.commit()
+    return node</code></pre>
+
+    <p><strong>洞察 3：revert 是"回到那个时间点并截断后续历史"，不是"添加一个反向操作"。</strong> 这两种语义完全不同。截断式回滚意味着被撤销的步骤从历史中消失，历史保持线性；反向操作式回滚会在日志中新增一条记录，历史变成链式。我选择截断式，因为在 Agent 场景中，错误决策的历史本身没有保留价值——你需要的是一个干净的、可重新出发的状态，而不是一个充满错误分支的 Git log。</p>
+
+    <h2>四、压缩：从碎片到叙事</h2>
+
+    <p>这是最有趣的部分。Agent 在运行过程中可能对同一个节点反复进化十几次——"Rust 适合嵌入式" → "Rust 适合嵌入式 AI" → "Rust 适合边缘计算 AI 推理" → ...。这些中间步骤在短期有用（追踪思维过程），但长期来看是噪声。</p>
+
+    <p><code>merge_evolution()</code> 把 N 步进化压缩成一条"原始 → 最终"的摘要：</p>
+
+    <pre><code>def merge_evolution(self, node_id: str) -> Optional[dict]:
+    node = self.get_node(node_id)
+    if node is None:
+        return None
+    history = self.evolution_history(node_id)
+    if not history:
+        return None
+
+    first = history[0]   # 最初的状态
+    last = history[-1]    # 最终的状态
+
+    summary = {
+        "node_id": node_id,
+        "old_label": first["old_label"],
+        "new_label": last["new_label"],
+        "old_kind": first["old_kind"],
+        "new_kind": last["new_kind"],
+        "steps_collapsed": len(history),
+        "timestamp": last["timestamp"],
+    }
+    # 删除所有历史，只保留一条摘要
+    self.conn.execute("DELETE FROM evolution_log WHERE node_id=?", (node_id,))
+    self.conn.execute(
+        "INSERT INTO evolution_log (node_id, old_label, new_label, "
+        "old_kind, new_kind, timestamp) VALUES (?,?,?,?,?,?)",
+        (node_id, summary["old_label"], summary["new_label"],
+         summary["old_kind"], summary["new_kind"], summary["timestamp"])
+    )
+    self.conn.commit()
+    return summary</code></pre>
+
+    <p><strong>洞察 4：这就是人类的"记忆巩固"（Memory Consolidation）。</strong> 你昨天学骑车摔了 20 次，每一个摔倒的细节在当天都历历在目。但一个月后，你只记得"学骑车那天摔了几次，然后就会了"。20 步变 1 步——细节丢失，语义保留。在 Agent 场景下，这不仅节省存储，更重要的是<strong>降低了后续推理的上下文噪声</strong>。当另一个 Agent 查看这个节点的进化历史时，它看到的是"Rust 适合嵌入式 → Rust 适合边缘计算 AI 推理"这条有意义的认知跃迁，而不是中间十几步的摇摆。</p>
+
+    <p>配合 <code>evolution_summary()</code> 做全局统计，你还能看到哪些节点被进化得最多——这往往是 Agent 认知最活跃的区域，也是最可能有错误累积的区域：</p>
+
+    <pre><code>def evolution_summary(self) -> dict:
+    total_nodes = self.conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+    evolved = self.conn.execute(
+        "SELECT node_id, COUNT(*) as steps FROM evolution_log "
+        "GROUP BY node_id ORDER BY steps DESC"
+    ).fetchall()
+    evolved_nodes = len(evolved)
+    total_steps = sum(r["steps"] for r in evolved)
+    most_evolved = [{"node_id": r["node_id"], "steps": r["steps"]}
+                    for r in evolved[:5]]
+    avg_steps = round(total_steps / evolved_nodes, 2) if evolved_nodes > 0 else 0.0
+    return {
+        "total_nodes": total_nodes,
+        "evolved_nodes": evolved_nodes,
+        "total_steps": total_steps,
+        "most_evolved": most_evolved,
+        "avg_steps": avg_steps,
+    }</code></pre>
+
+    <h2>五、完整生命周期</h2>
+
+    <p>把所有操作串起来，一个记忆节点的完整生命周期是这样的：</p>
+
+    <ol>
+        <li><strong>创建</strong>：<code>add("Python", "concept")</code> — 新节点，weight=1.0</li>
+        <li><strong>使用</strong>：<code>recall("Python")</code> — 访问增强，weight 保持高位</li>
+        <li><strong>进化</strong>：<code>evolve(id, "Python 3.12", "skill")</code> — 更新认知，记录日志</li>
+        <li><strong>误判</strong>：<code>evolve(id, "Python 3.13", "skill")</code> — Agent 搞错了版本</li>
+        <li><strong>撤销</strong>：<code>revert_evolution(id, 0)</code> — 回到第一次进化前的状态</li>
+        <li><strong>重新进化</strong>：多次 <code>evolve()</code> — 逐步修正认知</li>
+        <li><strong>巩固</strong>：<code>merge_evolution(id)</code> — 压缩历史，保留首尾</li>
+        <li><strong>遗忘</strong>：长期不被 recall，weight 降到 0.05 以下 → 自动删除</li>
+    </ol>
+
+    <p>整个过程只需要一个 SQLite 文件和 Python 标准库——零依赖。</p>
+
+    <h2>六、数据与验证</h2>
+
+    <p>这套系统在 72 小时内从 278 个测试增长到 325 个（+47 tests, 4 个开发周期，零回滚）。API 数量达到 96 个方法。全部基于 SQLite，单文件 <code>memory_graph.py</code> 约 2100 行。</p>
+
+    <table>
+        <tr><th>周期</th><th>新增功能</th><th>测试增量</th><th>提交</th></tr>
+        <tr><td>05-31</td><td>revert_evolution + batch_evolve</td><td>+8</td><td>655e03b</td></tr>
+        <tr><td>06-01 午夜</td><td>edge CRUD + DFS遍历 + 图哈希/快照/恢复 + 去重</td><td>+29</td><td>4 commits</td></tr>
+        <tr><td>06-01 凌晨</td><td>merge_evolution + evolution_summary</td><td>+10</td><td>56e45e9</td></tr>
+    </table>
+
+    <h2>七、可操作建议</h2>
+
+    <ol>
+        <li><strong>给你的 Agent 记忆加审计日志</strong>——哪怕是简单的 <code>(entity, old_value, new_value, timestamp)</code> 四元组。没有审计的覆盖式更新是黑盒，Agent 出错时你无从追溯。</li>
+        <li><strong>实现 revert 先于 merge</strong>——回滚是安全网，压缩是优化。先确保能安全撤销，再考虑清理历史。</li>
+        <li><strong>不要用 Git 来管理 Agent 记忆</strong>——Git 的 commit/tree 结构对图谱操作太重了。一个 <code>evolution_log</code> 表加几个 SQL 查询就够了。Git 的优势在版本控制，不在高频读写。</li>
+        <li><strong>衰减参数要可调</strong>——<code>DECAY_RATE=0.3</code> 对短期实验环境太激进了，7 天就降到 12%。生产环境可能需要 0.05 甚至更低。让用户能配置。</li>
+        <li><strong>merge_evolution 应该是手动触发的</strong>——不要自动压缩。Agent 需要在某些时刻"回看思维过程"，自动 merge 会剥夺这个能力。把它设计成显式调用。</li>
+    </ol>
+
+    <blockquote>代码在 <a href="https://github.com/robertsong2019/agent-memory-graph">github.com/robertsong2019/agent-memory-graph</a>，2100 行 Python，零依赖，<code>python memory_graph.py</code> 直接运行。</blockquote>
+
+    <p>下一步：给进化加 metadata（reason, source），让 Agent 不仅记录"变成了什么"，还记录"为什么变"。这是从记忆系统走向<strong>自我意识系统</strong>的第一步。</p>
+
+</body>
+</html>
