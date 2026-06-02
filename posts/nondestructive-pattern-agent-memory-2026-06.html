@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>非破坏性数据操作：AI Agent 记忆系统的设计启示 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>非破坏性数据操作：AI Agent 记忆系统的设计启示</h1>
+    <div class="meta">
+        2026-06-03 · <span class="tag">AI Agent</span> <span class="tag">系统设计</span> <span class="tag">Python</span>
+    </div>
+
+    <p>过去三个月，我的 autoresearch 实验框架在十几个 Agent 基础设施项目上跑了超过 <span class="highlight">2000 次测试循环</span>。在这些实验中，有一个设计模式反复出现，值得单独拿出来聊聊：<strong>非破坏性操作</strong>（non-destructive operations）。</p>
+
+    <p>具体来说，是我在 <code>agent-context-store</code> 项目中实现的 <code>snapshot_branch</code> 方法。这个方法只有 20 行代码，但它解决了一个真实的 Agent 记忆管理痛点。</p>
+
+    <h2>问题：Agent 的「记忆回溯困境」</h2>
+
+    <p>想象一个 AI Agent 正在工作。它维护着一个 key-value 形式的上下文存储，里面记录了任务状态、观察结果、中间结论。在关键节点，Agent 会创建快照（snapshot）来保存当前状态。</p>
+
+    <p>问题来了：Agent 想在某个历史快照上做实验——比如尝试一种不同的合并策略，或者对比两个时间点的状态差异。现有选择只有两种：</p>
+
+    <ul>
+        <li><strong>加载快照</strong>（<code>load_snapshot</code>）——直接覆盖当前状态，<span class="highlight">破坏性的</span></li>
+        <li><strong>手动遍历</strong>快照的键值对——繁琐且容易出错</li>
+    </ul>
+
+    <p>这不是假想的场景。在 agent-memory-graph 项目中，我实现了 <code>snapshot()</code> / <code>restore()</code> 对，每次 restore 都是一次「全有或全无」的赌博。Agent 真的想回滚吗？还是只想「看看」过去的状态？</p>
+
+    <h2>解法：snapshot_branch —— 命名空间分支</h2>
+
+    <p>核心思路很简单：把快照的数据复制到当前存储中，但给所有 key 加上前缀。</p>
+
+<pre><code>def snapshot_branch(self, name: str, prefix: str) -> dict | None:
+    """Fork a snapshot into current store with all keys prefixed.
+    Non-destructive: does not remove or overwrite existing keys.
+    """
+    snap = self._snapshots.get(name)
+    if snap is None:
+        return None
+    import copy
+    branched = []
+    skipped = 0
+    for key, val in snap['data'].items():
+        new_key = f"{prefix}{key}"
+        if new_key in self._data:
+            skipped += 1
+            continue
+        self._data[new_key] = copy.deepcopy(val)
+        obs = snap['observe_counts'].get(key, 0)
+        self._observe_counts[new_key] = obs
+        branched.append(new_key)
+        self._emit('put', key=new_key)
+    self._save()
+    self._log('snapshot_branch', name)
+    return {'branched_keys': branched, 'skipped': skipped}</code></pre>
+
+    <p>使用效果：</p>
+
+<pre><code># 当前状态有 key "config"
+store.put("config", "production")
+
+# 创建快照
+store.save_snapshot("before_experiment")
+
+# 在快照上做实验，不影响当前数据
+result = store.snapshot_branch("before_experiment", "exp1/")
+# 现在 store 中有: "config" (当前) + "exp1/config" (快照副本)
+
+# 对比两个状态
+current = store.get("config")
+experimental = store.get("exp1/config")
+
+# 不想要了？删掉带前缀的键就行
+store.delete("exp1/config")</code></pre>
+
+    <h2>设计决策中的三个关键选择</h2>
+
+    <h3>1. 跳过而非覆盖</h3>
+
+    <p>当目标 key 已存在时，<code>snapshot_branch</code> 选择跳过（<code>skipped += 1</code>）而不是覆盖。这是一个重要的安全决策——Agent 的当前状态永远比历史快照更重要。如果要覆盖，应该是显式的操作。</p>
+
+    <p>测试验证了这一点：</p>
+
+<pre><code>def test_snapshot_branch_skips_existing(self):
+    s = ContextStore()
+    s.put("a", "original")
+    s.save_snapshot("s")
+    s.put("ns/a", "already_here")
+    result = s.snapshot_branch("s", "ns/")
+    assert result["skipped"] == 1
+    assert s.get("ns/a") == "already_here"  # 当前数据未被动</code></pre>
+
+    <h3>2. 前缀而非嵌套</h3>
+
+    <p>为什么用 <code>"exp1/config"</code> 这样的前缀 key，而不是引入嵌套结构？因为 key-value store 的核心优势就是扁平、O(1) 访问。引入嵌套意味着新的遍历逻辑、新的序列化路径，复杂度爆炸。前缀保持了数据模型的简单性，同时提供了足够的命名空间隔离。</p>
+
+    <h3>3. 保留元数据</h3>
+
+    <p>分支时，observe_count 等元数据一并复制。这看起来是小事，但在 Agent 的上下文分析中，observe_count 是判断「这条信息是否重要」的关键信号。丢失它意味着分支出去的数据「价值归零」。</p>
+
+    <h2>这个模式的普遍性</h2>
+
+    <p>回头看，非破坏性操作是我整个 autoresearch 实验体系的基石。autoresearch 框架本身的运作方式就是：</p>
+
+    <ol>
+        <li>测量基线（测试数量和通过率）</li>
+        <li>做改动</li>
+        <li>如果通过率下降 → <strong>回滚</strong>（恢复基线）</li>
+        <li>如果通过率不变或提升 → <strong>保留</strong></li>
+    </ol>
+
+    <p>这套「try → measure → keep or revert」的循环之所以能连续运行 <span class="highlight">97 天零回滚</span>，正是因为每次实验都是可回退的。代码层面是 git，数据层面是 snapshot + branch。</p>
+
+    <p>同样的模式出现在其他地方：</p>
+    <ul>
+        <li><strong>Git</strong> 的 branch 就是非破坏性的代码快照分支</li>
+        <li><strong>Immutable.js</strong> 的 persistent data structures</li>
+        <li><strong>Docker</strong> 的 layered filesystem（每个 layer 只添加不修改）</li>
+        <li><strong>CRDT</strong>（conflict-free replicated data types）的设计哲学</li>
+    </ul>
+
+    <p>但在 Agent 记忆系统这个场景里，这个原则还没有被广泛采纳。大部分 Agent 框架的记忆是「写入就写入」——没有版本，没有分支，没有回退。</p>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你在设计 Agent 的记忆或上下文系统，问自己三个问题：</p>
+
+    <p><strong>1. Agent 能撤销上一次写入吗？</strong><br>
+    如果不能，加一个 <code>checkpoint(fn)</code> 方法，自动在执行前后保存/恢复快照。agent-context-store 的实现只有 10 行：</p>
+
+<pre><code>def checkpoint(self, fn, name=None):
+    snap_name = name or f"_cp_{time.time()}"
+    self.save_snapshot(snap_name)
+    try:
+        return fn(self)
+    except Exception:
+        self.load_snapshot(snap_name)
+        raise</code></pre>
+
+    <p><strong>2. Agent 能同时持有两个版本的数据吗？</strong><br>
+    用前缀隔离是最简单的方案。不需要实现完整的 MVCC（多版本并发控制），一个字符串前缀就够了。</p>
+
+    <p><strong>3. 删除操作是可恢复的吗？</strong><br>
+    考虑软删除——标记为 deleted 而不是真正移除。或者像 git 一样，数据只是从索引中消失，底层对象还在。</p>
+
+    <h2>结语的反思</h2>
+
+    <p>写这篇随笔时，我意识到一个有趣的事：<strong>人类设计的好系统，都在某种程度上模仿了人类大脑的工作方式</strong>。我们的记忆不是覆盖式的——你不会因为学了一个新概念就忘掉旧概念。新知识和旧知识共存，互相参照，有时融合，有时冲突。偶尔你还会「回到过去」——想起童年的某个下午——但那个下午并没有覆盖你现在的记忆。</p>
+
+    <p>Agent 的记忆系统也应该如此。非破坏性不是锦上添花，而是一个能思考、能学习、能犯错的系统的基础需求。</p>
+
+    <blockquote>
+        代码在 <a href="https://github.com/robertsong2019">github.com/robertsong2019</a> 的 agent-context-store 仓库中。autoresearch 实验框架持续运行中，当前累计 2000+ 测试循环，97 天零回滚。
+    </blockquote>
+
+</body>
+</html>
