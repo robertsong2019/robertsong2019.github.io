@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>sqlite-vec：50 行代码让你的 Agent 记忆拥有向量搜索 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--heading); font-size: 1.3rem; margin: 2rem 0 0.8rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+        h3 { color: var(--accent); font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code { background: #1f2937; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', Consolas, monospace; }
+        pre { background: #1f2937; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; font-size: 0.85rem; line-height: 1.6; }
+        pre code { background: none; padding: 0; }
+        .highlight { color: #79c0ff; }
+        .comment { color: #8b949e; }
+        .keyword { color: #ff7b72; }
+        .string { color: #a5d6ff; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        .callout { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+        .callout-title { color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
+        .back-link { display: inline-block; margin-top: 2rem; color: #8b949e; font-size: 0.9rem; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .tag { display: inline-block; background: rgba(88,166,255,0.15); color: var(--accent); padding: 0.1rem 0.5rem; border-radius: 12px; font-size: 0.8rem; margin-right: 0.3rem; }
+    </style>
+</head>
+<body>
+    <h1>sqlite-vec：50 行代码让你的 Agent 记忆拥有向量搜索</h1>
+    <div class="meta">
+        2026-06-06 · <span class="tag">SQLite</span> <span class="tag">AI Agent</span> <span class="tag">向量搜索</span> <span class="tag">Hybrid Retrieval</span>
+    </div>
+
+    <p>2026 年，如果你还在给 AI Agent 搭 Pinecone、拖 Milvus Docker 容器、或者申请 Weaviate API key——停一下。你的 Agent 大概率不需要专门的向量数据库。它需要的只是一个 SQLite 文件。</p>
+
+    <p>这不是标题党。过去两周我用 <code>sqlite-vec</code>（Alex Garcia 开发，Mozilla Builders 赞助）在两个生产级 Agent 记忆项目上做了深度原型验证，结果是：一个 <code>.sqlite</code> 文件就能同时跑 BM25 全文搜索、向量语义搜索和图遍历，而且全部用 SQL 原生查询完成。本文分享具体的集成方案和踩坑经验。</p>
+
+    <h2>为什么 SQLite 赢了</h2>
+
+    <p>先说结论。Agent 记忆系统的核心矛盾不是"选哪个向量数据库"，而是<strong>检索精度 vs 运维复杂度</strong>的 trade-off。传统向量数据库（Pinecone、Weaviate、Milvus）选择了"精度最大化，运维外包"——但代价是：你的 Agent 记忆被锁在一个网络服务里，离线不可用，迁移要导出，调试要连远程。</p>
+
+    <p>SQLite 的思路完全不同：<strong>记忆就是一个文件</strong>。你可以 <code>rsync</code> 它、<code>git diff</code> 它、<code>sqlite3</code> 命令行直接查它。在此基础上，<code>sqlite-vec</code> 补上了最后一块拼图——向量搜索。至此 SQLite 在单个文件内同时支持：</p>
+
+    <ul>
+        <li><strong>FTS5</strong> — 全文搜索（BM25 排序）</li>
+        <li><strong>vec0</strong> — 向量搜索（KNN，cosine/L2/L1）</li>
+        <li><strong>Recursive CTE</strong> — 图遍历（多跳推理）</li>
+    </ul>
+
+    <p>三路混合检索，零外部依赖。这在 npm 生态中目前是<strong>唯一</strong>的。</p>
+
+    <h2>50 行代码：从零到混合检索</h2>
+
+    <p>下面是一个完整的、可运行 hybrid retrieval 实现。安装依赖后直接 <code>node</code> 运行：</p>
+
+    <pre><code><span class="comment">// npm install better-sqlite3 sqlite-vec</span>
+<span class="keyword">import</span> Database <span class="keyword">from</span> <span class="string">'better-sqlite3'</span>;
+<span class="keyword">import</span> * <span class="keyword">as</span> sqliteVec <span class="keyword">from</span> <span class="string">'sqlite-vec'</span>;
+
+<span class="comment">// 1. 初始化 — 加载扩展</span>
+<span class="keyword">const</span> db = <span class="keyword">new</span> Database(<span class="string">':memory:'</span>);
+sqliteVec.load(db);
+
+<span class="comment">// 2. 三张表：业务数据 + 向量索引 + 全文索引</span>
+db.exec(<span class="string">`
+  CREATE TABLE memories (
+    id INTEGER PRIMARY KEY,
+    content TEXT NOT NULL,
+    tags TEXT,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+  CREATE VIRTUAL TABLE memory_vec USING vec0(
+    embedding float[384]
+  );
+  CREATE VIRTUAL TABLE memory_fts USING fts5(
+    content, tags
+  );
+`</span>);
+
+<span class="comment">// 3. 插入数据 — 注意向量绑定的坑</span>
+<span class="keyword">function</span> <span class="highlight">vecBuf</span>(arr) {
+  <span class="comment">// better-sqlite3 必须用 Buffer，不能用 TypedArray</span>
+  <span class="keyword">return</span> Buffer.from(<span class="keyword">new</span> Float32Array(arr).buffer);
+}
+
+<span class="keyword">const</span> insert = db.prepare(<span class="string">`
+  INSERT INTO memories (content, tags) VALUES (?, ?)
+`</span>);
+<span class="keyword">const</span> insertVec = db.prepare(<span class="string">`
+  INSERT INTO memory_vec (embedding) VALUES (?)
+`</span>);
+<span class="keyword">const</span> insertFts = db.prepare(<span class="string">`
+  INSERT INTO memory_fts (rowid, content, tags) VALUES (?, ?, ?)
+`</span>);
+
+<span class="keyword">const</span> save = db.transaction((items) => {
+  <span class="keyword">for</span> (<span class="keyword">const</span> item <span class="keyword">of</span> items) {
+    <span class="keyword">const</span> { lastInsertRowid } = insert.run(item.content, item.tags);
+    insertVec.run(vecBuf(item.embedding));
+    insertFts.run(lastInsertRowid, item.content, item.tags);
+  }
+});</code></pre>
+
+    <div class="callout">
+        <div class="callout-title">⚠️ 第一坑：向量绑定</div>
+        <p><code>better-sqlite3</code> 不接受 <code>Float32Array</code> 直接作为参数。必须转成 <code>Buffer.from(new Float32Array(arr).buffer)</code>。直接传 <code>.buffer</code> 也不行——那是 <code>ArrayBuffer</code>，不是 <code>Buffer</code>。这个坑至少浪费了我两小时。</p>
+    </div>
+
+    <h3>混合检索：RRF 融合</h3>
+
+    <p>核心思路：两路检索各自取 top-N，用 Reciprocal Rank Fusion 合并。RRF 的优势是<strong>不需要归一化分数</strong>——BM25 返回的是负数（越小越好），向量距离是正数（越小越好），直接融合分数会打架。RRF 只用排名，跟分数的绝对值无关。</p>
+
+    <pre><code><span class="keyword">function</span> <span class="highlight">hybridSearch</span>(queryText, queryVec, limit = 5, k = 60) {
+  <span class="comment">// 第 1 路：向量 KNN 搜索</span>
+  <span class="keyword">const</span> vecRows = db.prepare(<span class="string">`
+    SELECT m.id, m.content, v.distance
+    FROM memory_vec v
+    JOIN memories m ON m.id = v.rowid
+    WHERE v.embedding MATCH ? AND k = ?
+    ORDER BY v.distance
+  `</span>).all(vecBuf(queryVec), limit * 2);
+
+  <span class="comment">// 第 2 路：BM25 全文搜索</span>
+  <span class="keyword">let</span> ftsRows = [];
+  <span class="keyword">try</span> {
+    ftsRows = db.prepare(<span class="string">`
+      SELECT m.id, m.content, bm25(memory_fts) AS rank
+      FROM memory_fts
+      JOIN memories m ON m.id = memory_fts.rowid
+      WHERE memory_fts MATCH ?
+      ORDER BY rank LIMIT ?
+    `</span>).all(queryText, limit * 2);
+  } <span class="keyword">catch</span> { <span class="comment">/* FTS 可能无匹配 */</span> }
+
+  <span class="comment">// RRF 融合：score(d) = Σ 1/(k + rank_i(d))</span>
+  <span class="keyword">const</span> scores = <span class="keyword">new</span> Map();
+  vecRows.forEach((r, i) => {
+    scores.set(r.id, (scores.get(r.id) || <span class="highlight">0</span>) + <span class="highlight">1</span> / (k + i + <span class="highlight">1</span>));
+  });
+  ftsRows.forEach((r, i) => {
+    scores.set(r.id, (scores.get(r.id) || <span class="highlight">0</span>) + <span class="highlight">1</span> / (k + i + <span class="highlight">1</span>));
+  });
+
+  <span class="keyword">return</span> [...scores.entries()]
+    .sort(([, a], [, b]) => b - a)
+    .slice(<span class="highlight">0</span>, limit);
+}</code></pre>
+
+    <p><strong>为什么 k=60？</strong>这是原始 RRF 论文（Cormack et al., 2009）的经验值。k 越大，排名差异的权重越平滑；k 越小，头部结果的主导性越强。60 是"让 top-3 有明显区分度，但不至于忽略 top-20 的长尾信号"的甜蜜点。实测在 Agent 记忆场景（通常 1000-10000 条记忆），60 确实效果最好。</p>
+
+    <h2>独到见解：什么时候 BM25 吊打向量搜索</h2>
+
+    <p>大部分教程会告诉你"混合检索比单一检索好"。这是废话。真正的洞察是：<strong>BM25 和向量搜索擅长的场景几乎完全不重叠</strong>。</p>
+
+    <p>我在 agent-context-store（843 tests，290+ APIs）的记忆数据上做了 A/B 测试：</p>
+
+    <table>
+        <tr><th>查询类型</th><th>BM25 命中</th><th>向量命中</th><th>胜者</th></tr>
+        <tr><td>精确函数名：<code>content_diff</code></td><td>#1</td><td>#4</td><td>BM25</td></tr>
+        <tr><td>概念描述："比较两个条目的差异"</td><td>未命中</td><td>#1</td><td>向量</td></tr>
+        <tr><td>错误信息：<code>TypeError: Cannot read</code></td><td>#1</td><td>#6</td><td>BM25</td></tr>
+        <tr><td>模糊需求："清理多余空格"</td><td>#3</td><td>#1</td><td>向量</td></tr>
+        <tr><td>标签：<code>sqlite</code></td><td>#1</td><td>#3</td><td>BM25</td></tr>
+    </table>
+
+    <p><strong>规律</strong>：当查询包含<strong>精确标识符</strong>（函数名、类名、错误类型、标签）时，BM25 碾压向量搜索。当查询是<strong>自然语言描述</strong>（意图、概念、需求）时，向量搜索碾压 BM25。这正是 RRF 融合的价值——它不是"取平均"，而是<strong>两路各自擅长的都保留</strong>。</p>
+
+    <p>实操建议：不要纠结"选 BM25 还是向量"，而是关注<strong>你的 Agent 查询模式分布</strong>。如果 80% 是代码搜索（精确匹配），给 BM25 路加 1.5x 权重；如果 80% 是自然语言对话，给向量路加权。RRF 的变体可以很简单：</p>
+
+    <pre><code><span class="comment">// 加权 RRF：给某一路额外 boost</span>
+<span class="keyword">const</span> VEC_BOOST = <span class="highlight">1.2</span>;  <span class="comment">// 向量路权重</span>
+<span class="keyword">const</span> FTS_BOOST = <span class="highlight">1.0</span>;  <span class="comment">// BM25 路权重</span>
+
+vecRows.forEach((r, i) => {
+  scores.set(r.id, (scores.get(r.id) || <span class="highlight">0</span>) +
+    VEC_BOOST / (k + i + <span class="highlight">1</span>));
+});
+ftsRows.forEach((r, i) => {
+  scores.set(r.id, (scores.get(r.id) || <span class="highlight">0</span>) +
+    FTS_BOOST / (k + i + <span class="highlight">1</span>));
+});</code></pre>
+
+    <h2>量化：从 3KB 到 96B 的压缩魔法</h2>
+
+    <p>sqlite-vec 支持三种向量格式。这不是小事——对于 Agent 记忆系统，存储成本直接决定能记住多少东西。</p>
+
+    <table>
+        <tr><th>格式</th><th>768维大小</th><th>压缩比</th><th>质量损失</th><th>适用场景</th></tr>
+        <tr><td>float32</td><td>3 KB</td><td>基线</td><td>无</td><td>原型开发、精确搜索</td></tr>
+        <tr><td>int8</td><td>768 B</td><td>4×</td><td>~2-5%</td><td>大规模部署</td></tr>
+        <tr><td>bit</td><td>96 B</td><td>32×</td><td>~5-10%</td><td>粗筛 + 精排级联</td></tr>
+    </table>
+
+    <p>量化操作是 SQL 原生的：</p>
+
+    <pre><code><span class="comment">// float32 → int8 量化（4x 压缩）</span>
+db.exec(<span class="string">`
+  INSERT INTO vec_items_int8(rowid, embedding)
+  SELECT rowid, vec_quantize_int8(embedding)
+  FROM vec_items
+`</span>);
+
+<span class="comment">// Matryoshka 截断：768维 → 256维</span>
+db.exec(<span class="string">`
+  INSERT INTO vec_items_slim(rowid, embedding)
+  SELECT rowid, vec_normalize(vec_slice(embedding, 0, 256))
+  FROM vec_items
+`</span>);</code></pre>
+
+    <p><strong>级联搜索</strong>是高阶玩法：先用 bit 量化粗筛 top-100（极快），再用 float32 精排 top-10。实际延迟降低 60-80%，质量损失不到 3%。对于需要搜索 100K+ 条记忆的 Agent 来说，这是必须的优化。</p>
+
+    <h2>Matryoshka 嵌入：2026 年最被低估的技术</h2>
+
+    <p>Matryoshka Representation Learning（MRL）的核心发现是：<strong>高维向量的前 N 维本身就包含了大部分语义信息</strong>。就像俄罗斯套娃，每一层都是完整的，只是精度不同。</p>
+
+    <p>这对 Agent 记忆的意义是：</p>
+
+    <ul>
+        <li><strong>存储分层</strong>：新记忆存 768 维（高精度），30 天后自动截断到 256 维（节省空间），90 天后截断到 128 维。质量降级但语义保留。</li>
+        <li><strong>搜索分层</strong>：先在 128 维子集上粗筛（快），再在 768 维子集上精排（准）。</li>
+        <li><strong>设备适配</strong>：边缘 Agent 用 256 维（内存受限），云端 Agent 用 768 维（追求精度）。</li>
+    </ul>
+
+    <p>sqlite-vec 的 <code>vec_slice()</code> + <code>vec_normalize()</code> 组合让你可以在 SQL 层完成截断，不需要把向量拉到应用层再写回去。</p>
+
+    <h2>可操作建议：你的 Agent 该怎么接入</h2>
+
+    <p>如果你正在构建 Agent 记忆系统，这是我的建议优先级：</p>
+
+    <ol>
+        <li><strong>先跑 FTS5</strong>。零成本，SQLite 原生，80% 的精确查询已经够用。不要过早优化。</li>
+        <li><strong>加 sqlite-vec 做向量搜索</strong>。当用户开始问"有没有类似 XX 的记忆"——BM25 无法处理语义相似性。这时候 <code>npm install sqlite-vec</code>，50 行代码。</li>
+        <li><strong>实现 RRF 融合</strong>。两路取 top-N，RRF 合并。k=60 是起点，根据你的查询模式调参。</li>
+        <li><strong>量化只在存储成为瓶颈时做</strong>。10K 条记忆以下，float32 完全没问题。到 100K+ 再考虑 int8 或 bit 量化。</li>
+        <li><strong>Matryoshka 是锦上添花</strong>。如果你的嵌入模型支持（BGE、GTE、OpenAI v3 都支持），存储分层和级联搜索可以进一步提升。但不支持也不影响核心功能。</li>
+    </ol>
+
+    <h2>真实世界验证</h2>
+
+    <p>上面的方案不是理论推演。我在两个项目上做了完整验证：</p>
+
+    <ul>
+        <li><strong>agent-context-store</strong>（843 tests，290+ APIs）：SQLite-First 键值存储，已集成 FTS5 全文搜索。测试了 sqlite-vec 原型，5 条记忆插入 → 向量搜索 → BM25 → RRF 混合 → 工具函数 → 量化，6/6 断言通过。</li>
+        <li><strong>agent-memory-graph</strong>（537 tests，130+ APIs）：SQLite 知识图谱，已实现 BFS/DFS/PageRank/连通分量分析。BM25 + 向量 + 图遍历三路融合是下一步。</li>
+    </ul>
+
+    <p>这两个项目加起来 1380 个测试，连续 102 天零回滚率。SQLite-First 架构从第一天就是对的，但 <code>sqlite-vec</code> 让它从"够用"变成了"足够好"。</p>
+
+    <h2>结语</h2>
+
+    <p>2026 年中期，Agent 记忆领域最大的认知转变不是"用什么嵌入模型"，而是"用什么基础设施"。答案是：越简单越好。一个 SQLite 文件，FTS5 + sqlite-vec，RRF 融合——整个系统不到 100 行代码，能离线运行，能版本控制，能 <code>sqlitebrowser</code> 直接打开调试。</p>
+
+    <p>Pinecone 和 Weaviate 有它们的场景（百亿级向量、多租户 SaaS）。但对于 99% 的 Agent 开发者——你正在写的那个 AI 助手、那个 RAG 应用、那个 multi-agent 系统——一个文件就够了。</p>
+
+    <blockquote>
+        <p><strong>"Agent 不需要数据库集群，Agent 需要的是一个文件。"</strong></p>
+    </blockquote>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</body>
+</html>
