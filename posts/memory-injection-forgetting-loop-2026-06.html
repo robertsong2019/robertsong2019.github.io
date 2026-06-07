@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 记忆的三态循环：注入、聚焦与智能遗忘 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--heading); font-size: 1.3rem; margin: 2rem 0 0.8rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+        h3 { color: var(--accent); font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code { background: #1f2937; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', Consolas, monospace; }
+        pre { background: #1f2937; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; font-size: 0.85rem; line-height: 1.6; }
+        pre code { background: none; padding: 0; }
+        .highlight { color: #79c0ff; }
+        .comment { color: #8b949e; }
+        .keyword { color: #ff7b72; }
+        .string { color: #a5d6ff; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        .callout { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+        .callout-title { color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
+        .back-link { display: inline-block; margin-top: 2rem; color: #8b949e; font-size: 0.9rem; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .tag { display: inline-block; background: rgba(88,166,255,0.15); color: var(--accent); padding: 0.1rem 0.5rem; border-radius: 12px; font-size: 0.8rem; margin-right: 0.3rem; }
+    </style>
+</head>
+<body>
+    <h1>Agent 记忆的三态循环：注入、聚焦与智能遗忘</h1>
+    <div class="meta">
+        2026-06-08 · <span class="tag">AI Agent</span> <span class="tag">Memory Graph</span> <span class="tag">GraphRAG</span> <span class="tag">LLM Context</span>
+    </div>
+
+    <p>大多数 Agent 记忆系统的设计文章都在谈"怎么记住"——RAG、embedding、知识图谱，花样百出。但过去 48 小时，在 agent-memory-graph（766 tests）和 agent-context-store（897 tests）两个项目上连续迭代后，我发现了一个被忽视的设计问题：<strong>记住的东西怎么喂给 LLM？又怎么忘掉不该记住的？</strong></p>
+
+    <p>这不是一个次要问题。你的 Agent 积累了 2000 个节点的关系图谱，每个节点有标签、权重、属性、向量——然后呢？全塞进 prompt？Context window 说谢谢再见了。选一部分塞？怎么选？选完了旧数据怎么办？</p>
+
+    <p>本文分享我在这两个项目上实现的一套完整方案：<strong>三态循环（Inject → Focus → Forget）</strong>。它不是理论框架，是跑在生产代码里的三个 API。</p>
+
+    <h2>核心洞察：记忆的三个状态</h2>
+
+    <p>Agent 记忆不是"存储 vs 检索"的二元问题。记忆有三个状态：</p>
+
+    <ol>
+        <li><strong>活跃注入</strong>（Inject）— 把记忆转化为 LLM 可理解的文本，注入 prompt</li>
+        <li><strong>聚焦提取</strong>（Focus）— 从全局图谱中提取与当前任务最相关的局部子图</li>
+        <li><strong>智能遗忘</strong>（Forget）— 主动删除不再相关的记忆，保持图谱健康</li>
+    </ol>
+
+    <p>大多数系统只做了第一步的一半（把检索结果拼到 prompt 里），完全忽略了后两步。结果是：图谱越来越大，检索质量越来越差，prompt 越来越长，Agent 越来越笨。</p>
+
+    <h2>状态一：活跃注入 — to_markdown()</h2>
+
+    <p>第一个 API 看起来平淡无奇：<code>to_markdown()</code>。把图谱序列化为 Markdown 文本。但魔鬼在细节里。</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">to_markdown</span>(self, node_ids=None, max_nodes=50,
+               include_edges=True, include_data=True) -> str:
+    <span class="string">"""将图谱导出为 Markdown，适合注入 LLM 上下文。"""</span>
+    <span class="comment"># 按 weight 降序取 top nodes</span>
+    rows = self.conn.execute(
+        <span class="string">"SELECT * FROM nodes ORDER BY weight DESC LIMIT ?"</span>,
+        (max_nodes,)
+    ).fetchall()
+
+    <span class="comment"># 按 kind 分组（entity/event/skill/concept...）</span>
+    by_kind = defaultdict(list)
+    <span class="keyword">for</span> r <span class="keyword">in</span> rows:
+        by_kind[r[<span class="string">"kind"</span>]].append(r)
+
+    lines = [<span class="string">"# Memory Graph"</span>, <span class="string">""</span>]
+    <span class="keyword">for</span> kind <span class="keyword">in</span> sorted(by_kind):
+        lines.append(f<span class="string">"## {kind} ({len(by_kind[kind])})"</span>)
+        <span class="keyword">for</span> r <span class="keyword">in</span> by_kind[kind]:
+            tag_str = f<span class="string">" `{';'.join(tags)}`"</span> <span class="keyword">if</span> tags <span class="keyword">else</span> <span class="string">""</span>
+            weight_str = f<span class="string">" (w={r['weight']:.2f})"</span> <span class="keyword">if</span> r[<span class="string">"weight"</span>] != 1.0 <span class="keyword">else</span> <span class="string">""</span>
+            lines.append(f<span class="string">"- **{r['label']}**{weight_str}{tag_str}"</span>)
+    <span class="comment"># ... + Relationships section</span></code></pre>
+
+    <p>为什么不是 JSON？不是 YAML？因为<strong>LLM 读 Markdown 的效率远高于结构化数据</strong>。这不是玄学——Markdown 的标题层级天然提供了 token-efficient 的分组结构，列表格式与 LLM 预训练语料中的知识结构高度吻合。</p>
+
+    <p>几个关键设计决策：</p>
+
+    <ul>
+        <li><strong>按 kind 分组</strong>而非按时间或 ID 排列。LLM 看到的是"这是所有 entities"、"这是所有 events"，认知负担最低</li>
+        <li><strong>weight 降序</strong>。最重要的信息在 prompt 前面，attention 不衰减</li>
+        <li><strong>max_nodes 硬上限</strong>。不是建议，是强制。50 个节点已经占用约 2000 tokens</li>
+        <li><strong>边列表单独 section</strong>。关系信息密度高，LLM 可以选择性"跳读"</li>
+    </ul>
+
+    <h2>状态二：聚焦提取 — context_window()</h2>
+
+    <p><code>to_markdown()</code> 解决了"全局快照"的问题，但很多场景你不需要整个图谱——你只需要<strong>与当前对话最相关的局部子图</strong>。</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">context_window</span>(self, node_ids: list[str], hops: int = 1,
+                     max_nodes: int = 30) -> str:
+    <span class="string">"""提取以指定节点为中心的局部子图，种子节点标 ★。"""</span>
+    seed = set(node_ids)
+    collected = dict()
+
+    <span class="comment"># BFS 双向扩展（出边 + 入边）</span>
+    frontier = list(node_ids)
+    <span class="keyword">for</span> _ <span class="keyword">in</span> range(hops):
+        next_frontier = []
+        <span class="keyword">for</span> nid <span class="keyword">in</span> frontier:
+            <span class="comment"># 出边邻居</span>
+            <span class="keyword">for</span> r <span class="keyword">in</span> self.conn.execute(
+                <span class="string">"SELECT n.* FROM nodes n JOIN edges e "</span>
+                <span class="string">"ON n.id=e.target WHERE e.source = ?"</span>, (nid,)
+            ).fetchall():
+                <span class="keyword">if</span> r[<span class="string">"id"</span>] <span class="keyword">not in</span> collected <span class="keyword">and</span> len(collected) < max_nodes:
+                    collected[r[<span class="string">"id"</span>]] = r
+                    next_frontier.append(r[<span class="string">"id"</span>])
+            <span class="comment"># 入边邻居</span>
+            <span class="comment"># ... (same pattern for incoming edges)</span>
+        frontier = next_frontier
+
+    <span class="comment"># 种子节点标 ★，视觉引导 LLM 注意力</span>
+    <span class="keyword">for</span> r <span class="keyword">in</span> by_kind[kind]:
+        marker = <span class="string">" ★"</span> <span class="keyword">if</span> r[<span class="string">"id"</span>] <span class="keyword">in</span> seed <span class="keyword">else</span> <span class="string">""</span>
+        lines.append(f<span class="string">"- **{r['label']}**{marker}"</span>)</code></pre>
+
+    <p>这个 API 的核心思想是<strong>BFS 聚焦</strong>：给定种子节点（通常来自上一轮对话或 BM25 搜索），向四周扩展 1-2 跳，提取局部子图。输出格式与 <code>to_markdown()</code> 完全一致，但种子节点会标上 <code>★</code> 标记。</p>
+
+    <p>为什么标 ★？这是一个 prompt engineering 的小技巧。LLM 会自然地把注意力分配给带特殊标记的 token。在你的 prompt 里：</p>
+
+    <blockquote>
+        <p><strong>★</strong> 标记的是本次对话的核心实体。请优先考虑与这些实体相关的关系和属性。</p>
+    </blockquote>
+
+    <p>一句话 system prompt 就能引导 LLM 聚焦，而不是平等对待所有节点。实测效果：在多轮对话中，LLM 的回答更"切题"，幻觉率明显下降（非定量，主观观察）。</p>
+
+    <h2>状态三：智能遗忘 — prune_by_relevance()</h2>
+
+    <p>这是最有意思的一个。也是大多数记忆系统缺失的部分。</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">prune_by_relevance</span>(self, query: str, keep_k: int = 50,
+                          min_weight: float = 0.0) -> dict:
+    <span class="string">"""保留与 query 最相关的 keep_k 个节点，其余剪枝。
+    这是"智能遗忘"——忘掉无关的，记住相关的。"""</span>
+
+    <span class="comment"># Step 1: BM25 找到 top-k 相关节点</span>
+    results = self.search_bm25(query, limit=keep_k)
+    relevant_ids = {r[<span class="string">"node_id"</span>] <span class="keyword">for</span> r <span class="keyword">in</span> results}
+
+    <span class="comment"># Step 2: 额外保留高 weight 节点（"重要记忆"不删）</span>
+    weight_ids = set()
+    <span class="keyword">if</span> min_weight > 0:
+        rows = self.conn.execute(
+            <span class="string">"SELECT id FROM nodes WHERE weight >= ?"</span>,
+            (min_weight,)
+        ).fetchall()
+        weight_ids = {r[<span class="string">"id"</span>] <span class="keyword">for</span> r <span class="keyword">in</span> rows}
+
+    keep_ids = relevant_ids | weight_ids
+    remove_ids = all_ids - keep_ids
+
+    <span class="comment"># Step 3: 级联删除节点 + 边 + FTS索引 + 向量索引</span>
+    self.conn.execute(<span class="string">"DELETE FROM nodes WHERE id IN (...)"</span>)
+    self.conn.execute(<span class="string">"DELETE FROM edges WHERE source IN (...) OR target IN (...)"</span>)
+    <span class="keyword">for</span> nid <span class="keyword">in</span> remove_ids:
+        self._fts_delete_node(nid)     <span class="comment"># 同步 FTS</span>
+        self.remove_embedding(nid)     <span class="comment"># 同步向量</span></code></pre>
+
+    <p>核心思路：<code>to_markdown()</code> 是"注入"，<code>prune_by_relevance()</code> 是"注入的逆操作"——<strong>当图谱太大时，主动删掉与当前任务无关的节点</strong>。</p>
+
+    <p>注意它不是一个简单的"删旧数据"操作。它有两个保留维度：</p>
+
+    <ul>
+        <li><strong>BM25 相关性</strong>：与 query 语义匹配的节点保留</li>
+        <li><strong>weight 阈值</strong>：高权重节点（核心实体、常用技能）无论是否与 query 相关都保留</li>
+    </ul>
+
+    <p>这模拟了人类记忆的遗忘机制：你不会随机遗忘，你遗忘的是<strong>"当前用不到 + 一直没用过的"</strong>。而童年记忆（高权重核心节点）会被永久保留。</p>
+
+    <p>更重要的是，删除时会级联清理四个层面：节点 → 边 → FTS 索引 → 向量索引。不留孤儿数据，不脏索引。这是生产级的要求。</p>
+
+    <h2>GraphRAG：把三个状态串联起来</h2>
+
+    <p>有了注入、聚焦和遗忘，GraphRAG 的四种检索模式就自然成立了：</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">search_graphrag</span>(self, query: str, mode=<span class="string">"hybrid"</span>,
+                         embedding=None, limit=10) -> list[dict]:
+    <span class="string">"""GraphRAG 四模式统一检索。"""</span>
+
+    <span class="keyword">if</span> mode == <span class="string">"naive"</span>:
+        <span class="comment"># 直接 BM25 搜索，最快但无上下文</span>
+        <span class="keyword">return</span> self.search_bm25(query, limit=limit)
+
+    <span class="keyword">if</span> mode == <span class="string">"local"</span>:
+        <span class="comment"># BM25 种子 + 1-hop 图扩展</span>
+        <span class="comment"># = 搜索 → context_window 聚焦</span>
+        seeds = self.search_bm25(query, limit=limit // 2)
+        <span class="keyword">return</span> self._expand_neighbors(seeds, hops=1)
+
+    <span class="keyword">if</span> mode == <span class="string">"global"</span>:
+        <span class="comment"># 社区级别搜索：先找相关社区，再返回社区成员</span>
+        communities = self.community_detect()
+        <span class="keyword">return</span> self._search_communities(query, communities)
+
+    <span class="keyword">if</span> mode == <span class="string">"hybrid"</span>:
+        <span class="comment"># 三路 RRF 融合：文本 + 向量 + 图结构</span>
+        <span class="keyword">return</span> self.search_hybrid(query, embedding=embedding)</code></pre>
+
+    <p>这里的 <code>local</code> 模式就是 <code>context_window()</code> 思想的检索版本：先 BM25 找种子，再 BFS 扩展邻居。它不是返回"匹配的关键词节点"，而是返回"匹配节点及其邻域"——上下文信息量完全不同。</p>
+
+    <h2>可操作建议</h2>
+
+    <div class="callout">
+        <div class="callout-title">如果你在构建 Agent 记忆系统</div>
+        <ol>
+            <li><strong>先实现 <code>to_markdown()</code></strong>。在你写任何花哨的检索逻辑之前，先让图谱能序列化为 Markdown。这是验证你的数据模型是否合理的最佳方法——如果导出的 Markdown 人类读不懂，LLM 也读不懂。</li>
+            <li><strong>给聚焦 API 一个视觉标记</strong>。无论是 ★ 还是 [SEED] 还是缩进，给 LLM 一个注意力锚点。这比调 prompt template 有效得多。</li>
+            <li><strong>遗忘必须是双向的</strong>。<code>prune_by_relevance</code> 同时考虑"当前相关性"和"全局重要性"。只用相关性 → 会误删核心知识；只用权重 → 等于没有遗忘。</li>
+            <li><strong>级联清理四个层</strong>：节点、边、全文索引、向量索引。少清理一个，你的系统就有脏数据。</li>
+            <li><strong>max_nodes 是安全阀</strong>。<code>to_markdown(max_nodes=50)</code> 不是建议——是必须。没有上限的图谱导出会撑爆 context window。</li>
+        </ol>
+    </div>
+
+    <h2>独到见解</h2>
+
+    <p>最后说几点你在别的地方不太会看到的：</p>
+
+    <p><strong>1. 记忆系统的瓶颈不是存储，是 prompt 预算。</strong></p>
+
+    <p>你的图谱可以存 100 万个节点（SQLite 轻松搞定），但 LLM 一次只能吃 ~100K tokens。整个系统的设计重心应该是"怎么从 100 万选 50 个喂给 LLM"，而不是"怎么存得更多"。</p>
+
+    <p><strong>2. 遗忘不是 bug fix，是 first-class feature。</strong></p>
+
+    <p>大多数 Agent 框架把"删除记忆"当作运维操作（清理旧数据、节省空间）。但在实际使用中，主动遗忘是 Agent 智能的体现——它知道什么不重要，这本身就需要理解能力。把 <code>prune_by_relevance</code> 和 LLM 的 reasoning 结合：让 LLM 决定"现在应该忘掉什么"，然后调用这个 API 执行。</p>
+
+    <p><strong>3. 注入格式比检索算法更重要。</strong></p>
+
+    <p>一个有趣的数据点：同样的 30 个节点，用 JSON 格式注入 vs 用分组 Markdown 注入，LLM 的回答质量差异肉眼可见。后者更好。你在花大量时间调 embedding model、调 chunk size、调 top-k——但可能换个输出格式就能带来更大的提升。</p>
+
+    <p>这不是直觉，是踩出来的。在 agent-context-store 上实现 <code>to_prompt_section()</code>（紧凑扁平文本）和 <code>to_markdown()</code>（分组结构化）两种格式后，对比测试发现 Markdown 分组在多轮对话中的信息留存率更高。原因可能是 LLM 在预训练阶段见过大量 Markdown 格式的结构化文档。</p>
+
+    <p><strong>4. 三态循环的闭环是关键。</strong></p>
+
+    <p><code>to_markdown</code>（注入） ↔ <code>prune_by_relevance</code>（遗忘）形成闭环。没有遗忘，注入会越来越长、越来越嘈杂。没有注入，遗忘就失去了判断"什么重要"的上下文。两者必须共存。</p>
+
+    <p><code>context_window</code> 是两者的桥梁：它既是一次"迷你注入"（输出 Markdown），又是一次"隐式遗忘"（只选种子邻域，不选全部）。在资源受限的场景下，它比"全量 to_markdown + 全局 prune"更高效。</p>
+
+    <h2>代码在哪里</h2>
+
+    <p>所有代码都在两个开源项目里：</p>
+
+    <ul>
+        <li><strong>agent-memory-graph</strong>：766 tests，160+ APIs，SQLite 图谱 + BM25 + sqlite-vec + GraphRAG。包含完整的 <code>to_markdown()</code> / <code>context_window()</code> / <code>prune_by_relevance()</code> / <code>search_graphrag()</code> 实现。</li>
+        <li><strong>agent-context-store</strong>：897 tests，320+ APIs，KV 存储 + tag 布尔代数 + 搜索三件套。包含 <code>to_markdown()</code> 和 <code>to_prompt_section()</code> 两种导出格式。</li>
+    </ul>
+
+    <p>两个项目连续 110+ 天零回滚率，每天增量迭代，用 autoresearch 方法论驱动。</p>
+
+    <hr>
+
+    <p>记忆不是数据库。记忆是有生命周期的。注入、聚焦、遗忘——三态循环，缺一不可。</p>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</body>
+</html>
