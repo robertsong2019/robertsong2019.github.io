@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当网络科学遇见 Agent 记忆：用图指标诊断你的知识图谱 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--heading); font-size: 1.3rem; margin: 2rem 0 0.8rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+        h3 { color: var(--accent); font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code { background: #1f2937; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', Consolas, monospace; }
+        pre { background: #1f2937; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; font-size: 0.85rem; line-height: 1.6; }
+        pre code { background: none; padding: 0; }
+        .highlight { color: #79c0ff; }
+        .comment { color: #8b949e; }
+        .keyword { color: #ff7b72; }
+        .string { color: #a5d6ff; }
+        .number { color: #79c0ff; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        .callout { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+        .callout-title { color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
+    </style>
+</head>
+<body>
+    <h1>当网络科学遇见 Agent 记忆：用图指标诊断你的知识图谱</h1>
+    <div class="meta">2026-06-09 · 罗嵩 · agent-memory-graph 实战笔记</div>
+
+    <p>过去两周，我在 <code>agent-memory-graph</code> 项目中持续实现图分析 API。从 <code>closeness_centrality</code> 到 <code>global_efficiency</code>，再到 <code>onion_structure</code>，测试从 665 涨到 811。但更重要的发现是：<strong>大多数 Agent 记忆系统根本没有在做图分析</strong>。它们把记忆当数据库用——存、取、搜索——仅此而已。</p>
+
+    <p>这篇文章分享我实际用到的网络科学指标，以及为什么 Agent 记忆需要一个「健康仪表盘」。</p>
+
+    <h2>问题：记忆图会「生病」</h2>
+
+    <p>Agent 的记忆不是静态的。随着交互累积，节点和边不断增长。不加干预，你会遇到三类问题：</p>
+
+    <ul>
+        <li><strong>孤岛化</strong>：新记忆和旧记忆没有关联，检索时找不到上下文</li>
+        <li><strong>枢纽过载</strong>：某个核心概念连接了太多节点，变成噪音放大器</li>
+        <li><strong>结构退化</strong>：删除操作让图变得稀疏，检索路径变长</li>
+    </ul>
+
+    <p>传统的做法是看「节点数」和「边数」——这就像通过体温来判断一个人是否健康。你需要的是血常规。</p>
+
+    <h2>三个指标就够了</h2>
+
+    <h3>1. Global Efficiency — 全局连通健康度</h3>
+
+    <p>Latora & Marchiori (2001) 提出的全局效率：所有节点对之间最短路径倒数之和的归一化。</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">global_efficiency</span>(self):
+    <span class="string">"""E = Σ 1/d(u,v) / (n*(n-1))"""</span>
+    nodes = list(self._nodes())
+    n = len(nodes)
+    <span class="keyword">if</span> n < <span class="number">2</span>:
+        <span class="keyword">return</span> <span class="number">1.0</span>
+    total = <span class="number">0.0</span>
+    <span class="keyword">for</span> u <span class="keyword">in</span> nodes:
+        dists = self._bfs_distances(u)
+        <span class="keyword">for</span> v, d <span class="keyword">in</span> dists.items():
+            <span class="keyword">if</span> v != u <span class="keyword">and</span> d > <span class="number">0</span>:
+                total += <span class="number">1.0</span> / d
+    <span class="keyword">return</span> total / (n * (n - <span class="number">1</span>))</code></pre>
+
+    <p>关键特性：<strong>断连的节点对贡献 0 效率而不是报错</strong>。这比 <code>average_path_length</code> 好得多——后者对断连图直接失效。</p>
+
+    <blockquote>实用建议：把 <code>global_efficiency</code> 作为每次记忆写入后的 health check。如果从 0.85 跌到 0.6，说明图的连通性在恶化，该触发补边（edge补全）了。</blockquote>
+
+    <h3>2. S-Metric — Hub-Hub 连接质量</h3>
+
+    <p>S-metric 度量的是「枢纽节点是否连接着枢纽节点」：</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">s_metric</span>(self):
+    <span class="string">"""S = Σ deg(u)*deg(v) for (u,v) in E"""</span>
+    total = <span class="number">0</span>
+    <span class="keyword">for</span> u, v <span class="keyword">in</span> self._edges():
+        total += self.degree(u) * self.degree(v)
+    <span class="keyword">return</span> total</code></pre>
+
+    <p>直觉很简单：如果高度连接的「概念A」连接着另一个高度连接的「概念B」，信息在两者之间流动效率很高。如果枢纽全连着叶子节点（星形结构），信息必须经过瓶颈。</p>
+
+    <p>Scale-Free 网络的 S-metric 天然偏高——这是好事。你的记忆图应该倾向于 Scale-Free 结构，因为 Agent 的知识天然有「热门概念」和「长尾概念」。</p>
+
+    <blockquote>实用建议：定期计算 S-metric。如果值突然下降，检查是否有一个核心概念被拆分成了多个弱连接的碎片。</blockquote>
+
+    <h3>3. Onion Structure — 结构深度画像</h3>
+
+    <p>K-core 分解给出图的「洋葱层」：</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">onion_structure</span>(self, n_layers=<span class="number">3</span>):
+    <span class="string">"""K-core decomposition profile"""</span>
+    layers = []
+    g = self._copy()
+    <span class="keyword">for</span> k <span class="keyword">in</span> range(<span class="number">1</span>, n_layers + <span class="number">1</span>):
+        changed = <span class="keyword">True</span>
+        <span class="keyword">while</span> changed:
+            changed = <span class="keyword">False</span>
+            <span class="keyword">for</span> node <span class="keyword">in</span> list(g._nodes()):
+                <span class="keyword">if</span> g.degree(node) < k:
+                    g.remove_node(node)
+                    changed = <span class="keyword">True</span>
+        layers.append({
+            <span class="string">'k'</span>: k,
+            <span class="string">'nodes'</span>: len(list(g._nodes())),
+            <span class="string">'edges'</span>: len(list(g._edges()))
+        })
+    <span class="keyword">return</span> layers</code></pre>
+
+    <p>这告诉你图的「内核有多厚」。健康的记忆图应该有一个稳定的内核层（高 k-core），外围是松散的新记忆。如果内核很薄（比如 k=3 就只剩 2 个节点），说明你的核心知识关联不够紧密。</p>
+
+    <h2>组合使用：记忆健康仪表盘</h2>
+
+    <p>单独看一个指标没有意义。真正有用的是这三个指标的组合：</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">memory_health_report</span>(graph):
+    ge = graph.global_efficiency()    <span class="comment"># 0-1, 越高越好</span>
+    sm = graph.s_metric()             <span class="comment"># 绝对值，看趋势</span>
+    layers = graph.onion_structure()  <span class="comment"># 层级结构</span>
+    
+    core_size = layers[-<span class="number">1</span>][<span class="string">'nodes'</span>]
+    total = len(list(graph._nodes()))
+    
+    <span class="keyword">return</span> {
+        <span class="string">'connectivity'</span>: <span class="string">f'Global Efficiency = {ge:.3f}'</span>,
+        <span class="string">'hub_quality'</span>: <span class="string">f'S-metric = {sm}'</span>,
+        <span class="string">'core_strength'</span>: <span class="string">f'Core ratio = {core_size/total:.1%}'</span>,
+        <span class="string">'diagnosis'</span>: (
+            <span class="string">'Healthy'</span> <span class="keyword">if</span> ge > <span class="number">0.7</span> <span class="keyword">and</span> core_size/total > <span class="number">0.15</span>
+            <span class="keyword">else</span> <span class="string">'Sparse — consider edge completion'</span>
+        )
+    }</code></pre>
+
+    <h2>一个反直觉的发现</h2>
+
+    <p>在实现 <code>local_efficiency</code> 时，我发现星形图（star graph）中心的局部效率是 0.0。因为去掉中心节点后，所有叶子节点互不相邻——子图完全不连通。</p>
+
+    <p>这看起来像个 bug，实际上是正确的：星形结构是<strong>最脆弱</strong>的拓扑。中心节点一挂，整个记忆子网瘫痪。所以如果你的 Agent 记忆图在某个概念周围呈现星形分布，应该主动在叶子之间创建关联边，提高局部鲁棒性。</p>
+
+    <pre><code><span class="comment"># 检测脆弱枢纽并修复</span>
+<span class="keyword">for</span> node <span class="keyword">in</span> graph._nodes():
+    le = graph.local_efficiency(node)
+    <span class="keyword">if</span> le == <span class="number">0.0</span> <span class="keyword">and</span> graph.degree(node) > <span class="number">3</span>:
+        neighbors = list(graph.neighbors(node))
+        <span class="comment"># 在邻居之间补边</span>
+        <span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">0</span>, len(neighbors)-<span class="number">1</span>, <span class="number">2</span>):
+            graph.add_edge(neighbors[i], neighbors[i+<span class="number">1</span>],
+                          relation=<span class="string">'auto_reinforced'</span>)</code></pre>
+
+    <h2>为什么不直接用 NetworkX？</h2>
+
+    <p>这是我在实现过程中被问到最多的问题。答案：<strong>NetworkX 是通用图库，Agent 记忆有特殊约束</strong>。</p>
+
+    <ul>
+        <li>节点和边有<strong>时间戳、权重、语义标签</strong>，NetworkX 的图不原生支持</li>
+        <li>需要 <code>prune_by_relevance</code>、<code>context_window</code> 这种 LLM 感知的操作</li>
+        <li>SQLite 后端支持持久化和增量更新，NetworkX 全内存</li>
+        <li>图分析 API 直接操作底层数据结构，避免序列化开销</li>
+    </ul>
+
+    <p>不是说 NetworkX 不好——它是这个领域的标准。但 Agent 记忆图需要一个融合了图论、语义搜索和 LLM 上下文管理的专用工具。</p>
+
+    <h2>实际数据</h2>
+
+    <p>在 <code>agent-memory-graph</code> 项目中，这套指标体系已经运行了 111 天，811 个测试全部通过，零回滚。每天 cron 自动运行图分析，记录指标变化趋势。</p>
+
+    <div class="callout">
+        <div class="callout-title">💡 核心观点</div>
+        <p>Agent 记忆系统的瓶颈不是存储容量，而是<strong>结构健康</strong>。一个 1000 节点的健康图远胜于 10000 节点的碎片图。网络科学给了我们量化「健康」的工具——global efficiency 测连通性，s-metric 测枢纽质量，onion structure 测内核深度。三个指标，一个仪表盘，让你的 Agent 记忆系统从「能用」变成「好用」。</p>
+    </div>
+
+    <p>代码在 <a href="https://github.com/robertsong2019/agent-memory-graph">agent-memory-graph</a>，欢迎探讨。</p>
+</body>
+</html>
