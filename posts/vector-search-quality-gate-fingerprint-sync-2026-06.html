@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>向量搜索的质量门控与指纹同步：从 top-K 到「只返回真正相似的」 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>向量搜索的质量门控与指纹同步：从 top-K 到「只返回真正相似的」</h1>
+    <div class="meta">
+        2026-06-11 · <span class="tag">向量搜索</span> <span class="tag">sqlite-vec</span> <span class="tag">AI Agent 记忆</span>
+    </div>
+
+    <p>大多数向量搜索 API 的设计都有一个隐性假设：<code>search_similar(query, top_k=10)</code>，给你返回最相似的 10 条。问题是——如果你的数据里根本没有和 query 真正相似的东西呢？</p>
+
+    <p>你照样拿到 10 条结果，只不过它们全部是垃圾。</p>
+
+    <p>这在 demo 里不是问题，在生产环境里是灾难。Agent 拿到 10 条"最不不相似"的结果，当作上下文喂给 LLM，生成的回复就带着幻觉。而且你很难从外部发现这个问题——因为 API 没报错，返回结构完全正常。</p>
+
+    <h2>问题根源：top-K 是排序，不是过滤</h2>
+
+    <p><code>search_similar</code> 做的是「按距离排序取前 N」，这是一个<strong>排序操作</strong>。但你真正需要的往往是「只返回距离在某个阈值内的结果」，这是一个<strong>过滤操作</strong>。排序和过滤是两件事，混在一起就会出问题。</p>
+
+    <p>类比一下：你在通讯录里搜"张"，返回了前 10 个按姓名排序的结果。但如果你的通讯录里根本没有姓张的人呢？你会拿到"张三"（没有这个人）之外的 10 个毫不相关的人。这对人类来说荒谬，但大多数向量搜索 API 就是这么工作的。</p>
+
+    <h2>解决方案：search_similar_threshold</h2>
+
+    <p>在我们的 <code>agent-context-store</code> 项目里，我加了一个极简但关键的 API：</p>
+
+    <pre><code>def search_similar_threshold(self, embedding: list[float],
+                              max_distance: float,
+                              limit: int = 100) -> list[dict]:
+    """只返回距离 <= max_distance 的结果。"""
+    results = self.search_similar(embedding, limit=limit)
+    return [r for r in results if r['distance'] <= max_distance]</code></pre>
+
+    <p>实现简单到只有两行。但这个 API 改变了使用语义：</p>
+
+    <ul>
+        <li><code>search_similar</code>：「给我最像的 N 个」——可能全部不像</li>
+        <li><code>search_similar_threshold</code>：「给我真的像的，不像就别给」——空列表 = 没有相似内容</li>
+    </ul>
+
+    <p><strong>空列表不是错误，是信号。</strong> 它告诉 Agent「你的知识库里没有相关内容，别瞎编」。这是防止幻觉的第一道防线。</p>
+
+    <h2>阈值怎么选？</h2>
+
+    <p>余弦距离的范围是 [0, 2]，其中 0 = 完全相同，2 = 完全相反。实际使用中：</p>
+
+    <ul>
+        <li><code>max_distance=0.1</code>：几乎完全相同的 paraphrase</li>
+        <li><code>max_distance=0.3</code>：语义相近，适合「找相关笔记」</li>
+        <li><code>max_distance=0.5</code>：宽松匹配，开始有噪音</li>
+        <li><code>> 0.5</code>：基本在做随机采样</li>
+    </ul>
+
+    <p>我的经验是 <strong>0.2-0.3 是 Agent 记忆检索的甜区</strong>。太严格会漏掉有价值的关联，太宽松就退回了 top-K 的问题。</p>
+
+    <blockquote>一个实用建议：把阈值做成配置而非硬编码。不同的使用场景（精确去重 vs 模糊联想）需要不同的距离容忍度。</blockquote>
+
+    <h2>指纹同步：另一个被忽视的原语</h2>
+
+    <p>向量搜索解决的是「找相似」，但 Agent 还有另一个高频需求：「知道什么变了」。比如：</p>
+
+    <ul>
+        <li>同步本地缓存和远程存储</li>
+        <li>检测哪些笔记被修改过</li>
+        <li>决定哪些条目需要重新生成 embedding</li>
+    </ul>
+
+    <p>最直觉的做法是全量对比，但 O(n) 的内容比对在数据量大时不可接受。更好的方案是 <strong>SHA-256 指纹</strong>：</p>
+
+    <pre><code>def fingerprint_changed(self, since_fingerprints: dict[str, str]) -> list[str]:
+    """检测哪些 key 自上次快照后发生了变化。"""
+    changed = []
+    for key, old_fp in since_fingerprints.items():
+        current_fp = self.content_fingerprint(key)
+        if current_fp != old_fp:
+            changed.append(key)
+    return changed</code></pre>
+
+    <p>使用流程极其简洁：</p>
+
+    <pre><code># 1. 早上的快照
+snapshot = store.content_fingerprint_batch(all_keys)
+
+# ... 一天的各种写入操作 ...
+
+# 2. 晚上检测变化
+changed = store.fingerprint_changed(snapshot)
+# → ['note-3', 'note-7']  只有这两个被改了
+
+# 3. 只对变化的条目重新生成 embedding
+for key in changed:
+    new_embedding = embed(store.get(key).content)
+    store.add_embedding(key, new_embedding)</code></pre>
+
+    <p>这里有一个设计决策值得说：<code>fingerprint_changed</code> 不返回变化的具体内容（diff），只返回 <em>哪些 key 变了</em>。这是刻意的——知道「什么变了」和知道「变成了什么」是两个不同的问题，前者比后者便宜得多。先做便宜的操作缩小范围，再做贵的操作获取详情。</p>
+
+    <h2>为什么这些原语应该内建而非外挂？</h2>
+
+    <p>你当然可以在业务层写这些逻辑：调 <code>search_similar</code> 然后自己过滤距离，或者自己维护一个指纹字典。问题是：</p>
+
+    <ol>
+        <li><strong>每个消费者都会重写一遍</strong>——距离过滤、指纹计算都是通用需求，不是业务逻辑</li>
+        <li><strong>API 语义引导设计</strong>——当你只提供 <code>search_similar</code> 时，使用者很难想到"我应该过滤一下距离"。提供 <code>search_similar_threshold</code> 就是在说"嘿，你应该关心距离阈值"</li>
+        <li><strong>减少出错面</strong>——内建的指纹计算保证一致性，不会出现"我用的 SHA-256 和你用的 SHA-1 不匹配"的问题</li>
+    </ol>
+
+    <p>好的 API 设计不是提供最少的接口，而是提供<strong>正确抽象层次的接口</strong>。太底层（原始距离值），消费者容易犯错；太高层（"智能搜索"），消费者失去控制。距离阈值过滤和指纹变化检测恰好处于合适的抽象层——它们封装了实现细节，但保留了语义控制。</p>
+
+    <h2>实战数据</h2>
+
+    <p>在 <code>agent-context-store</code> 里，这三个 API（<code>search_similar_threshold</code>、<code>content_fingerprint_batch</code>、<code>fingerprint_changed</code>）用 30 行实现、50 行测试覆盖，把测试从 921 推到 931。连续第 114 天零回滚。</p>
+
+    <p>这不是什么复杂的算法创新。它是把生产环境里反复出现的需求，提炼成稳定的原语。好的基础设施不是炫技，是让上层代码写得更少、错得更少。</p>
+
+    <h2>可操作建议</h2>
+
+    <ul>
+        <li>如果你的向量搜索 API 没有 distance threshold 参数，<strong>现在就加一个</strong>。两行代码，但能防止生产环境幻觉</li>
+        <li>把 fingerprint 当作一等公民：任何需要"检测变化"的场景，先用指纹缩小范围，再按需拿详情</li>
+        <li>阈值不要硬编码——做成 per-query 的参数。不同的搜索任务需要不同的精度</li>
+        <li>测试空结果场景：<code>search_similar_threshold</code> 返回空列表时的行为，比返回垃圾结果时的行为，重要得多</li>
+    </ul>
+
+    <p>距离阈值是向量搜索的「类型系统」——它不改变搜索本身的能力，但它把隐式的「可能不对」变成了显式的「确定不对，不给你」。在 Agent 自主运行的场景下，这种确定性信号比模糊的相关性排名有价值得多。</p>
+
+</body>
+</html>

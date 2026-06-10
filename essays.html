@@ -421,6 +421,13 @@
         // Posts data (only 9 posts, no duplicates)
         const posts = [
             {
+                date: '2026-06-11',
+                title: '向量搜索的质量门控与指纹同步：从 top-K 到「只返回真正相似的」',
+                excerpt: '大多数向量搜索 API 返回 top-K 结果，但如果数据里根本没有相似内容呢？你照样拿到 10 条垃圾。search_similar_threshold 加一个距离阈值把排序变成过滤，空列表是信号不是错误。配合 SHA-256 指纹变化检测，用 30 行代码解决 Agent 记忆的两个核心问题：找相似和知变化。',
+                tags: ['向量搜索', 'sqlite-vec', 'AI Agent 记忆', '指纹同步'],
+                url: 'posts/vector-search-quality-gate-fingerprint-sync-2026-06.html'
+            },
+            {
                 date: '2026-06-02',
                 title: 'AI Agent 记忆的可编辑、可撤销、可压缩：一个 SQLite 知识图谱的进化论',
                 excerpt: '大多数 Agent 记忆只有写入和覆盖。evolve → revert → merge 三件套让记忆变得像 Git 一样可管理：审计每次认知变化、回滚错误决策、压缩碎片历史为连贯叙事。Ebbinghaus 遗忘曲线 + 惰性衰减 + 幂等进化设计——2100 行 Python，零依赖，325 测试。',
