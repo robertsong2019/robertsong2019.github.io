@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skill vs MCP：AI Agent 工具集成的两条路径 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+        }
+        
+        .container {
+            max-width: 768px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+        
+        header { margin-bottom: var(--space-12); }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-6);
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--color-primary-hover); }
+        
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-4xl);
+            font-weight: 800;
+            margin-bottom: var(--space-4);
+            line-height: 1.2;
+        }
+        
+        .meta {
+            display: flex;
+            gap: var(--space-4);
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-8);
+        }
+        
+        .tag {
+            display: inline-block;
+            background: var(--primary-600);
+            color: white;
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-xs);
+            font-weight: 600;
+        }
+        
+        article {
+            background: var(--surface-1);
+            padding: var(--space-8);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        article h2 {
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            margin: var(--space-8) 0 var(--space-4);
+            color: var(--gray-900);
+        }
+        article h3 {
+            font-size: var(--text-xl);
+            font-weight: 600;
+            margin: var(--space-6) 0 var(--space-3);
+            color: var(--gray-800);
+        }
+        
+        article p {
+            margin-bottom: var(--space-4);
+            color: var(--color-text-secondary);
+        }
+        article ul, article ol {
+            margin: var(--space-4) 0;
+            padding-left: var(--space-6);
+        }
+        article li {
+            margin-bottom: var(--space-2);
+            color: var(--color-text-secondary);
+        }
+        
+        code {
+            background: var(--gray-100);
+            padding: 0.125rem 0.375rem;
+            border-radius: var(--radius-sm);
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.875em;
+        }
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+        blockquote {
+            border-left: 4px solid var(--primary-600);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--space-4) 0;
+            font-size: var(--text-sm);
+        }
+        .comparison-table th {
+            background: var(--gray-100);
+            padding: var(--space-2) var(--space-3);
+            text-align: left;
+            font-weight: 600;
+            color: var(--gray-800);
+            border-bottom: 2px solid var(--gray-300);
+        }
+        .comparison-table td {
+            padding: var(--space-2) var(--space-3);
+            border-bottom: 1px solid var(--gray-200);
+            color: var(--color-text-secondary);
+        }
+        .comparison-table tr:hover td {
+            background: var(--gray-50);
+        }
+
+        .decision-flow {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: var(--space-4) var(--space-6);
+            margin: var(--space-4) 0;
+        }
+        .decision-flow p {
+            margin-bottom: var(--space-2);
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, hsl(250, 70%, 97%), hsl(250, 50%, 95%));
+            border: 1px solid hsl(250, 40%, 88%);
+            border-radius: var(--radius-md);
+            padding: var(--space-4) var(--space-6);
+            margin: var(--space-6) 0;
+        }
+        .highlight-box p {
+            color: var(--gray-700);
+            margin-bottom: var(--space-2);
+        }
+        .highlight-box p:last-child {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="../index.html" class="back-link">← 返回首页</a>
+            <h1>Skill vs MCP：AI Agent 工具集成的两条路径</h1>
+            <div class="meta">
+                <span>2026-06-10</span>
+                <span>•</span>
+                <span>深度调研</span>
+                <span>•</span>
+                <span>15 分钟阅读</span>
+            </div>
+            <span class="tag">AI Agent</span>
+            <span class="tag">MCP</span>
+            <span class="tag">AgentSkills</span>
+        </header>
+        
+        <article>
+            <h2>问题：你的工具，AI 怎么调用？</h2>
+            <p>
+                你有一堆内部工具和开放 API，想让 AI Agent 来调用。搜了一圈，发现两个主流方案：
+            </p>
+            <ul>
+                <li><strong>Agent Skill</strong>（SKILL.md）—— 写一份 Markdown 说明书，告诉 Agent 怎么用</li>
+                <li><strong>MCP Server</strong>（Model Context Protocol）—— 跑一个标准服务，Agent 通过协议连接调用</li>
+            </ul>
+            <p>该选哪个？还是两个都要？这篇文章帮你搞清楚。</p>
+
+            <h2>什么是 Agent Skill？</h2>
+            <p>
+                Agent Skill 是一个基于 <code>SKILL.md</code> 文件格式的开放标准，由 Anthropic 在 2025 年 12 月发布。
+                核心思想：<strong>用 Markdown 写一份"操作手册"，AI Agent 读了就知道怎么用你的工具。</strong>
+            </p>
+            <p>
+                截至 2026 年 4 月，SKILL.md 已被 30+ AI 编码工具采用，包括 Claude Code、OpenAI Codex、GitHub Copilot、
+                Google Gemini CLI、Cursor、Windsurf、JetBrains Junie 等。社区技能数量超过 2,600 个，每季度翻倍。
+                Anthropic、OpenAI、Google 三方共同将标准捐赠给了 Linux 基金会下的 Agentic AI Foundation（AAIF）。
+            </p>
+
+            <h3>标准结构</h3>
+            <pre><code>my-skill/
+├── SKILL.md          # 必需：YAML frontmatter + Markdown 指令
+├── scripts/          # 可选：可执行脚本
+├── references/       # 可选：参考文档
+└── assets/           # 可选：模板、资源</code></pre>
+
+            <h3>SKILL.md 格式</h3>
+            <pre><code>---
+name: my-weather-tool
+description: 查询指定城市的天气信息和未来7天预报
+license: MIT
+compatibility: 需要 curl 和 jq
+---
+
+# 天气查询工具
+
+## 使用场景
+当用户询问天气、温度、预报时触发。
+
+## 调用方式
+使用 wttr.in API：
+\`\`\`bash
+curl -s "wttr.in/{city}?format=j1" | jq '.current_condition[0]'
+\`\`\`
+
+## 参数
+- city: 城市名（拼音或英文）
+
+## 返回格式
+JSON，包含温度、湿度、风速等字段。</code></pre>
+
+            <p>
+                <strong>关键特性：渐进式披露。</strong>Agent 先只读 <code>description</code> 判断是否需要激活这个 Skill，
+                确认后才加载完整的 SKILL.md。这样 2,600 个技能不会同时塞满上下文窗口。
+            </p>
+
+            <h2>什么是 MCP Server？</h2>
+            <p>
+                Model Context Protocol（MCP）是 Anthropic 在 2024 年 11 月推出的开放协议，用于标准化 AI 系统与外部工具、
+                数据源的连接方式。2025 年 12 月捐赠给 Linux 基金会 AAIF，由 AWS、Google、Microsoft、OpenAI、Bloomberg、
+                Cloudflare 联合支持。
+            </p>
+            <p>
+                截至 2026 年中，MCP 生态数据：
+            </p>
+            <ul>
+                <li><strong>10,000+</strong> 活跃公共 MCP Server</li>
+                <li><strong>15,926</strong> GitHub 仓库标记 <code>mcp-server</code> topic</li>
+                <li><strong>86,148</strong> ⭐ 官方 servers 仓库</li>
+                <li><strong>28%</strong> 的财富 500 强已部署 MCP</li>
+            </ul>
+            <p>
+                MCP 本质是一个运行时协议——你需要启动一个 Server 进程（本地或远程），Agent 通过 JSON-RPC 2.0 连接调用。
+                它定义了三种能力：<strong>Resources</strong>（读取数据）、<strong>Tools</strong>（执行操作）、<strong>Prompts</strong>（提示模板）。
+            </p>
+
+            <h3>MCP Server 示例</h3>
+            <pre><code>// 最小 MCP Server（Streamable HTTP，2026 RC 规范）
+import express from 'express';
+
+const app = express();
+app.use(express.json());
+
+app.post('/mcp', (req, res) => {
+  const { method, params } = req.body;
+  
+  if (method === 'tools/list') {
+    res.json({
+      tools: [{
+        name: 'query_weather',
+        description: '查询城市天气',
+        inputSchema: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+          required: ['city']
+        }
+      }]
+    });
+  }
+  
+  if (method === 'tools/call') {
+    const city = params.arguments.city;
+    // 调用实际 API...
+    res.json({ content: [{ type: 'text', text: `${city}: 28°C, 晴` }] });
+  }
+});
+
+app.listen(3000);</code></pre>
+
+            <h2>核心区别：一张表看懂</h2>
+
+            <table class="comparison-table">
+                <tr>
+                    <th>维度</th>
+                    <th>Agent Skill</th>
+                    <th>MCP Server</th>
+                </tr>
+                <tr>
+                    <td><strong>本质</strong></td>
+                    <td>声明式文档（说明书）</td>
+                    <td>运行时服务（标准接口）</td>
+                </tr>
+                <tr>
+                    <td><strong>格式</strong></td>
+                    <td>Markdown + YAML</td>
+                    <td>JSON-RPC 2.0 / HTTP</td>
+                </tr>
+                <tr>
+                    <td><strong>运行时</strong></td>
+                    <td>无（纯文本）</td>
+                    <td>需要独立进程</td>
+                </tr>
+                <tr>
+                    <td><strong>数据新鲜度</strong></td>
+                    <td>静态（手动更新）</td>
+                    <td>实时（每次调用获取最新）</td>
+                </tr>
+                <tr>
+                    <td><strong>工具执行</strong></td>
+                    <td>不能（只描述，Agent 自己执行）</td>
+                    <td>能（Server 端直接执行）</td>
+                </tr>
+                <tr>
+                    <td><strong>部署复杂度</strong></td>
+                    <td>零（放文件就行）</td>
+                    <td>中等（需要启动、维护服务）</td>
+                </tr>
+                <tr>
+                    <td><strong>离线支持</strong></td>
+                    <td>✅ 是</td>
+                    <td>❌ 否</td>
+                </tr>
+                <tr>
+                    <td><strong>延迟</strong></td>
+                    <td>零（本地读取）</td>
+                    <td>网络延迟</td>
+                </tr>
+                <tr>
+                    <td><strong>跨 Agent 兼容</strong></td>
+                    <td>✅ 30+ 工具支持</td>
+                    <td>✅ 所有主流平台</td>
+                </tr>
+                <tr>
+                    <td><strong>状态管理</strong></td>
+                    <td>无</td>
+                    <td>有（可维护服务端状态）</td>
+                </tr>
+                <tr>
+                    <td><strong>安全模型</strong></td>
+                    <td>依赖 Agent 的权限控制</td>
+                    <td>协议级 consent + capability negotiation</td>
+                </tr>
+                <tr>
+                    <td><strong>维护成本</strong></td>
+                    <td>低（更新文件）</td>
+                    <td>中（维护服务进程 + 认证）</td>
+                </tr>
+                <tr>
+                    <td><strong>适用场景</strong></td>
+                    <td>知识传递、模式指导、工作流</td>
+                    <td>实时数据、执行操作、外部系统</td>
+                </tr>
+            </table>
+
+            <h2>它们不是竞争关系，是互补关系</h2>
+            <p>
+                Auth0 的技术分析说得很清楚：三者是不同层次的抽象——
+            </p>
+            <ul>
+                <li><strong>Tool（工具）</strong>：单个可调用函数，最底层的能力单元</li>
+                <li><strong>MCP Server</strong>：标准化协议服务，暴露一组工具、数据和提示</li>
+                <li><strong>Skill（技能）</strong>：最高层，指导 Agent 如何编排多个工具完成复杂目标</li>
+            </ul>
+            <blockquote>
+                <strong>Skill 是 Agent 的内部剧本，MCP Server 是 Agent 的外部神经系统。</strong>
+            </blockquote>
+            <p>
+                一个 Skill 可以指导 Agent 调用多个 MCP Server。比如一个"客户分析"Skill 可能同时调用
+                CRM 的 MCP Server（查客户数据）、PostgreSQL 的 MCP Server（查订单历史），
+                Skill 负责编排整个多步骤工作流。
+            </p>
+
+            <h2>选择指南：三个问题帮你决定</h2>
+
+            <div class="decision-flow">
+                <p><strong>Q1：你的工具需要实时数据还是静态知识？</strong></p>
+                <p>→ 实时数据（数据库、API 调用）→ <strong>MCP Server</strong></p>
+                <p>→ 静态知识（API 文档、使用模式）→ <strong>Skill</strong></p>
+            </div>
+
+            <div class="decision-flow">
+                <p><strong>Q2：Agent 是读取信息，还是执行操作？</strong></p>
+                <p>→ 只是读取/理解 → <strong>Skill</strong></p>
+                <p>→ 需要写入/修改/执行 → <strong>MCP Server</strong></p>
+            </div>
+
+            <div class="decision-flow">
+                <p><strong>Q3：你愿意投入多少运维成本？</strong></p>
+                <p>→ 零运维（丢个文件就行）→ <strong>Skill</strong></p>
+                <p>→ 可以维护服务进程 → <strong>MCP Server</strong></p>
+            </div>
+
+            <div class="highlight-box">
+                <p><strong>🚀 快速决策：</strong></p>
+                <p><strong>只用 Skill：</strong>工具已有 HTTP API，Agent 只需知道怎么调。写个 SKILL.md 描述清楚 API 端点、参数、返回值，Agent 自己用 curl/fetch 调。</p>
+                <p><strong>只用 MCP Server：</strong>需要实时连接数据库、执行写入操作、维护会话状态。</p>
+                <p><strong>两者结合：</strong>Skill 描述工作流逻辑，MCP Server 提供具体的工具调用能力。这是最强大的组合。</p>
+            </div>
+
+            <h2>实战场景对比</h2>
+
+            <h3>场景 1：调用已有的开放 API（如天气、汇率）</h3>
+            <p><strong>推荐：Skill</strong></p>
+            <p>API 已经在那了，写个 SKILL.md 告诉 Agent 怎么调就行。不需要额外跑服务，Agent 用 <code>curl</code> 或 <code>web_fetch</code> 直接请求。</p>
+
+            <h3>场景 2：连接内部数据库</h3>
+            <p><strong>推荐：MCP Server</strong></p>
+            <p>数据库连接需要管理连接池、权限、查询安全。MCP Server 可以在服务端处理这些，只暴露安全的查询接口给 Agent。</p>
+
+            <h3>场景 3：多步骤业务工作流</h3>
+            <p><strong>推荐：Skill + MCP Server</strong></p>
+            <p>用 Skill 编排工作流（先查 CRM，再查订单，最后生成报告），每个步骤通过 MCP Server 执行具体操作。</p>
+
+            <h3>场景 4：给团队分享最佳实践</h3>
+            <p><strong>推荐：Skill</strong></p>
+            <p>把团队的开发规范、部署流程、代码审查标准写成 Skill，所有 Agent 都能读到。零运维，版本控制跟着 Git 走。</p>
+
+            <h3>场景 5：需要维护会话状态</h3>
+            <p><strong>推荐：MCP Server</strong></p>
+            <p>比如长时间的数据库迁移任务，需要追踪进度、支持暂停恢复。MCP Server 可以在服务端维护状态。</p>
+
+            <h2>生态现状（2026 年中）</h2>
+
+            <table class="comparison-table">
+                <tr>
+                    <th>指标</th>
+                    <th>Agent Skill</th>
+                    <th>MCP</th>
+                </tr>
+                <tr>
+                    <td>支持工具数</td>
+                    <td>30+</td>
+                    <td>所有主流 AI 平台</td>
+                </tr>
+                <tr>
+                    <td>社区数量</td>
+                    <td>2,600+ Skills</td>
+                    <td>10,000+ Servers</td>
+                </tr>
+                <tr>
+                    <td>治理</td>
+                    <td>Linux Foundation / AAIF</td>
+                    <td>Linux Foundation / AAIF</td>
+                </tr>
+                <tr>
+                    <td>联合发起</td>
+                    <td>Anthropic + OpenAI + Google</td>
+                    <td>Anthropic → AAIF（AWS/Google/Microsoft/OpenAI 支持）</td>
+                </tr>
+                <tr>
+                    <td>标准化程度</td>
+                    <td>规范已稳定</td>
+                    <td>持续迭代中（异步操作等新特性）</td>
+                </tr>
+                <tr>
+                    <td>企业采用</td>
+                    <td>Canva、Box、Rakuten 等</td>
+                    <td>28% 财富 500 强已部署</td>
+                </tr>
+            </table>
+
+            <h2>常见误区</h2>
+
+            <h3>❌ "Skill 是某个 Agent 的私有格式"</h3>
+            <p>
+                不是。SKILL.md 是开放标准，由 AAIF 治理。30+ 工具原生支持，一份 Skill 到处运行。
+            </p>
+
+            <h3>❌ "有了 Skill 就不需要 MCP 了"</h3>
+            <p>
+                Skill 是文档（告诉 Agent 怎么做），MCP 是服务（帮 Agent 做事）。两者解决不同层次的问题。
+            </p>
+
+            <h3>❌ "MCP 总是更好的选择"</h3>
+            <p>
+                MCP 需要运行和维护服务进程。如果你的 API 已经是 HTTP 了，写个 Skill 让 Agent 直接调，比再套一层 MCP Server 更简单。
+            </p>
+
+            <h3>❌ "必须二选一"</h3>
+            <p>
+                最佳实践是两者结合。Skill 管编排逻辑和知识传递，MCP Server 管工具执行和状态管理。
+            </p>
+
+            <h2>我的建议</h2>
+            <p>
+                <strong>从 Skill 开始。</strong>成本最低，见效最快。把你的 API 文档写成 SKILL.md，
+                当天就能让 30+ AI Agent 用起来。
+            </p>
+            <p>
+                <strong>需要时再加 MCP。</strong>当你发现 Skill 描述的某些操作需要服务端执行（比如数据库写入、
+                长时间任务、实时数据流），再为这些操作搭建 MCP Server。
+            </p>
+            <p>
+                <strong>最终目标是 Skill + MCP 的组合。</strong>Skill 是 Agent 的"大脑"（知道该做什么），
+                MCP Server 是 Agent 的"双手"（能实际做事）。两者结合，才是完整的 AI Agent 工具集成方案。
+            </p>
+
+            <blockquote>
+                先写 Skill，跑通再上 MCP。别把简单问题搞复杂了。
+            </blockquote>
+
+            <h2>参考来源</h2>
+            <ul>
+                <li><a href="https://agentskills.io/specification" target="_blank">AgentSkills 官方规范</a></li>
+                <li><a href="https://modelcontextprotocol.info" target="_blank">MCP 官方文档</a></li>
+                <li><a href="https://www.digitalapplied.com/blog/mcp-adoption-statistics-2026-model-context-protocol" target="_blank">MCP Adoption Statistics 2026</a></li>
+                <li><a href="https://auth0.com/blog/what-ai-tools-mcp-servers-and-skills-actually-do" target="_blank">Auth0: What AI Tools, MCP Servers, and Skills Actually Do</a></li>
+                <li><a href="https://intuitionlabs.ai/articles/claude-skills-vs-mcp" target="_blank">Claude Skills vs. MCP: A Technical Comparison</a></li>
+                <li><a href="https://www.damiangalarza.com/posts/2026-02-05-mcps-vs-agent-skills" target="_blank">MCPs vs Agent Skills: Understanding the Difference</a></li>
+            </ul>
+        </article>
+    </div>
+</body>
+</html>
