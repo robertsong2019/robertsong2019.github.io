@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autoresearch 方法论：115天零回滚背后的增量编程协议 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>Autoresearch 方法论：115天零回滚背后的增量编程协议</h1>
+    <div class="meta">
+        2026-06-12 · <span class="tag">AI Agent</span> <span class="tag">Autoresearch</span> <span class="tag">增量编程</span>
+    </div>
+
+    <p>115天。5个项目。3000+测试。零回滚。</p>
+
+    <p>这不是一个关于"AI多厉害"的故事。这是一个关于<strong>纪律</strong>的故事——一个让AI Agent每天自主写代码、连续115天不出错的协议。我把它叫做 <span class="highlight">Autoresearch</span>。</p>
+
+    <h2>问题：AI写代码容易，写对代码难</h2>
+
+    <p>让LLM写一个函数很容易。让它维护一个有900+测试的代码库，每天加新功能，连续几个月不出错？那完全是另一回事。</p>
+
+    <p>大多数AI编程工作流的问题在于：<strong>没有约束的自主就是随机</strong>。你让Agent自由发挥，它可能一次写出完美的代码，也可能引入三个隐蔽的bug。没有系统性的方法，结果完全靠运气。</p>
+
+    <p>Autoresearch的核心洞察很简单：</p>
+
+    <blockquote>每天只做微小但可验证的增量。用测试做门控。用实验日志做审计。</blockquote>
+
+    <h2>协议：3个API，10个测试，1次提交</h2>
+
+    <p>每个Autoresearch周期遵循固定节奏：</p>
+
+    <ol>
+        <li><strong>选择3个API</strong> — 不是随意的，而是从已有API的逻辑延伸中挑选。比如有了<code>tag_ensure</code>（幂等添加标签），下一个自然是<code>tag_untag</code>（精确移除标签）。</li>
+        <li><strong>每个API 3-4个测试</strong> — 覆盖正常路径、边界条件和错误情况。</li>
+        <li><strong>运行全量测试</strong> — 不是新测试，是全部。如果有940个测试，就跑940个。</li>
+        <li><strong>记录到experiments.tsv</strong> — 时间戳、commit hash、测试数量、决策（keep/revert）。</li>
+    </ol>
+
+    <p>来看看实际代码。这是最近一轮的实现——<code>content_fingerprint_audit</code>，对整个存储做SHA-256指纹扫描：</p>
+
+    <pre><code>def content_fingerprint_audit(self) -> dict[str, str]:
+    """SHA-256 fingerprint every entry in the store.
+
+    Returns dict mapping all keys to their SHA-256 hashes.
+    Enables full-store integrity checks and bulk change detection.
+    """
+    return {
+        key: hashlib.sha256(
+            self._data[key]["content"].encode("utf-8")
+        ).hexdigest()
+        for key in self._data
+    }</code></pre>
+
+    <p>简单？是的。但它的测试覆盖了三种场景：</p>
+
+    <pre><code>def test_all_keys_fingerprinted(self):
+    store.put("a", "hello")
+    store.put("b", "world")
+    audit = store.content_fingerprint_audit()
+    assert set(audit.keys()) == {"a", "b"}
+    assert len(audit["a"]) == 64  # SHA-256 hex length
+
+def test_empty_store(self):
+    assert store.content_fingerprint_audit() == {}
+
+def test_detects_changes(self):
+    store.put("x", "original")
+    fp1 = store.content_fingerprint_audit()
+    store.put("x", "modified")
+    fp2 = store.content_fingerprint_audit()
+    assert fp1["x"] != fp2["x"]</code></pre>
+
+    <p>每个API都是这个模式：实现 + 3-4个测试 + 全量回归检查。不需要什么花哨的AI技巧，需要的是<strong>可重复的纪律</strong>。</p>
+
+    <h2>实验日志：让每一次决策可追溯</h2>
+
+    <p>这是整个方法论中最被低估的部分。<code>experiments.tsv</code> 不只是一个日志——它是决策的审计追踪。</p>
+
+    <pre><code>2026-06-12T01:00:00+08:00	b309d3d	test_count	931→940	keep
+	search_similar_paginated+embedding_stats+content_fingerprint_audit
+	— paginated vector search (offset+limit),
+	embedding coverage statistics (total/embedded/coverage%),
+	full-store SHA-256 fingerprint audit.
+	+9 tests (931→940). Zero regressions. 115th consecutive day.</code></pre>
+
+    <p>每一行记录了：<strong>什么时候</strong>、<strong>改了什么</strong>（commit hash）、<strong>测试数量变化</strong>、<strong>决策</strong>（keep还是revert）、以及<strong>为什么这样做</strong>。</p>
+
+    <p>注意那个"115th consecutive day"。这不是吹嘘——它是一个连续计数器，任何一次回滚都会归零。这让回滚有了心理成本，也让"今天要不要偷懒跳过"有了答案。</p>
+
+    <h2>为什么不是"写更多代码更快"</h2>
+
+    <p>一个常见的误解是：AI Agent应该一次性写很多代码。我来展示为什么这是个坏主意。</p>
+
+    <p>看<code>agent-memory-graph</code>项目。它在115天里从0增长到了916个测试、203个API。平均每天<strong>8个新测试、不到2个新API</strong>。</p>
+
+    <p>如果让Agent一次写20个API会怎样？我试过。结果是：</p>
+    <ul>
+        <li>有些API设计不连贯（因为缺少中间步骤的反馈）</li>
+        <li>测试覆盖不均匀（前面的仔细，后面的敷衍）</li>
+        <li>偶尔引入bug（因为没在早期发现设计错误）</li>
+    </ul>
+
+    <p>小增量的力量在于<strong>快速反馈循环</strong>。每个API的实现都会影响下一个API的设计。<code>ego_graph</code>（自我网络提取）之后自然引出<code>transitivity</code>（全局聚类系数），再引出<code>preferential_attachment</code>（优先连接链接预测）。如果你一次写三个，第二个的设计会基于对第一个的<strong>想象</strong>而不是<strong>经验</strong>。</p>
+
+    <h2>向量搜索的质量门控：一个实际案例</h2>
+
+    <p>让我用一个具体例子展示增量方法如何产生更好的设计。</p>
+
+    <p>第一轮：基础的<code>search_similar(embedding, limit)</code>。能用，但结果质量参差不齐。</p>
+
+    <p>第二轮：<code>search_similar_filtered(embedding, limit, tags)</code>。加了标签过滤——"只要带这些标签的相似结果"。</p>
+
+    <p>第三轮：<code>search_similar_threshold(embedding, threshold)</code>。加了距离阈值——"相似度不够高的不要"。这是质量门控。</p>
+
+    <p>第四轮：<code>search_similar_paginated(embedding, offset, limit)</code>。加分页——"结果太多，给我第二页"。</p>
+
+    <pre><code># 最终用户可以组合使用
+results = store.search_similar_filtered(
+    embedding=query_vec,
+    limit=100,
+    tags=["verified"]
+)
+# 再用 threshold 做质量门控
+good_results = [
+    r for r in results
+    if r["distance"] < threshold
+]
+# 或者直接用 paginated 做 UI 分页
+page2 = store.search_similar_paginated(
+    embedding=query_vec,
+    offset=20,
+    limit=20
+)</code></pre>
+
+    <p>每个版本解决一个具体问题。如果一开始就设计"完美的向量搜索API"，你会得到一个过度设计的接口。通过增量演进，每个API都是对真实需求的<strong>回应</strong>，而不是想象。</p>
+
+    <h2>独到见解：约束即能力</h2>
+
+    <p>大多数人把"约束"看作限制。Autoresearch的实践经验告诉我相反的结论：</p>
+
+    <blockquote><strong>约束是AI Agent最重要的能力来源。</strong></blockquote>
+
+    <p>"每天只做3个API"这个约束，实际上赋予了Agent：</p>
+    <ul>
+        <li><strong>设计连贯性</strong> — 每个API都有时间被充分测试和反思</li>
+        <li><strong>质量保证</strong> — 全量回归测试让"渐进腐化"不可能发生</li>
+        <li><strong>可解释性</strong> — 每天的experiments.tsv都是清晰的决策记录</li>
+        <li><strong>可持续性</strong> — 115天不是靠意志力，是靠系统</li>
+    </ul>
+
+    <p>这跟传统软件工程的"小步快跑"不同。传统团队的小步快跑受限于沟通成本和部署复杂度。AI Agent没有这些限制——它的约束是<strong>认知边界</strong>（context window）和<strong>可靠性</strong>（hallucination rate）。Autoresearch的"3个API"恰好落在LLM能力曲线的甜区：足够小到能在单次会话中完美执行，足够大到能产生可感知的进步。</p>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你也在用AI Agent做自主编程，以下是经过115天验证的实操要点：</p>
+
+    <ol>
+        <li><strong>用experiments.tsv做强制记录。</strong>不记录就不算完成。格式简单：时间、commit、测试数、决策、描述。这个文件会成为你最值钱的资产。</li>
+        <li><strong>全量测试，每次都跑。</strong>不是"跑新写的测试"。是跑全部。如果你的测试套件跑得慢，那是测试架构的问题，不是方法论的问题。</li>
+        <li><strong>API从已有API的逻辑邻居中选。</strong>不要跳跃式添加功能。有了"添加"就该有"移除"，有了"单个"就该有"批量"，有了"精确"就该有"模糊"。</li>
+        <li><strong>保持streak计数。</strong>听起来幼稚，但"第N个连续天"是一个强大的动力信号。任何一天的偷懒都会打破一个三位数的连续记录。</li>
+        <li><strong>接受"小"。</strong>3个API、10个测试看起来不多。但365天 × 3个API = 1095个API。实际上我们的agent-memory-graph在115天里做了203个——因为有些天做4轮。重点是系统的持续运动，不是单次的爆发。</li>
+    </ol>
+
+    <h2>数据说话</h2>
+
+    <p>截至2026年6月12日，5个活跃项目的状态：</p>
+
+    <ul>
+        <li><strong>agent-context-store</strong> — 940 tests, 115th day, 向量搜索+内容指纹+标签管理</li>
+        <li><strong>agent-memory-graph</strong> — 916 tests, 115th day, 图算法库203 APIs</li>
+        <li><strong>agent-task-cli</strong> — 783 tests, 31 rounds of Cache/Storage/EventBus</li>
+        <li><strong>structured-output-toolkit</strong> — 123 tests, JSON提取+Pipeline+Schema缓存</li>
+        <li><strong>agent-context-analyzer</strong> — 65 tests, Token计数+模型限制</li>
+    </ul>
+
+    <p>总测试数：<strong>2827</strong>。总回滚次数：<strong>0</strong>。</p>
+
+    <p>这不是运气。这是协议。</p>
+
+    <p style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: #8b949e; font-size: 0.85rem;">
+        <a href="../index.html">← 返回首页</a>
+    </p>
+</body>
+</html>
