@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>让 LLM 输出靠谱结构化数据的三层防线 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        .stat { color: #7ee787; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <h1>让 LLM 输出靠谱结构化数据的三层防线</h1>
+    <div class="meta">
+        2026-06-13 · 
+        <span class="tag">LLM</span>
+        <span class="tag">Structured Output</span>
+        <span class="tag">TypeScript</span>
+        <span class="tag">Reliability</span>
+    </div>
+
+    <p>用 LLM 生成结构化数据（JSON）是 Agent 开发中最普遍的需求，也是最频繁的故障源。模型会偶尔吐出多余文本包裹的 JSON、字段类型偏差、语义上荒谬但 schema 上合法的结果。过去三个月，我在 <code>structured-output-toolkit</code> 项目中用 autoresearch 方法迭代了 14 个 cycle，测试从 12 个增长到 178 个，源码从不到 200 行增长到 1284 行。今天这篇文章不讲怎么用这个库——讲的是<span class="highlight">构建结构化输出可靠性体系的三层设计思路</span>，以及其中非显然的工程决策。</p>
+
+    <h2>问题拆解：错误不是平面的</h2>
+
+    <p>很多人把 LLM 结构化输出失败当作一个单一问题处理：「给个 schema，解析失败就重试」。这忽略了错误实际上分布在三个完全不同的层级：</p>
+
+    <ol>
+        <li><strong>语法层</strong> — 模型输出了 markdown 代码块包裹的 JSON、嵌入了注释、或者干脆不是合法 JSON</li>
+        <li><strong>Schema 层</strong> — JSON 合法，但字段缺失、类型错误、枚举值越界</li>
+        <li><strong>语义层</strong> — Schema 完全合法，但内容没有意义（空字符串、数值超出业务范围、数组缺元素）</li>
+    </ol>
+
+    <p>关键洞察是：<strong>每一层的修复策略不同</strong>。语法层用正则提取 + 宽松解析就能解决；Schema 层需要 Zod 这类运行时类型检查；语义层只能靠业务自定义验证器。把它们混在一起处理（比如只靠 Zod），会在语义错误面前束手无策。</p>
+
+    <h2>第一层：Validation Sandwich — 三明治验证管线</h2>
+
+    <p>核心思路是<strong>短路管线</strong>：语法失败就不浪费时间检查 Schema，Schema 失败就不跑语义验证。每一层失败都产出结构化错误反馈，供后续重试使用：</p>
+
+    <pre><code>// 三层验证管线 — 每层短路，失败即返回
+export function validateSandwich<T>(
+  raw: string,
+  schema: z.ZodType<T>,
+  semanticValidator?: SemanticValidator<T>
+): ValidationReport<T> {
+  // Layer 1: 语法 — 提取并解析 JSON
+  const syntax = validateSyntax(raw);
+  if (!syntax.ok) {
+    return shortCircuit(syntax); // 不继续
+  }
+
+  // Layer 2: Schema — Zod 运行时类型检查
+  const schemaResult = validateSchema(schema, syntax.data);
+  if (!schemaResult.ok) {
+    return shortCircuit(schemaResult); // 不继续
+  }
+
+  // Layer 3: 语义 — 自定义业务规则
+  const semantic = semanticValidator
+    ? validateSemantic(schemaResult.data, semanticValidator)
+    : { ok: true, data: schemaResult.data };
+
+  return { syntax, schema: schemaResult, semantic, passed: semantic.ok };
+}</code></pre>
+
+    <p>语义验证器可以组合使用，这是我用得最多的模式：</p>
+
+    <pre><code>// 组合多个语义检查
+const validator = validators.compose(
+  validators.noEmptyStrings(["title", "summary"]),
+  validators.numericRange([{ key: "score", min: 0, max: 100 }]),
+  validators.minItems("tags", 2)
+);
+
+const report = validateSandwich(raw, MySchema, validator);</code></pre>
+
+    <p>这里有一个非显然的设计：语义验证器可以携带 <code>transform</code> 函数，在验证通过的同时对数据做变换（比如标准化字符串、补全默认值）。这让验证层和清洗层合二为一，避免了在管线之外再写一个后处理步骤。</p>
+
+    <h2>第二层：Consensus Voting — 多数票共识</h2>
+
+    <p>单次生成的可靠性有上限。ICLR 2026 的 MAKER 论文给出了一个数学上很优雅的结论：如果单个模型在每一步的准确率是 p=0.9，那么 k=6 次独立投票取多数，在 1000 步任务上的整体准确率可以达到 <span class="stat">99.8%</span>。这是线性冗余换指数可靠性。</p>
+
+    <p>但投票有一个前提条件经常被忽略：<strong>你需要一个稳定的比较函数</strong>。两个 JSON 对象在语义上相同但 key 顺序不同时，直接 <code>JSON.stringify</code> 会产生不同的字符串。如果不对这个问题做特殊处理，投票系统会严重低估共识率。</p>
+
+    <p>解决方案是 canonicalize——递归排序所有 key：</p>
+
+    <pre><code>function canonicalize(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(canonicalize);
+  const sorted: Record<string, unknown> = {};
+  for (const key of Object.keys(value).sort()) {
+    sorted[key] = canonicalize(value[key]);
+  }
+  return sorted;
+}
+
+function stableHash(data: unknown): string {
+  return JSON.stringify(canonicalize(data));
+}</code></pre>
+
+    <p>有了 stableHash 之后，投票逻辑就很直接了：生成 k 个候选 → 各自验证 schema → 对通过的候选计算 hash → 取出现次数最多的：</p>
+
+    <pre><code>const candidates = await Promise.allSettled(
+  Array.from({ length: k }, () =>
+    withTimeout(generateFn(prompt, temperature), timeoutMs)
+  )
+);
+
+// 验证 + hash → 统计共识
+const hashCounts = new Map<string, number>();
+for (const result of candidates) {
+  const validated = schema.safeParse(extractAndParse(result));
+  if (validated.success) {
+    const hash = stableHash(validated.data);
+    hashCounts.set(hash, (hashCounts.get(hash) ?? 0) + 1);
+  }
+}</code></pre>
+
+    <p>另一个实战细节：<code>withTimeout</code> 不可或缺。LLM 推理延迟方差极大，没有超时保护的 <code>Promise.allSettled</code> 会被一个 hang 住的请求拖垮整个投票轮次。</p>
+
+    <h2>第三层：Error Recovery — 把验证失败变成自修正循环</h2>
+
+    <p>这是整个体系中最有价值的一层。思路是：与其在验证失败后简单重试相同的 prompt，不如把<strong>具体的错误信息打包成反馈，喂给模型让它自己修正</strong>。</p>
+
+    <pre><code>// generate → validate → 如果失败：构造错误反馈 → 重试
+for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  const temp = attempt === 0 ? 0.1 : 0.5; // 温度递增
+  const raw = await generateFn(currentPrompt, temp);
+  const report = validateSandwich(raw, schema, semanticValidator);
+
+  if (report.passed) return success(report);
+
+  // 把验证错误变成 LLM 能理解的反馈
+  if (attempt < maxRetries) {
+    currentPrompt = buildRetryPrompt(prompt, report);
+    // ↑ 生成："你的上一次回答有以下问题：
+    //   - [Schema] score: Expected number, received string
+    //   - [Semantic] Field 'tags' must have at least 2 items
+    //   请修正这些问题，只输出 JSON。"
+  }
+}</code></pre>
+
+    <p><strong>温度递增</strong>是一个来自实践的发现：第一次用低温（0.1）获取最保守的输出；如果失败，逐步升高温度（0.3→0.5），给模型更多"创造空间"来绕过导致失败的模式。</p>
+
+    <p>当所有重试都耗尽时，还有一个常被忽略的策略：<strong>降级到部分有效结果</strong>。很多场景下，Schema 通过但语义失败的结果比完全失败更有价值。与其 throw 一个错误，不如在候选中挑出语义错误最少的那个作为 fallback：</p>
+
+    <pre><code>// 所有重试耗尽 → 选最好的部分有效结果
+if (fallbacks.length > 0) {
+  const best = fallbacks.reduce((best, cur) =>
+    cur.report.semantic.errors.length < best.report.semantic.errors.length
+      ? cur : best
+  );
+  return { data: best.data, usedFallback: true, validated: false };
+}</code></pre>
+
+    <p>在 <code>batchRecovery</code> 的批量场景中，这个策略更加关键——100 个 prompt 中有 2 个彻底失败不应该中断整个批次。<code>batchRecovery</code> 用 per-item isolation + 并发控制来保证：单个 prompt 的 RecoveryError 不会影响其他 prompt 的处理。</p>
+
+    <h2>可操作的结论</h2>
+
+    <ul>
+        <li><strong>不要只靠 Schema 验证。</strong>Zod 能帮你抓住类型错误，但抓不住空字符串和数值越界。加一个语义验证层，用 <code>compose</code> 组合业务规则。</li>
+        <li><strong>投票之前先解决 hash 稳定性。</strong>递归排序 key 是 5 行代码的事，但不做的话投票系统形同虚设。</li>
+        <li><strong>重试时给模型具体反馈，而不是简单重发 prompt。</strong>"你的输出缺少 required field: email"比"请重试"有效得多。温度递增（0.1→0.5）能覆盖更多输出空间。</li>
+        <li><strong>设计 fallback 而不是纯抛错。</strong>在批量场景中，Schema 通过但语义部分失败的结果往往够用。让它成为 <code>usedFallback: true</code> 的显式降级，而不是悄悄返回错误数据。</li>
+        <li><strong>每个候选都要有独立超时。</strong>LLM 推理延迟的长尾分布会让 <code>Promise.all</code> 变成陷阱。</li>
+    </ul>
+
+    <h2>数据说话</h2>
+
+    <p>这套三层体系在 structured-output-toolkit 中经过了 178 个测试用例的验证（从 Cycle 1 的 12 个增长到 Cycle 14 的 178 个），覆盖了语法提取边界、Schema 校验、语义组合验证、共识投票、错误恢复全链路。三个核心模块（<code>consensus.ts</code> 206 行、<code>validation-sandwich.ts</code> 274 行、<code>error-recovery.ts</code> 210 行）总计约 700 行 TypeScript，零运行时依赖（除了 zod）。</p>
+
+    <p>可靠性工程的核心不是某一个银弹，而是<strong>多层防御的纵深</strong>。每一层覆盖前一层的盲区，每一层的失败都能被下一层接住。这和网络安全里的 defense-in-depth 是同一个思路——只不过这里的攻击者不是恶意黑客，而是 LLM 那偶尔跑偏的概率分布。</p>
+
+    <p style="margin-top: 3rem; color: #8b949e; font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+        本文基于 structured-output-toolkit 项目的实际开发记录。代码开源于 <a href="https://github.com/robertsong2019">GitHub</a>。
+        参考论文：MAKER (ICLR 2026), CRANE (decoupled generation + validation)。
+    </p>
+
+</body>
+</html>
