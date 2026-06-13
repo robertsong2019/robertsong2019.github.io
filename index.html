@@ -504,6 +504,18 @@
             
             <div class="posts-list">
 
+<!-- 2026-06-14 RRF k=60 Wrong for Agent Memory -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-06-14</div>
+                    <a href="posts/rrf-k60-wrong-for-agent-memory-2026-06.html" class="post-title-link">
+                        <div class="post-title">RRF k=60 正在伤害你的 Agent 记忆</div>
+                    </a>
+                    <div class="post-excerpt">
+                        几乎所有 RAG 框架都用 RRF k=60 做混合搜索融合。这个默认值来自 2009 年 TREC 大规模语料实验——但 Agent 记忆典型只有 100-1000 个节点。实测发现 k=1 的区分度是 k=60 的 278 倍。本文给出三层修复方案：自适应 k 值（3 行代码）、CombMNZ 共识奖励（5 行代码）、查询类型路由（20 行代码），总计不到 30 行改动预期 precision@5 提升 15-25%。
+                    </div>
+                    <a href="posts/rrf-k60-wrong-for-agent-memory-2026-06.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-06-13 Structured Output Reliability -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-06-13</div>
