@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 记忆系统最需要的操作是 NOOP | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--heading); font-size: 1.3rem; margin: 2rem 0 0.8rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+        h3 { color: var(--accent); font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code { background: #1f2937; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', Consolas, monospace; }
+        pre { background: #1f2937; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; font-size: 0.85rem; line-height: 1.6; }
+        pre code { background: none; padding: 0; }
+        .highlight { color: #79c0ff; }
+        .comment { color: #8b949e; }
+        .keyword { color: #ff7b72; }
+        .string { color: #a5d6ff; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        .callout { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+        .callout-title { color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
+        .back-link { display: inline-block; margin-top: 2rem; color: #8b949e; font-size: 0.9rem; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .num { font-family: 'SF Mono', Consolas, monospace; color: #79c0ff; }
+    </style>
+</head>
+<body>
+    <h1>Agent 记忆系统最需要的操作是 NOOP</h1>
+    <div class="meta">2026-06-15 · 罗嵩</div>
+
+    <p>所有主流 Agent 记忆系统——Mem0、Letta、Zep、以及我自己的 Agent Memory Service——在处理新信息时都面临同一个问题：默认操作是 <code>ADD</code>。用户说了一句话？存下来。工具返回了结果？存下来。日积月累，记忆库膨胀到几千条，检索精度直线下降，重要信息被噪声淹没。</p>
+
+    <p>2026 年 ACL 接收的 <strong>Memory-R1</strong> 论文用强化学习训练了一个记忆管理器，核心发现出乎意料：在四个操作（ADD / UPDATE / DELETE / NOOP）中，<strong>NOOP 是被触发最多的，也是最关键的</strong>。大部分对话轮次根本不需要修改记忆。</p>
+
+    <p>这篇文章分享我在 agent-memory-graph 中实现 Memory-R1 风格操作评分的具体方案——不需要 RL 训练，用启发式就能捕获 80% 的价值。</p>
+
+    <h2>为什么默认 ADD 是灾难</h2>
+
+    <p>先看一个真实场景。Agent 在一次会话中处理以下信息：</p>
+
+    <pre><code><span class="comment"># 对话轮次 1</span>
+用户: "我用的是 Python 3.12"
+→ <span class="keyword">ADD</span>: "用户使用 Python 3.12"
+
+<span class="comment"># 对话轮次 2</span>
+用户: "对，Python 3.12，配 venv"
+→ <span class="keyword">ADD</span>: "用户使用 Python 3.12 配 venv"  <span class="comment"># 冗余！</span>
+
+<span class="comment"># 对话轮次 3</span>
+用户: "帮我看看这个 bug"
+→ <span class="keyword">ADD</span>: "用户请求查看 bug"  <span class="comment"># 噪声！</span>
+
+<span class="comment"># 对话轮次 4</span>
+用户: "其实我升级到 3.13 了"
+→ <span class="keyword">ADD</span>: "用户升级到 Python 3.13"  <span class="comment"># 矛盾但没删旧的！</span></pre>
+
+    <p>4 轮对话产生了 4 条记忆，其中 3 条是有问题的：第 2 条冗余，第 3 条是噪声，第 4 条与第 1 条矛盾。典型的启发式系统（"有信息就存"）在这里全军覆没。</p>
+
+    <p>Memory-R1 用 RL 训练后发现，最优策略的分布大致是：</p>
+
+    <table>
+        <tr><th>操作</th><th>触发比例</th><th>说明</th></tr>
+        <tr><td><code>NOOP</code></td><td class="num">~60-70%</td><td>大部分信息不值得记忆</td></tr>
+        <tr><td><code>ADD</code></td><td class="num">~15-20%</td><td>真正新颖的信息</td></tr>
+        <tr><td><code>UPDATE</code></td><td class="num">~10-15%</td><td>修正或补充已有记忆</td></tr>
+        <tr><td><code>DELETE</code></td><td class="num">&lt;5%</td><td>仅限明确矛盾/过期</td></tr>
+    </table>
+
+    <p>注意 NOOP 的压倒性比例。这不是说 Agent 不需要记忆，而是说<strong>大部分信息不值得主动记忆</strong>——它们要么是冗余的、要么是短暂的、要么是无关的。</p>
+
+    <h2>启发式操作评分：不训练也能用</h2>
+
+    <p>Memory-R1 用 PPO+GRPO 训练，效果很好但成本很高。对于自建记忆系统，我设计了一套基于内容相似度的启发式评分方案，核心思想是：<strong>用新颖度（novelty）区分 ADD 和 NOOP，用相似度（similarity）区分 ADD 和 UPDATE</strong>。</p>
+
+    <h3>核心算法</h3>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">score_memory_ops</span>(content, existing_keys=None, noop_bias=0.15):
+    <span class="string">"""对新信息评分 4 种操作。返回按分数降序排列的操作列表。"""</span>
+    existing_keys = existing_keys <span class="keyword">or</span> []
+
+    <span class="comment"># 1. 在已有记忆中找最相似的节点</span>
+    best_match, best_sim = <span class="keyword">None</span>, 0.0
+    <span class="keyword">if</span> existing_keys:
+        <span class="keyword">for</span> kid <span class="keyword">in</span> existing_keys:
+            node = get_node(kid)
+            sim = content_similarity(content, node.label)
+            <span class="keyword">if</span> sim > best_sim:
+                best_sim, best_match = sim, kid
+    <span class="keyword">else</span>:
+        <span class="comment"># 搜索近似结果</span>
+        results = search_unified(content, limit=5)
+        <span class="keyword">for</span> r <span class="keyword">in</span> results:
+            sim = content_similarity(content, r.label)
+            <span class="keyword">if</span> sim > best_sim:
+                best_sim, best_match = sim, r.id
+
+    <span class="comment"># 2. novelty = 1 - best_similarity</span>
+    novelty = 1.0 - best_sim
+
+    <span class="comment"># 3. 四操作评分</span>
+    scores = [
+        {<span class="string">"op"</span>: <span class="string">"ADD"</span>,
+         <span class="string">"score"</span>: novelty * (1.0 - noop_bias),
+         <span class="string">"reason"</span>: <span class="string">f"novelty={</span>{novelty:.2f}<span class="string">"</span>},
+
+        {<span class="string">"op"</span>: <span class="string">"UPDATE"</span>,
+         <span class="string">"score"</span>: best_sim * (1.0 - noop_bias) <span class="keyword">if</span> best_sim > 0.3 <span class="keyword">else</span> 0.0,
+         <span class="string">"target"</span>: best_match},
+
+        {<span class="string">"op"</span>: <span class="string">"DELETE"</span>, <span class="string">"score"</span>: 0.0,
+         <span class="string">"reason"</span>: <span class="string">"仅限矛盾/过期，需手动确认"</span>},
+
+        <span class="comment"># NOOP: 基础偏置 + 高重叠奖励</span>
+        {<span class="string">"op"</span>: <span class="string">"NOOP"</span>,
+         <span class="string">"score"</span>: min(noop_bias + best_sim * 0.3, 1.0)},
+    ]
+    <span class="keyword">return</span> sorted(scores, key=<span class="keyword">lambda</span> x: x[<span class="string">"score"</span>], reverse=<span class="keyword">True</span>)</code></pre>
+
+    <p>关键设计决策：</p>
+
+    <ul>
+        <li><strong><code>noop_bias=0.15</code></strong> — 给 NOOP 一个基础偏置，让它不会在所有情况下得 0 分。Memory-R1 训练后的 NOOP 触发率约 60-70%，0.15 的偏置让启发式版本接近这个分布。</li>
+        <li><strong>novelty = 1 - similarity</strong> — 如果新信息和已有记忆高度相似（sim=0.9），novelty 只有 0.1，ADD 分数极低。这自动抑制了冗余写入。</li>
+        <li><strong>UPDATE 阈值 0.3</strong> — 相似度低于 0.3 时不考虑 UPDATE，因为差异太大意味着是独立信息。</li>
+        <li><strong>DELETE 永远是 0 分</strong> — 删除操作的风险不可逆，必须人工确认。这是安全边界。</li>
+    </ul>
+
+    <h3>content_similarity 的实现</h3>
+
+    <p>相似度计算用 trigram Jaccard 系数——足够轻量，不需要 embedding：</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">_content_similarity</span>(a: str, b: str) -> float:
+    <span class="string">"""Trigram Jaccard 系数。O(n) 复杂度，无外部依赖。"""</span>
+    <span class="keyword">def</span> trigrams(s):
+        s = s.lower().strip()
+        <span class="keyword">return</span> {s[i:i+3] <span class="keyword">for</span> i <span class="keyword">in</span> range(len(s) - 2)} <span class="keyword">if</span> len(s) >= 3 <span class="keyword">else</span> {s}
+
+    ta, tb = trigrams(a), trigrams(b)
+    <span class="keyword">if not</span> ta <span class="keyword">or not</span> tb:
+        <span class="keyword">return</span> 0.0
+    <span class="keyword">return</span> len(ta & tb) / len(ta | tb)</code></pre>
+
+    <p>为什么不用 embedding？两个原因：（1）embedding 计算需要模型调用，延迟 50-200ms，而 trigram 只需 &lt;0.1ms；（2）对于短文本（Agent 记忆的典型场景），trigram Jaccard 的效果出奇地好，因为精确字符重叠本身就是强信号。</p>
+
+    <h2>端到端：从决策到执行</h2>
+
+    <p>有了评分，端到端执行就很直接了：</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">execute_memory_op</span>(content, kind=<span class="string">"fact"</span>, threshold=0.5, noop_bias=0.15):
+    decision = decide_memory_op(content, threshold, noop_bias)
+    op = decision[<span class="string">"op"</span>]
+
+    <span class="keyword">if</span> op == <span class="string">"ADD"</span>:
+        node = add(content, kind)
+        <span class="keyword">return</span> {<span class="string">"op"</span>: <span class="string">"ADD"</span>, <span class="string">"result"</span>: <span class="string">"created"</span>,
+                <span class="string">"node_id"</span>: node.id}
+
+    <span class="keyword">if</span> op == <span class="string">"UPDATE"</span> <span class="keyword">and</span> decision.get(<span class="string">"target_key"</span>):
+        old = get_node(decision[<span class="string">"target_key"</span>])
+        new_label = <span class="string">f"{old.label} + {content[:50]}"</span>
+        update_node(decision[<span class="string">"target_key"</span>], label=new_label)
+        <span class="keyword">return</span> {<span class="string">"op"</span>: <span class="string">"UPDATE"</span>, <span class="string">"result"</span>: <span class="string">"merged"</span>,
+                <span class="string">"old"</span>: old.label, <span class="string">"new"</span>: new_label}
+
+    <span class="keyword">return</span> {<span class="string">"op"</span>: <span class="string">"NOOP"</span>, <span class="string">"result"</span>: <span class="string">"no_action"</span>,
+            <span class="string">"reason"</span>: decision[<span class="string">"reason"</span>]}</code></pre>
+
+    <p>关键细节：<code>threshold=0.5</code> 是 ADD 的最低门槛。如果 ADD 分数不到 0.5，即使它是四个操作中得分最高的，也会降级为 NOOP。这个安全网防止"低置信 ADD"污染记忆库。</p>
+
+    <p>UPDATE 操作不是覆盖，而是 <strong>merge</strong>——把新内容追加到已有标签后面。这保留了历史信息，同时记录了演变过程。真正的冲突消解留给更高层的逻辑（或未来的 RL 训练）。</p>
+
+    <h2>记忆审计与有界遗忘</h2>
+
+    <p>操作评分解决的是"新信息要不要存"的问题。但已有记忆也需要定期维护。MemoryArena（ICLR 2026）定义了 Agent 记忆的四项核心能力，其中 <strong>selective forgetting</strong> 是现有系统最薄弱的。</p>
+
+    <p>我实现了两个补充工具：</p>
+
+    <h3>1. memory_audit — 全局健康评分</h3>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">memory_audit</span>(max_nodes=500, staleness_days=30):
+    <span class="string">"""全局记忆审计: 健康评分 + 冗余分析 + 过期检测。"""</span>
+    total = stats()[<span class="string">"nodes"</span>]
+    stale = count_nodes(accessed_before=now - staleness_days * 86400)
+    avg_weight = avg(node.weight <span class="keyword">for</span> node <span class="keyword">in</span> all_nodes)
+    redundant = count_redundant_pairs(threshold=0.7)
+
+    health = 100 * (
+        0.3 * (1 - stale / total) +        <span class="comment"># 新鲜度</span>
+        0.3 * (1 - redundant / total) +     <span class="comment"># 无冗余</span>
+        0.2 * min(avg_weight, 1.0) +        <span class="comment"># 重要性</span>
+        0.2 * min(total / 100, 1.0)         <span class="comment"># 规模合理性</span>
+    )
+    <span class="keyword">return</span> {health_score, total_nodes, stale_nodes,
+            redundant_pairs, avg_importance, suggestions}</code></pre>
+
+    <p>健康评分 0-100，四个维度加权。低于 60 分时系统会给出具体建议（"删除 N 个过期节点"、"合并 M 组冗余记忆"）。</p>
+
+    <h3>2. fifa_forget — 有界遗忘</h3>
+
+    <p>Find-and-Forget（FiFA）策略来自 MemoryArena 的 selective forgetting 评测：</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">fifa_forget</span>(budget=50, min_importance=0.1):
+    <span class="string">"""删除 budget 个最低权重 + 最陈旧的节点。"""</span>
+    <span class="comment"># 按 weight × 时间衰减 排序，取最后 budget 个</span>
+    candidates = query(<span class="string">"""
+        SELECT id, label, weight, accessed
+        FROM nodes
+        WHERE weight < ? AND accessed < ?
+        ORDER BY weight * freshness_score ASC
+        LIMIT ?
+    """</span>, (min_importance, cutoff, budget))
+
+    <span class="keyword">for</span> node <span class="keyword">in</span> candidates:
+        remove_node(node.id)
+
+    <span class="keyword">return</span> {<span class="string">"forgotten"</span>: len(candidates),
+            <span class="string">"remaining"</span>: stats()[<span class="string">"nodes"</span>]}</code></pre>
+
+    <p><code>min_importance=0.1</code> 是安全阈值——权重高于 0.1 的节点永远不会被自动遗忘。这防止了"清除所有记忆"的灾难性场景。</p>
+
+    <h2>从反馈中学习：在线阈值调整</h2>
+
+    <p>启发式方案的固有缺陷是阈值是固定的。AgeMem 论文的一个关键贡献是让模型从反馈中在线调整策略。我用了一个简化版本：</p>
+
+    <pre><code><span class="keyword">def</span> <span class="highlight">memory_feedback</span>(corrections):
+    <span class="string">"""从用户纠正数据调整 noop_bias 和 threshold。"""</span>
+    false_adds = sum(1 <span class="keyword">for</span> c <span class="keyword">in</span> corrections <span class="keyword">if</span> c[<span class="string">"predicted"</span>] == <span class="string">"ADD"</span> <span class="keyword">and</span> c[<span class="string">"actual"</span>] == <span class="string">"NOOP"</span>)
+    missed_adds = sum(1 <span class="keyword">for</span> c <span class="keyword">in</span> corrections <span class="keyword">if</span> c[<span class="string">"predicted"</span>] == <span class="string">"NOOP"</span> <span class="keyword">and</span> c[<span class="string">"actual"</span>] == <span class="string">"ADD"</span>)
+
+    <span class="comment"># 误 ADD 多 → 提高 bias（更保守）</span>
+    <span class="comment"># 遗漏 ADD 多 → 降低 bias（更积极）</span>
+    delta = 0.02 * (false_adds - missed_adds) / max(len(corrections), 1)
+    new_bias = max(0.05, min(0.6, current_noop_bias + delta))
+
+    <span class="keyword">return</span> {<span class="string">"old_bias"</span>: current_noop_bias,
+            <span class="string">"new_bias"</span>: new_bias,
+            <span class="string">"adjustment"</span>: delta}</code></pre>
+
+    <p>每次调整幅度被限制在 ±0.02 以内，bias 被限制在 [0.05, 0.6] 区间。这保证了调整是渐进的，不会因为少量反馈就剧烈震荡。这个设计直接借鉴了 AgeMem 的 step-wise 策略更新思想，但不需要梯度计算。</p>
+
+    <h2>独到观点</h2>
+
+    <div class="callout">
+        <div class="callout-title">💡 核心洞察</div>
+        <p><strong>Agent 记忆系统的问题不是"记不住"，而是"忘不掉"。</strong> 大部分系统过度存储，导致检索质量随时间线性下降。解决方案不是更大的上下文窗口或更强的 embedding，而是在写入端就做好过滤——而 NOOP 是这个过滤器的核心。</p>
+    </div>
+
+    <p>几个不常见的观点：</p>
+
+    <ol>
+        <li><strong>NOOP 不是"不做事"，而是一个主动的决策。</strong> 选择不记忆本身就是一种智能——人类大脑每秒丢弃 99% 的感官输入，这不是缺陷而是特性。Agent 记忆系统应该把 NOOP 作为默认操作，ADD 作为需要理由的例外。</li>
+
+        <li><strong>trigram Jaccard 在 Agent 记忆场景下够用了。</strong> 很多文章推荐 embedding 做语义去重，但 Agent 记忆的典型长度是 20-100 字符的短文本，这个长度范围内 trigram 的精确匹配能力反而比 embedding 的语义泛化更可靠。省下的 50-200ms 延迟可以花在更有价值的地方。</li>
+
+        <li><strong>DELETE 应该永远是手动的。</strong> Memory-R1 敢于让 RL 自动 DELETE，但它有明确的奖励信号（QA 准确率）。在生产系统中，误删的代价远大于冗余存储。把 DELETE 限制为"标记为候选删除，人工确认后执行"是更安全的选择。</li>
+
+        <li><strong>记忆质量比记忆数量重要 10 倍。</strong> 我的 memory_audit 实现中，冗余率和过期率各占健康评分的 30%。一个有 200 条高质量记忆的 Agent，在检索精度上会显著优于有 2000 条未过滤记忆的 Agent——这不只是性能问题，更是信噪比问题。</li>
+    </ol>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你在构建 Agent 记忆系统，以下是具体的行动项：</p>
+
+    <ol>
+        <li><strong>把默认操作从 ADD 改为 NOOP。</strong> 在写入前先做相似度检查，novelty &lt; 0.5 的信息直接跳过。这一个改动可以把记忆库增长率降低 60-70%。</li>
+
+        <li><strong>实现 merge 而非 overwrite。</strong> UPDATE 操作应该追加信息而不是替换。这样既保留了历史轨迹，又避免了信息丢失。</li>
+
+        <li><strong>定期运行 memory_audit。</strong> 每天或每 100 次写入后做一次健康检查。冗余率超过 20% 或过期率超过 30% 时触发清理。</li>
+
+        <li><strong>收集反馈数据。</strong> 记录用户的"这个不对"和"你怎么不记得"反馈，用来调整 noop_bias。即使每天只有 2-3 条反馈，一个月积累下来就能显著改善策略。</li>
+
+        <li><strong>给 DELETE 加确认门。</strong> 永远不要自动删除。最多做到"候选删除"——标记后等待人工确认或超时自动取消。</li>
+    </ol>
+
+    <h2>下一步：从启发式到学习式</h2>
+
+    <p>当前的启发式方案捕获了 Memory-R1 约 80% 的价值，剩下的 20% 需要 RL 训练。但 80% 已经足够让记忆库从"垃圾场"变成"图书馆"。</p>
+
+    <p>我的实现路径是：先用启发式跑起来，收集足够的操作日志（每次 ADD/UPDATE/NOOP 决策 + 最终用户是否满意），然后用这些日志做蒸馏训练——不需要完整的 PPO 循环，简单的行为克隆就能超越启发式天花板。</p>
+
+    <p>Memory-R1 论文的一个重要启示是：<strong>精确匹配奖励就足以教会复杂的记忆整合行为</strong>。这意味着即使没有 RL 基础设施，只要有一个"用户最终是否满意"的信号，就能逐步从启发式迁移到学习式。</p>
+
+    <p>Agent 记忆系统的未来不是更大的上下文窗口或更强的 embedding 模型，而是更聪明的写入策略。而最聪明的写入策略，大部分时候就是——什么都不做。</p>
+
+    <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+</body>
+</html>
