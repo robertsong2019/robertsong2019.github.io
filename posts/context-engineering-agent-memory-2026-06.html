@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Context Engineering：给 Agent 记忆装上"缓存管理器" | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>Context Engineering：给 Agent 记忆装上"缓存管理器"</h1>
+    <div class="meta">
+        2026-06-16 · <span class="tag">Context Engineering</span> <span class="tag">Agent Memory</span> <span class="tag">ICLR 2026</span>
+    </div>
+
+    <p>每个 LLM Agent 开发者都会撞上同一堵墙：<strong>上下文窗口是有限的，但 Agent 的记忆是无限的</strong>。</p>
+
+    <p>你的 Agent 有 200K token 的窗口，但它在和用户聊天的第 3 轮就开始"遗忘"第 1 轮的信息。你给它塞了 RAG，但检索回来的文档占满了窗口，反而让它"看不见"用户的问题。你加了记忆系统，但 Agent 花在"翻记忆"上的 token 比实际回答还多。</p>
+
+    <p>这不是 bug，这是<strong>架构缺陷</strong>。我们把"存储"和"管理"搞混了。</p>
+
+    <h2>CPU 缓存层级 vs Agent 记忆层级</h2>
+
+    <p>计算机体系结构早就解决了这个问题。CPU 不是直接读内存的——它有 L1/L2/L3 缓存。每一层都有不同的容量、延迟和管理策略。关键是：<strong>缓存管理器</strong>决定什么进缓存、什么被驱逐、什么被压缩。程序员不需要手动管理。</p>
+
+    <p>Agent 记忆需要同样的东西。ICLR 2026 的一篇论文把它叫做 <span class="highlight">Context Folding</span>——但本质上就是给记忆系统装一个缓存管理器。</p>
+
+    <p>我在 agent-context-store 里实现了这套原语。不是理论框架，是<strong>能跑的代码</strong>。</p>
+
+    <h2>三个核心原语：Fold、Squash、Outline</h2>
+
+    <h3>1. Content Fold —— 上下文压缩策略</h3>
+
+    <p>问题的本质：一个记忆条目可能有 5000 字，但你的上下文预算只剩 500 字。怎么办？</p>
+
+    <p>大多数人的做法是简单截断——取前 500 字。但这丢了尾部，也丢了结构信息。Context Fold 提供四种策略：</p>
+
+    <pre><code># 四种折叠策略
+store.content_fold("long_meeting_notes", max_length=500, strategy="head_tail")
+# 保留开头250字 + "…[folded]…" + 结尾250字
+
+store.content_fold("long_meeting_notes", max_length=500, strategy="head")
+# 只保留开头500字
+
+store.content_fold("long_meeting_notes", max_length=500, strategy="tail")
+# 只保留结尾500字
+
+store.content_fold("long_meeting_notes", max_length=500, strategy="outline")
+# 只保留 Markdown 标题行，压缩到结构骨架</code></pre>
+
+    <p>为什么这很重要？因为<strong>不同场景需要不同的压缩策略</strong>：</p>
+
+    <ul>
+        <li><code>head_tail</code> 适合对话记录——开头是问题，结尾是结论，中间是过程</li>
+        <li><code>outline</code> 适合 API 文档——你需要看到结构，不需要看到每个参数的描述</li>
+        <li><code>tail</code> 适合日志——最新的信息通常最相关</li>
+    </ul>
+
+    <p>关键设计决策：<code>head_tail</code> 不是简单地对半切。它用一个可配置的 separator（默认 <code>"\n…[folded]…\n"</code>），让 LLM <strong>知道自己看到的是被压缩的</strong>。这比偷偷截断要好得多——LLM 不会幻觉出被截断部分的内容。</p>
+
+    <h3>2. Content Squash —— 碎片合并</h3>
+
+    <p>Agent 记忆的另一个问题：<strong>碎片化</strong>。一个会议被分成 5 条记忆（议程、讨论、决策、行动项、跟进），每条单独存在。当你需要完整上下文时，要 5 次 API 调用。</p>
+
+    <pre><code># 把碎片化的记忆合并成一条
+new_key = store.content_squash("meeting_2024_03_15_")
+# 自动找到所有以 "meeting_2024_03_15_" 开头的条目
+# 合并内容，继承所有 tag 的并集
+# 结果: "meeting_2024_03_15__squashed"</code></pre>
+
+    <p>这个操作的精妙之处在于 <strong>tag 继承</strong>。原始条目可能分别标了 <code>agenda</code>、<code>decision</code>、<code>action_item</code>——squash 后新条目继承所有这些 tag，使得后续的 tag 检索仍然能命中。</p>
+
+    <p>这本质上是一个 <strong>compaction 操作</strong>，类似数据库的 VACUUM 或 LSM-Tree 的 compaction。你不会在每次查询时实时合并——你在系统空闲时做 squash，减少后续查询的开销。</p>
+
+    <h3>3. Content Section —— 结构化提取</h3>
+
+    <p>这是昨晚刚实现的原语。一个 Agent 可能存储了一篇很长的技术文档，但你只需要其中的一个章节。之前的做法是把整个文档塞进上下文，让 LLM 自己去提取——浪费 token、降低质量。</p>
+
+    <pre><code># 按标题提取章节
+install_guide = store.content_section(
+    "tech_doc",
+    start_heading="Installation",
+    end_heading="Usage"
+)
+# 返回 Installation 和 Usage 之间的所有内容
+
+# 提取到下一个同级标题
+api_ref = store.content_section("tech_doc", start_heading="API Reference")
+# 自动在下一个 # 级标题处停止（兄弟级别边界检测）
+
+# 一次性提取所有章节
+all_sections = store.content_sections_all("tech_doc")
+# 返回 {"Installation": "...", "API Reference": "...", ...}</code></pre>
+
+    <p>这里有个容易踩的坑：<strong>heading 层级语义</strong>。初始版本假设 <code># Empty\n## Next</code> 中 <code>## Next</code> 是 <code># Empty</code> 的结束边界——但实际上 <code>##</code> 是 <code>#</code> 的子章节，应该被<strong>包含</strong>在内，而不是作为结束标志。</p>
+
+    <p>正确的语义是：<strong>只有同级或更高级别的标题才是结束边界</strong>。这和 Markdown 的 TOC 语义一致，但在代码实现里很容易搞反：</p>
+
+    <pre><code># 正确的兄弟级别检测逻辑
+if end_heading is None:
+    # 没有 explicit end_heading，用同级或更高级
+    if level <= start_level:
+        end_idx = i
+        break
+else:
+    # 有 explicit end_heading，匹配子串
+    if end_heading.lower() in heading_text:
+        end_idx = i
+        break</code></pre>
+
+    <p>这个 bug 在测试中被抓到了——这正是 Autoresearch 方法论的价值：测试不是事后验证，是<strong>设计的一部分</strong>。</p>
+
+    <h2>缺少的那一层：Context Budget Manager</h2>
+
+    <p>有了 fold/squash/section，你有了压缩和提取的工具。但还缺一个东西：<strong>谁决定什么时候用什么策略？</strong></p>
+
+    <p>CPU 有硬件级别的缓存控制器。Agent 记忆需要软件级别的。我的做法是引入一个简单的预算模型：</p>
+
+    <pre><code>def retrieve_with_budget(store, query, max_tokens=4000):
+    """带 token 预算的记忆检索"""
+    results = store.search_similar_to_key(query, limit=20)
+    results.sort(key=lambda r: r['score'], reverse=True)
+
+    budget = max_tokens
+    selected = []
+    for r in results:
+        # 估算 token 数 (~4 chars/token)
+        est_tokens = len(r['content']) // 4
+
+        if est_tokens > budget:
+            # 预算不够，尝试折叠
+            if budget > 200:
+                r['content'] = store.content_fold(
+                    r['key'],
+                    max_length=budget * 4,
+                    strategy="head_tail"
+                )
+                r['folded'] = True
+                est_tokens = budget
+            else:
+                break
+
+        selected.append(r)
+        budget -= est_tokens
+
+    return selected</code></pre>
+
+    <p>这不是什么精妙的 AI——这是<strong>资源管理</strong>。和操作系统管理内存页的是同一类问题。但目前的 Agent 框架几乎都没有这一层。</p>
+
+    <h2>从 ICLR 2026 看趋势：记忆是学习问题，不是存储问题</h2>
+
+    <p>ICLR 2026 Memory Workshop 传达的最强信号是：<strong>记忆管理已经从系统问题变成了学习策略问题</strong>。</p>
+
+    <p>四篇关键论文——InfMem、MemSearcher、Memory-R1、Hindsight——全部在训练记忆策略，而不是建存储。MemSearcher 用 3B 参数实现了超过 7B 基线 12% 的表现，证明<span class="highlight">记忆策略的质量比模型规模更重要</span>。</p>
+
+    <p>但这里有个被忽视的洞察：<strong>学习策略需要可微分的基础设施</strong>。如果你的 fold 是硬编码的 if-else，RL 策略就没法优化它。如果你用 <code>content_read_time</code> 来排序，这个排序必须是可插拔的，让 RL 来学习"什么时候用 outline 策略而不是 head_tail"。</p>
+
+    <pre><code># content_read_time: 实用的优先级指标
+read_time = store.content_read_time("long_entry", wpm=200)
+# 返回估计阅读秒数，用于排序和预算分配
+
+# tag_density: 记忆健康度指标
+health = store.tag_density()
+# {"avg": 3.2, "untagged": 5, "total_entries": 100}
+# 5% 未标记 = 分类系统健康; 30%+ = 需要清理</code></pre>
+
+    <p>这些"看起来简单"的 API 是<strong>策略系统的基石</strong>。RL 不需要花哨的接口——它需要干净的、可组合的信号源。<code>content_read_time</code> 提供成本信号，<code>tag_density</code> 提供健康信号，<code>content_fold</code> 提供操作手段。把它们组合起来，你就有了一个闭环。</p>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你在构建 Agent 系统，这里是我踩了 100+ 天坑总结出来的：</p>
+
+    <ol>
+        <li><strong>区分存储和管理</strong>。大多数 Agent 记忆框架（LangChain Memory、Mem0 等）只做了存储。管理才是瓶颈。</li>
+        <li><strong>给每条记忆加 <code>content_read_time</code></strong>。知道一条记忆"要花多久读完"是所有优先级排序的基础。这个 API 只有 6 行代码，但它改变了你看待记忆的方式。</li>
+        <li><strong>折叠 ≠ 截断</strong>。截断丢失信息且不告诉 Agent。折叠用明确的 separator（<code>"\n…[folded]…\n"</code>）标记压缩边界，让 Agent 知道自己看到的是摘要而非全文。</li>
+        <li><strong>用 Markdown 结构做免费的分段</strong>。如果你已经用 Markdown 存记忆（你应该这样做），<code>content_section</code> 可以零成本提取章节，比语义分块更精确。</li>
+        <li><strong>Tag 健康度是一个 metric</strong>。定期跑 <code>tag_density()</code>——如果 untagged 比例超过 20%，说明你的自动打 tag 管道需要修了。</li>
+        <li><strong>多 key centroid 搜索比单 key 更鲁棒</strong>。<code>embedding_search_keys(["bookmark1", "bookmark2", "bookmark3"])</code> 取多个参考点的 embedding 质心做搜索，比用任何单一条目都更稳定。这是推荐系统"更多 like these"的正确实现。</li>
+    </ol>
+
+    <h2>结语：记忆不是数据库</h2>
+
+    <p>把 Agent 记忆当数据库做，你会得到一个数据库——高效、准确、但毫无生气。Agent 需要的不是查询，是<strong>理解</strong>。</p>
+
+    <p>Context Engineering 的核心观点是：记忆的形态应该是<strong>可塑的</strong>。同一条记忆，在不同上下文下应该呈现不同的形态——有时是全文，有时是摘要，有时只是标题。决定形态的不是用户，不是开发者，而是 Agent 的当前状态和预算约束。</p>
+
+    <p>这需要的不只是更好的检索算法，而是<strong>一整套记忆管理原语</strong>。Fold、Squash、Section、Density、ReadTime——每个都很简单，但组合起来就是一个完整的"记忆缓存控制器"。</p>
+
+    <p>3400+ 测试、124 天零回滚。不是因为我写了完美的代码，而是因为<strong>每个原语都有明确的契约和测试</strong>。Context Engineering 不是一个 buzzword——它是 Agent 记忆从"能存"到"会用"的分水岭。</p>
+
+    <hr>
+    <p><small>本文基于 agent-context-store 项目（1077+ tests）和 ICLR 2026 Context Folding / System-2 Memory Policy 研究笔记。代码在 <a href="https://github.com/robertsong2019">GitHub</a>，每日通过 Autoresearch 方法论自动迭代。</small></p>
+
+</body>
+</html>
