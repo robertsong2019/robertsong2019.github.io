@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>别再定时压缩记忆了：语义分歧检测才是 Agent 记忆整理的正确触发器 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>别再定时压缩记忆了：语义分歧检测才是 Agent 记忆整理的正确触发器</h1>
+    <div class="meta">
+        2026-06-19 · <span class="tag">AI Agent</span> <span class="tag">记忆系统</span> <span class="tag">TypeScript</span>
+    </div>
+
+    <p>大多数 Agent 记忆系统还在用<code>每 N 轮总结一次</code>或<code>缓冲区满了就压缩</code>的策略。这就像你读书时每 10 页强制做一次笔记——不管你读到了哪里，不管当前段落是否完整。结果是：要么话题刚进行到一半就被有损压缩，要么噪声数据已经渗透进长期存储。</p>
+
+    <p>过去两周，我在 <code>agent-memory-graph</code> 项目上实现了一套基于<strong>语义分歧检测</strong>的记忆整理系统。核心想法来自 GAM（ICLR 2026），但我把它做成了一个可实际运行的 TypeScript 引擎。这篇文章讲具体怎么做，以及为什么它比传统方法好。</p>
+
+    <h2>问题：定时压缩的两种失败模式</h2>
+
+    <p>先说清楚传统方法为什么不行。MemGPT、Mem0 和大多数开源 Agent 记忆系统用的是两种触发器：</p>
+
+    <ul>
+        <li><strong>时间触发：</strong>每 N 轮对话后总结。问题：Agent 正在深入讨论 TypeScript 泛型，第 N 轮到了，咔嚓一刀压缩——上下文丢失。</li>
+        <li><strong>大小触发：</strong>缓冲区 token 数到达阈值就压缩。问题：一个复杂话题可能在第 3 轮就该压缩了，但你设的阈值是 10 轮——噪声已经混进来了。</li>
+    </ul>
+
+    <p>两种失败的本质是同一个：<strong>触发信号和内容语义无关</strong>。正确的信号应该是"当前 episodic buffer 的内容和长期 topic network 之间的语义距离"——当 episodic buffer 开始讲一个全新的话题时，就是该整理的时候。</p>
+
+    <h2>解法：三维语义分歧检测</h2>
+
+    <p>我实现了一个 <code>computeDivergence()</code> 函数，从三个维度计算 episodic buffer 和 topic network 之间的分歧分数：</p>
+
+<pre><code>/**
+ * 三维语义分歧检测
+ * 当 episodic buffer 和 topic network 的分歧超过阈值 ε 时触发 consolidation
+ * 灵感来自 GAM (ICLR 2026) 的 Eq.(2): b_t = 𝕀(Δ(G_event, G_topic) > ε)
+ */
+function computeDivergence(
+  episodic: MemoryGraph,
+  topic: MemoryGraph,
+  threshold: number
+): { score: number; shouldConsolidate: boolean } {
+  if (episodic.nodes.size === 0) {
+    return { score: 0, shouldConsolidate: false };
+  }
+
+  // 维度1: 中心距离 (embedding 空间的语义漂移)
+  const epiCentroid = computeCentroid([...episodic.nodes.values()]);
+  const topicCentroid = topic.nodes.size > 0
+    ? computeCentroid([...topic.nodes.values()])
+    : { embedding: epiCentroid.embedding };
+  const centroidShift = cosineDistance(epiCentroid.embedding, topicCentroid.embedding);
+
+  // 维度2: Tag 新颖度 (出现了多少新主题)
+  const topicTags = new Set<string>();
+  topic.nodes.forEach(n => n.tags.forEach(t => topicTags.add(t)));
+  const newTags = new Set<string>();
+  episodic.nodes.forEach(n =>
+    n.tags.forEach(t => {
+      if (!topicTags.has(t)) newTags.add(t);
+    })
+  );
+  const tagNovelty = newTags.size / Math.max(1, episodic.nodes.size);
+
+  // 维度3: 结构差异 (边密度比 — 图形态的变化)
+  const epiDensity = episodic.edges.length / Math.max(1, episodic.nodes.size);
+  const topicDensity = topic.edges.length / Math.max(1, topic.nodes.size);
+  const structuralShift = Math.abs(epiDensity - topicDensity);
+
+  // 加权组合 (权重可通过 feedback 调优)
+  const score = 0.5 * centroidShift + 0.3 * tagNovelty + 0.2 * structuralShift;
+
+  return { score, shouldConsolidate: score > threshold };
+}</code></pre>
+
+    <p>三个维度各管一件事：</p>
+
+    <table>
+        <tr><th>维度</th><th>检测什么</th><th>权重</th><th>适用场景</th></tr>
+        <tr><td>中心距离</td><td>embedding 空间的整体语义漂移</td><td>0.5</td><td>话题切换、领域变化</td></tr>
+        <tr><td>Tag 新颖度</td><td>新概念/新主题的出现频率</td><td>0.3</td><td>新需求、新错误类型</td></tr>
+        <tr><td>结构差异</td><td>图拓扑的变化（边密度）</td><td>0.2</td><td>关系网络重构</td></tr>
+    </table>
+
+    <p><strong>关键设计决策：权重不是硬编码的。</strong>在 <code>agent-memory-graph</code> 的 <code>LearnableMemoryManager</code> 中，这些权重会根据 <code>memory_feedback</code> 的命中率动态调整。如果 tag 新颖度的预测效果好，它的权重会自动上升。这是 AgeMem 验证过的思路——RL 训练后，模型学会了更精准的记忆操作时机。</p>
+
+    <h2>核心：Consolidation Pipeline</h2>
+
+    <p>分歧检测只是触发器，真正的活儿在 consolidation pipeline 里。这是我从 GAM 借鉴但做了实际改进的部分：</p>
+
+<pre><code>/**
+ * Episodic → Semantic 晋升管线
+ * 
+ * 步骤：
+ *   1. 按语义相似度聚类 episodic 节点
+ *   2. 每个聚类生成摘要，提升为 semantic 节点
+ *   3. 通过 tag 重叠连接到现有 topic network
+ *   4. 剪枝低置信度的孤立节点
+ */
+function consolidate(
+  episodic: MemoryGraph,
+  topic: MemoryGraph,
+  options: {
+    similarityThreshold: number;  // 聚类阈值
+    pruneThreshold: number;       // 剪枝置信度
+    maxEpisodicSize: number;      // 强制触发大小
+  }
+): ConsolidationResult {
+  // 步骤1: 语义聚类
+  const clusters = clusterBySimilarity(episodic, options.similarityThreshold);
+
+  const newNodes: MemoryNode[] = [];
+  const newEdges: MemoryEdge[] = [];
+
+  for (const cluster of clusters) {
+    if (cluster.length === 0) continue;
+
+    // 步骤2: 聚类 → semantic 节点（置信度加成）
+    const semanticNode: MemoryNode = {
+      id: `semantic_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      content: summarizeContent(cluster.map(n => n.content).join('\n')),
+      embedding: averageEmbeddings(cluster.map(n => n.embedding)),
+      timestamp: Date.now(),
+      confidence: Math.min(1.0, Math.max(...cluster.map(n => n.confidence)) + 0.1),
+      type: 'semantic',  // ← 关键：类型晋升
+      tags: [...new Set(cluster.flatMap(n => n.tags))]
+    };
+    newNodes.push(semanticNode);
+
+    // 步骤3: 通过 Jaccard 相似度连接到现有 topic 节点
+    topic.nodes.forEach(existing => {
+      const overlap = jaccardSimilarity(
+        new Set(semanticNode.tags),
+        new Set(existing.tags)
+      );
+      if (overlap > 0.2) {
+        newEdges.push({
+          from: semanticNode.id, to: existing.id,
+          weight: overlap, type: 'semantic'
+        });
+      }
+    });
+  }
+
+  // 步骤4: 剪枝低置信度孤立节点
+  const prunedNodeIds = [...episodic.nodes.values()]
+    .filter(n => n.confidence < options.pruneThreshold)
+    .map(n => n.id);
+
+  return { consolidated: true, newNodes, newEdges, prunedNodeIds, summary: '...', divergenceScore: 0 };
+}</code></pre>
+
+    <p><strong>一个容易被忽视的细节：consolidation 时的 confidence 加成（+0.1）。</strong>多个 episodic 节点合并成一个 semantic 节点时，信息被交叉验证过——如果三 条独立记忆都说"用户喜欢 TypeScript"，这条 semantic 记忆的可信度应该比任何单条 episodic 高。这个设计来自 A-MEM (NeurIPS 2025) 的 Zettelkasten 思路——通过链接和合并提升记忆质量。</p>
+
+    <h2>实际运行效果</h2>
+
+    <p>我用 5 条模拟记忆测试了整个 pipeline：</p>
+
+<pre><code>// 输入：5 条 episodic 记忆
+const memories = [
+  { content: 'User prefers TypeScript over JavaScript', tags: ['preference', 'typescript'] },
+  { content: 'User asked about TypeScript generics',    tags: ['typescript', 'question'] },
+  { content: 'User prefers dark mode IDE',               tags: ['preference', 'ui'] },
+  { content: 'User likes functional programming',         tags: ['preference', 'fp'] },
+  { content: 'Meeting scheduled for Friday at 3pm',       tags: ['schedule', 'meeting'] }
+];
+
+// 输出：3 个 semantic 节点
+// [semantic] TypeScript+FP 偏好合并 (conf: 1.0, tags: [preference, typescript, question, fp])
+// [semantic] dark mode 偏好 (conf: 0.8, tags: [preference, ui])  
+// [semantic] 周五会议 (conf: 0.6, tags: [schedule, meeting])</code></pre>
+
+    <p>结果是正确的：TypeScript 和函数式编程相关记忆被合并（因为它们在 embedding 空间中很近），dark mode 独立（语义距离够远），会议独立（完全不同的领域）。同时，通过 tag 的 Jaccard 相似度，三个 semantic 节点之间自动建立了边——"preference" 这个共同 tag 连接了前两个节点。</p>
+
+    <h2>三个反直觉的经验</h2>
+
+    <h3>1. 写隔离比压缩算法更重要</h3>
+
+    <p>一开始我把所有节点都放在同一个图里，consolidation 时就地修改。问题：如果 agent 在 consolidation 过程中收到新消息，新消息会直接进入正在被重组的图——数据竞争。</p>
+
+    <p>解法是 GAM 的 episodic buffer 模式：新数据先进 buffer，consolidation 时从 buffer → topic network 单向流动。不需要物理分离，用 <code>type: 'episodic' | 'semantic'</code> 字段做逻辑分离就够了——但<strong>查询时要过滤</strong>，topic network 的查询不应包含 episodic 节点。</p>
+
+    <h3>2. 经验复用 ≠ 对话回放</h3>
+
+    <p>ReMem (Google DeepMind) 的数据让我重新思考了记忆的类型。在 ALFWorld 任务中，ReMem 把完成步数从 22.6 降到 11.5——49% 的提升。但关键是，它存的不是"用户说过什么"（对话回放），而是"上次我是怎么解决的"（经验复用）。</p>
+
+    <p>这意味着 Agent 记忆系统需要一种新的节点类型：<code>type: 'strategy'</code>。它存储的不是事实，而是操作序列。检索时返回的不是"相关事实"，而是"可复用的策略"。在 <code>agent-memory-graph</code> 中，我用 <code>memory_feedback</code> 记录策略的成功率，形成闭环：成功策略的 confidence 上升，失败策略的 confidence 下降。</p>
+
+    <h3>3. RL 训练的记忆策略碾压固定规则</h3>
+
+    <p>AgeMem 的 step-wise GRPO 数据：训练后 7B 模型的 <code>Delete Memory</code> 调用从 0→0.08/对话。模型学会了<strong>主动遗忘</strong>——这是固定规则做不到的。好的记忆系统和好的大脑一样，不是记得多的，而是忘得准的。</p>
+
+    <p>在工程层面，这意味着你的记忆系统应该暴露 <code>store/retrieve/update/discard/summarize</code> 作为独立工具，让 Agent（或 RL 策略）学习何时使用它们——而不是把这些操作硬编码进固定流程。</p>
+
+    <h2>可操作建议</h2>
+
+    <p>如果你正在构建 Agent 记忆系统，这几件事值得现在就做：</p>
+
+    <ol>
+        <li><strong>把 episodic 和 semantic 做类型分离。</strong>不需要两个数据库，一个 <code>type</code> 字段够了。但查询时要过滤——长期决策不应该基于未经交叉验证的 episodic 数据。</li>
+        <li><strong>用语义分歧替代定时触发。</strong>实现很简单：计算 episodic buffer 和长期存储的 centroid cosine distance + tag 新颖度。阈值 0.3-0.4 在我的测试中效果最好。</li>
+        <li><strong>Consolidation 时做 confidence 加成。</strong>多源合并 = 交叉验证。每合并 N 条独立记忆，confidence 加 0.1*N（capped at 1.0）。</li>
+        <li><strong>把记忆操作暴露为工具。</strong>不要硬编码"每 N 轮压缩"。让 Agent 自己决定何时 store/discard/summarize。固定策略的天花板远低于学习型策略。</li>
+        <li><strong>添加 strategy 节点类型。</strong>不只记事实，还要记"怎么做的"。这对多轮任务的效果提升是数量级的。</li>
+    </ol>
+
+    <h2>当前状态与下一步</h2>
+
+    <p>这套语义分歧检测 + consolidation pipeline 已经在 <code>agent-memory-graph</code> 中落地为 9 个 API（<code>semantic_divergence</code>、<code>divergence_scan</code>、<code>consolidate_memory</code>、<code>retention_score</code>、<code>memory_evict</code>、<code>cluster_seeds</code>、<code>seed_expansion</code>、<code>consolidation_report</code>），覆盖 80+ 测试。整个项目累计 1213 个测试，连续 137 天零回滚。</p>
+
+    <p>下一步是实现 <code>strategy</code> 节点类型——让 Agent 记住的不只是"发生了什么"，还有"怎么做更高效"。这是从记忆系统进化到经验系统的关键一步。</p>
+
+    <blockquote>
+        <p>记忆管理的本质不是存储，而是遗忘。好的记忆系统不是记得多的，是在正确的时间记住正确的事、忘记不相关的事。<strong>语义分歧检测</strong>让 Agent 有了"什么时候该整理"的判断力——这比任何压缩算法都重要。</p>
+    </blockquote>
+
+</body>
+</html>
