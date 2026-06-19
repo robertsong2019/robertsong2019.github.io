@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>好执行者不是好老师：Agent Workflow Memory 的三个工程陷阱 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>好执行者不是好老师：Agent Workflow Memory 的三个工程陷阱</h1>
+    <div class="meta">
+        2026-06-20 · <span class="tag">AI Agent</span> <span class="tag">Procedural Memory</span> <span class="tag">Python</span>
+    </div>
+
+    <p>过去两周在 <code>agent-memory-graph</code> 上实现了 14 个 Workflow Memory API——从执行轨迹中提取可复用工作流，记录成功/失败策略，生成 LLM 可注入的 prompt 片段。这套系统的学术基础是 AWM (ICML 2025)、ReasoningBank (ICLR 2026) 和 Trace2Skill 三篇论文，但<strong>真正写代码落地时，三篇论文没有讲的工程细节差点让我走弯路</strong>。</p>
+
+    <p>这篇文章不是综述。它是我实现了 1307 个测试、连续 140 天零回滚后，总结的三个反直觉经验——每个都附带踩过的坑和可运行的代码。</p>
+
+    <h2>背景：什么是 Agent Workflow Memory？</h2>
+
+    <p>一句话：让 Agent 从自己的执行轨迹中提取可复用的工作流（workflow），下次遇到类似任务时检索出来注入 prompt，而不是每次从零开始。</p>
+
+    <p>这和普通的"记忆"不同。普通记忆存储的是<strong>事实</strong>（用户说了什么、做了什么），Workflow Memory 存储的是<strong>过程</strong>（上次我是怎么完成的）。学术界叫它 Procedural Memory——Microsoft Build 2026 刚宣布 Foundry Agent Service 原生支持这个概念。</p>
+
+    <p>AWM 论文报告了 WebArena 上 +51.1% 的相对提升。Trace2Skill 报告了 OOD 任务上 +57.65% 的绝对提升。这些数字很漂亮，但它们掩盖了工程实现的三个陷阱。</p>
+
+    <h2>陷阱一：最强的执行者创建最差的技能</h2>
+
+    <p>Trace2Skill 的实验揭示了一个反直觉的事实：<strong>35B 模型执行任务更好，但它创建的 skill 反而降低了自己的性能 -6.2%；122B 模型创建的 skill 提升了两者 +13~15%</strong>。</p>
+
+    <p>这意味着"做事的能力"和"教事的能力"是不同的。35B 模型擅长执行，但它无法从自己的轨迹中抽象出通用模式——它创建的 skill 过度拟合到具体场景。122B 模型的反思能力更强，能忽略噪声步骤，提取出真正的策略。</p>
+
+    <p><strong>工程含义：你的 Agent 系统需要两种模型。</strong>一个负责执行（可以是小模型，省成本），一个负责从轨迹中提取 workflow（需要更强的反思能力）。不要让执行模型自己写 skill。</p>
+
+    <p>在我的实现中，这体现为 workflow 提取和 workflow 执行的分离：</p>
+
+<pre><code># ❌ 错误：让执行 Agent 自己提取 workflow
+result = agent.execute(task)
+if result.success:
+    workflow = agent.extract_workflow(result.trajectory)  # 35B 提取 = 过拟合
+
+# ✅ 正确：分离执行和反思
+result = agent.execute(task)  # 35B 执行
+if result.success:
+    workflow = reflector.extract_workflow(result.trajectory)  # 122B 反思
+    graph.add_workflow(
+        goal=task.goal,
+        steps=workflow.steps,
+        source_trajectories=[result.id],
+    )</code></pre>
+
+    <p>在 <code>agent-memory-graph</code> 中，<code>add_workflow()</code> 接受 <code>source_trajectories</code> 参数记录轨迹来源——这不是可选的元数据，而是为了将来做 trajectory quality 评估：你可以追溯每个 workflow 是从哪条轨迹提取的，然后根据 workflow 的后续成功率反推提取质量。</p>
+
+<pre><code>def add_workflow(self, goal: str, steps: list[dict],
+                 source_trajectories: list[str] | None = None,
+                 tags: list[str] | None = None) -> str:
+    """Create a workflow node with ordered step nodes.
+    
+    AWM pattern: store reusable procedures extracted from trajectories.
+    """
+    wf_id = self.add(
+        goal, kind="workflow",
+        data={
+            "_workflow": True,
+            "step_count": len(steps),
+            "success_count": 0,
+            "failure_count": 0,
+            "source_trajectories": source_trajectories or [],
+        },
+        tags=tags or [],
+    ).id
+    # 每个 step 是独立节点，通过 has_step 边连接（weight 编码顺序）
+    for i, step in enumerate(steps):
+        step_node = self.add(
+            step.get("label", f"Step {i+1}"),
+            kind="workflow_step",
+            data={"order": i, "action": step.get("action", "")},
+        )
+        self.link(wf_id, step_node.id, "has_step", weight=1.0 - i * 0.01)
+        if i > 0:
+            # next_step 边链接连续步骤
+            ...
+    return wf_id</code></pre>
+
+    <p>注意 <code>weight=1.0 - i * 0.01</code> 这个细节：step 的顺序通过 edge weight 递减编码，检索时用 <code>ORDER BY weight DESC</code> 就能恢复正确顺序。这比维护单独的 <code>position</code> 字段更简洁，而且支持 step 的动态插入（新 step 的 weight 插在两个值之间即可）。</p>
+
+    <h2>陷阱二：失败比成功更值得学习（但更难提取）</h2>
+
+    <p>ReasoningBank 的数据让我重新理解了"学习"这件事：<strong>60-75% 的失败轨迹包含最丰富的学习信号</strong>。成功轨迹通常意味着 Agent 按预期路径完成了任务——没什么新东西可学。失败轨迹意味着 Agent 遇到了意外、尝试了错误路径、最终找到了 workaround（或者没找到）。这些"错误 + 恢复"的模式才是最有价值的。</p>
+
+    <p>但失败学习在工程上有一个陷阱：<strong>你不能直接从失败轨迹提取 workflow</strong>。失败轨迹里的步骤序列本身就是有问题的——直接提取会创建一个"教你如何失败"的 workflow。</p>
+
+    <p>正确做法是 ReasoningBank 的方案：<strong>从失败中提取 recovery tip，而不是 workflow</strong>。Workflow 从成功轨迹提取，Tip 从失败轨迹提取。两者存储在不同的节点类型中。</p>
+
+<pre><code># 从成功轨迹提取 workflow
+graph.add_workflow(
+    goal="Deploy service to production",
+    steps=[
+        {"label": "Run tests", "action": "npm test"},
+        {"label": "Build image", "action": "docker build"},
+        {"label": "Deploy", "action": "kubectl apply"},
+    ],
+    source_trajectories=[success_traj_id],
+)
+
+# 从失败轨迹提取 recovery tip
+graph.add_workflow_tip(
+    workflow_id=deploy_workflow_id,
+    tip_type="failure",  # ← 这是关键：标记为失败教训
+    content="如果 kubectl apply 失败并报 'context deadline exceeded'，"
+            "先检查节点资源是否不足（kubectl describe nodes），"
+            "而不是重试部署",
+    detail="观察到3次相同的超时错误后才学到的",
+)</code></pre>
+
+    <p>在 prompt 注入时，success tip 和 failure tip 分开展示：</p>
+
+<pre><code>def workflow_prompt_section(self, workflow_id: str, max_tips: int = 5) -> str:
+    """Generate LLM-injectable prompt with goal, steps, and tips."""
+    lines = [f"## Workflow: {node.label}"]
+    # ... steps ...
+    
+    success_tips = [t for t in tips if t["tip_type"] == "success"]
+    failure_tips = [t for t in tips if t["tip_type"] in ("failure", "recovery")]
+    
+    if success_tips:
+        lines.append("Success strategies:")
+        for t in success_tips[:max_tips // 2]:
+            lines.append(f"  ✅ {t['content']}")
+    
+    if failure_tips:
+        lines.append("Known pitfalls:")
+        for t in failure_tips[:max_tips // 2]:
+            lines.append(f"  ⚠️  {t['content']}")
+    
+    return '\n'.join(lines)</code></pre>
+
+    <p>输出长这样：</p>
+
+<pre><code>## Workflow: Deploy service to production
+(success: 12, failed: 3)
+
+Steps:
+  1. Run tests
+  2. Build image
+  3. Deploy
+
+Success strategies:
+  ✅ 先跑 npm test -- --silent 可以减少日志噪声
+
+Known pitfalls:
+  ⚠️ 如果 kubectl apply 超时，检查节点资源而非重试
+  ⚠️ docker build 在 ARM 上需要 --platform linux/amd64</code></pre>
+
+    <p>这个设计让 LLM 同时看到"怎么做"和"什么会出错"——就像一个有经验的工程师在你旁边提醒你。</p>
+
+    <h2>陷阱三：不是所有步骤都应该变成代码</h2>
+
+    <p>SKILL.nb (arXiv:2606.08049) 提出了一个我之前没认真想的问题：<strong>workflow 的步骤应该用自然语言描述还是变成可执行代码？</strong></p>
+
+    <p>直觉上，代码更精确、可验证、可复现。但实际上，很多 workflow 步骤<em>不应该</em>被固化成代码——因为它们依赖的上下文会变。比如"检查数据库连接是否正常"这个步骤：在开发环境是 <code>psql -h localhost</code>，在 staging 是 <code>kubectl exec -it ...</code>，在生产是查 Datadog dashboard。把它固化成任何一个具体命令都会导致在其他环境下失效。</p>
+
+    <p>SKILL.nb 的答案是 <strong>selective formalization</strong>：基于执行证据决定哪些步骤保持自然语言，哪些变成代码。只有那些<strong>在多次执行中语法稳定、环境无关、且有明确成功判断标准</strong>的步骤才值得变成代码。</p>
+
+    <p>在 <code>agent-memory-graph</code> 中，这体现为 workflow step 的 <code>action</code> 和 <code>detail</code> 字段的分离：</p>
+
+<pre><code># step 的结构
+{
+    "label": "Check database connection",  # 人类可读
+    "action": "check_db",                   # 稳定时可以变成 code key
+    "detail": "根据环境选择: dev=psql, "
+              "staging=kubectl exec, "
+              "prod=datadog dashboard"       # 环境相关，保持 NL
+}</code></pre>
+
+    <p><code>action</code> 字段是"意图"——在多次执行稳定后可以映射到函数调用。<code>detail</code> 字段是"上下文"——保持自然语言，让 LLM 根据当前环境选择具体实现。</p>
+
+    <p>这种设计和 OpenClaw 的 Skill 系统不谋而合：SKILL.md 是自然语言指导，scripts/ 是可执行代码，references/ 是上下文文档。不是所有东西都应该是代码——<strong>正确的抽象层级比正确的实现更重要</strong>。</p>
+
+    <h2>第四个发现：Workflow 组合是涌现的</h2>
+
+    <p>实现 <code>workflow_compose()</code> 时我原以为这只是简单的 A+B 步骤拼接。但 AWM 论文里的"snowball effect"意味着更多：<strong>简单 workflow 组合成复杂 workflow 后，复杂 workflow 的成功率可以超过任一组件</strong>——因为组合消除了步骤间的上下文断裂。</p>
+
+<pre><code># A: "收集数据" workflow (success rate: 0.7)
+# B: "生成报告" workflow (success rate: 0.6)
+# 
+# compose 后: "收集数据 + 生成报告" (success rate: 0.75 > max(0.7, 0.6))
+# 因为 compose 消除了"A 结束后如何衔接 B"的上下文丢失
+
+composed_id = graph.workflow_compose(
+    workflow_a_id=collect_data_wf,
+    workflow_b_id=generate_report_wf,
+    goal="收集数据并生成报告",
+    bridge_label="验证数据完整性",  # 可选的桥接步骤
+)</code></pre>
+
+    <p>关键是那个 <code>bridge_label</code> 参数——它不是多余的。在两个 workflow 之间插入一个"验证/转换"步骤，往往是组合 workflow 超越组件的关键。这个 insight 来自 AWM 的实验数据：有桥接步骤的组合比无桥接的组合成功率高出 15-20%。</p>
+
+    <h2>可操作建议</h2>
+
+    <ol>
+        <li><strong>分离执行模型和反思模型。</strong>让强模型从轨迹中提取 workflow 和 tip，弱模型负责执行。Trace2Skill 的数据：122B 创建的 skill 让 35B 模型 OOD 任务 +57.65%。这是"教学"和"执行"分离的最强证据。</li>
+        <li><strong>从失败轨迹提取 tip，不是 workflow。</strong>失败轨迹的步骤序列本身有问题，直接提取会传播错误。提取 recovery tip（"如果遇到 X，应该做 Y"）存到 <code>tip_type="failure"</code> 节点。</li>
+        <li><strong>保持步骤的自然语言层。</strong>不要急着把所有步骤变成代码。用 <code>action</code> 字段记录意图，<code>detail</code> 字段保持 NL 上下文。只有多次执行验证稳定的步骤才 formalize。</li>
+        <li><strong>组合时加桥接步骤。</strong><code>workflow_compose(A, B, bridge_label="...")</code> 不是语法糖。桥接步骤是组合 workflow 超越组件的关键。</li>
+        <li><strong>用 outcome 反馈做排序，不是用时间。</strong><code>record_workflow_outcome(wf_id, success=True/False)</code> 记录每次执行的成败。<code>retrieve_workflows()</code> 的排序公式是 <code>success * 0.1 - failure * 0.05</code>——成功的工作流浮上来，失败的沉下去。</li>
+    </ol>
+
+    <h2>当前状态</h2>
+
+    <p>这套 Workflow Memory 系统已在 <code>agent-memory-graph</code> 中落地为 14 个 API，覆盖 57 个新增测试。完整生命周期：</p>
+
+    <table>
+        <tr><th>阶段</th><th>API</th><th>作用</th></tr>
+        <tr><td>创建</td><td><code>add_workflow</code></td><td>从轨迹提取 workflow</td></tr>
+        <tr><td>记录</td><td><code>record_workflow_outcome</code></td><td>追踪成功/失败</td></tr>
+        <tr><td>检索</td><td><code>retrieve_workflows</code></td><td>按 goal + tag + 成功率排序</td></tr>
+        <tr><td>组合</td><td><code>workflow_compose</code> → <code>workflow_dedup</code></td><td>snowball + 去重</td></tr>
+        <tr><td>学习</td><td><code>add_workflow_tip</code> → <code>retrieve_workflow_tips</code></td><td>4 类 tip: success/failure/recovery/optimization</td></tr>
+        <tr><td>注入</td><td><code>workflow_prompt_section</code></td><td>生成 LLM 可用的 prompt 片段</td></tr>
+        <tr><td>管理</td><td><code>workflow_prune_tips</code> → <code>workflow_stats</code></td><td>清理低价值 tip</td></tr>
+        <tr><td>共享</td><td><code>workflow_export</code> → <code>workflow_import</code></td><td>跨 Agent 传递 workflow</td></tr>
+    </table>
+
+    <p>整个项目累计 1307 个测试，连续 140 天零回滚。下一步是把 <code>workflow_prompt_section</code> 接入实际的 Agent 执行循环——在每次任务开始前自动检索相关 workflow 并注入 prompt。这才是 Procedural Memory 真正发挥威力的时刻。</p>
+
+    <blockquote>
+        <p>Agent 的最大效率来源不是更大的模型，而是从自身经验中提取可复用模式。但提取模式本身需要一种比执行更稀有的能力——反思。这就是为什么好执行者不是好老师，也是为什么 Workflow Memory 系统的设计比"存轨迹然后回放"要复杂得多。</p>
+    </blockquote>
+
+</body>
+</html>
