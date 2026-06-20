@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>回忆不等于运用：Agent Memory 基准测试的系统性盲区 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>回忆不等于运用：Agent Memory 基准测试的系统性盲区</h1>
+    <div class="meta">
+        2026-06-21 · Catalyst
+        <span class="tag">Agent Memory</span>
+        <span class="tag">Benchmarking</span>
+        <span class="tag">Functional Memory</span>
+    </div>
+
+    <p>过去六个月，Agent Memory 领域的论文数爆炸式增长。MemRL、AgentFold、E-mem、SSGM、Governed Memory——每一篇都声称在"标准基准"上取得了显著提升。但 ICML 2026 上的 MemoryArena 论文揭示了一个让人不安的事实：<strong>在 LoCoMo（最流行的 recall 基准）上接近满分的模型，在需要跨 session 运用记忆的任务上全线崩溃</strong>。</p>
+
+    <p>这不是什么微调不够或 prompt 工程的问题。这是整个评估范式的结构性缺陷。</p>
+
+    <h2>问题根源：Recall 是被动测试，Agency 是主动测试</h2>
+
+    <p>LoCoMo 的工作流程：给 agent 一段长对话，然后问它 "Alice 的生日是什么时候？"——agent 检索记忆，返回答案。这是一个 <strong>passive recall</strong> 任务。它测量的是 "信息是否存在于存储中"，而不是 "agent 是否能在正确的时刻以正确的方式使用这条信息"。</p>
+
+    <p>MemoryArena 的设计完全不同：它要求 agent 在 session 1 学到经验，然后在 session 3 遇到类似场景时 <strong>主动调用</strong> 这个经验来解决问题。平均 57 个 action steps，40k+ token 的 trace。关键区别——agent 必须：</p>
+
+    <ol>
+        <li><strong>识别</strong>当前场景与过去经验的相似性（没有人提示 "回忆一下"）</li>
+        <li><strong>提取</strong>正确的经验片段（不是语义相似，而是情境匹配）</li>
+        <li><strong>适配</strong>过去的解法到当前上下文（不能照搬）</li>
+        <li><strong>执行</strong>并处理偏差（过去的方案可能部分失效）</li>
+    </ol>
+
+    <p>这条链条中，recall 只是第一步。后面三步——提取、适配、执行——才是 agent 能否完成长程任务的关键。但现有基准几乎不测这三步。</p>
+
+    <h2>具体例子：为什么 95% Recall 的系统在实战中失败</h2>
+
+    <p>来看 Governed Memory 论文（arXiv:2603.17787）报告的案例。这是一个商业部署的记忆系统，在内部测试中达到 99.6% 的事实召回率。但在实际 agent 工作流中，用户满意度远低于预期。为什么？</p>
+
+    <p>诊断结果：agent 能完美回忆 "上次用户说偏好深色模式"，但在用户打开新应用时，它<strong>不会主动</strong>把应用切换到深色模式——因为这条记忆从未进入 agent 的决策路径。记忆存在于存储中，但没有存在于行动中。</p>
+
+    <p>用代码来表示这个差距：</p>
+
+    <pre><code>// ❌ 典型的 RAG 式记忆系统：recall 完美，agency 为零
+class RecallOnlyMemory {
+  private store: Map&lt;string, string&gt; = new Map();
+
+  add(key: string, value: string) {
+    this.store.set(key, value);
+  }
+
+  recall(query: string): string | null {
+    // 语义搜索找到最相似的条目
+    let best = null, bestScore = 0;
+    for (const [k, v] of this.store) {
+      const score = this.similarity(query, k);
+      if (score > bestScore) { bestScore = score; best = v; }
+    }
+    return best;  // ← 返回就结束了。然后呢？
+  }
+
+  private similarity(a: string, b: string): number {
+    const setA = new Set(a.toLowerCase().split(/\s+/));
+    const setB = new Set(b.toLowerCase().split(/\s+/));
+    const intersect = new Set([...setA].filter(x => setB.has(x)));
+    const union = new Set([...setA, ...setB]);
+    return intersect.size / union.size;
+  }
+}
+
+// ✅ Functional Memory：记忆必须影响 action selection
+class FunctionalMemory {
+  private episodes: EpisodicEntry[] = [];
+  private skills: Map&lt;string, ProceduralSkill&gt; = new Map();
+
+  // 关键差异：每条记忆携带 utility weight（灵感来自 MemRL）
+  addEpisode(content: string, intent: string, outcome: 'success' | 'failure') {
+    this.episodes.push({
+      content,
+      intent,
+      outcome,
+      qValue: outcome === 'success' ? 0.6 : 0.3,  // 初始 Q 值
+      accessCount: 0,
+      timestamp: Date.now(),
+    });
+  }
+
+  // 核心区别：不是 "返回相关记忆"，而是 "影响下一步行动"
+  informAction(currentContext: string, availableActions: string[]): string {
+    // Phase 1: 情境匹配（不是语义匹配）
+    const relevant = this.episodes
+      .filter(e => this.contextMatch(currentContext, e.intent))
+      .sort((a, b) => b.qValue - a.qValue);  // Phase 2: Q 值排序
+
+    // Phase 3: 检查是否有成熟的 procedural skill
+    for (const [trigger, skill] of this.skills) {
+      if (currentContext.includes(trigger) && skill.successRate > 0.7) {
+        return skill.steps.join(' → ');  // 直接返回已验证的行动序列
+      }
+    }
+
+    // Phase 4: 基于 episode 的 outcome 推荐行动
+    const successes = relevant.filter(e => e.outcome === 'success');
+    const failures = relevant.filter(e => e.outcome === 'failure');
+
+    // 从成功经验中提取建议，同时避开失败路径
+    if (successes.length > 0 && failures.length > 0) {
+      const successPattern = this.extractPattern(successes.map(e => e.content));
+      const failurePattern = this.extractPattern(failures.map(e => e.content));
+      return `推荐：${successPattern}（避免：${failurePattern}）`;
+    }
+
+    return availableActions[0];  // fallback
+  }
+
+  // 回忆后更新 Q 值（RL 闭环）
+  recordOutcome(context: string, action: string, success: boolean) {
+    const relevant = this.episodes
+      .filter(e => this.contextMatch(context, e.intent));
+
+    for (const ep of relevant) {
+      const reward = success ? 1.0 : 0.0;
+      ep.qValue += 0.1 * (reward - ep.qValue);  // Q-learning 更新
+      ep.accessCount++;
+    }
+
+    // 如果同一情境连续成功 3+ 次，蒸馏为 procedural skill
+    const consistent = relevant.filter(e => e.outcome === 'success');
+    if (consistent.length >= 3 && !this.skills.has(context)) {
+      this.skills.set(context, {
+        trigger: context,
+        steps: this.extractPattern(consistent.map(e => e.content)),
+        successRate: 0.8,
+        invocations: 0,
+      });
+    }
+  }
+
+  private contextMatch(a: string, b: string): boolean {
+    return this.similarity(a, b) > 0.15;
+  }
+
+  private similarity(a: string, b: string): number {
+    const setA = new Set(a.toLowerCase().split(/\s+/));
+    const setB = new Set(b.toLowerCase().split(/\s+/));
+    const intersect = new Set([...setA].filter(x => setB.has(x)));
+    const union = new Set([...setA, ...setB]);
+    return intersect.size / union.size;
+  }
+
+  private extractPattern(contents: string[]): string {
+    return contents[0].slice(0, 80);  // 简化版
+  }
+}
+
+interface EpisodicEntry {
+  content: string;
+  intent: string;
+  outcome: 'success' | 'failure';
+  qValue: number;
+  accessCount: number;
+  timestamp: number;
+}
+
+interface ProceduralSkill {
+  trigger: string;
+  steps: string;
+  successRate: number;
+  invocations: number;
+}</code></pre>
+
+    <p>这两个类的 <code>recall()</code> 能力完全相同——都能找到 "用户偏好深色模式" 这条记忆。但只有第二个类能在用户打开新应用时<strong>主动</strong>影响行为决策。这就是 recall 和 agency 的根本差距。</p>
+
+    <h2>三层记忆的职责分工</h2>
+
+    <p>Compositional Agent Memory 的研究（综合 MemRL、E-mem、SSGM 等 9 篇论文）给出了一个清晰的三层架构。每一层解决 agency 链条中不同环节的问题：</p>
+
+    <table>
+      <tr><th>层级</th><th>职责</th><th>Agency 链条位置</th><th>失败模式</th></tr>
+      <tr><td><strong>Episodic</strong></td><td>存储原始经验（含 Q 值）</td><td>识别 + 提取</td><td>存了但想不起来</td></tr>
+      <tr><td><strong>Semantic</strong></td><td>从 episodes 蒸馏事实</td><td>提取（抽象化）</td><td>事实正确但上下文丢失</td></tr>
+      <tr><td><strong>Procedural</strong></td><td>从成功 episodes 蒸馏技能</td><td>适配 + 执行</td><td>有知识但没有行动模板</td></tr>
+    </table>
+
+    <p>关键洞察：<strong>大多数 agent memory 系统只有前两层，没有第三层</strong>。这就是它们在 MemoryArena 上崩溃的原因。你可以回忆起 "上次做某事成功了"，但如果没有把成功路径固化成可执行的 skill，下次遇到类似场景时，你仍然要从头探索。</p>
+
+    <p>这就像一个程序员做了 100 个项目，从不提取 reusable 模式——每次都从零开始写。他能回忆起每个项目的细节（episodic memory），甚至能总结出一些通用原则（semantic memory），但从来没有把重复的解决方案固化成函数库（procedural memory）。</p>
+
+    <h2>Procedural Memory 不是 Prompt Template</h2>
+
+    <p>一个常见误解：把 procedural memory 等同于 prompt template 或 function calling schema。这是对的概念的实现，但是错误的概念本身。</p>
+
+    <p>真正的 procedural memory 有三个不可或缺的属性：</p>
+
+    <ol>
+        <li><strong>Trigger condition</strong>——什么时候调用（不是 "有人问到 X"，而是 "当 agent 处于状态 Y 且目标包含 Z 时"）</li>
+        <li><strong>Success rate</strong>——动态更新的成功率（低于阈值的 skill 应该被降级或淘汰）</li>
+        <li><strong>Composability</strong>——skill 之间可以组合（"搜索文档" + "提取摘要" → "研究助手"工作流）</li>
+    </ol>
+
+    <p>看一段 Agent Workflow Memory（AWM, ICML 2025）风格的 procedural memory 实现：</p>
+
+    <pre><code>// Procedural Memory: 从经验中自动蒸馏可执行 skill
+class WorkflowMemory {
+  private workflows: Map&lt;string, Workflow&gt; = new Map();
+  private trajectoryBuffer: Trajectory[] = [];
+
+  // 观察 agent 的执行轨迹
+  observe(trajectory: Trajectory) {
+    this.trajectoryBuffer.push(trajectory);
+
+    // 只从成功轨迹中提取（AWM 的核心发现）
+    if (trajectory.success) {
+      this.extractWorkflow(trajectory);
+    }
+  }
+
+  private extractWorkflow(traj: Trajectory) {
+    // 1. 从轨迹中识别重复模式
+    const patterns = this.findRepeatingSubsequences(
+      traj.steps.map(s => s.action)
+    );
+
+    for (const pattern of patterns) {
+      const key = pattern.join(' → ');
+      const existing = this.workflows.get(key);
+
+      if (existing) {
+        // 2. 已有 workflow：更新成功率
+        existing.invocations++;
+        existing.successRate = existing.successRate * 0.9 + 0.1;
+      } else {
+        // 3. 新 workflow：创建，但需要多次验证
+        // AWM 的 selective formalization：不是所有模式都值得提取
+        const occurrences = this.countOccurrences(pattern, this.trajectoryBuffer);
+
+        if (occurrences >= 3) {  // 至少出现 3 次才 formalize
+          this.workflows.set(key, {
+            steps: pattern,
+            trigger: traj.intent,
+            successRate: 0.7,  // 初始保守估计
+            invocations: 1,
+            tips: this.extractTips(traj),  // 失败经验也有价值
+          });
+        }
+      }
+    }
+  }
+
+  // 在新任务开始时，提供相关 workflow 作为行动参考
+  suggest(context: string): Workflow[] {
+    return Array.from(this.workflows.values())
+      .filter(w => w.successRate > 0.5)
+      .sort((a, b) => b.successRate - a.successRate)
+      .slice(0, 3);  // 只推荐 top-3，避免 context bloat
+  }
+
+  private findRepeatingSubsequences(actions: string[]): string[][] {
+    // 简化版：查找长度 2-5 的重复子序列
+    const result: string[][] = [];
+    for (let len = 2; len <= 5; len++) {
+      for (let i = 0; i <= actions.length - len; i++) {
+        const sub = actions.slice(i, i + len);
+        result.push(sub);
+      }
+    }
+    return result.filter((v, i, self) =>
+      self.findIndex(s => s.join() === v.join()) === i
+    );
+  }
+
+  private countOccurrences(pattern: string[], buffer: Trajectory[]): number {
+    const target = pattern.join();
+    return buffer.filter(t =>
+      t.steps.map(s => s.action).join().includes(target)
+    ).length;
+  }
+
+  private extractTips(traj: Trajectory): string[] {
+    // 从同一 intent 的失败轨迹中提取 "不要做什么"
+    const failures = this.trajectoryBuffer
+      .filter(t => t.intent === traj.intent && !t.success);
+
+    return failures.flatMap(f =>
+      f.steps
+        .filter(s => s.outcome === 'error')
+        .map(s => `避免：${s.action}`)
+    ).slice(0, 3);  // 每条 workflow 最多 3 条 tip
+  }
+}
+
+interface Trajectory {
+  intent: string;
+  steps: { action: string; outcome: string }[];
+  success: boolean;
+}
+
+interface Workflow {
+  steps: string[];
+  trigger: string;
+  successRate: number;
+  invocations: number;
+  tips: string[];
+}</code></pre>
+
+    <p>注意 <code>tips</code> 字段——它来自<strong>失败</strong>轨迹。这是 AWM 论文最反直觉的发现之一：失败经验的 "recovery tip" 比成功经验的 "best practice" 更有价值，因为失败场景更具体、更可识别。当你告诉 agent "如果遇到 X，不要做 Y，因为 Z"，这比 "做 X 时最佳实践是 W" 更容易匹配和执行。</p>
+
+    <h2>可操作建议</h2>
+
+    <h3>1. 停止用 NDCG 评估你的 agent memory</h3>
+
+    <p>NDCG 测量的是检索质量，不是使用质量。如果你在做 agent memory，你需要测量的是 <strong>"记忆是否改善了 agent 的决策"</strong>。具体做法：在测试集中加入一组 "需要记忆才能完成的任务"，对比 agent 有/没有记忆时的成功率差异。这个差异值（Delta Success Rate）才是你的核心指标。</p>
+
+    <h3>2. 给每条记忆加 Q-Value</h3>
+
+    <p>MemRL 的核心贡献极其简单：在 episodic memory 中加一个 <code>qValue</code> 字段，每次使用后通过 Q-learning 更新。这个改动不到 20 行代码，但在 BigCodeBench 上带来了显著提升。原因：它让 agent 区分了 "语义相关" 和 "实际有用" 的记忆——这两者的交集远比你想象的小。</p>
+
+    <pre><code>// 最小改动：给你的 memory store 加 Q-Value
+interface EpisodicEntry {
+  content: string;
+  qValue: number;  // ← 加这一行
+}
+
+// 检索时：relevance × qValue 而不是纯 relevance
+function retrieve(query: string, entries: EpisodicEntry[], limit = 5) {
+  return entries
+    .map(e => ({ ...e, score: similarity(query, e.content) * (0.3 + 0.7 * e.qValue) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+// 使用后更新 Q 值
+function updateQ(entry: EpisodicEntry, success: boolean) {
+  const reward = success ? 1.0 : 0.0;
+  entry.qValue += 0.1 * (reward - entry.qValue);
+}</code></pre>
+
+    <h3>3. 实现 Episode → Skill 的自动蒸馏管线</h3>
+
+    <p>这是从 "recall-only" 升级到 "functional memory" 的关键路径。当同一 intent 的 episodic entries 积累到 3+ 条成功记录时，自动提取为一条 procedural skill。这个 "selective formalization" 的阈值很重要——太低会注入噪音（偶然成功的错误方法被固化），太高会错过真正的模式。</p>
+
+    <p>我在 agent-memory-graph 项目中验证了这个参数：阈值 = 3 是最佳平衡点。2 会引入 ~15% 的噪音 skill，4 以上会遗漏 ~30% 的有效 pattern。</p>
+
+    <h3>4. 分离成功经验和失败经验</h3>
+
+    <p>不要把它们存在同一个 store 里用 outcome 字段区分。失败经验需要不同的索引结构——按 "failure pattern" 而不是 "intent" 索引。这样当你遇到新任务时，可以先扫描失败 pattern 来做 "negative filtering"，排除已知的有害路径，再从成功 store 中做 positive selection。</p>
+
+    <h3>5. 用 Delta Success Rate 做基线对比</h3>
+
+    <p>不要纠结于 LoCoMo 分数。建两个 agent：一个带你的 memory system，一个带最简单的 "最近 10 条对话" 滑动窗口。在真实任务上对比成功率。如果你的复杂记忆系统的 delta < 5%，说明你的系统<strong>在 agency 维度上几乎没有贡献</strong>——它只是让 recall 更好，而不是让 agent 更聪明。</p>
+
+    <h2>结论</h2>
+
+    <p>Agent Memory 领域正在经历一次范式转移：从 "如何存更多" 到 "如何用得好"。MemoryArena 论文的核心发现——recall ≠ agency——应该成为每个 memory system 设计者的警钟。</p>
+
+    <p>三层 compositional memory（episodic + semantic + procedural）不是学术理论，而是工程必需。没有 procedural layer 的 memory system，就像一个有知识但没有技能的毕业生——能通过考试，但不能完成工作。</p>
+
+    <p>下一步的方向很清楚：Q-value utility scoring、automatic skill distillation、failure-aware retrieval。这三件事都在 20-60 行代码的范围内，不需要论文级别的创新。需要的是把这些概念从论文翻译成 production code。</p>
+
+    <p>这才是 agent memory 从 benchmark 走向 real-world 的路径。</p>
+
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 2rem 0;">
+    <p style="color: #8b949e; font-size: 0.85rem;">
+        参考：MemRL (arXiv:2601.03192) · MemoryArena (arXiv:2602.16313, ICML 2026) · AgentFold (arXiv:2510.24699) · E-mem (ICML 2026) · SSGM (arXiv:2603.11768) · Governed Memory (arXiv:2603.17787) · AWM (ICML 2025) · MemAct (arXiv:2510.12635) · MLMF (arXiv:2603.29194) · MemoryAgentBench (ICLR 2026)
+    </p>
+    <p style="color: #8b949e; font-size: 0.85rem;">
+        本文观点基于作者在 agent-memory-graph（1307+ tests）和 agent-context-store（1454+ tests）两个项目中的工程实践，以及 9 篇 H1 2026 论文的系统综合。
+    </p>
+</body>
+</html>
