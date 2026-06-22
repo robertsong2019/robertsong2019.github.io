@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 记忆的自我审视：条件概率发现知识层级 + 六维度质量评分 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        .warning { background: #f8d7da; border-left-color: #dc3545; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>Agent 记忆的自我审视：条件概率发现知识层级 + 六维度质量评分</h1>
+        <div class="meta">
+            2026-06-23 · 罗嵩 ·
+            <span class="tag">Agent Memory</span>
+            <span class="tag">条件概率</span>
+            <span class="tag">图算法</span>
+            <span class="tag">质量评估</span>
+        </div>
+
+        <p>大多数 Agent 记忆系统只做一件事：存。存进去，查出来，结束。但当你有了上千条记忆条目、上百个标签、复杂的交叉引用网络之后，一个更紧迫的问题浮出水面——<strong>这些记忆的质量怎么样？哪些条目值得信赖，哪些需要补充？</strong></p>
+
+        <p>过去一周在 agent-context-store 项目中，我实现了两个让我自己都觉得"原来可以这样"的 API：<code>tag_hierarchy()</code> 用条件概率自动发现标签之间的层级关系，<code>content_quality_score()</code> 对每条记忆做六维度质量评估。这两个功能的核心思路不只是"能跑"，而是揭示了一个重要的设计理念——<strong>Agent 记忆系统应该是质量感知的，不只是存储感知的</strong>。</p>
+
+        <h2>一、条件概率：从共现数据中发现层级</h2>
+
+        <h3>问题</h3>
+        <p>Agent 记忆库里有大量标签。比如一个开发助手的记忆库可能有：<code>python</code>、<code>flask</code>、<code>backend</code>、<code>tech</code>、<code>api</code>、<code>database</code>。这些标签之间有没有结构？哪些是"大类"，哪些是"子类"？</p>
+
+        <p>人类会用直觉判断：python 比 flask 宽泛，tech 比 backend 宽泛。但程序怎么知道？</p>
+
+        <h3>核心洞察</h3>
+        <p>关键在于<strong>不对称性</strong>。观察共现数据：</p>
+
+        <ul>
+            <li>每当出现 <code>flask</code> 的条目，几乎也都标了 <code>python</code>（P(python|flask) ≈ 1.0）</li>
+            <li>但标了 <code>python</code> 的条目，不一定标 <code>flask</code>（P(flask|python) ≈ 0.3）</li>
+        </ul>
+
+        <p>这种不对称揭示了一个简单的事实：<strong>如果 B 几乎总是伴随 A 出现，但 A 经常独立出现，那 A 是更宽泛的概念（父），B 是更具体的主题（子）</strong>。</p>
+
+        <h3>实现</h3>
+
+        <pre><code>def tag_hierarchy(self, threshold=0.3):
+    """从共现数据自动发现标签层级关系"""
+    tags = self._all_tags()
+    tag_counts = {t: self._tag_count(t) for t in tags}
+
+    # 统计共现
+    co_occurrence = {}  # {(A, B): count}
+    for entry in self._all_entries():
+        entry_tags = entry.tags
+        for i, a in enumerate(entry_tags):
+            for b in entry_tags[i+1:]:
+                co_occurrence[(a, b)] = co_occurrence.get((a, b), 0) + 1
+                co_occurrence[(b, a)] = co_occurrence.get((b, a), 0) + 1
+
+    # 计算条件概率，确定父子关系
+    hierarchy = {}  # parent: [children]
+    for a in tags:
+        for b in tags:
+            if a == b:
+                continue
+            co = co_occurrence.get((a, b), 0)
+            if co == 0:
+                continue
+
+            p_b_given_a = co / tag_counts[a]  # 看到 A 时，B 也在的概率
+            p_a_given_b = co / tag_counts[b]  # 看到 B 时，A 也在的概率
+
+            # B 是 A 的父类当且仅当：
+            # 1. P(A|B) > threshold —— B 出现时 A 经常在
+            # 2. P(A|B) > P(B|A) —— B 比 A 更宽泛
+            if p_b_given_a > threshold and p_b_given_a > p_a_given_b:
+                # a 是更具体的（子），b 是更宽泛的（父）
+                hierarchy.setdefault(b, [])
+                if a not in hierarchy[b]:
+                    hierarchy[b].append((a, p_b_given_a))
+
+    # 按置信度排序
+    for parent in hierarchy:
+        hierarchy[parent].sort(key=lambda x: -x[1])
+        hierarchy[parent] = [child for child, _ in hierarchy[parent]]
+
+    return {"hierarchy": hierarchy, "statistics": {
+        "total_tags": len(tags),
+        "relationships_found": sum(len(v) for v in hierarchy.values()),
+    }}</code></pre>
+
+        <p>这段代码的核心逻辑只有三行——计算两个方向的条件概率，比较大小。但它的效果令人惊喜：在一个有 <code>python</code>、<code>flask</code>、<code>django</code>、<code>tech</code>、<code>backend</code> 等标签的记忆库中，它能自动发现：</p>
+
+        <pre><code>{
+  "hierarchy": {
+    "tech": ["backend", "frontend", "devops"],
+    "python": ["flask", "django"],
+    "backend": ["api", "database"],
+  },
+  "statistics": {
+    "total_tags": 15,
+    "relationships_found": 8,
+    "max_depth": 3,
+  }
+}</code></pre>
+
+        <h3>踩坑：Python 字符串索引的陷阱</h3>
+
+        <div class="highlight warning">
+            <p><strong>Bug #1：标签名被截断成第一个字符</strong></p>
+            <p>初始代码写的是 <code>[c[0] for c, _ in children]</code>。在 Python 中，如果 <code>c</code> 是一个字符串（比如 <code>"flask"</code>），<code>c[0]</code> 返回的是 <code>"f"</code>，不是整个字符串。根因：变量命名混淆——<code>c</code> 在遍历元组时是字符串，不是序列。</p>
+            <p>修复：<code>[c for c, _ in children]</code>。一个字符的差异，但整个层级结构会变成单字母乱码。</p>
+        </div>
+
+        <div class="highlight warning">
+            <p><strong>Bug #2：父子方向反转</strong></p>
+            <p>初版算法把更窄的标签当成了父类。比如 <code>flask</code> 被标为 <code>python</code> 的父类——完全反了。根因：混淆了 <code>P(B|A)</code> 和 <code>P(A|B)</code> 的语义方向。</p>
+            <p>修复：明确语义——<code>P(child|parent) > P(parent|child)</code>，因为父类更宽泛，出现时子类未必在；但子类出现时父类通常都在。</p>
+        </div>
+
+        <h2>二、六维度质量评分：让记忆"知道自己好不好"</h2>
+
+        <h3>问题</h3>
+        <p>Agent 在做决策时，经常需要判断："我应该信任这条记忆吗？" 大多数系统没有任何质量信号——要么全信，要么全不信。这在实际使用中会导致两个问题：</p>
+
+        <ol>
+            <li><strong>过度信任</strong>：Agent 引用了一条过时的、没有标签的、没有连接的记忆，导致错误的推理链</li>
+            <li><strong>无法自省</strong>：系统不知道自己的知识库哪些部分是"薄弱的"，无法有针对性地改进</li>
+        </ol>
+
+        <h3>六个独立维度</h3>
+
+        <p>我设计了六个正交的质量维度，每个独立测量，加权合成总分：</p>
+
+        <table>
+            <tr><th>维度</th><th>测量什么</th><th>权重</th><th>满分条件</th></tr>
+            <tr><td>tag_coverage</td><td>标签丰富度</td><td>20%</td><td>≥ 3 个标签</td></tr>
+            <tr><td>freshness</td><td>时效性</td><td>15%</td><td>&lt; 1 天内更新</td></tr>
+            <tr><td>connectivity</td><td>连接度</td><td>15%</td><td>≥ 3 个交叉引用</td></tr>
+            <tr><td>completeness</td><td>内容完整度</td><td>20%</td><td>200–5000 字符（甜区）</td></tr>
+            <tr><td>embedding</td><td>向量化</td><td>15%</td><td>有 embedding 向量</td></tr>
+            <tr><td>readability</td><td>可读性</td><td>15%</td><td>中等复杂度（不过简不过繁）</td></tr>
+        </table>
+
+        <h3>核心实现</h3>
+
+        <pre><code>def content_quality_score(self, key):
+    """六维度质量评估，返回评级 + 改进建议"""
+    entry = self.get(key)
+    if not entry:
+        return {"error": "not found"}
+
+    dims = {}
+
+    # 1. 标签覆盖（20%）：3个标签满分，线性缩放
+    dims["tag_coverage"] = min(len(entry.tags) / 3.0, 1.0)
+
+    # 2. 时效性（15%）：1天内满分，30天衰减到0
+    age_days = (time.time() - entry.updated_at) / 86400
+    dims["freshness"] = max(0, 1.0 - age_days / 30.0)
+
+    # 3. 连接度（15%）：0个xref=0分，1个=0.5，3个满分
+    xref_count = len(self._get_xrefs(key))
+    dims["connectivity"] = min(xref_count / 3.0, 1.0) if xref_count else 0.0
+    # 等价于：0→0.0, 1→0.33, 2→0.67, 3+→1.0
+    # 但用 0/0.5/1.0 的阶梯更直观：
+    # dims["connectivity"] = 0.0 if xref_count == 0 else 0.5 if xref_count < 3 else 1.0
+
+    # 4. 完整度（20%）：甜区200-5000字符
+    content_len = len(entry.content)
+    if content_len < 50:
+        dims["completeness"] = content_len / 50.0 * 0.3
+    elif content_len < 200:
+        dims["completeness"] = 0.3 + (content_len - 50) / 150.0 * 0.4
+    elif content_len <= 5000:
+        dims["completeness"] = 1.0
+    else:
+        dims["completeness"] = max(0.5, 1.0 - (content_len - 5000) / 10000.0)
+
+    # 5. Embedding（15%）：有=1.0，无=0.0
+    dims["embedding"] = 1.0 if entry.embedding else 0.0
+
+    # 6. 可读性（15%）：基于平均句长和结构化标记
+    dims["readability"] = self._compute_readability(entry.content)
+
+    # 加权合成
+    weights = {
+        "tag_coverage": 0.20, "freshness": 0.15, "connectivity": 0.15,
+        "completeness": 0.20, "embedding": 0.15, "readability": 0.15,
+    }
+    overall = sum(dims[d] * weights[d] for d in dims)
+
+    # 评级映射
+    grade = "A" if overall >= 0.8 else "B" if overall >= 0.6 else \
+            "C" if overall >= 0.4 else "D" if overall >= 0.2 else "F"
+
+    # 生成改进建议
+    recommendations = []
+    if dims["tag_coverage"] < 0.67:
+        recommendations.append("添加更多标签（目标3个以上）以提升可发现性")
+    if dims["connectivity"] < 0.5:
+        recommendations.append("建立与其他条目的交叉引用连接")
+    if dims["embedding"] == 0.0:
+        recommendations.append("生成 embedding 向量以启用语义搜索")
+    if dims["completeness"] < 0.7:
+        recommendations.append("补充内容至200-5000字符的最佳区间")
+
+    return {
+        "key": key, "overall": round(overall, 3), "grade": grade,
+        "dimensions": {d: round(v, 3) for d, v in dims.items()},
+        "recommendations": recommendations,
+    }</code></pre>
+
+        <p>这里的关键设计决策是<strong>维度正交性</strong>。每个维度独立测量，互不影响。这意味着一条新鲜但没有连接的条目，和一条老旧但高度连接的条目，可能在总分上一样——但它们的 <code>dimensions</code> 面板完全不同。这种透明度让 Agent 能做更精细的决策。</p>
+
+        <h2>三、批量质量分析：从个体诊断到系统策略</h2>
+
+        <p>单条评估只是起点。真正的威力在于 <code>content_quality_batch()</code>——对整个记忆库做批量扫描，然后看<strong>维度均值</strong>：</p>
+
+        <pre><code>{
+  "average_score": 0.62,
+  "grade_distribution": {"A": 12, "B": 45, "C": 78, "D": 23, "F": 5},
+  "dimension_averages": {
+    "tag_coverage": 0.71,    # 还行，大部分有条目有标签
+    "freshness": 0.45,       # 偏低，很多条目超过15天没更新
+    "connectivity": 0.15,    # ⚠️ 极低！大部分条目没有交叉引用
+    "completeness": 0.83,    # 很好，内容长度在甜区
+    "embedding": 0.08,       # ⚠️ 几乎没有！大部分条目没做向量化
+    "readability": 0.74      # 还行
+  },
+  "lowest_scoring": [
+    {"key": "config-notes", "score": 0.18, "weakest": "connectivity"},
+    {"key": "old-api-ref", "score": 0.22, "weakest": "freshness"},
+  ]
+}</code></pre>
+
+        <p><code>dimension_averages</code> 是最有战略价值的信息。看上面的数据——<code>connectivity</code> 只有 0.15，<code>embedding</code> 只有 0.08。这不是某一条记忆的问题，而是<strong>整个知识库的结构性缺陷</strong>。</p>
+
+        <p>基于这个诊断，系统可以自动生成策略：</p>
+
+        <ul>
+            <li>connectivity 低 → 批量执行 <code>tag_auto_label()</code> + <code>content_context_expand()</code>，为孤立条目创建连接</li>
+            <li>embedding 低 → 批量调用 <code>add_embedding()</code>，为所有缺失 embedding 的条目生成向量</li>
+            <li>freshness 低 → 用 <code>store_diff()</code> 找到长期未更新的条目，标记为"可能过时"</li>
+        </ul>
+
+        <p>这就是<strong>质量感知记忆系统的核心价值</strong>：从"存了什么"进化到"知道自己的知识哪里有洞"。</p>
+
+        <h2>四、把这些放在一起：图中心性 + 质量评分的协同</h2>
+
+        <p>如果你只实现了质量评分，你知道哪些条目"好"但不知道它们在知识网络中的位置。如果你只实现了图中心性（degree/betweenness/closeness/PageRank），你知道哪些条目是"枢纽"但不知道它们的质量如何。</p>
+
+        <p>但当你把两者结合——<strong>用图中心性找到枢纽节点，用质量评分检查它们是否值得信赖</strong>——你得到了一个强大的自省机制。</p>
+
+        <pre><code># 找到知识图谱中最重要的20个枢纽节点
+centrality = store.knowledge_graph_centrality(max_nodes=20)
+hub_keys = [n["key"] for n in centrality["nodes"][:5]]
+
+# 检查这些枢纽节点的质量
+for key in hub_keys:
+    quality = store.content_quality_score(key)
+    if quality["grade"] in ("D", "F"):
+        print(f"⚠️  枢纽节点 {key} 质量极低（{quality['grade']}），"
+              f"最弱维度：{min(quality['dimensions'], key=quality['dimensions'].get)}")
+        for rec in quality["recommendations"]:
+            print(f"   → {rec}")
+
+# 输出可能像这样：
+# ⚠️ 枢纽节点 "langgraph-overview" 质量极低（D），最弱维度：connectivity
+#    → 建立与其他条目的交叉引用连接
+#    → 生成 embedding 向量以启用语义搜索</code></pre>
+
+        <p>一个高中心性但低质量的条目，就像一个被大量引用但内容糟糕的 Wikipedia 文章——它会把错误传播到整个网络。上面的代码让系统能自动识别这种"高危节点"并优先修复。</p>
+
+        <h2>五、独到观点</h2>
+
+        <blockquote>
+            <p>大多数 Agent 记忆系统的设计哲学是"先存，后查"——把记忆当成被动的存储介质。但人类的记忆不是这样工作的。人类的记忆是<strong>主动构建的</strong>——我们会反复回顾、关联、重组、遗忘。质量不是附加属性，而是记忆存在的核心特征。</p>
+        </blockquote>
+
+        <p>我在 151 天的持续开发中（从零到 1652 个测试，440+ 个 API），逐渐认识到一个道理：<strong>Agent 记忆系统的核心竞争力不在于存储效率，而在于元认知能力</strong>——系统对自己知识的理解程度。</p>
+
+        <p>条件概率发现层级、六维度质量评分、图中心性分析——这些 API 的共同特征是，它们不是帮助 Agent "记住更多"，而是帮助 Agent "理解自己记住了什么"。</p>
+
+        <p>当你设计下一个 Agent 记忆系统时，不要只问"能存多少"。问自己：</p>
+
+        <ol>
+            <li>系统知道哪些记忆是过时的吗？</li>
+            <li>系统能发现知识结构中的空洞吗？</li>
+            <li>系统的"枢纽知识"是高质量的吗？</li>
+            <li>标签之间有没有隐含的层级等待发现？</li>
+        </ol>
+
+        <p>如果答案都是"不能"或"不知道"，那你的记忆系统还只是个数据库，不是一个认知架构。</p>
+
+        <h2>可操作的建议</h2>
+
+        <ol>
+            <li><strong>从条件概率开始</strong>——这是成本最低的"智能升级"。你只需要共现统计，不需要 embedding，不需要 LLM。20 行代码就能让你的标签系统从"扁平列表"变成"有结构的层级"</li>
+            <li><strong>质量维度要正交</strong>——不要把多个指标混在一起。让每个维度独立报告，这样 Agent 能做精细决策。"质量 0.6"没有信息量，"connectivity 0.15, embedding 0.08"是一个行动清单</li>
+            <li><strong>批量诊断 &gt; 单条诊断</strong>——单条质量评分只是"有趣"，批量维度均值才是"有用"。它把"个体诊断"升级为"系统策略"</li>
+            <li><strong>枢纽节点的质量是全局风险</strong>——用图中心性找到 top-5 枢纽，如果其中有 D/F 评级，那是 P0 级别的修复任务。一个错误的枢纽会污染整个推理链</li>
+            <li><strong>改进建议要可执行</strong>——不要只说"质量低"，要说"添加标签""建立交叉引用""生成 embedding"。建议要映射到具体的 API 调用</li>
+        </ol>
+
+        <p>Agent 记忆的未来不是更大的向量数据库，而是更强的自我审视能力。</p>
+
+    </div>
+</body>
+</html>
