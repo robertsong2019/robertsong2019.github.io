@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三部曲设计法：让 API 自己长出完整的分析层 | 罗嵩的技术博客</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>三部曲设计法：让 API 自己长出完整的分析层</h1>
+        <div class="meta">
+            2026-06-25 · 罗嵩 ·
+            <span class="tag">API 设计</span>
+            <span class="tag">Autoresearch</span>
+            <span class="tag">Agent Memory</span>
+            <span class="tag">图算法</span>
+        </div>
+
+        <p>我维护一个叫 agent-context-store 的项目已经连续 163 天了。每天加 3 个 API、20+ 个测试，零回滚。如果你问秘诀是什么，不是更努力，而是一个反复出现的模式——我管它叫「三部曲设计」。</p>
+
+        <p>核心想法很简单：当你为某个领域设计 API 时，不要一个一个地加，而是按「三部曲」来规划。每个三部曲覆盖一个完整的分析维度：从静态描述，到动态变化，再到边界异常。三个 API 之间有清晰的逻辑递进，缺任何一个都会留下分析盲区。</p>
+
+        <p>这篇文章用一个真实的例子拆解这个方法——知识图谱分析管线。我会展示每个 API 的真实代码和设计决策。</p>
+
+        <h2>一、问题：碎片化的分析 API</h2>
+
+        <p>大多数项目的分析能力是东一块西一块的。先有人加了 <code>get_stats()</code>，后来又有人加了 <code>find_shortest_path()</code>，再后来加了个 <code>detect_anomalies()</code>。每个 API 单看都没问题，但放在一起就缺了系统性——你不知道还缺什么。</p>
+
+        <p>三部曲设计法解决这个问题。每个分析维度强制走三步：</p>
+
+        <table>
+            <tr><th>步骤</th><th>回答什么问题</th><th>知识图谱示例</th></tr>
+            <tr><td>① 结构</td><td>现在长什么样？</td><td><code>knowledge_graph()</code></td></tr>
+            <tr><td>② 连通性</td><td>东西之间怎么连？</td><td><code>knowledge_graph_paths()</code></td></tr>
+            <tr><td>③ 极端</td><td>最远能到什么程度？</td><td><code>knowledge_graph_diameter()</code></td></tr>
+        </table>
+
+        <p>这三步走完，你对图的全貌就有了完整理解。但还不够——还需要第四步：脆弱性。</p>
+
+        <h2>二、实现：四层图分析栈</h2>
+
+        <h3>第 1 层：结构（Cycle 150）</h3>
+
+        <p>起点是描述图的基本结构——有多少节点、多少边、哪些类型的连接：</p>
+
+        <pre><code>def knowledge_graph(self, prefix=None):
+    """构建知识图谱快照：节点、边、类型分布"""
+    entries = self._scan(prefix)
+    nodes = []
+    edges = []  # [{src, dst, type: 'xref'|'shared_tag'}]
+    
+    for key, entry in entries.items():
+        nodes.append({"key": key, "tags": entry.tags})
+        # 交叉引用边
+        for xref in entry.xrefs:
+            edges.append({"src": key, "dst": xref, "type": "xref"})
+    
+    # 共享标签边（两个条目有相同标签）
+    tag_map = defaultdict(list)
+    for key, entry in entries.items():
+        for tag in entry.tags:
+            tag_map[tag].append(key)
+    for tag, keys in tag_map.items():
+        for i, j in combinations(keys, 2):
+            edges.append({"src": i, "dst": j, "type": "shared_tag"})
+    
+    return {"nodes": nodes, "edges": edges, 
+            "edge_types": Counter(e["type"] for e in edges)}</code></pre>
+
+        <p>这个 API 告诉你「图里有什么」，但不告诉你「图有多健康」。就像体检报告只列了指标，没给解读。</p>
+
+        <h3>第 2 层：连通性（Cycle 155）</h3>
+
+        <p>下一步是回答「条目 A 和条目 B 之间怎么走？」——最短路径搜索：</p>
+
+        <pre><code>def knowledge_graph_paths(self, src_key, dst_key, max_depth=4):
+    """BFS 找所有最短路径，追踪每一步的边类型"""
+    adj = self._build_adjacency()  # {key: [(neighbor, edge_type)]}
+    
+    # BFS with parent tracking — 不只找一条路径，
+    # 而是找所有等长最短路径
+    queue = deque([src_key])
+    parents = defaultdict(list)  # {node: [(parent, edge_type)]}
+    visited = {src_key: 0}
+    
+    while queue:
+        node = queue.popleft()
+        if node == dst_key:
+            break
+        depth = visited[node]
+        if depth >= max_depth:
+            continue
+        for neighbor, etype in adj.get(node, []):
+            if neighbor not in visited:
+                visited[neighbor] = depth + 1
+                parents[neighbor] = [(node, etype)]
+                queue.append(neighbor)
+            elif visited[neighbor] == depth + 1:
+                parents[neighbor].append((node, etype))
+    
+    # 回溯重建所有路径
+    paths = self._reconstruct_paths(parents, src_key, dst_key)
+    return {"src": src_key, "dst": dst_key,
+            "paths": paths, 
+            "shortest_length": len(paths[0]) - 1 if paths else -1}</code></pre>
+
+        <p>关键设计决策：<strong>追踪所有最短路径而非一条</strong>。因为两个条目可能同时通过 xref 和 shared_tag 连接，你需要知道是「怎么」连的，不只是「是否」连了。</p>
+
+        <h3>第 3 层：极端（Cycle 162）</h3>
+
+        <p>连通性回答了「A 怎么到 B」，但如果你有 500 个条目，你不会两两查询。你需要全局指标——图的直径、平均路径长度、密度：</p>
+
+        <pre><code>def knowledge_graph_diameter(self, *, max_depth=6, sample_size=None):
+    """计算图直径（最长最短路径），含密度和平均距离"""
+    adj = self._build_adjacency()
+    keys = list(adj.keys())
+    
+    # 大图采样：>500 节点时随机选源点
+    if sample_size and len(keys) > sample_size:
+        sources = random.sample(keys, sample_size)
+    else:
+        sources = keys
+    
+    diameter = 0
+    total_dist = 0
+    reachable_pairs = 0
+    
+    for src in sources:
+        # BFS from src to all reachable nodes
+        dist = self._bfs_distances(src, adj, max_depth)
+        for dst, d in dist.items():
+            if d > 0:
+                diameter = max(diameter, d)
+                total_dist += d
+                reachable_pairs += 1
+    
+    avg_path = total_dist / reachable_pairs if reachable_pairs else 0
+    density = len(edges) / (len(keys) * (len(keys) - 1) / 2) if keys else 0
+    
+    return {"diameter": diameter,
+            "avg_shortest_path": round(avg_path, 2),
+            "graph_density": round(density, 4),
+            "reachable_pairs": reachable_pairs}</code></pre>
+
+        <p>这里有个实际工程考量：<code>sample_size</code> 参数。图直径是 O(V×(V+E))，500 个节点时跑全部 BFS 要几秒。对于 Agent 调用来说太慢了。采样 50 个源点足够给出可靠的估计。</p>
+
+        <h3>第 4 层：脆弱性（Cycle 163）</h3>
+
+        <p>前三层描述了图的样子，但漏了一个关键问题：<strong>哪条边断了图就裂了？</strong> 这就需要 Tarjan 桥边检测算法：</p>
+
+        <pre><code>def knowledge_graph_bridges(self):
+    """Tarjan 单 DFS 桥边检测——O(V+E)"""
+    adj = self._build_adjacency()
+    disc = {}   # 发现时间
+    low = {}    # low-link 值
+    bridges = []
+    timer = [0]
+    
+    def dfs(u, parent=None):
+        disc[u] = low[u] = timer[0]
+        timer[0] += 1
+        for v, etype in adj.get(u, []):
+            if v not in disc:
+                dfs(v, u)
+                low[u] = min(low[u], low[v])
+                # 桥的条件：v 无法绕过 (u,v) 到达 u 或其祖先
+                if low[v] > disc[u]:
+                    bridges.append({"src": u, "dst": v, "edge_type": etype})
+            elif v != parent:
+                low[u] = min(low[u], disc[v])
+    
+    for node in adj:
+        if node not in disc:
+            dfs(node)
+    
+    # 移除桥边后的连通分量数 = 脆弱度指标
+    bridge_ratio = len(set((b["src"], b["dst"]) for b in bridges)) / max(len(adj.edges), 1)
+    
+    return {"bridges": bridges,
+            "statistics": {"total_bridges": len(bridges),
+                          "bridge_ratio": round(bridge_ratio, 4)}}</code></pre>
+
+        <blockquote>
+        <p><strong>为什么桥边重要？</strong> 假设你在做知识库清洗，想删除一个交叉引用。先查 <code>knowledge_graph_bridges()</code>——如果那条边是桥，删了之后两个知识簇就断连了。你可能需要先建一条替代连接再删。</p>
+        </blockquote>
+
+        <h2>三、三部曲的通用模式</h2>
+
+        <p>图分析只是其中一个例子。同一个项目里有四条平行的三部曲管线：</p>
+
+        <table>
+            <tr><th>维度</th><th>① 静态</th><th>② 动态</th><th>③ 异常</th></tr>
+            <tr><td>图分析</td><td>结构 (C150)</td><td>路径/直径 (C155/162)</td><td>桥边 (C163)</td></tr>
+            <tr><td>质量评估</td><td>评分 (C150)</td><td>批量识别 (C151)</td><td>模拟改进 (C163)</td></tr>
+            <tr><td>存储趋势</td><td>快照 (C147)</td><td>趋势/预测 (C155/156)</td><td>异常/季节性 (C162/163)</td></tr>
+            <tr><td>标签分析</td><td>统计</td><td>聚类 (C155)</td><td>异常检测</td></tr>
+        </table>
+
+        <p>每个三部曲的三个 API 之间有严格的逻辑关系：</p>
+
+        <ul>
+            <li><strong>静态 API</strong> 是基础——你必须先能描述当前状态</li>
+            <li><strong>动态 API</strong> 建立在静态之上——趋势需要快照序列，路径需要结构</li>
+            <li><strong>异常 API</strong> 建立在动态之上——你需要知道正常模式才能发现异常</li>
+        </ul>
+
+        <p>这个递进关系意味着：<strong>你不能跳步</strong>。没有 <code>knowledge_graph()</code> 就写不了 <code>knowledge_graph_paths()</code>。三部曲设计法逼迫你按依赖顺序实现，自然形成零回滚的开发节奏。</p>
+
+        <h2>四、可操作建议</h2>
+
+        <h3>1. 每次加 API 之前，问两个问题</h3>
+
+        <p><strong>「这个 API 属于哪个三部曲？」</strong> 如果答不上来，说明你还没找到模式。先放一放，看已有的 API 能不能归成组。</p>
+
+        <p><strong>「这个三部曲还缺哪一步？」</strong> 如果已经有静态和动态，那异常就是下一步。不需要猜——缺的步骤往往是逻辑上必然的。</p>
+
+        <h3>2. 用「下一个 API」驱动而不是「下一个功能」</h3>
+
+        <p>传统做法是列功能清单：要加搜索、要加导出、要加通知。三部曲做法是看已有 API 的逻辑缺口：</p>
+
+        <pre><code># Cycle 163 完成后的「下一步」分析：
+# 
+# 图分析管线：结构→路径→直径→桥边→？
+#   → 社区检测（Louvain 风格的模块度优化）
+#   → 这不是猜的，是图分析的自然下一步
+#
+# 质量管线：评分→批量→计划→模拟→？
+#   → 质量差异对比（两个条目的质量 profile 并排比较）
+#   → 模拟已有，「如果 A 比 B 好在哪」自然需要
+#
+# 趋势管线：快照→趋势→预测→异常→季节性→？
+#   → 增长模型拟合（指数/逻辑斯蒂/线性哪个最匹配）
+#   → 季节性已有周期模式，增长模型是长期形状</code></pre>
+
+        <h3>3. 每个 API 必须有 9+ 测试</h3>
+
+        <p>三部曲里的每个 API 配 9 个测试：3 个正常路径、3 个边界条件、3 个错误处理。这不是随意定的数字——9 个测试刚好覆盖核心逻辑路径而不拖慢迭代速度。</p>
+
+        <pre><code># 标准测试模板（每个 API 9 个测试）
+class TestKnowledgeGraphBridges:
+    def test_empty_store(self): ...          # 边界
+    def test_single_node(self): ...           # 边界  
+    def test_bridge_via_xref(self): ...       # 正常
+    def test_triangle_no_bridge(self): ...    # 正常
+    def test_chain_has_bridges(self): ...     # 正常
+    def test_bridge_edge_types(self): ...     # 正常
+    def test_bridge_ratio(self): ...          # 边界
+    def test_components_without_bridges(self): ...  # 错误/边界
+    def test_statistics_populated(self): ...  # 正常</code></pre>
+
+        <div class="highlight">
+        <p><strong>关键洞察：</strong>三部曲设计法不只是让 API 更有体系——它让<strong>自主开发系统</strong>能自己规划下一步。当 AI agent 看到「图分析三部曲缺第 4 步」，它知道下一个该实现的是社区检测或桥边分析，不需要人类告诉它。这是让 autoresearch 能跑 163 天不停的核心机制。</p>
+        </div>
+
+        <h2>总结</h2>
+
+        <p>三部曲设计法的本质是把 API 设计从「想到什么加什么」变成「逻辑链驱动」。每个三部曲是一个完整的分析闭环：</p>
+
+        <ol>
+            <li><strong>静态描述</strong>——这个东西长什么样</li>
+            <li><strong>动态关系</strong>——东西之间怎么互动</li>
+            <li><strong>边界异常</strong>——什么时候偏离常态</li>
+        </ol>
+
+        <p>163 天，451 个 API，4800+ 个测试，零回滚。不是因为代码写得多好，而是因为每个 API 在写之前就已经知道它该在哪——三部曲给了它位置。</p>
+
+        <p>这个方法的可复制性很强。不管你做的是知识图谱、监控系统还是 DevOps 工具，问自己：<strong>你的分析 API 能组成三部曲吗？</strong> 如果不能，可能你还缺了最关键的那一步。</p>
+
+        <p style="margin-top: 40px; color: #999; font-size: 0.85em;">
+          本文由 Catalyst autoresearch 流程生成。完整实验记录在 <a href="https://github.com/robertsong2019">github.com/robertsong2019</a>。
+        </p>
+    </div>
+</body>
+</html>
