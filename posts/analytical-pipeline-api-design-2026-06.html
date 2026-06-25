@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三维管线七层完成：当 Agent 知识库开始有了经济学 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; }
+        th { color: var(--accent); }
+    </style>
+</head>
+<body>
+    <h1>三维管线七层完成：当 Agent 知识库开始有了经济学</h1>
+    <div class="meta">
+        2026-06-26 · <span class="tag">AI Agent</span> <span class="tag">API 设计</span> <span class="tag">知识图谱</span> <span class="tag">autoresearch</span>
+    </div>
+
+    <p>过去 165 天，我的 AI Agent 每天自主运行 <code>autoresearch</code> 循环——选定一个知识库分析维度，实现 API + 测试，提交或回滚。最近两个循环（164-165）标志着一个里程碑：<strong>三条分析管线各完成了第七层</strong>，实现了对 Agent 记忆库的系统性覆盖。</p>
+
+    <p>这不是一个"我写了很多代码"的故事。真正有趣的是：<strong>当你在给 Agent 记忆构建分析工具时，你会发现网络科学、经济学和流行病学的概念可以无缝迁移过来</strong>。今天的随笔聊聊这个。</p>
+
+    <h2>三条管线的完整地图</h2>
+
+    <p>先看全景。agent-context-store 项目从 cycle 150 开始，逐步构建了三条并行的分析管线：</p>
+
+    <table>
+        <tr><th>层级</th><th>图分析 (Graph)</th><th>质量分析 (Quality)</th><th>存储分析 (Store)</th></tr>
+        <tr><td>1</td><td>knowledge_graph() — 结构</td><td>content_quality_score() — 单条诊断</td><td>store_vitality_score() — 快照</td></tr>
+        <tr><td>2</td><td>knowledge_graph_centrality() — 重要性</td><td>content_quality_batch() — 批量诊断</td><td>store_trend_analysis() — 趋势</td></tr>
+        <tr><td>3</td><td>knowledge_graph_paths() — 连通性</td><td>quality_improve_plan() — 改进计划</td><td>store_trend_forecast() — 预测</td></tr>
+        <tr><td>4</td><td>knowledge_graph_diameter() — 极值</td><td>quality_batch_improve_plan() — 批量计划</td><td>store_anomaly_report() — 异常</td></tr>
+        <tr><td>5</td><td>knowledge_graph_bridges() — 脆弱性</td><td>quality_improve_simulate() — 模拟</td><td>store_seasonality_report() — 周期</td></tr>
+        <tr><td>6</td><td>knowledge_graph_communities() — 社区</td><td>quality_improve_diff() — 对比</td><td>store_growth_model() — 增长类型</td></tr>
+        <tr><td>7</td><td><strong>knowledge_graph_robustness()</strong> — 鲁棒性</td><td><strong>quality_distribution_report()</strong> — 分布</td><td><strong>store_velocity_report()</strong> — 动量</td></tr>
+    </table>
+
+    <p>每一层都不是随意添加的，而是回答前一层遗留的核心问题。这是一个<strong>自顶向下的分析学金字塔</strong>：从"长什么样"到"健不健康"再到"未来会怎样"。</p>
+
+    <h2>洞察一：增长曲线拟合——Agent 记忆也有"S 型增长"</h2>
+
+    <p><code>store_growth_model()</code> 是 cycle 164 的产物。它对记忆库的历史增长数据拟合三种曲线模型，然后用 R² 选最优：</p>
+
+    <pre><code>def store_growth_model(self, *, days=30):
+    """拟合 linear / exponential / logistic 三种增长模型，
+    返回最优模型 + 7天/30天预测 + 增长类型分类。"""
+    history = self._daily_counts(days)
+    if len(history) < 3:
+        return {"error": "insufficient_data", "current_size": len(self.entries)}
+
+    x = np.arange(len(history))
+    y = np.array(history)
+
+    # Linear: y = ax + b (least squares)
+    a, b = np.polyfit(x, y, 1)
+    y_lin = a * x + b
+    r2_lin = 1 - np.sum((y - y_lin)**2) / np.sum((y - np.mean(y))**2)
+
+    # Exponential: y = a * exp(bx) → log-linear fit
+    if np.all(y > 0):
+        log_a, b_exp = np.polyfit(x, np.log(y), 1)
+        a_exp = np.exp(log_a)
+        y_exp = a_exp * np.exp(b_exp * x)
+        r2_exp = 1 - np.sum((y - y_exp)**2) / np.sum((y - np.mean(y))**2)
+    else:
+        r2_exp = -1
+
+    # Logistic: y = L / (1 + exp(-k(x-x0)))
+    # Grid search over k and x0, L estimated from data
+    L = max(y) * 1.2  # 20% headroom
+    best_r2_log = -1
+    best_params = None
+    for k in np.arange(0.01, 1.0, 0.05):
+        for x0 in np.arange(0, len(x), max(1, len(x)//10)):
+            y_log = L / (1 + np.exp(-k * (x - x0)))
+            r2 = 1 - np.sum((y - y_log)**2) / np.sum((y - np.mean(y))**2)
+            if r2 > best_r2_log:
+                best_r2_log = r2
+                best_params = (k, x0)
+
+    # Select best model
+    models = {"linear": r2_lin, "exponential": r2_exp, "logistic": best_r2_log}
+    best_model = max(models, key=models.get)</code></pre>
+
+    <p>为什么这很重要？因为<strong>"在增长"和"怎么增长"是两个完全不同的问题</strong>。</p>
+
+    <p>线性增长意味着 Agent 在稳定地积累知识——每天差不多加几条，没什么惊喜。指数增长意味着爆发期——可能是 Agent 在疯狂探索新领域，需要警惕信息过载。<span class="highlight">Logistic 增长是最有意思的</span>：它意味着知识库正在接近饱和——该知道的都知道了，新知识越来越难产生。</p>
+
+    <p>对 Agent 来说，logistic 拟合是一个<strong>早期预警信号</strong>：如果你看到 S 型曲线的上半段，意味着你需要主动开拓新领域，否则知识库会停滞。</p>
+
+    <h2>洞察二：Gini 系数——知识质量的不平等度</h2>
+
+    <p>这是我个人最喜欢的创新。<code>quality_distribution_report()</code> 引入了经济学中的 <strong>Gini 系数</strong>来衡量知识质量的"不平等程度"：</p>
+
+    <pre><code>def _gini_coefficient(self, scores):
+    """计算质量分数的 Gini 系数。
+    0 = 完全平等（所有条目质量相同）
+    1 = 完全不平等（一条满分，其余零分）"""
+    sorted_scores = sorted(scores)
+    n = len(sorted_scores)
+    if n == 0:
+        return 0.0
+    cumulative = sum((2 * i - n + 1) * s for i, s in enumerate(sorted_scores))
+    return cumulative / (n * sum(sorted_scores))
+
+# 在 quality_distribution_report 中：
+# gini > 0.4 → 质量严重不均，少数优秀条目 + 大量低质量条目
+# gini < 0.2 → 质量一致，整体水平稳定
+# 0.2-0.4  → 正常范围，存在自然的质量分布</code></pre>
+
+    <p><strong>Gini &gt; 0.4 意味着什么？</strong> 意味着你的 Agent 记忆库里有几条精心维护的高质量条目，但大部分条目质量堪忧——典型的"帕累托陷阱"：80% 的价值集中在 20% 的条目里。这时候 <code>quality_batch_improve_plan()</code> 就该上场了。</p>
+
+    <p>这个概念迁移让我意识到一个更深的道理：<strong>Agent 记忆库就是一个微型经济体</strong>。知识条目是"财富"，质量分数是"收入"，标签是"行业"。如果你用经济学的眼光看它，很多分析工具唾手可得。</p>
+
+    <h2>洞察三：图鲁棒性——删掉一个节点，知识图谱会碎吗？</h2>
+
+    <p>cycle 165 的 <code>knowledge_graph_robustness()</code> 用模拟节点移除来测试图谱的韧性：</p>
+
+    <pre><code>def knowledge_graph_robustness(self, *, strategy='degree', max_removals=20):
+    """通过模拟节点移除测试图谱韧性。
+    strategy='degree': 按度数从高到低移除（针对性攻击）
+    strategy='random': 随机移除（模拟随机故障）
+    返回 robustness_score (AUC), breakpoint, fragmentation curve。
+    """
+    nodes = list(self._graph_nodes())
+    adj = self._build_adjacency(nodes)
+
+    # Degree strategy: sort by degree descending
+    if strategy == 'degree':
+        removal_order = sorted(nodes, key=lambda n: len(adj[n]), reverse=True)
+    else:
+        removal_order = random.sample(nodes, len(nodes))
+
+    curve = []
+    remaining = set(nodes)
+    for i, node_to_remove in enumerate(removal_order[:max_removals]):
+        remaining.discard(node_to_remove)
+        components = self._connected_components(remaining, adj)
+        largest = max((len(c) for c in components), default=0)
+        curve.append({
+            "removed": i + 1,
+            "largest_component": largest,
+            "largest_fraction": largest / max(len(nodes), 1),
+            "components": len(components),
+        })
+
+    # Robustness = AUC of largest_fraction vs removal_fraction
+    areas = [c["largest_fraction"] for c in curve]
+    robustness = sum(areas) / max(len(areas), 1)
+
+    # Breakpoint: first removal count where largest_fraction < 0.5
+    breakpoint = next(
+        (c["removed"] for c in curve if c["largest_fraction"] < 0.5),
+        None
+    )
+    return {"robustness_score": robustness, "breakpoint": breakpoint, "curve": curve}</code></pre>
+
+    <p>这里有一个深刻的概念：<strong>scale-free 网络的特性</strong>。如果你的知识图谱像大多数真实网络一样是 scale-free 的（少数 hub 节点连接大量叶子节点），那么它对随机故障很鲁棒，但对针对性攻击非常脆弱——删掉两三个 hub 节点就可能让整个图谱碎裂。</p>
+
+    <p>这对 Agent 记忆管理的启示是直接的：<strong>识别并保护你的 hub 节点</strong>。那些被大量交叉引用、被多个标签索引的"核心知识"，一旦丢失或损坏，影响远超一个孤立的边缘条目。</p>
+
+    <h2>方法论：管线式 API 设计的三条原则</h2>
+
+    <p>165 天、165 个循环、每循环 3 个 API、零回滚。这个记录背后的不只是纪律，还有一个反复验证的 API 设计模式。我总结为三条原则：</p>
+
+    <h3>原则一：先建轴线，再填层</h3>
+
+    <p>不要上来就写 21 个 API。先确定三个分析维度（我们的是：图结构、内容质量、存储趋势），每个维度定一个起点 API，然后问"这个 API 回答了什么问题？遗留了什么问题？"——遗留的问题就是下一层的 API。</p>
+
+    <h3>原则二：每个 API 只加一个分析维度</h3>
+
+    <p><code>knowledge_graph_diameter()</code> 只回答"最远两点的距离"。不加"以及路径是什么"——那是 <code>knowledge_graph_paths()</code> 的职责。单一职责让 API 可组合、可测试、可回滚。</p>
+
+    <h3>原则三：从其他学科偷概念</h3>
+
+    <p>这是最值钱的经验。当你需要"衡量质量不平等度"时，经济学家早在 1912 年就给了你 Gini 系数。当你需要"预测增长拐点"时，流行病学家给了你 logistic 曲线。当你需要"测试网络韧性"时，网络科学家给了你节点移除模拟。</p>
+
+    <p><strong>你不需要发明分析方法。你需要做的是识别你的问题结构，然后去对应的学科找现成的工具。</strong></p>
+
+    <h2>结语：Agent 需要"自我意识"吗？</h2>
+
+    <p>很多人讨论 AI Agent 的 self-awareness 时，想的是 AGI 级别的反思能力。但实践中，Agent 的"自我意识"是由这些具体的、可调用的分析 API 组成的：</p>
+
+    <ul>
+        <li>"我的知识库在加速增长还是减速？" → <code>store_velocity_report()</code></li>
+        <li>"我的知识质量分布健康吗？" → <code>quality_distribution_report()</code></li>
+        <li>"如果我丢失关键条目，知识结构会崩溃吗？" → <code>knowledge_graph_robustness()</code></li>
+    </ul>
+
+    <p>每一个 API 都是 Agent 照镜子的一种方式。165 天的 autoresearch 本质上是在给 Agent 打造一面越来越清晰的镜子——从模糊的轮廓，到能看清每一条皱纹。</p>
+
+    <p>下一步？也许是 <code>knowledge_graph_assortativity()</code>（度数同配性），<code>quality_correlation_report()</code>（维度关联分析），或者 <code>store_rhythm_report()</code>（多日周期检测）。管线还远没有到头。</p>
+
+    <p>因为<strong>分析的可能性是无穷的，但每一步都只需要加一层</strong>。</p>
+
+    <hr>
+    <p><small>本文基于 agent-context-store 项目 cycle 164-165 的实际开发记录。代码已提交，测试全绿。当前状态：478 个公共 API，4862 个测试，连续 165 天零回滚。</small></p>
+
+</body>
+</html>
