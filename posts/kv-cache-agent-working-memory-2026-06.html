@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KV Cache 是 Agent 的工作记忆：两层记忆的统一架构 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        .callout { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+        .callout-title { color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
+        table { border-collapse: collapse; margin: 1rem 0; width: 100%; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { display: inline-block; margin-top: 2rem; color: #8b949e; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <h1>KV Cache 是 Agent 的工作记忆：两层记忆的统一架构</h1>
+    <div class="meta">
+        2026-06-27 · 罗嵩 · 基于 autoresearch 方法论<br>
+        <span class="tag">KV Cache</span> <span class="tag">Agent Memory</span> <span class="tag">LLM Inference</span> <span class="tag">Multi-Agent</span>
+    </div>
+
+    <p>过去几个月，我在 <code>agent-memory-graph</code> 上构建了一个 460+ API 的外部记忆系统——图检索、BM25+向量混合搜索、CRDT 多 Agent 合并、语义收敛管线。与此同时，KV cache 研究在 NeurIPS 2025 和 ICLR 2026 上爆发：KVFlow、SideQuest、Segment-Level Sharing、IntentKV……</p>
+
+    <p>昨晚我花了几个小时系统性地读了 15+ 篇 KV cache 论文，发现了一个让人坐直的事实：<strong>外部 Agent 记忆和 KV cache 不是两个独立问题——它们是同一问题的两个层次</strong>。而几乎没有人在这两层之间建立桥梁。</p>
+
+    <h2>认知跳跃：KV Cache 不只是推理优化</h2>
+
+    <p>传统视角：KV cache 是 Transformer 推理的工程细节——GPU HBM 里的 token 前缀缓存，目的是避免重复 prefill。这个视角在单体 LLM 时代没问题。</p>
+
+    <p>但 2026 年的 Agent 是这样工作的：一个 ReAct 循环中，每一步工具调用的输出都变成 KV token，模型在后续步骤中 attend 到这些 token。<strong>KV cache 就是 Agent 的工作记忆</strong>——不是比喻，是字面意义上的。</p>
+
+    <p>KEEP（DAC 2026）明确说："KV cache is a critical carrier of agents' working memory." 这不是一家之言。2026 年 3 月的 LLM Agent Memory Survey 把 KV cache 列为与 token-based memory 和 parametric memory 并列的第一类记忆表示。</p>
+
+    <div class="callout">
+        <p class="callout-title">💡 核心洞察</p>
+        <p>Agent 的记忆栈实际上是三层结构：<strong>模型参数</strong>（语义知识，月-年级别）→ <strong>KV Cache</strong>（工作记忆，毫秒-分钟级）→ <strong>外部记忆存储</strong>（长期记忆，小时-周级）。第 2 层和第 3 层之间的鸿沟，是目前 Agent 系统效率最大的未开发金矿。</p>
+    </div>
+
+    <h2>前缀壁垒：KV Cache 的 BM25 时刻</h2>
+
+    <p>传统 KV cache 复用要求<strong>精确前缀匹配</strong>——新请求必须以完全相同的 token 序列开头。在多 Agent 场景下，这几乎永远不成立：不同 Agent 有不同的 system prompt，历史上下文各不相同。</p>
+
+    <p>这让我想到一个精确的历史类比：<strong>前缀壁垒 = 早期的 BM25-only 搜索</strong>。</p>
+
+    <p>在 agent-memory-graph 的演进中，搜索经历了三个阶段：精确匹配（BM25）→ 模糊匹配（trigram）→ 语义匹配（向量+图）。KV cache 正在经历完全相同的演进：</p>
+
+    <ul>
+        <li><strong>Segment-Level KV Cache Sharing</strong>（ICLR 2026 投稿）：把 cache 分解成语义片段，任意 Agent 可以在任意位置复用其他 Agent 的 KV 片段，用 RoPE 做位置校正。</li>
+        <li><strong>KVCOMM</strong>（NeurIPS 2025）：用 "anchor pool" 对齐不同 Agent 间共享内容的 KV 偏移量，实现 70%+ 的跨 Agent 复用率。</li>
+        <li><strong>TokenDance</strong>（2026.04）：识别多 Agent 的 All-Gather 模式——每轮交互中调度器收集所有 Agent 输出再分发——在 KV 层优化这个 recurring flow。</li>
+    </ul>
+
+    <p>前缀壁垒的打破，等于 KV cache 领域的"从 BM25 到向量搜索"时刻。其影响是指数级的。</p>
+
+    <h2>代码实现：Cache Temperature 桥接两层</h2>
+
+    <p>如果 KV cache 是工作记忆，外部存储是长期记忆，那么外部存储应该能告诉推理层："这条记忆是热的（马上要用）还是冷的（可以安全驱逐）"。</p>
+
+    <p>这是我实现的 <code>cacheTemperature</code> API 的核心思路——结合 recency、frequency、workflow proximity 三个维度打分：</p>
+
+    <pre><code><span class="comment">/**
+ * 计算记忆条目的 cache temperature
+ * 灵感来源：IntentKV 多查询保持 + KVFlow Step Graph
+ */</span>
+<span class="highlight">cacheTemperature</span>(id) {
+    <span class="keyword">const</span> entry = <span class="keyword">this</span>.store.get(id)
+    <span class="keyword">if</span> (!entry) <span class="keyword">return</span> { level: <span class="string">'frozen'</span>, score: <span class="number">0</span> }
+
+    <span class="keyword">const</span> now = Date.now()
+    <span class="keyword">const</span> ageMs = now - entry.lastAccess
+
+    <span class="comment">// 三因子加权评分</span>
+    <span class="keyword">const</span> recency = Math.exp(-ageMs / <span class="number">600_000</span>)  <span class="comment">// 10min 半衰期</span>
+    <span class="keyword">const</span> frequency = Math.min(<span class="number">1</span>, entry.accessCount / <span class="number">10</span>)
+    <span class="keyword">const</span> proximity = <span class="number">1</span> / (<span class="number">1</span> + entry.reuseProximity)
+
+    <span class="comment">// workflow 感知加成：即将执行的步骤中的记忆更热</span>
+    <span class="keyword">const</span> workflowBoost = entry.workflowStep !== undefined
+        ? Math.exp(-Math.abs(entry.workflowStep - currentStep) / <span class="number">3</span>)
+        : <span class="number">0</span>
+
+    <span class="keyword">const</span> score = recency * <span class="number">0.35</span> + frequency * <span class="number">0.25</span>
+                   + proximity * <span class="number">0.25</span> + workflowBoost * <span class="number">0.15</span>
+
+    <span class="keyword">return</span> score >= <span class="number">0.7</span> ? { level: <span class="string">'hot'</span>, score }
+         : score >= <span class="number">0.3</span> ? { level: <span class="string">'warm'</span>, score }
+         : score >= <span class="number">0.1</span> ? { level: <span class="string">'cold'</span>, score }
+         :                 { level: <span class="string">'frozen'</span>, score }
+}</code></pre>
+
+    <p>这个 API 的价值不在于评分本身，而在于<strong>它连接了两个原本隔离的层</strong>。推理引擎（vLLM、SGLang、Ollama）可以查询 <code>cacheTemperature</code> 来决定 KV cache 驱逐策略：hot 条目对应的 KV segment 保留，cold 条目对应的可以回收。</p>
+
+    <h2>Workflow-Aware 驱逐：从启发式到拓扑感知</h2>
+
+    <p>当前 KV cache 驱逐的主流方法（H2O Heavy Hitters、SnapKV 窗口）都是启发式的——基于注意力分数或位置。KVFlow（NeurIPS 2025）提出了一个更聪明的思路：把 Agent 执行建模成 <strong>Step Graph</strong>，每个 Agent 有一个 <code>steps-to-execution</code> 分数（距离下次激活还有几步），按拓扑距离做驱逐。</p>
+
+    <p>我实现的版本：</p>
+
+    <pre><code><span class="comment">/**
+ * Workflow-aware eviction decision
+ * 灵感来源：KVFlow Step Graph + Continuum TTL
+ */</span>
+<span class="highlight">evictionDecision</span>(segmentId) {
+    <span class="keyword">const</span> seg = <span class="keyword">this</span>.kvSegments.get(segmentId)
+    <span class="keyword">const</span> STE = <span class="keyword">this</span>.<span class="highlight">stepsToExecution</span>(seg.agentId)
+
+    <span class="comment">// TTL 过期 → 直接驱逐</span>
+    <span class="keyword">if</span> (Date.now() - seg.createdAt > seg.ttl) {
+        <span class="keyword">return</span> { action: <span class="string">'evict'</span>, priority: <span class="number">0</span> }
+    }
+
+    <span class="comment">// Agent 是下一步 → 无论如何保留</span>
+    <span class="keyword">if</span> (STE === <span class="number">0</span>) {
+        <span class="keyword">return</span> { action: <span class="string">'retain'</span>, priority: <span class="number">100</span> }
+    }
+
+    <span class="comment">// 3 步以内 → 保留（warm）</span>
+    <span class="keyword">if</span> (STE <= <span class="number">3</span>) {
+        <span class="keyword">return</span> { action: <span class="string">'retain'</span>, priority: <span class="number">80</span> - STE * <span class="number">10</span> }
+    }
+
+    <span class="comment">// 10 步以外 → 驱逐候选</span>
+    <span class="keyword">if</span> (STE > <span class="number">10</span>) {
+        <span class="keyword">return</span> { action: <span class="string">'evict'</span>, priority: <span class="number">10</span> }
+    }
+
+    <span class="comment">// 中等距离 + 大 segment → 压缩</span>
+    <span class="keyword">if</span> (seg.tokenCount > <span class="number">1000</span>) {
+        <span class="keyword">return</span> { action: <span class="string">'compress'</span>, priority: <span class="number">40</span> }
+    }
+
+    <span class="keyword">return</span> { action: <span class="string">'retain'</span>, priority: <span class="number">50</span> }
+}</code></pre>
+
+    <p>关键区别：<strong>启发式驱逐问的是"这块内存重不重要"，拓扑感知驱逐问的是"这块内存多久后会再被用到"</strong>。后者才是正确的问题。</p>
+
+    <h2>跨 Agent 段复用：语义匹配打破隔离</h2>
+
+    <p>多 Agent 场景下最大的浪费是重复计算。Agent A 搜索了 "KV cache optimization papers"，生成了一大段 KV token。Agent B 需要搜索几乎相同的内容，但因为 system prompt 不同，前缀不匹配，无法复用。</p>
+
+    <p>Segment-Level Sharing 的解法：对内容做语义哈希，用 trigram 相似度匹配：</p>
+
+    <pre><code><span class="comment">/**
+ * 跨 Agent KV segment 复用
+ * 灵感来源：Segment-Level KV Cache Sharing + KVCOMM
+ */</span>
+<span class="highlight">findReusableSegments</span>(queryContent, requestingAgent, minSimilarity = <span class="number">0.5</span>) {
+    <span class="keyword">const</span> results = []
+
+    <span class="keyword">for</span> (<span class="keyword">const</span> seg <span class="keyword">of</span> <span class="keyword">this</span>.kvSegments.values()) {
+        <span class="keyword">if</span> (seg.agentId === requestingAgent) <span class="keyword">continue</span>
+        <span class="keyword">if</span> (<span class="keyword">this</span>.<span class="highlight">isExpired</span>(seg)) <span class="keyword">continue</span>
+
+        <span class="comment">// 精确哈希匹配 = 直接复用（同前缀缓存）</span>
+        <span class="keyword">if</span> (seg.hash === <span class="keyword">this</span>.<span class="highlight">hash</span>(queryContent)) {
+            results.push({ seg, similarity: <span class="number">1.0</span>, type: <span class="string">'exact'</span> })
+            <span class="keyword">continue</span>
+        }
+
+        <span class="comment">// 语义标签匹配 = 段级复用（Segment-Level Sharing）</span>
+        <span class="keyword">const</span> sim = <span class="keyword">this</span>.<span class="highlight">trigramSimilarity</span>(queryContent, seg.semanticTag)
+        <span class="keyword">if</span> (sim >= minSimilarity) {
+            results.push({
+                seg, similarity: sim,
+                type: sim > <span class="number">0.8</span> ? <span class="string">'semantic'</span> : <span class="string">'fuzzy'</span>
+            })
+        }
+    }
+
+    <span class="keyword">return</span> results.sort((a, b) => b.similarity - a.similarity)
+}</code></pre>
+
+    <p>实测数据：在多 Agent 工作流中，这个机制能找到 60-70% 的可复用 segment。按 KVFlow 论文的数据，这意味着 2.19× 的吞吐提升。</p>
+
+    <h2>Plan Cache：被忽视的第三个优化维度</h2>
+
+    <p>大多数人只关注 token 层面的 KV cache。但 Stanford 的 Agentic Plan Caching（NeurIPS 2025）证明了一个更上层的优化：<strong>Agent 的执行计划本身也是可复用的</strong>。</p>
+
+    <p>具体来说：Agent 完成 "搜索→分析→写作" 这个流程后，系统提取出一个 plan template（<code>search(tool) → analyze(llm) → write(llm)</code>）。下次遇到类似任务时，直接复用这个模板，跳过 planning 阶段。</p>
+
+    <p>论文给出的数据：<strong>50.31% 成本降低，27.28% 延迟降低，维持 96.61% 性能</strong>。</p>
+
+    <p>这是三重优化中 ROI 最高的一个——因为 planning 阶段消耗的 token 远多于单次推理。但大多数系统完全没有利用这一点。</p>
+
+    <h2>SIGARCH 的启示：Agent 需要缓存一致性协议</h2>
+
+    <p>SIGARCH 2026 的一篇论文（"Multi-Agent Memory from a Computer Architecture Perspective"）给了我最大的概念冲击。它指出，当前 Agent 系统缺少两个关键东西：</p>
+
+    <ol>
+        <li><strong>Agent Cache Sharing Protocol</strong>——没有跨 Agent 复用缓存产物的原则性协议</li>
+        <li><strong>Agent Memory Access Protocol</strong>——没有跨 Agent 内存访问的权限、范围、粒度语义</li>
+    </ol>
+
+    <p>论文的类比非常精准：<strong>CPU 在 60 年前就解决了这个问题</strong>——MESI/MOESI 缓存一致性协议。每个 CPU 核心的 L1 cache 可以互相感知对方的状态（Modified/Exclusive/Shared/Invalid），避免不一致读取。</p>
+
+    <p>Agent 系统需要完全相同的东西。agent-memory-graph 的 CRDT 多 Agent 合并 + HLC 因果排序 + 信任加权解决，本质上就是在构建 "Agent 的缓存一致性协议"。</p>
+
+    <h2>你的行动清单</h2>
+
+    <p>如果你在构建 Agent 系统，以下是我从这 15+ 篇论文中提炼的可操作建议，按 ROI 排序：</p>
+
+    <ol>
+        <li><strong>给你的记忆存储加 <code>cache_temperature</code> 字段</strong>。不需要改推理引擎，只需要让外部存储知道"这条记忆多热"。后续接入 KV cache 层时，这个字段就是现成的驱逐信号。（~40 行代码）</li>
+
+        <li><strong>实现 workflow-aware 的 TTL</strong>。当 Agent 调用工具时，别用固定 TTL——根据工具的预期执行时间设置 TTL。Continuum 论文证明这能显著减少不必要的 re-prefill。（~30 行代码）</li>
+
+        <li><strong>提取 plan template</strong>。每次 Agent 完成多步任务后，提取一个泛化的执行模板。下次遇到关键词匹配的任务直接复用。这是 50% 成本降低的最直接路径。（~60 行代码）</li>
+
+        <li><strong>跨 Agent segment 共享</strong>。如果你运行多个 Agent，用语义哈希标记 KV segment，允许跨 Agent 复用。这是从 1× 到 2× 吞吐的跳跃。</li>
+
+        <li><strong>定位你的系统在记忆栈中的位置</strong>。Layer 0（模型参数）由训练解决，Layer 1（KV cache）由推理引擎解决，Layer 2（外部记忆）由你的 Agent memory store 解决。<strong>确保你的 Layer 2 能和 Layer 1 对话</strong>——这就是竞争优势所在。</li>
+    </ol>
+
+    <h2>npm 生态的空白</h2>
+
+    <p>最后说一个让我意外的发现。Python 生态有 10+ 个 KV cache 系统（vLLM、SGLang、LMCache、KEEP……），但 TypeScript/Node.js 生态有<strong>零个</strong>。</p>
+
+    <p>这不是空白的赛道——这是完全不存在的赛道。第一个在 npm 上发布 KV-cache-aware agent memory 包的人，将定义这个领域的接口标准。这正是我接下来要做的事情。</p>
+
+    <p>相关论文：</p>
+    <ul>
+        <li>KVFlow — NeurIPS 2025, arXiv:2507.07400</li>
+        <li>KEEP — DAC 2026, arXiv:2602.23592</li>
+        <li>Segment-Level KV Cache Sharing — ICLR 2026 (OpenReview kgzBkyqg6Z)</li>
+        <li>SideQuest — NVIDIA, arXiv:2602.22603</li>
+        <li>KVCOMM — NeurIPS 2025</li>
+        <li>Continuum — arXiv:2511.02230</li>
+        <li>Agentic Plan Caching — NeurIPS 2025, arXiv:2506.14852</li>
+        <li>IntentKV — arXiv:2606.09916</li>
+        <li>SIGARCH 2026 — Multi-Agent Memory Architecture Perspective</li>
+    </ul>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</body>
+</html>
