@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent = Model + Harness：一个正在形成的世界观 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; --green: #3fb950; --red: #f85149; --orange: #ffa657; --purple: #bc8cff; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.7rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2.5rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.05rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: var(--accent); padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: var(--orange); }
+
+        /* Layer diagram */
+        .layer-diagram { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.8rem; line-height: 1.6; overflow-x: auto; white-space: pre; color: #8b949e; }
+
+        /* Info cards */
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+        .info-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem; }
+        .info-card h4 { color: var(--accent); font-size: 0.95rem; margin-bottom: 0.5rem; }
+        .info-card p { font-size: 0.85rem; margin-bottom: 0; }
+
+        /* Comparison table */
+        .table-wrapper { overflow-x: auto; margin: 1.5rem 0; border-radius: 8px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 600px; }
+        th { background: #161b22; color: var(--heading); padding: 0.7rem 0.5rem; text-align: left; border-bottom: 2px solid var(--border); font-weight: 600; }
+        td { padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        tr:hover { background: rgba(88,166,255,0.04); }
+
+        /* Timeline */
+        .timeline-item { position: relative; padding-left: 1.5rem; margin-bottom: 1.2rem; border-left: 2px solid var(--border); }
+        .timeline-item::before { content: ''; position: absolute; left: -5px; top: 0.5rem; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+        .timeline-date { color: #8b949e; font-size: 0.8rem; }
+        .timeline-title { color: var(--heading); font-weight: 600; margin: 0.2rem 0; }
+
+        /* Callout */
+        .callout { background: rgba(188,140,255,0.08); border: 1px solid rgba(188,140,255,0.3); border-radius: 12px; padding: 1.2rem 1.5rem; margin: 1.5rem 0; }
+        .callout h3 { color: var(--purple); margin-top: 0; }
+        .callout-warn { background: rgba(248,81,73,0.08); border-color: rgba(248,81,73,0.3); }
+        .callout-warn h3 { color: var(--red); }
+
+        /* Equation */
+        .equation { text-align: center; font-size: 1.15rem; margin: 2rem 0; padding: 1.5rem; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+        .equation .eq-part { display: inline-block; padding: 0.3rem 0.8rem; border-radius: 8px; }
+        .eq-model { background: rgba(88,166,255,0.12); color: var(--accent); }
+        .eq-plus { color: #8b949e; margin: 0 0.5rem; }
+        .eq-harness { background: rgba(255,166,87,0.12); color: var(--orange); }
+
+        /* Product list */
+        .product-harness { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0; }
+        .harness-tag { background: #1f2937; padding: 0.25rem 0.6rem; border-radius: 8px; font-size: 0.8rem; color: var(--text); }
+        .harness-tag .h-label { color: #8b949e; font-size: 0.72rem; }
+    </style>
+</head>
+<body>
+    <h1>Agent = Model + Harness：一个正在形成的世界观</h1>
+    <div class="meta">
+        2026-06-30 · <span class="tag">AI Agent</span> <span class="tag">Harness Engineering</span> <span class="tag">架构思考</span>
+    </div>
+
+    <p>当 Claude Code、Codex、OpenClaw、Hermes、Cursor 这些产品同台竞争时，一个自然的问题浮现：它们都在用同样的前沿模型（Claude/GPT/Gemini/GLM），<strong>那差异到底在哪？</strong></p>
+
+    <p>答案指向一个词：<strong>Harness</strong>（挽具/脚手架）。Agent 的本质就是模型外面裹的那一层工程——但这个"外面一层"正在变得越来越厚、越来越复杂，甚至比模型本身更值得认真对待。</p>
+
+    <div class="equation">
+        <span class="eq-part eq-model">Model</span>
+        <span class="eq-plus">+</span>
+        <span class="eq-part eq-harness">Harness</span>
+        <span class="eq-plus">=</span>
+        <span style="color: var(--heading); font-weight: 600;">Agent</span>
+    </div>
+
+    <h2>一、什么是 Harness？</h2>
+
+    <p>Harness 原意是"马具/挽具"——套在马身上、把马的力量转化为可用功的那套皮带和缰绳。在 AI Agent 语境下，它指<strong>包裹在 LLM 外层的所有工程层</strong>，把"能聊天"的模型变成"能干活"的 Agent。</p>
+
+    <div class="layer-diagram">
+┌──────────────────────────────────────────────┐
+│                Agent (用户看到)                │
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │            Harness 层                   │  │
+│  │                                        │  │
+│  │  · Agent Loop (感知→推理→行动→观察)     │  │
+│  │  · Tool Use (工具定义/调用/结果解析)     │  │
+│  │  · Memory (短期/长期/工作记忆)           │  │
+│  │  · Planning (任务拆解/规划/反思)         │  │
+│  │  · Permissions (权限模型/安全护栏)       │  │
+│  │  · Sub-agents (子Agent编排)             │  │
+│  │  · Context Engineering (上下文窗口管理)  │  │
+│  │  · Evals (质量评估/自检)                │  │
+│  │  · Multi-channel (IM/CLI/Web/桌面)      │  │
+│  │                                        │  │
+│  └────────────────────────────────────────┘  │
+│                  ↕ API 调用                   │
+│  ┌────────────────────────────────────────┐  │
+│  │              Model 层                   │  │
+│  │                                        │  │
+│  │  Claude / GPT / Gemini / GLM / Kimi     │  │
+│  │  (纯推理引擎, 无状态, 无记忆)            │  │
+│  │                                        │  │
+│  └────────────────────────────────────────┘  │
+└──────────────────────────────────────────────┘
+    </div>
+
+    <p>关键观察：<strong>模型是无状态的、没有记忆的、不关心你文件系统的</strong>。所有这些"让它有用"的事情，都是 Harness 在做。</p>
+
+    <h2>二、术语地图：同一个概念，N 种叫法</h2>
+
+    <p>虽然概念趋同，但不同圈子用的词不一样——这也是它还没成为"共识"的标志之一：</p>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>来源</th>
+                    <th>术语</th>
+                    <th>侧重点</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>SWE-bench / SWE-agent</td>
+                    <td><strong>Harness</strong></td>
+                    <td>ACI (Agent-Computer Interface)、工具循环</td>
+                </tr>
+                <tr>
+                    <td>Anthropic "Building Effective Agents"</td>
+                    <td><strong>Cognitive Architecture</strong></td>
+                    <td>推理模式、工具编排、记忆</td>
+                </tr>
+                <tr>
+                    <td>LangChain / LangGraph</td>
+                    <td><strong>Scaffolding</strong></td>
+                    <td>状态图、节点编排</td>
+                </tr>
+                <tr>
+                    <td>产品圈（通用）</td>
+                    <td><strong>Agent Loop / Orchestration</strong></td>
+                    <td>工具调用循环、任务分发</td>
+                </tr>
+                <tr>
+                    <td>OpenAI / 学术论文</td>
+                    <td><strong>Scaffold / Framework</strong></td>
+                    <td>提示工程 + 工具组合</td>
+                </tr>
+                <tr>
+                    <td>OpenClaw 生态</td>
+                    <td><strong>Skills + Gateway + Memory</strong></td>
+                    <td>技能体系 + 渠道 + 记忆持久化</td>
+                </tr>
+                <tr>
+                    <td>Hermes Agent</td>
+                    <td><strong>Agent Runtime + Skills</strong></td>
+                    <td>自进化技能 + 持久化记忆</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p><strong>Harness</strong> 在 eval/SWE-bench 社区是准标准词，但走出这个圈子，你跟产品经理说"harness"，他大概率想到安全带。</p>
+
+    <h2>三、为什么 Harness 正在成为核心差异化</h2>
+
+    <p>一个简单的逻辑链条：</p>
+
+    <ol>
+        <li><strong>模型趋同</strong> — GPT-5、Claude Opus 4、Gemini 2.5 在大多数任务上差距已经不大。用户随时可以切换 API。</li>
+        <li><strong>因此差异下沉</strong> — 当模型是可替换的商品时，包裹模型的工程层成了产品壁垒。</li>
+        <li><strong>Harness 越来越厚</strong> — 从最初"prompt + function call"，到现在 Memory、Planning、Sub-agents、Permissions、Multi-channel、Sandboxing… 工程复杂度指数级上升。</li>
+        <li><strong>因此 Harness 是产品</strong> — Claude Code 的体验好，不是因为 Claude 模型好（你也能用同样的 API），而是因为 Anthropic 的 harness（CLAUDE.md、工具权限、文件操作、上下文管理）做得好。</li>
+    </ol>
+
+    <div class="info-grid">
+        <div class="info-card">
+            <h4>📦 Claude Code</h4>
+            <p>Harness = CLAUDE.md 上下文协议 + 文件系统读写权限 + diff 预览/审批 + Bash 沙箱 + 流式工具调用摘要。模型是 Claude，但换一个模型进去也能跑。</p>
+        </div>
+        <div class="info-card">
+            <h4>🐙 OpenClaw</h4>
+            <p>Harness = Gateway + Skills + Cron + Sessions + Memory(MEMORY.md + memory_search) + 多渠道(飞书/企微/Discord) + ACP + Sandbox。5300+ tests 的 agent-memory-graph 本身就是 harness 的一部分。</p>
+        </div>
+        <div class="info-card">
+            <h4>🦅 Hermes</h4>
+            <p>Harness = 自进化技能引擎 + isolated subagents + 5种沙箱后端 + Electron 桌面 UI + 持久化记忆。主打"完成任务后自动生成技能"。</p>
+        </div>
+        <div class="info-card">
+            <h4>✨ Cursor</h4>
+            <p>Harness = 代码库索引 + @mention 上下文 + multi-file edit + LSP 集成 + Tab 补全。IDE-native 的 harness 设计。</p>
+        </div>
+    </div>
+
+    <h2>四、Harness 的七层架构</h2>
+
+    <p>如果拆开一个成熟 Agent 的 harness，它大致包含这七层：</p>
+
+    <div class="layer-diagram">
+Layer 7  ┌─ Channels ─────────────────────────────────┐
+         │  CLI / Web / Desktop / IM(飞书/TG/Discord)    │
+         │  交付层: Agent 结果怎么触达用户               │
+Layer 6  ├─ Security ──────────────────────────────────┤
+         │  Permissions / Approval / Sandbox / 审计      │
+         │  安全层: Agent 能做什么、不能做什么            │
+Layer 5  ├─ Orchestration ─────────────────────────────┤
+         │  Sub-agents / Pipelines / State Machine       │
+         │  编排层: 多 Agent 协作、任务拆分              │
+Layer 4  ├─ Memory ────────────────────────────────────┤
+         │  Short-term / Long-term / Working / Episodic  │
+         │  记忆层: 跨会话持久化、上下文检索              │
+Layer 3  ├─ Tools ─────────────────────────────────────┤
+         │  File I/O / Shell / Browser / API / MCP       │
+         │  工具层: Agent 操作世界的手                    │
+Layer 2  ├─ Agent Loop ────────────────────────────────┤
+         │  Perceive → Reason → Act → Observe → Repeat   │
+         │  循环层: 核心推理-行动回路                     │
+Layer 1  ├─ Context Engineering ───────────────────────┤
+         │  Prompt 模板 / System Prompt / 动态上下文注入  │
+         │  上下文层: 给模型什么信息                      │
+         └─────────────────────────────────────────────┘
+                  ↕ Model API
+         ┌─ Model ─────────────────────────────────────┐
+         │  Claude / GPT / GLM / Kimi (无状态推理)       │
+         └─────────────────────────────────────────────┘
+    </div>
+
+    <p>每一层都可以独立设计和优化。大多数"Agent 产品"的差异，就是这七层中某几层的不同取舍。</p>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>产品</th>
+                    <th>最强层</th>
+                    <th>最弱层</th>
+                    <th>差异化所在</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Claude Code</td>
+                    <td>Layer 1+3 (Context + Tools)</td>
+                    <td>Layer 4+7 (Memory + Channels)</td>
+                    <td>CLAUDE.md 协议 + 文件操作体验</td>
+                </tr>
+                <tr>
+                    <td>OpenClaw</td>
+                    <td>Layer 4+7 (Memory + Channels)</td>
+                    <td>Layer 6 (Security 仍在建设)</td>
+                    <td>多渠道 + 深度记忆系统 + 飞书/企微</td>
+                </tr>
+                <tr>
+                    <td>Hermes</td>
+                    <td>Layer 5+7 (Orchestration + Desktop)</td>
+                    <td>Layer 4 (Memory 较简单)</td>
+                    <td>自进化技能 + Electron 桌面</td>
+                </tr>
+                <tr>
+                    <td>Cursor</td>
+                    <td>Layer 1+3 (Context + Tools)</td>
+                    <td>Layer 5+7 (无多Agent/IM)</td>
+                    <td>代码库索引 + IDE 原生体验</td>
+                </tr>
+                <tr>
+                    <td>AutoClaw</td>
+                    <td>Layer 7 (Channels: 飞书)</td>
+                    <td>Layer 4+5 (继承OpenClaw但无增强)</td>
+                    <td>开箱即用 + 预置技能</td>
+                </tr>
+                <tr>
+                    <td>GLM-PC</td>
+                    <td>Layer 3 (Tools: CogAgent)</td>
+                    <td>Layer 4+5 (Memory/编排弱)</td>
+                    <td>屏幕视觉操控（独占赛道）</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>五、Harness Engineering 的发展时间线</h2>
+
+    <div class="timeline-item">
+        <div class="timeline-date">2023.03</div>
+        <div class="timeline-title">ReAct 论文 — "Reason + Act" 循环</div>
+        <p>最早的 Agent Loop 雏形。Thought → Action → Observation → Repeat。Harness 还很简单：一个 prompt + 一个工具列表。</p>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-date">2023.06</div>
+        <div class="timeline-title">LangChain 爆发 — Scaffolding 概念普及</div>
+        <p>"Chain" 本质就是最简单的 harness。但此时大家还在探索，产物大多是不稳定的"prompt 链"。</p>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-date">2023.10</div>
+        <div class="timeline-title">AutoGPT / BabyAGI — 自主循环的尝试与失败</div>
+        <p>第一批"完全自主"Agent。失败的原因恰好说明 harness 有多重要：没有好的记忆、权限、规划，模型再强也会陷入循环。</p>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-date">2024.03</div>
+        <div class="timeline-title">SWE-bench / SWE-agent — "Harness" 成为标准术语</div>
+        <p>正式把"harness"作为研究对象。发现：同样的模型，不同 harness 在 SWE-bench 上差距 3 倍以上。Harness 第一次被量化。</p>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-date">2024.10</div>
+        <div class="timeline-title">Anthropic "Building Effective Agents" — Cognitive Architecture</div>
+        <p>虽然没有用"harness"这个词，但 Anthropic 把 prompt chaining、routing、tool use、orchestration 统称为"cognitive architecture"。概念趋同。</p>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-date">2025.01</div>
+        <div class="timeline-title">Claude Code / Cursor — Harness 即产品</div>
+        <p>Claude Code 发布。同样的 Claude 模型，但 harness（CLAUDE.md、权限、文件操作）让体验完全不同。Cursor 也在这一年爆发。</p>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-date">2025.06</div>
+        <div class="timeline-title">MCP 协议普及 — 工具层标准化</div>
+        <p>Model Context Protocol 成为工具接入的事实标准。Harness 的 Layer 3（Tools）开始标准化。</p>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-date">2026.01</div>
+        <div class="timeline-title">Harness Engineering 成为显学</div>
+        <p>"Harness Engineering" 作为正式术语开始在技术博客、会议中出现。包含但不限于：Context Engineering、Tool Design、Memory Architecture、Agent Coordination、Safety Bounds。</p>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-date">2026.06</div>
+        <div class="timeline-title">桌面 Agent 混战 — Harness 的全面对决</div>
+        <p>OpenClaw / AutoClaw / Hermes / Kimi Work / GLM-PC 五款产品同台。模型层差异缩小（GLM-5、Kimi K2.6、Claude 4 各有所长），竞争焦点完全在 harness 设计。</p>
+    </div>
+
+    <h2>六、"模型吞并 Harness"的逆向趋势</h2>
+
+    <div class="callout callout-warn">
+        <h3>⚠️ 模型正在"吃掉" Harness 的部分功能</h3>
+        <p>这是 Harness 独立性面临的最大挑战：</p>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>原属 Harness 的能力</th>
+                    <th>被模型吸收的程度</th>
+                    <th>趋势</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Function Calling / Tool Use</td>
+                    <td class="highlight">已吸收</td>
+                    <td>主流模型原生支持</td>
+                </tr>
+                <tr>
+                    <td>Structured Output (JSON)</td>
+                    <td class="highlight">已吸收</td>
+                    <td>原生 structured output</td>
+                </tr>
+                <tr>
+                    <td>多轮上下文管理</td>
+                    <td style="color: var(--orange);">部分吸收</td>
+                    <td>128K-2M 上下文窗口</td>
+                </tr>
+                <tr>
+                    <td>简单规划/推理</td>
+                    <td style="color: var(--orange);">部分吸收</td>
+                    <td>Extended thinking / reasoning models</td>
+                </tr>
+                <tr>
+                    <td>代码执行</td>
+                    <td style="color: var(--orange);">部分吸收</td>
+                    <td>Code interpreter 内置</td>
+                </tr>
+                <tr>
+                    <td>屏幕视觉理解</td>
+                    <td style="color: var(--orange);">部分吸收</td>
+                    <td>Anthropic computer use、GLM CogAgent</td>
+                </tr>
+                <tr>
+                    <td><strong>记忆持久化</strong></td>
+                    <td style="color: var(--green); font-weight: 600;">未吸收</td>
+                    <td>仍需外部存储（MEMORY.md / 向量DB）</td>
+                </tr>
+                <tr>
+                    <td><strong>权限控制</strong></td>
+                    <td style="color: var(--green); font-weight: 600;">未吸收</td>
+                    <td>不应被塞进通用模型</td>
+                </tr>
+                <tr>
+                    <td><strong>多 Agent 编排</strong></td>
+                    <td style="color: var(--green); font-weight: 600;">未吸收</td>
+                    <td>架构层问题</td>
+                </tr>
+                <tr>
+                    <td><strong>渠道集成</strong></td>
+                    <td style="color: var(--green); font-weight: 600;">未吸收</td>
+                    <td>飞书/TG/Discord 不可能进模型</td>
+                </tr>
+                <tr>
+                    <td><strong>Evals/质量门控</strong></td>
+                    <td style="color: var(--green); font-weight: 600;">未吸收</td>
+                    <td>需要外部验证回路</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p><strong>结论：</strong>模型在吃掉 Layer 1-2（上下文 + 简单循环），但 Layer 4-7（记忆、编排、安全、渠道）仍然是 harness 的核心领地，且不太可能被模型吸收。</p>
+
+    <h2>七、"行业共识"还是"强势主流观点"？</h2>
+
+    <p>回到最初的问题：<strong>"Agent = Model + Harness" 是行业共识了吗？</strong></p>
+
+    <div class="callout">
+        <h3>判断：强势主流观点（~80% 认同），但尚未尘埃落定</h3>
+    </div>
+
+    <p><strong>已经形成共识的部分：</strong></p>
+    <ul>
+        <li>✅ Agent 可以分解为"模型 + 外层工程"——几乎无人反对</li>
+        <li>✅ 在模型趋同的背景下，harness 是产品差异化的核心——多数人认同</li>
+        <li>✅ SWE-bench 证明了 harness 对性能的影响可量化——学术圈公认</li>
+    </ul>
+
+    <p><strong>仍有争议的部分：</strong></p>
+    <ul>
+        <li>❓ 术语未统一（harness / scaffold / cognitive architecture / framework）</li>
+        <li>❓ 模型会持续"吸收"harness 的哪些功能？边界在哪？</li>
+        <li>❓ Harness 最终是"产品壁垒"还是"会被标准化的基础设施"？</li>
+        <li>❓ 模型厂商（Anthropic、OpenAI）自己做 harness（Claude Code、GPT Apps），第三方 harness 厂商的生存空间有多大？</li>
+    </ul>
+
+    <h2>八、对从业者的启示</h2>
+
+    <h3>1. 如果你在做 Agent 产品</h3>
+    <p>你的核心竞争力在 harness 的某几层。选好你最擅长的 2-3 层，做到极致。不要试图七层全做。</p>
+
+    <h3>2. 如果你在选 Agent 工具</h3>
+    <p>别看模型——今天 Claude 最强，明天可能 GPT-6。看 harness：记忆系统、权限模型、渠道集成、可扩展性。这些才是长期资产。</p>
+
+    <h3>3. 如果你在研究 AI 趋势</h3>
+    <p>关注"harness 侵蚀线"——模型每吸收一个 harness 能力（比如 function calling → native tool use），第三方 harness 就要向上迁移一层。追踪这条线的移动方向，就是追踪 Agent 技术的演进方向。</p>
+
+    <h3>4. 一句话表述（适合写进文档）</h3>
+    <blockquote>
+        <p>"业界普遍接受 Agent ≈ 模型 + Harness 的分解。在底层模型趋同的背景下，Harness（编排、工具、记忆、权限、规划与评估）正日益被视为 Agent 真正的差异化与设计所在——尽管关于 Harness 的边界、以及模型是否会持续吸收其功能，仍存在开放讨论。"</p>
+    </blockquote>
+
+    <h2>参考</h2>
+    <ul>
+        <li>SWE-bench: <a href="https://swebench.com">swebench.com</a> — 量化 harness 对代码任务的影响</li>
+        <li>Anthropic: <a href="https://www.anthropic.com/research/building-effective-agents">Building Effective Agents</a> — Cognitive Architecture 论述</li>
+        <li>MCP Protocol: <a href="https://modelcontextprotocol.io">modelcontextprotocol.io</a> — 工具层标准化</li>
+        <li>OpenClaw: <a href="https://github.com/openclaw/openclaw">GitHub</a> — 多层 Harness 实践</li>
+        <li>Hermes Agent: <a href="https://hermes-agent.nousresearch.com">hermes-agent.nousresearch.com</a> — 自进化 Harness 设计</li>
+        <li>前文: <a href="posts/desktop-agent-comparison-2026-06.html">2026 桌面 AI Agent 全景对比</a> — 五款产品的 Harness 层差异</li>
+    </ul>
+
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 2rem 0;">
+    <p style="color: #8b949e; font-size: 0.8rem;">本文基于 2026 年 6 月的观察和实践。Harness 的边界在不断移动，本文观点会随之更新。</p>
+
+    <p style="text-align: center; margin-top: 2rem;"><a href="https://robertsong2019.github.io" style="color: var(--accent);">← 返回首页</a></p>
+</body>
+</html>
