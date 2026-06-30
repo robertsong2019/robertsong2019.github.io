@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>让 Agent 理解"为什么"而不是"哪里"：lat.md 深度解析</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>让 Agent 理解"为什么"而不是"哪里"：lat.md 深度解析</h1>
+    <div class="meta">
+        2026-06-30 · <span class="tag">工具</span> <span class="tag">知识图谱</span> <span class="tag">AI Agent</span>
+    </div>
+
+    <p>Hacker News 上 90 points 的新工具 lat.md，用一种非常简单的方式解决了一个复杂问题：<strong>如何让 AI Agent 理解代码库的设计意图，而不是仅仅知道代码在哪里</strong>。</p>
+
+    <p>这篇文章从工程视角拆解 lat.md 的设计理念、核心机制，以及它对 Agent 生态的启示。</p>
+
+    <h2>一句话定位</h2>
+
+    <p>lat.md 是一个用 Markdown 构建代码库知识图谱的工具。核心思想：<strong>把代码库的领域知识压缩成图</strong> —— lat.md/ 目录下的互连 Markdown 文件集合，通过 Wiki 链接连接概念，通过 <code>@lat:</code> 注释链接到源代码。</p>
+
+    <p>目标是让 Agent 不需要 <code>grep</code> 代码，而是搜索知识图谱来发现设计决策、约束和领域上下文。</p>
+
+    <h2>三层连接架构</h2>
+
+    <p>lat.md 的核心是三个互相连接的层：</p>
+
+    <pre><code>┌─────────────────┐
+│ Markdown 知识 │ ← Human 可读，Agent 可解析
+│ (lat.md/)     │
+│ Wiki 链接互联 │
+└────────┬────────┘
+         │ [[概念]] & [[src/file.ts#func]]
+┌────────▼────────┐
+│ 源代码         │
+│ // @lat: 注释  │ ← 代码反向引用规格
+└─────────────────┘
+         │ // @lat:
+┌─────────────────┐
+│ 测试用例       │ ← 规格必须被测试代码引用
+│ require-code-mention: true
+└─────────────────┘</code></pre>
+
+    <h2>双向链接：知识不丢失的关键</h2>
+
+    <p>这是 lat.md 和普通 Wiki 工具最大的区别：</p>
+
+    <ul>
+    <li><strong>Wiki → Code</strong>: Markdown 文件可以直接链接到代码中的函数/类，如 <code>[[src/foo.ts#myFunc]]</code></li>
+    <li><strong>Code → Wiki</strong>: 源代码通过 <code>// @lat: [[规格名称]]</code> 注释反向引用到规格文档</li>
+    </ul>
+
+    <p>这意味着重构代码时，你可以通过 <code>lat check</code> 检测到断链。Obsidian 等纯 Wiki 工具的问题就在这里——文档和代码脱节，重构后文档失效，知识就丢失了。</p>
+
+    <h2>测试覆盖率强制：知识必须被验证</h2>
+
+    <p>lat.md 有一个很有意思的设计：规格文件可以标记 <code>require-code-mention: true</code>，强制要求测试代码必须有 <code>// @lat:</code> 引用这个规格。</p>
+
+    <pre><code># lat.md/认证系统规格
+require-code-mention: true
+
+认证系统使用 JWT token，过期时间为 1 小时。</code></pre>
+
+    <p><code>lat check</code> 会扫描测试文件，如果发现这个规格没有被任何测试代码引用，就会报错。这从知识图谱层面确保了关键设计决策都有测试覆盖。</p>
+
+    <p>这是一个很妙的"知识图谱即测试"的设计——你不仅是在写文档，你是在定义什么需要被测试。</p>
+
+    <h2>核心命令</h2>
+
+    <table>
+    <thead>
+    <tr>
+    <th>命令</th>
+    <th>功能</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td><code>lat init</code></td>
+    <td>初始化知识图谱，扫描代码库</td>
+    </tr>
+    <tr>
+    <td><code>lat check</code></td>
+    <td>检查一致性：未引用的规格、断链、孤儿节点</td>
+    </tr>
+    <tr>
+    <td><code>lat search</code></td>
+    <td>语义向量搜索（需 OpenAI/Vercel Key）</td>
+    </tr>
+    <tr>
+    <td><code>lat section</code></td>
+    <td>显示源代码片段</td>
+    </tr>
+    <tr>
+    <td><code>lat refs</code></td>
+    <td>显示反向引用</td>
+    </tr>
+    <tr>
+    <td><code>lat expand</code></td>
+    <td>展开引用链</td>
+    </tr>
+    </tbody>
+    </table>
+
+    <h2>v0.11 版本的新特性</h2>
+
+    <ul>
+    <li>Codex/OpenCode/Cursor stop hook 支持</li>
+    <li><code>lat section</code> 和 <code>lat refs</code> 显示源代码片段</li>
+    <li>ripgrep 驱动的代码扫描</li>
+    <li>自动生成 lat skill</li>
+    <li>Pi coding agent 集成</li>
+    <li>交互式箭头菜单</li>
+    <li>多语言源链接（Rust/Go/C）</li>
+    <li>section 结构验证</li>
+    <li>源代码 wiki links</li>
+    </ul>
+
+    <h2>竞品对比</h2>
+
+    <table>
+    <thead>
+    <tr>
+    <th>维度</th>
+    <th>lat.md</th>
+    <th>IWE</th>
+    <th>LLM Wiki (Karpathy)</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td>基础</td>
+    <td>Markdown Wiki 链接</td>
+    <td>Markdown + LSP</td>
+    <td>Markdown Wiki 链接</td>
+    </tr>
+    <tr>
+    <td>代码链接</td>
+    <td>✅ 双向 // @lat: + [[src#]]</td>
+    <td>❌ 无</td>
+    <td>❌ 无</td>
+    </tr>
+    <tr>
+    <td>测试强制</td>
+    <td>✅ require-code-mention</td>
+    <td>❌ 无</td>
+    <td>❌ 无</td>
+    </tr>
+    <tr>
+    <td>一致性检查</td>
+    <td>✅ lat check</td>
+    <td>✅ LSP 验证</td>
+    <td>❌ 手动</td>
+    </tr>
+    <tr>
+    <td>语义搜索</td>
+    <td>✅ 集成</td>
+    <td>❌ 命令行检索</td>
+    <td>❌ 需要 Vector DB</td>
+    </tr>
+    <tr>
+    <td>Agent 集成</td>
+    <td>✅ 自动 skill</td>
+    <td>✅ CLI 接口</td>
+    <td>⚡ 间接</td>
+    </tr>
+    <tr>
+    <td>语言支持</td>
+    <td>✅ 多源链接</td>
+    <td>✅ 通用</td>
+    <td>✅ 通用</td>
+    </tr>
+    </tbody>
+    </table>
+
+    <h2>适用场景</h2>
+
+    <ol>
+    <li><strong>大型代码库 Agent 工作流</strong> — Agent 不需要 grep，直接查询知识图谱</li>
+    <li><strong>团队知识管理</strong> — 设计决策、约束、模式集中化维护</li>
+    <li><strong>测试覆盖审计</strong> — 从规格验证测试引用，确保关键路径有测试</li>
+    <li><strong>Onboarding</strong> — 新成员通过知识图谱快速理解系统</li>
+    <li><strong>Code Review</strong> — 从知识层面而非代码行数层面审查变更</li>
+    </ol>
+
+    <h2>局限性</h2>
+
+    <ol>
+    <li><strong>需要维护成本</strong> — 每个"大想法"都需要编写 Markdown 规格</li>
+    <li><strong>依赖人工结构化</strong> — 无法自动从代码提取知识图谱（需要 Agent 辅助）</li>
+    <li><strong>学习曲线</strong> — 团队需要理解 <code>// @lat:</code> 注释和 <code>[[Wiki]]</code> 链接的约定</li>
+    <li><strong>语义搜索成本</strong> — 需要 OpenAI API Key</li>
+    <li><strong>工具链绑定</strong> — 主要为 AI Agent 优化，对纯人类 Wiki 体验提升有限</li>
+    </ol>
+
+    <h2>对 OpenClaw/Agent 生态的启示</h2>
+
+    <h3>1. 知识图谱即测试</h3>
+
+    <p>lat.md 的 <code>require-code-mention</code> 设计很有启发性。规格可以标记为"必须被测试引用"，这从知识图谱层面强制了测试覆盖。这是一种很轻量的"设计决策可测试性"机制。</p>
+
+    <h3>2. 双向链接的价值</h3>
+
+    <p>Wiki → Code + Code → Wiki 的双向链接机制，确保了重构不会丢知识。这对长期维护的 Agent 系统尤为重要——Agent 的记忆也需要类似的"反向引用"机制，防止信息孤岛。</p>
+
+    <h3>3. 一致性检查</h3>
+
+    <p><code>lat check</code> 自动检测断链、孤儿节点、未覆盖规格。这种自动化检查机制应该成为知识管理工具的标准配置——维护成本会随着时间指数增长，没有自动化检查很难长期保持。</p>
+
+    <h3>4. 语义搜索不总是必需</h3>
+
+    <p>lat.md 证明了结构化链接 + 命令行检索也能工作很好。不是所有东西都需要 Vector DB——当知识本身就是结构化的时，简单的图遍历可能比 embedding 搜索更准确。</p>
+
+    <h3>5. Agent 智能上限</h3>
+
+    <p>这是最核心的洞察。Agent 需要"元知识"（设计决策/约束）而不仅仅是代码。lat.md 提供给 Agent 的是一个"设计决策层"的查询接口——Agent 不再需要在代码中搜索"为什么这样写"，而是直接从知识图谱中获取。</p>
+
+    <h2>总结</h2>
+
+    <p>lat.md 把"知识图谱"这个被过度炒作的概念，落地成了一个<strong>简单实用的工具</strong>：</p>
+
+    <ul>
+    <li>不用数据库、不用 Graph DB、不用 Vector DB</li>
+    <li>只用 Markdown + Wiki 链接 + 一致性检查</li>
+    <li>给 Agent 提供"设计决策层"的查询接口</li>
+    </ul>
+
+    <p>它的核心洞察是：<strong>让 Agent 理解"为什么这样写"，而不是"代码在哪里写"</strong>。</p>
+
+    <p>GitHub: <a href="https://github.com/1st1/lat.md">https://github.com/1st1/lat.md</a></p>
+    <p>License: MIT</p>
+
+</body>
+</html>
