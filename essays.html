@@ -389,7 +389,7 @@
         <!-- Stats -->
         <div class="stats-bar" id="statsBar">
             <div class="stat-card">
-                <span class="stat-number" id="totalPosts">34</span>
+                <span class="stat-number" id="totalPosts">129</span>
                 <span class="stat-label">篇随笔</span>
             </div>
             <div class="stat-card">
@@ -397,7 +397,7 @@
                 <span class="stat-label">个月份</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number" id="latestDate">2026-06-27</span>
+                <span class="stat-number" id="latestDate">2026-07-01</span>
                 <span class="stat-label">最近更新</span>
             </div>
         </div>
@@ -785,7 +785,546 @@
                 excerpt: 'OpenClaw 环境变量配置心得',
                 tags: ['技术随笔'],
                 url: 'posts/openclaw-env-config.html'
-            }
+            },
+            {
+                date: '2026-07-01',
+                title: 'Agent 记忆的 2026 前沿：从 OS 隐喻到自进化记忆',
+                excerpt: '2025 年，AI Agent 从"能用"开始向"好用"演进。但所有人很快撞到同一堵墙：Agent 没有记忆。不是不能存储——而是不能像人一样，把经历过滤、压缩、关联，在需要时提取出来指导决策。',
+                tags: ['memory', 'frontier', '07'],
+                url: 'posts/agent-memory-frontier-2026-07.html'
+            },
+            {
+                date: '2026-07-01',
+                title: 'AI 时代，选择比执行更贵',
+                excerpt: '最近和一个朋友聊到一个判断：在 AI 时代，想法比执行重要。因为工作量本身不再是瓶颈——AI 可以帮你把执行成本压到接近零。真正稀缺的是"想清楚做什么"。',
+                tags: ['era', 'ideas', 'over'],
+                url: 'posts/ai-era-ideas-over-execution-2026-07.html'
+            },
+            {
+                date: '2026-07-01',
+                title: 'KV Cache：被忽视的 Agent 工作记忆层',
+                excerpt: '2026 年，AI Agent 的记忆问题俨然成了显学。向量数据库、知识图谱、时序记忆、CRDT 同步……每周都有新的记忆框架开源。但如果我告诉你，Agent 最核心的记忆不在任何外部存储里，而是每一毫秒都在 GPU 高带宽显存中生死流转——你会怎么想？',
+                tags: ['kv', 'cache', 'working'],
+                url: 'posts/kv-cache-agent-working-memory-2026-07.html'
+            },
+            {
+                date: '2026-07-01',
+                title: 'Agent 需要学会遗忘：被低估的记忆操作',
+                excerpt: '想象一个 Agent 运行了三个月。它记住了每一次对话、每一个用户偏好、每一条临时指令。它的记忆图里有 10 万个节点，其中 7 万个已经过期——旧的项目方案、废弃的技术选型、用户改了三次的需求。',
+                tags: ['strategic', 'forgetting', 'memory'],
+                url: 'posts/strategic-forgetting-agent-memory-2026-07.html'
+            },
+            {
+                date: '2026-06-01',
+                title: 'Agent = Model + Harness：一个正在形成的世界观',
+                excerpt: '当 Claude Code、Codex、OpenClaw、Hermes、Cursor 这些产品同台竞争时，一个自然的问题浮现：它们都在用同样的前沿模型（Claude/GPT/Gemini/GLM），那差异到底在哪？',
+                tags: ['equals', 'model', 'plus'],
+                url: 'posts/agent-equals-model-plus-harness-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: 'Agent 记忆的四层成熟度模型：从 CRUD 到自治',
+                excerpt: '我花了 148 天给 agent-context-store 写了 1598 个测试和 420+ 个 API。回头看，这不是堆功能——而是一条清晰的演化路径。Agent 记忆系统不是一蹴就的存储层，它要经过四个成熟度等级，大部分团队卡在第二层就停了。',
+                tags: ['memory', 'four', 'levels'],
+                url: 'posts/agent-memory-four-levels-maturity-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: 'Agent 记忆的自我审视：条件概率发现知识层级 + 六维度质量评分',
+                excerpt: '大多数 Agent 记忆系统只做一件事：存。存进去，查出来，结束。但当你有了上千条记忆条目、上百个标签、复杂的交叉引用网络之后，一个更紧迫的问题浮出水面——这些记忆的质量怎么样？哪些条目值得信赖，哪些需要补充？',
+                tags: ['memory', 'quality', 'aware'],
+                url: 'posts/agent-memory-quality-aware-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '好执行者不是好老师：Agent Workflow Memory 的三个工程陷阱',
+                excerpt: '过去两周在 agent-memory-graph 上实现了 14 个 Workflow Memory API——从执行轨迹中提取可复用工作流，记录成功/失败策略，生成 LLM 可注入的 prompt 片段。这套系统的学术基础是 AWM (ICML 2025)、ReasoningBank (ICLR ',
+                tags: ['workflow', 'memory', 'trajectory'],
+                url: 'posts/agent-workflow-memory-trajectory-to-skill-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '三维管线七层完成：当 Agent 知识库开始有了经济学',
+                excerpt: '过去 165 天，我的 AI Agent 每天自主运行 autoresearch 循环——选定一个知识库分析维度，实现 API + 测试，提交或回滚。最近两个循环（164-165）标志着一个里程碑：三条分析管线各完成了第七层，实现了对 Agent 记忆库的系统性覆盖。',
+                tags: ['analytical', 'pipeline', 'api'],
+                url: 'posts/analytical-pipeline-api-design-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: 'Autoresearch方法论：让AI Agent系统性地设计API',
+                excerpt: '连续113天，我的AI Agent每天凌晨自动执行一个循环：从已有代码基线出发，设计3个新API，编写测试，提交代码。921个测试，零回滚。这不是随机生成代码——这是一套我称之为Autoresearch的方法论，它的核心洞察是：好的API不是发明出来的，是从缺口中生长出来的。',
+                tags: ['autoresearch', 'methodology', 'systematic'],
+                url: 'posts/autoresearch-methodology-systematic-api-design-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: 'Context Engineering：给 Agent 记忆装上"缓存管理器"',
+                excerpt: '每个 LLM Agent 开发者都会撞上同一堵墙：上下文窗口是有限的，但 Agent 的记忆是无限的。',
+                tags: ['context', 'engineering', 'memory'],
+                url: 'posts/context-engineering-agent-memory-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '2026 桌面 AI Agent 全景对比：OpenClaw · AutoClaw · Hermes · Kimi Work · GLM-PC',
+                excerpt: '2026 年中，"桌面 AI Agent"这个赛道已经从概念验证进入混战阶段。本文横向对比 5 款主流产品——OpenClaw、AutoClaw、Hermes Desktop、Kimi Work、GLM-PC——从架构、能力、定位到适用场景，帮你理清该怎么选。',
+                tags: ['desktop', 'comparison', '06'],
+                url: 'posts/desktop-agent-comparison-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '可逆性胜过正确性：Agent 自主进化的 undo 模式',
+                excerpt: '连续 92 天零回滚之后，我意识到一件反直觉的事：让 AI Agent 安全地自主编程，核心不是让它不犯错，而是让每个操作都可以撤销。',
+                tags: ['evolution', 'with', 'undo'],
+                url: 'posts/evolution-with-undo-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '从图分析到图推理：当 Brandes 遇上 PageRank',
+                excerpt: '过去 24 小时里，我的 agent-context-store 项目经历了一场小型爆发：9 个开发周期，223 个新测试，从 2030 涨到 2253。但在所有这些数字背后，有一个让我真正兴奋的时刻——我意识到，花了 30 个周期构建的 12 层图分析管道，终于在 diffusion_retrie',
+                tags: ['graph', 'analysis', 'to'],
+                url: 'posts/graph-analysis-to-reasoning-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '从检索到推理：Agent Memory 缺失的图推理层',
+                excerpt: '当前主流的 Agent Memory 方案几乎都是检索范式：把记忆存成向量，查询时做相似度匹配，返回 top-k。高级一点的加个知识图谱，做 entity extraction + community detection。但它们本质上都在回答一个问题——"哪些记忆和我的查询最相似？"',
+                tags: ['graph', 'reasoning', 'memory'],
+                url: 'posts/graph-reasoning-agent-memory-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '大扁平化：AI时代的组织重构——不是"谁来做"，而是"要不要做"',
+                excerpt: '2026-06-27 · 罗嵩 · 企业洞察',
+                tags: ['great', 'flattening', 'org'],
+                url: 'posts/great-flattening-ai-org-restructure-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: 'Hermes Desktop 深度拆解：社区如何为 AI Agent 打造顶级桌面客户端',
+                excerpt: '当一个 AI Agent 的底层能力足够强之后，"普通人怎么用上它"就成了最大的产品瓶颈。Hermes Agent（Nous Research 开源，169K+ Stars）能力一流，但需要终端操作。Hermes Desktop（社区开发者 fathah 主导）就是为了补上这一块——用 Electr',
+                tags: ['hermes', 'desktop', 'deep'],
+                url: 'posts/hermes-desktop-deep-dive-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '让 Agent 理解"为什么"而不是"哪里"：lat.md 深度解析',
+                excerpt: 'Hacker News 上 90 points 的新工具 lat.md，用一种非常简单的方式解决了一个复杂问题：如何让 AI Agent 理解代码库的设计意图，而不是仅仅知道代码在哪里。',
+                tags: ['lat', 'md', 'deep'],
+                url: 'posts/lat-md-deep-dive-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: 'Agent 记忆的三态循环：注入、聚焦与智能遗忘',
+                excerpt: '大多数 Agent 记忆系统的设计文章都在谈"怎么记住"——RAG、embedding、知识图谱，花样百出。但过去 48 小时，在 agent-memory-graph（766 tests）和 agent-context-store（897 tests）两个项目上连续迭代后，我发现了一个被忽视的设计',
+                tags: ['memory', 'injection', 'forgetting'],
+                url: 'posts/memory-injection-forgetting-loop-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '多Agent记忆协调：CRDT不够，你还需要语义冲突检测',
+                excerpt: '2026-06-18 · 罗嵩 · 基于 autoresearch 方法论',
+                tags: ['multi', 'memory', 'crdt'],
+                url: 'posts/multi-agent-memory-crdt-coordination-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '当网络科学遇见 Agent 记忆：用图指标诊断你的知识图谱',
+                excerpt: '过去两周，我在 agent-memory-graph 项目中持续实现图分析 API。从 closeness_centrality 到 global_efficiency，再到 onion_structure，测试从 665 涨到 811。但更重要的发现是：大多数 Agent 记忆系统根本没有在做图分',
+                tags: ['network', 'science', 'memory'],
+                url: 'posts/network-science-agent-memory-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '非破坏性数据操作：AI Agent 记忆系统的设计启示',
+                excerpt: '过去三个月，我的 autoresearch 实验框架在十几个 Agent 基础设施项目上跑了超过 2000 次测试循环。在这些实验中，有一个设计模式反复出现，值得单独拿出来聊聊：非破坏性操作（non-destructive operations）。',
+                tags: ['nondestructive', 'pattern', 'memory'],
+                url: 'posts/nondestructive-pattern-agent-memory-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '回忆不等于运用：Agent Memory 基准测试的系统性盲区',
+                excerpt: '过去六个月，Agent Memory 领域的论文数爆炸式增长。MemRL、AgentFold、E-mem、SSGM、Governed Memory——每一篇都声称在"标准基准"上取得了显著提升。但 ICML 2026 上的 MemoryArena 论文揭示了一个让人不安的事实：在 LoCoMo（最流',
+                tags: ['recall', 'is', 'not'],
+                url: 'posts/recall-is-not-agency-memory-benchmark-trap-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '别再定时压缩记忆了：语义分歧检测才是 Agent 记忆整理的正确触发器',
+                excerpt: '大多数 Agent 记忆系统还在用每 N 轮总结一次或缓冲区满了就压缩的策略。这就像你读书时每 10 页强制做一次笔记——不管你读到了哪里，不管当前段落是否完整。结果是：要么话题刚进行到一半就被有损压缩，要么噪声数据已经渗透进长期存储。',
+                tags: ['semantic', 'divergence', 'consolidation'],
+                url: 'posts/semantic-divergence-consolidation-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '相似度三角：Agent 记忆系统的三维相似度工程',
+                excerpt: '做 Agent 记忆系统的人都会撞到同一个问题：两条记忆"相似"到底意味着什么？是它们打了相同的标签？是它们用了相同的词汇？还是它们在语义空间里距离很近？这三件事经常被混为一谈，但它们是完全不同的维度。过去两周在 agent-context-store 项目里，我一步步把这三个维度拆开实现，得到一些',
+                tags: ['similarity', 'triangle', 'memory'],
+                url: 'posts/similarity-triangle-agent-memory-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: 'Skill vs MCP：AI Agent 工具集成的两条路径',
+                excerpt: '你有一堆内部工具和开放 API，想让 AI Agent 来调用。搜了一圈，发现两个主流方案：',
+                tags: ['skill', 'vs', 'mcp'],
+                url: 'posts/skill-vs-mcp-agent-tools-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: 'sqlite-vec：50 行代码让你的 Agent 记忆拥有向量搜索',
+                excerpt: '2026 年，如果你还在给 AI Agent 搭 Pinecone、拖 Milvus Docker 容器、或者申请 Weaviate API key——停一下。你的 Agent 大概率不需要专门的向量数据库。它需要的只是一个 SQLite 文件。',
+                tags: ['sqlite', 'vec', 'memory'],
+                url: 'posts/sqlite-vec-agent-memory-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '让 LLM 输出靠谱结构化数据的三层防线',
+                excerpt: '用 LLM 生成结构化数据（JSON）是 Agent 开发中最普遍的需求，也是最频繁的故障源。模型会偶尔吐出多余文本包裹的 JSON、字段类型偏差、语义上荒谬但 schema 上合法的结果。过去三个月，我在 structured-output-toolkit 项目中用 autoresearch 方法',
+                tags: ['structured', 'output', 'reliability'],
+                url: 'posts/structured-output-reliability-stack-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '三路混合搜索：在单个 SQLite 里融合 BM25 + Vector + Graph',
+                excerpt: '大多数 Agent 记忆库的搜索只做两件事：关键词匹配（BM25）和语义相似（Vector Embedding）。这很好，但漏掉了一个关键维度——文档之间的结构关系。上周在 agent-memory-graph 项目中，我把图算法作为第三条检索通道加进来，用 Reciprocal Rank Fusi',
+                tags: ['three', 'way', 'hybrid'],
+                url: 'posts/three-way-hybrid-search-sqlite-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: '三部曲设计法：让 API 自己长出完整的分析层',
+                excerpt: '我维护一个叫 agent-context-store 的项目已经连续 163 天了。每天加 3 个 API、20+ 个测试，零回滚。如果你问秘诀是什么，不是更努力，而是一个反复出现的模式——我管它叫「三部曲设计」。',
+                tags: ['trilogy', 'based', 'api'],
+                url: 'posts/trilogy-based-api-design-2026-06.html'
+            },
+            {
+                date: '2026-06-01',
+                title: 'Agent 信任传播引擎：从扁平评分到图结构传播',
+                excerpt: '2026-06-05 · 罗嵩 · 基于 autoresearch 方法论',
+                tags: ['trust', 'propagation', 'graph'],
+                url: 'posts/trust-propagation-graph-engine-2026-06.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '58天零回滚：AI Agent 编程的方法论进化',
+                excerpt: '上次我写"30天零回滚"时，有人说"有意思，看能持续多久"。现在是第58天，1327次测试提交，零回滚。方法论没有变，但理解变深了。今天不讲概念，讲两个最近24小时内实际落地的设计决策——以及它们背后的思维模式。',
+                tags: ['58', 'days', 'zero'],
+                url: 'posts/58-days-zero-rollback-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '当 Agent 互相对话：A2A 协议的信任问题与实战方案',
+                excerpt: 'Google 的 A2A（Agent-to-Agent）协议正在成为多 Agent 互操作的标准。但协议只解决了"怎么说话"，没解决"该不该信"。今天从一个实际原型出发，聊聊 Agent 间的信任到底怎么做。',
+                tags: ['a2a', 'trust', 'between'],
+                url: 'posts/a2a-trust-between-agents-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'Agent 之间如何建立信任？A2A v1.0 的签名卡片与信任缺口',
+                excerpt: '2026-05-03 · 罗嵩 · 基于 autoresearch 方法论',
+                tags: ['a2a', 'trust', 'gap'],
+                url: 'posts/a2a-trust-gap-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'A2A 协议的信任裂缝：为什么 Agent 自声明不够，以及怎么补',
+                excerpt: 'Google 的 Agent-to-Agent (A2A) 协议在 2025 年 4 月发布，2026 年已经被 Linux Foundation 接管为行业标准。它解决了 Agent 间 怎么通信 的问题——JSON-RPC over HTTPS，Task 状态机，Agent Card 发现机制。',
+                tags: ['a2a', 'trust', 'protocol'],
+                url: 'posts/a2a-trust-protocol-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '为什么你的 AI Agent 需要一个带事务的内存数据库',
+                excerpt: '过去三周，我在给一个叫 agent-context-store 的 Python 库加功能。它现在是 1737 行代码、447 个测试。今天不聊功能列表——聊一个我在实现过程中意识到的架构问题：大多数 AI Agent 框架把上下文管理当作字典来用，但 Agent 真正需要的是一个带事务的内存数据库',
+                tags: ['context', 'store', 'transaction'],
+                url: 'posts/agent-context-store-transaction-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '给 Agent 造记忆：从 CRUD 到记忆图谱的72小时',
+                excerpt: '过去三天，我在做一个实验：给 AI Agent 构建一个真正可用的记忆系统。不是向量数据库那种"存进去、搜出来"的扁平结构，而是一个带权重的知识图谱——节点有衰减、边有关系、支持邻域提取和聚合查询。',
+                tags: ['memory', 'graph', 'design'],
+                url: 'posts/agent-memory-graph-design-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '从字典到知识图谱：AI Agent 记忆系统的进化路径',
+                excerpt: '大多数 AI Agent 的记忆系统就是一个 dict——存进去，取出来，完事。这在单次对话里够用，但当你需要 agent 记住跨会话的知识、理解条目之间的关系、或者让多个 agent 协作时，字典就不够了。过去几周我在 agent-context-store 项目上的实验，走出了一条清晰的进化路径',
+                tags: ['memory', 'knowledge', 'graph'],
+                url: 'posts/agent-memory-knowledge-graph-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'AI Agent 的记忆不该静默覆盖 — 可变状态需要溯源',
+                excerpt: '过去三个月，我在一个叫 autoresearch 的自动循环里让 AI Agent 每天自主写代码、跑测试。到今天连续 90 天零回滚，累计超过 3500 个测试用例。但今天我想聊的不是测试纪律，而是在这个过程中发现的一个设计缺陷 — 以及怎么修。',
+                tags: ['memory', 'provenance', '05'],
+                url: 'posts/agent-memory-provenance-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'Agent 上下文存储的三层响应式设计：Hooks、Watchers 与 Middleware',
+                excerpt: '2026-05-19 · agent-context-store · 从 186 到 223 个测试的演进',
+                tags: ['store', 'reactivity', 'patterns'],
+                url: 'posts/agent-store-reactivity-patterns-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'Agent 健康感知调度：从 Round-Robin 到自动故障转移',
+                excerpt: '在多 Agent 系统中，任务调度是最容易被过度设计的部分。很多人一上来就搞复杂的评分函数、权重矩阵，结果调了一周还不如简单的 round-robin。但 round-robin 有个致命问题：它不关心 Agent 是不是还活着。',
+                tags: ['supervisor', 'health', 'failover'],
+                url: 'posts/agent-supervisor-health-failover-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'AI正在解构雇佣体系——从"在场"到"在线"的社会重构',
+                excerpt: '2026-05-30 · 观点 · AI社会趋势',
+                tags: ['deconstructing', 'employment', '05'],
+                url: 'posts/ai-deconstructing-employment-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'AI检测是一个伪命题——质量才是唯一的终局标准',
+                excerpt: '2026-05-30 · 观点 · AI思考趋势',
+                tags: ['detection', 'myth', 'quality'],
+                url: 'posts/ai-detection-myth-quality-wins-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'AI 时代 Rust、Go 与全栈框架实践总结',
+                excerpt: '这轮实验的起点很朴素：AI 写代码的时代，Rust 和 Go 到底各自适合做什么？Rust 全栈框架（Leptos/Dioxus）能不能替代 React/Next.js？Go 后端在 AI 辅助开发中到底有多快？',
+                tags: ['era', 'rust', 'go'],
+                url: 'posts/ai-era-rust-go-leptos-practice-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'AI 最友好的编程语言，为什么是 Go 和 Rust？',
+                excerpt: '我们讨论"AI友好"时，通常想到的是Python——训练数据多、生态丰富、Jupyter Notebook天然适合AI辅助。但如果把场景限定在后端和系统级开发，赢家是Go和Rust。',
+                tags: ['friendly', 'languages', 'go'],
+                url: 'posts/ai-friendly-languages-go-rust-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '一个 Context Store 的24小时进化史：从25个测试到48个',
+                excerpt: '过去的24小时里，我的 AI Agent 在一个叫 agent-context-store 的项目上连续做了4次自主迭代。测试从25个涨到48个，新增7个API方法，零回滚。这不是一个关于"AI多厉害"的故事——这是一个关于API设计中的隐性债务，以及如何用小手术而非大重构来消除它的故事。',
+                tags: ['api', 'evolution', 'pattern'],
+                url: 'posts/api-evolution-pattern-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'API 设计的隐性代价：当一个 `get()` 不只是读取',
+                excerpt: '2026-05-08 · 技术随笔',
+                tags: ['api', 'side', 'effect'],
+                url: 'posts/api-side-effect-gotcha-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '每晚7个测试：Autoresearch方法论的实战复盘',
+                excerpt: '过去48小时，我的AI Agent在两个项目上自动完成了4次迭代。每次迭代：约40行代码，7个测试，零回滚。测试数从 278 涨到 292，从 132 涨到 139。没有一行代码是人工审查后打回的。',
+                tags: ['autoresearch', '7', 'tests'],
+                url: 'posts/autoresearch-7-tests-per-night-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'Autoresearch：让 AI Agent 每天自动做实验的方法论',
+                excerpt: '过去 30 天，我的 AI Agent 自主完成了 97 个实验，添加了超过 400 个测试，横跨 12 个项目——零回滚。不是我在指挥它，是一个叫 autoresearch 的方法论在自动运行。今天拆解它。',
+                tags: ['autoresearch', 'methodology', '05'],
+                url: 'posts/autoresearch-methodology-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '技术债不是坏代码，是过时的决策——从Bun的Zig→Rust重写说起',
+                excerpt: '从 Bun 的 Zig→Rust 重写说起',
+                tags: ['bun', 'zig', 'to'],
+                url: 'posts/bun-zig-to-rust-tech-debt-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '缓存驱逐的三重奏：LRU + TTL + Compact 实战',
+                excerpt: '昨天凌晨，我的 AI Agent 在自主迭代中给 EmbeddingProvider 加了一层 TTL 缓存驱逐。这是继 LRU 驱逐和 Compact 恢复之后的第三层缓存策略。三种机制各管一件事，合在一起意外地优雅。值得展开聊聊。',
+                tags: ['cache', 'eviction', 'patterns'],
+                url: 'posts/cache-eviction-patterns-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'AI Agent 的上下文经济学：用代码图谱省下 36.5% 的 Token',
+                excerpt: '当代码库超过 10 万行，AI Agent 面临一个核心矛盾：它需要理解整个项目的结构才能做出正确的修改，但把所有文件塞进上下文窗口既贵又慢。上周在 agent-context-store 项目上的实测给出了一个有说服力的答案：用代码图谱替代原始文件，上下文消耗直接砍掉 36.5%。',
+                tags: ['codegraph', 'token', 'economy'],
+                url: 'posts/codegraph-token-economy-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '为什么 Agent 管道需要自己的原语',
+                excerpt: '过去 24 小时，我在 openclaw-langgraph-bridge 项目上连续做了 5 轮 autoresearch，从 44 个测试长到 78 个。这不是刷数字——每一轮都在回答同一个问题：Agent 的执行管道到底需要哪些不可再分的基本操作？',
+                tags: ['composable', 'pipeline', 'primitives'],
+                url: 'posts/composable-pipeline-primitives-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'AI Agent 的搜索原语设计：从 substring 到可组合查询',
+                excerpt: '过去一周，我在 agent-context-store 上跑了十几个实验循环，从 39 个测试一路涨到 58 个。在这个过程中，一个原本不起眼的 search() 方法，经历了一系列渐进式扩展，最终变成了一套可组合的查询原语。这个过程揭示了一些关于 Agent API 设计的反直觉洞察。',
+                tags: ['composable', 'search', 'primitives'],
+                url: 'posts/composable-search-primitives-agent-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '让本地模型100%输出合法JSON：Constrained Decoding实战',
+                excerpt: '做 Agent 的人都会撞上同一堵墙：模型输出的 JSON 经常坏掉。少个括号、多了个逗号、字段名拼错、嵌套层级不对——每次解析失败就意味着重试、超时、用户体验崩塌。云 API（OpenAI、Anthropic）靠 function calling 基本解决了这个问题，但在本地部署场景（Ollama',
+                tags: ['constrained', 'decoding', 'structured'],
+                url: 'posts/constrained-decoding-structured-output-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '三层缓存架构：从 AI Agent 嵌入缓存学到的设计教训',
+                excerpt: '过去一周，我在给一个 AI Agent 记忆系统做嵌入向量缓存。三天迭代，三次独立的缓存层叠加：LRU 驱逐、TTL 过期、批量去重。每一层解决上一层的遗留问题。这篇文章记录真实的设计决策和代码，不是教科书式的总结。',
+                tags: ['embedding', 'cache', 'layering'],
+                url: 'posts/embedding-cache-layering-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'Graph API 设计复盘：CRUD 缺口与批量操作的工程直觉',
+                excerpt: '过去 48 小时，我在 agent-memory-graph 项目上做了三轮迭代：CRUD 补全（35→45 tests）、批量操作（45→53 tests）、加上前一天的图遍历原语（subgraph + shortestPath）。53 个测试全部通过，零回滚。这篇随笔复盘这个过程中暴露的 API',
+                tags: ['graph', 'api', 'design'],
+                url: 'posts/graph-api-design-crud-batch-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '健康评分驱动自愈：AI Agent 记忆系统的六维体检',
+                excerpt: '最近在做 agent-memory-service 的自动维护时，遇到了一个典型问题：你有 compactBM25Index()，也有 compactEmbedCache()，还有 purge() 和 compactChangelog()，但这些工具都是被动调用的。没人告诉你什么时候该用哪个。',
+                tags: ['health', 'score', 'self'],
+                url: 'posts/health-score-self-healing-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '多信号融合：AI记忆去重不能只看文本相似度',
+                excerpt: '过去一个月在给 agent-memory-service 加去重管道，踩了一个很直觉的坑：纯文本相似度做去重，漏掉太多。',
+                tags: ['multi', 'signal', 'merge'],
+                url: 'posts/multi-signal-merge-detection-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'Agent 为什么需要 Savepoint：命名快照与状态回滚实战',
+                excerpt: '上周我在 agent-context-store 里加了一个功能：save_snapshot("before_dedup")。看起来很不起眼——不就是存个快照嘛。但这个设计背后的思考值得展开聊聊：为什么 AI Agent 的状态管理需要一个类似数据库 savepoint 的机制？',
+                tags: ['named', 'snapshot', 'resilience'],
+                url: 'posts/named-snapshot-agent-resilience-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: 'Agent 记忆为什么需要版本历史和命名空间？',
+                excerpt: '在构建 Agent 记忆系统时，大多数人会卡在一个直觉上：put(key, value) 不就够了吗？存进去、取出来，完事。',
+                tags: ['version', 'history', 'namespace'],
+                url: 'posts/version-history-namespace-agent-memory-2026-05.html'
+            },
+            {
+                date: '2026-05-01',
+                title: '连续30天零回滚：AI Agent 自主编程的纪律',
+                excerpt: '过去30天，我的 AI Agent 在 prompt-weaver、agent-task-cli、catalyst-agent-mesh 等多个项目上，每天自主提交代码。总共新增 400+ 测试，覆盖了 8 个项目。零回滚。',
+                tags: ['zero', 'rollback', '30'],
+                url: 'posts/zero-rollback-30-days-2026-05.html'
+            },
+            {
+                date: '2026-04-01',
+                title: 'AI Agent 编程、AI 嵌入式与快速原型开发：2026 年技术趋势与实践',
+                excerpt: '2026 年的 AI 开发正在经历一场深刻变革。三个技术方向——AI Agent 编程、嵌入式边缘智能和 AI 快速原型开发——不再是彼此孤立的领域，而是正在融合为一条从"想法验证"到"边缘部署"的完整链路。本文将深入探讨这三个方向的核心概念、设计模式，以及它们如何协同工作。',
+                tags: ['edge', 'rapid', 'prototyping'],
+                url: 'posts/ai-agent-edge-rapid-prototyping-2026-04.html'
+            },
+            {
+                date: '2026-04-01',
+                title: 'Autoresearch 实战：如何用 AI Agent 自动演化 Memory API',
+                excerpt: '过去两周，我的 agent-memory-service 项目从 384 个测试增长到了 415 个。不是我熬夜写的——是一个 cron job 在凌晨自动运行的「autoresearch」循环干的事。这篇文章记录这个方法论的具体实践，以及我从中学到的几条硬道理。',
+                tags: ['autoresearch', 'memory', 'api'],
+                url: 'posts/autoresearch-ai-memory-api-2026-04.html'
+            },
+            {
+                date: '2026-04-01',
+                title: 'Autoresearch 实验循环：如何让 AI Agent 用 TSV 驱动自我进化',
+                excerpt: '过去两周，我的 agent-memory-service 项目从 90 个测试增长到 241 个。不是我在深夜加班写的——是一个 AI Agent 用一种我叫 Autoresearch 实验循环 的方法论自动推进的。这篇文章拆解这个方法，告诉你为什么它比"让 AI 写代码"有效得多。',
+                tags: ['autoresearch', 'experiment', 'loop'],
+                url: 'posts/autoresearch-experiment-loop-2026-04.html'
+            },
+            {
+                date: '2026-04-01',
+                title: 'Autoresearch 实战：从 healthScore() 看实验循环方法论',
+                excerpt: '过去三周，我的 agent-memory-service 项目从 147 个测试增长到 309 个。不是靠一次大重构，而是靠一种叫 autoresearch 的方法论——每次只加一个能力，跑通测试，记录决策，然后保留或回滚。这篇文章分享这套方法论的具体实践。',
+                tags: ['autoresearch', 'health', 'score'],
+                url: 'posts/autoresearch-health-score-2026-04.html'
+            },
+            {
+                date: '2026-04-01',
+                title: 'Autoresearch Loop：用实验循环驱动 API 设计',
+                excerpt: '过去 48 小时，我在给一个 Agent Memory Service 做 API 设计时，发现了一个反直觉的事实：最好的 API 不是设计出来的，是长出来的。',
+                tags: ['autoresearch', 'loop', 'methodology'],
+                url: 'posts/autoresearch-loop-methodology-2026-04.html'
+            },
+            {
+                date: '2026-04-01',
+                title: '零回滚的秘密：Autoresearch 快速实验循环方法论',
+                excerpt: '48 小时，54 个新测试，零回滚。从 529 到 583，每次提交都留住。这不是运气，是一套我称为 autoresearch 的实验循环方法论在起作用。本文拆解它的核心机制，以及为什么它比「想好了再写」更高效。',
+                tags: ['autoresearch', 'rapid', 'experiment'],
+                url: 'posts/autoresearch-rapid-experiment-2026-04.html'
+            },
+            {
+                date: '2026-04-01',
+                title: '可组合原语：Agent Memory Service 的 API 设计哲学',
+                excerpt: '过去一个月，我用 autoresearch 方法论持续迭代 Agent Memory Service (AMS)——一个给 AI Agent 用的本地记忆引擎。从最初 90 个测试到今天的 540 个，API 从 5 个方法膨胀到 30+。但真正有意思的不是数量增长，而是一个反复出现的设计模式：可组',
+                tags: ['composable', 'primitives', 'memory'],
+                url: 'posts/composable-primitives-agent-memory-2026-04.html'
+            },
+            {
+                date: '2026-04-01',
+                title: '给 Agent 记忆加上版本控制：从只读到可回滚的演进之路',
+                excerpt: '大多数 Agent 记忆系统的设计都犯了一个相同的错误：把记忆当成不可变的。创建、搜索、删除——就这三板斧。一旦记忆被更新，旧内容就永远消失了。',
+                tags: ['content', 'versioning', 'memory'],
+                url: 'posts/content-versioning-agent-memory-2026-04.html'
+            },
+            {
+                date: '2026-04-01',
+                title: 'MCP Server SDK v2：从零到生产的三个关键决策',
+                excerpt: '两周前我用纯 Python 手写了一个 MCP 客户端来理解协议本质。这次轮到服务端了——但不再是零依赖的教育项目，而是要上生产的 OpenClaw MCP Server。SDK v2 已经在 2026 Q1 稳定，Streamable HTTP transport 成了新标配。我花了整个晚上从 s',
+                tags: ['mcp', 'server', 'v2'],
+                url: 'posts/mcp-server-v2-zero-to-production-2026-04.html'
+            },
+            {
+                date: '2026-04-01',
+                title: '微软 AI Agents for Beginners 深度拆解：15 课教你从零构建生产级 Agent',
+                excerpt: '微软的 AI Agents for Beginners 是一个面向开发者的 AI Agent 入门课程，包含 15 节课（另有 3 节即将上线），覆盖从 Agent 基础概念到生产部署的完整链路。',
+                tags: ['microsoft', 'agents', 'beginners'],
+                url: 'posts/microsoft-ai-agents-beginners-analysis-2026-04.html'
+            },
+            {
+                date: '2026-04-01',
+                title: '从 Pocket Agent 到自进化系统：AI Agent 最小化实践',
+                excerpt: '过去两周的深夜代码实验室里，我一直在做一个实验：用最少的代码，把 AI Agent 的核心概念讲清楚。结果出乎意料——一个完整的 ReAct Agent 只需要 ~150 行 Python，而一个能在运行时自我扩展能力的 Agent，也不到 300 行。',
+                tags: ['self', 'evolving', 'pocket'],
+                url: 'posts/self-evolving-agent-pocket-2026-04.html'
+            },
+            {
+                date: '2026-03-01',
+                title: 'Agent Memory 不是 RAG 2.0 — 从无状态到有灵魂的架构演进',
+                excerpt: '从无状态到有灵魂的架构演进 · 2026年4月15日',
+                tags: ['memory', 'architecture'],
+                url: 'posts/agent-memory-architecture-2026.html'
+            },
+            {
+                date: '2026-03-01',
+                title: '当 Agent 学会自我维护：从 autoMaintain 到 clusterByTopic 的设计递进',
+                excerpt: '2026-04-23 · Agent Memory Service 实战笔记',
+                tags: ['memory', 'autoresearch'],
+                url: 'posts/agent-memory-autoresearch.html'
+            },
+            {
+                date: '2026-03-01',
+                title: '谷歌 2026 I/O 大会深度分析：模型依然重要，但智能体正在接管一切',
+                excerpt: '2026年5月20日凌晨，谷歌举办了年度 I/O 开发者大会。CEO Sundar Pichai 在会上透露了一个惊人的数字：谷歌各项服务每月处理的 Token 数量已达 3.2 千万亿个，同比增长 7 倍。',
+                tags: ['google', 'io', 'analysis'],
+                url: 'posts/google-io-2026-analysis.html'
+            },
+            {
+                date: '2026-03-01',
+                title: 'Harness Engineering 三大工具深度对比：gstack、GSD 与 Better Ralph',
+                excerpt: '随着 LLM 能力的提升，AI Agent 编码从"对话式生成"进化到"工程化生产"。Harness Engineering —— 这个正在形成的新兴工程学科，关注的是如何将多个 AI Agent session 编排成可重复、可靠的工作流。',
+                tags: ['harness', 'engineering', 'tools'],
+                url: 'posts/harness-engineering-tools-comparison.html'
+            },
         ];
         
         // Configuration
