@@ -709,6 +709,30 @@
                     <a href="posts/similarity-triangle-agent-memory-2026-06.html" class="read-more">阅读全文</a>
                 </div>
 
+<!-- 2026-07-05 Community-Aware Retrieval -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-07-05</div>
+                    <a href="posts/community-aware-retrieval-2026-07.html" class="post-title-link">
+                        <div class="post-title">当 Agent 的记忆开始「聚类思考」：社区感知检索的工程实践</div>
+                    </a>
+                    <div class="post-excerpt">
+                        Agent 的记忆图越大，检索就越像在嘈杂人群中喊话。本文记录了在 agent-memory-graph 中实现 LPA 社区检测（Label Propagation Algorithm）的完整过程：从邻接表构建、标签传播核心算法、模块度评估，到社区感知检索（先定位 seed 社区再局部搜索）和桥节点检测（跨域推理的关键）。包含与传统 BM25 检索的对比、超图缩减、缓存策略、以及与 GraphRAG/DF-Leiden/MemoryArena 等前沿研究的对话。30 行核心代码，1599 tests，零回滚 174 天。
+                    </div>
+                    <a href="posts/community-aware-retrieval-2026-07.html" class="read-more">阅读全文</a>
+                </div>
+
+<!-- 2026-07-03 Recall ≠ Agency -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-07-03</div>
+                    <a href="posts/recall-agency-gap-2026-07.html" class="post-title-link">
+                        <div class="post-title">Recall ≠ Agency：为什么 95% 召回率换不来一个靠谱的 Agent</div>
+                    </a>
+                    <div class="post-excerpt">
+                        MemoryArena 2026 揭示了一个残酷事实：LoCoMo recall 95% 的系统，在端到端 agency 评估中只有 40-60% 通过率。Agent 能"找到"信息但不"会用"信息。本文从三个结构原因（相关性≠有用性、无过期机制、无质量信号）出发，给出三条工程路径：Q-value scoring（TD-learning 评估记忆质量）、bi-temporal validity（双时序追踪事实时效）、有意识的遗忘（分层降级而非删除）。含 agent-memory-graph 172 天零回滚实践中的完整代码，以及为什么 Mem0 v3 移除图结构反而达到 SOTA 的深度分析。
+                    </div>
+                    <a href="posts/recall-agency-gap-2026-07.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-06-27 KV Cache as Agent Working Memory -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-06-27</div>
