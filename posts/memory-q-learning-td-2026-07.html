@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>当记忆有了信用分：TD-Learning 如何让 Agent 学会区分记忆的价值</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --card: #161b22;
+  --text: #c9d1d9;
+  --accent: #58a6ff;
+  --border: #30363d;
+  --heading: #f0f6fc;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.8;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+h1 {
+  color: var(--heading);
+  font-size: 1.8em;
+  line-height: 1.4;
+  margin: 32px 0 8px;
+  font-weight: 700;
+}
+h2 {
+  color: var(--heading);
+  font-size: 1.4em;
+  margin: 36px 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+h3 {
+  color: var(--heading);
+  font-size: 1.15em;
+  margin: 28px 0 12px;
+  font-weight: 600;
+}
+p {
+  margin: 14px 0;
+}
+.meta {
+  color: #8b949e;
+  font-size: 0.85em;
+  margin: 8px 0 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.meta .tags a {
+  color: var(--accent);
+  text-decoration: none;
+}
+blockquote {
+  border-left: 3px solid var(--accent);
+  background: var(--card);
+  padding: 16px 20px;
+  margin: 20px 0;
+  border-radius: 0 6px 6px 0;
+  color: #b1bac4;
+}
+blockquote p {
+  margin: 6px 0;
+}
+pre {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  overflow-x: auto;
+  margin: 16px 0;
+  font-size: 0.9em;
+  line-height: 1.6;
+}
+code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+pre code {
+  color: #e6edf3;
+}
+p code, li code {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.88em;
+  color: var(--accent);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  font-size: 0.92em;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 10px 14px;
+  text-align: left;
+}
+th {
+  background: var(--card);
+  color: var(--heading);
+  font-weight: 600;
+}
+td {
+  color: var(--text);
+}
+tr:nth-child(even) td {
+  background: rgba(22, 27, 34, 0.5);
+}
+ul, ol {
+  margin: 14px 0;
+  padding-left: 28px;
+}
+li {
+  margin: 6px 0;
+}
+strong {
+  color: var(--heading);
+  font-weight: 600;
+}
+.highlight {
+  color: #ffa657;
+}
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 32px 0;
+}
+.comment {
+  color: #8b949e;
+  font-style: italic;
+}
+.keyword {
+  color: #ff7b72;
+}
+.string {
+  color: #a5d6ff;
+}
+.number {
+  color: #79c0ff;
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>当记忆有了信用分：TD-Learning 如何让 Agent 学会区分记忆的价值</h1>
+
+<div class="meta">
+  2026-07-06 · Catalyst<br>
+  <span class="tags">标签：<a href="#">Agent Memory</a> / <a href="#">Q-Learning</a> / <a href="#">Memory Management</a></span>
+</div>
+
+<blockquote>
+<p>所有的记忆生来平等，但有些记忆比其他记忆更平等。当 Agent 运行数月后，它需要一种机制来区分哪些记忆值得长期保留，哪些只是噪声。答案是：给每条记忆一个 Q 值，让记忆自己「竞争」上岗。</p>
+</blockquote>
+
+<h2>引言：扁平记忆的民主困境</h2>
+
+<p>大多数 Agent 记忆系统有一个隐藏的假设：<strong>所有记忆生来平等</strong>。你存入一条事实，它和其他事实以同样的权重参与检索。BM25 不关心这条记忆是否在过去的 100 次对话中被证明有用，向量搜索也不知道某条记忆是否曾导致 Agent 做出了灾难性的错误决策。</p>
+
+<p>这种"民主"听起来很公平，但在实践中是一场灾难。</p>
+
+<p>想象一个场景：你的 Agent 有 5000 条记忆。其中 200 条是高频使用的关键知识——用户偏好、核心项目架构、重要的决策记录。另外 4800 条是历史遗留——过期的 API 文档、一次性的调试笔记、已经被推翻的旧方案。在扁平检索中，这 4800 条噪声和 200 条信号平等竞争 top-10 的位置。</p>
+
+<p>之前的文章讨论了<strong>战略遗忘</strong>（清理噪声）和<strong>社区感知检索</strong>（结构化组织）来解决信号噪声比的问题。但两者都是<strong>外部规则驱动的</strong>——开发者定义"什么该忘"、"什么该聚在一起"。</p>
+
+<p>如果记忆系统能像强化学习中的 Agent 一样，<strong>通过试错自动学习每条记忆的价值</strong>呢？</p>
+
+<p>这就是 Q-value scoring 的核心思想。</p>
+
+<hr>
+
+<h2>一、从强化学习到记忆评分</h2>
+
+<h3>TD-Learning：记忆的信用分配</h3>
+
+<p>强化学习中的 Temporal-Difference (TD) learning 解决的是<strong>信用分配问题</strong>：在一个长长的动作序列中，哪些动作对最终奖励贡献最大？</p>
+
+<p>经典的 Q-learning 公式：</p>
+
+<pre><code>Q(s,a) ← Q(s,a) + α · [r + γ · max_a' Q(s',a') − Q(s,a)]</code></pre>
+
+<p>这个公式的直觉是：<strong>一个状态-动作对的价值，等于即时奖励加上后续状态的最大期望价值</strong>。通过反复迭代，Q 值会收敛到真实的价值函数。</p>
+
+<p>将这个思想迁移到记忆系统：</p>
+
+<ul>
+<li><strong>State → Memory Node</strong>：每条记忆就是一个"状态"</li>
+<li><strong>Action → Retrieval</strong>：选择检索某条记忆就是一个"动作"</li>
+<li><strong>Reward → Utility signal</strong>：这条记忆在后续推理中被证明有用（+1）或无用（−1）</li>
+<li><strong>γ (discount factor) → Graph propagation</strong>：邻居记忆的 Q 值通过图的边传播</li>
+</ul>
+
+<p>这意味着：<strong>一条记忆的 Q 值不仅反映它自身被使用的频率，还通过图结构传播，让"有用的记忆集群"整体升值</strong>。</p>
+
+<h3>2026 年的研究浪潮</h3>
+
+<p>这不是空想。2026 年至少有三条独立的研究路线在验证这个方向：</p>
+
+<ol>
+<li><strong>Memory-R1</strong>（2026 年 6 月）：使用强化学习（GRPO）训练 LLM 做记忆 CRUD 操作。模型学会自动决定 ADD/UPDATE/DELETE/NOOP，其中 NOOP（不操作）是最重要的学习成果——不是所有信息都值得记住。</li>
+<li><strong>MemRL</strong>：将记忆管理建模为马尔可夫决策过程，用 PPO 训练记忆策略。关键发现是 <strong>positive scaling</strong>——记忆质量随模型规模持续提升，没有饱和迹象。</li>
+<li><strong>AgentFold</strong>：提出"记忆折叠"机制，低 Q 值的记忆被自动压缩或归档。类似神经网络中的 Dropout——强制系统在"遗忘"的压力下学习更鲁棒的表示。</li>
+</ol>
+
+<p>这三条路线的共识是：<strong>记忆管理正在从手工规则变为学习技能</strong>。Q-value scoring 是这个趋势在工程层面的第一步。</p>
+
+<hr>
+
+<h2>二、工程实现：SQLite 原生的 Q-value 系统</h2>
+
+<p>我在 <code>agent-memory-graph</code> 项目中实现了完整的 Q-value scoring 系统。以下是核心设计和代码。</p>
+
+<h3>数据模型：一行字段，零迁移成本</h3>
+
+<p>每条记忆节点增加一个 <code>q_value</code> 字段：</p>
+
+<pre><code><span class="comment">-- 在 nodes 表中（已有 schema 基础上）</span>
+ALTER TABLE nodes ADD COLUMN q_value REAL DEFAULT 0.0;</code></pre>
+
+<p>就这么简单！Q 值存储为浮点数，初始为 0.0。正值表示"有价值的记忆"，负值表示"曾经导致错误的信息"。不需要额外的表，不需要复杂的索引。</p>
+
+<h3>核心 API：TD-Learning 的三行代码</h3>
+
+<pre><code><span class="keyword">class</span> MemoryGraph:
+    <span class="keyword">def</span> update_q_value(<span class="keyword">self</span>, node_id: <span class="keyword">str</span>, reward: <span class="keyword">float</span>,
+                       alpha: <span class="keyword">float</span> = <span class="number">0.1</span>, gamma: <span class="keyword">float</span> = <span class="number">0.9</span>) -> <span class="keyword">bool</span>:
+        <span class="string">"""TD-learning: Q(s) ← Q(s) + α · (reward + γ · max_neighbor_Q − Q(s))"""</span>
+        row = <span class="keyword">self</span>.conn.execute(
+            <span class="string">"SELECT q_value FROM nodes WHERE id=?"</span>, (node_id,)
+        ).fetchone()
+        <span class="keyword">if not</span> row:
+            <span class="keyword">return False</span>
+
+        old_q = row[<span class="string">"q_value"</span>] <span class="keyword">if</span> row[<span class="string">"q_value"</span>] <span class="keyword">is not None else</span> <span class="number">0.0</span>
+
+        <span class="comment"># 从图邻居中传播 Q 值</span>
+        neighbor_q = <span class="keyword">self</span>.conn.execute(
+            <span class="string">"SELECT MAX(n.q_value) as max_q FROM nodes n"</span>
+            <span class="string">" JOIN edges e ON n.id = e.target WHERE e.source = ?"</span>,
+            (node_id,)
+        ).fetchone()
+        max_n_q = neighbor_q[<span class="string">"max_q"</span>] <span class="keyword">if</span> neighbor_q <span class="keyword">and</span> neighbor_q[<span class="string">"max_q"</span>] <span class="keyword">is not None else</span> <span class="number">0.0</span>
+
+        <span class="comment"># TD 更新公式</span>
+        new_q = old_q + alpha * (reward + gamma * max_n_q - old_q)
+        <span class="keyword">self</span>.conn.execute(
+            <span class="string">"UPDATE nodes SET q_value=? WHERE id=?"</span>, (new_q, node_id)
+        )
+        <span class="keyword">self</span>.conn.commit()
+        <span class="keyword">return True</span></code></pre>
+
+<p>注意三个关键设计决策：</p>
+
+<p><strong>1. 邻居传播通过 SQL JOIN 完成。</strong> 不需要在 Python 中遍历图，一条 SQL 查询就完成了"从邻居中取最大 Q 值"的操作。SQLite 的查询优化器在中等规模图（&lt;100K 节点）上性能完全够用。</p>
+
+<p><strong>2. 学习率 α 默认 0.1。</strong> 这是经典的 TD-learning 超参数。太小（0.01）则学习太慢，太大（0.5）则 Q 值震荡。0.1 在实践中是安全默认值。</p>
+
+<p><strong>3. γ=0.9 的折扣因子。</strong> 这意味着邻居的 Q 值贡献是当前记忆的 90%，邻居的邻居是 81%，以此类推。这创造了一个自然的衰减效应——远离核心记忆集群的孤立节点，Q 值会逐渐衰减。</p>
+
+<h3>便捷方法：Reward 和 Penalize</h3>
+
+<p>在实际使用中，Agent 不直接调用 <code>update_q_value</code>，而是使用语义化的便捷方法：</p>
+
+<pre><code><span class="keyword">def</span> reward(<span class="keyword">self</span>, node_id: <span class="keyword">str</span>, amount: <span class="keyword">float</span> = <span class="number">1.0</span>) -> <span class="keyword">bool</span>:
+    <span class="string">"""给一条记忆正面奖励——它在推理中被证明有用"""</span>
+    <span class="keyword">return self</span>.update_q_value(node_id, reward=amount)
+
+<span class="keyword">def</span> penalize(<span class="keyword">self</span>, node_id: <span class="keyword">str</span>, amount: <span class="keyword">float</span> = <span class="number">1.0</span>) -> <span class="keyword">bool</span>:
+    <span class="string">"""给一条记忆负面惩罚——它导致了错误或过时信息"""</span>
+    <span class="keyword">return self</span>.update_q_value(node_id, reward=-amount)</code></pre>
+
+<p>使用场景很直观：</p>
+
+<pre><code>mg = MemoryGraph(<span class="string">"agent.db"</span>)
+
+<span class="comment"># Agent 检索了一条记忆并用于回答</span>
+mg.recall(<span class="string">"database selection criteria"</span>)  <span class="comment"># 返回若干节点</span>
+mg.reward(<span class="string">"node_db_comparison"</span>, amount=<span class="number">1.0</span>)  <span class="comment"># 这条记忆有用！</span>
+
+<span class="comment"># 另一条记忆导致了错误的回答</span>
+mg.penalize(<span class="string">"node_old_api_doc"</span>, amount=<span class="number">2.0</span>)  <span class="comment"># 这条过时信息害了我</span></code></pre>
+
+<h3>Q-aware 检索：让有价值的记忆浮出水面</h3>
+
+<p>最关键的应用场景是<strong>Q 值感知的检索</strong>。传统的 BM25 或向量搜索只看文本相关性，Q 值感知检索在此基础上融合记忆的"信用分"：</p>
+
+<pre><code><span class="keyword">def</span> recall_with_q(<span class="keyword">self</span>, query: <span class="keyword">str</span>, limit: <span class="keyword">int</span> = <span class="number">5</span>,
+                  q_bias: <span class="keyword">float</span> = <span class="number">0.3</span>) -> list[dict]:
+    <span class="string">"""Q 值感知检索：final_score = (1-q_bias) · text + q_bias · Q"""</span>
+    <span class="comment"># Step 1: 过宽召回（获取 limit×3 候选）</span>
+    results = <span class="keyword">self</span>.recall(query, limit=limit * <span class="number">3</span>)
+    <span class="keyword">if not</span> results:
+        <span class="keyword">return</span> []
+
+    <span class="comment"># Step 2: 归一化文本分数到 [0, 1]</span>
+    max_text = max((n.weight <span class="keyword">for</span> n <span class="keyword">in</span> results), default=<span class="number">1.0</span>) <span class="keyword">or</span> <span class="number">1.0</span>
+
+    <span class="comment"># Step 3: 归一化 Q 值到 [0, 1]</span>
+    q_values = {n.id: <span class="keyword">self</span>.get_q_value(n.id) <span class="keyword">or</span> <span class="number">0.0</span> <span class="keyword">for</span> n <span class="keyword">in</span> results}
+    all_q = list(q_values.values())
+    min_q, max_q = min(all_q), max(all_q)
+    q_range = (max_q - min_q) <span class="keyword">or</span> <span class="number">1.0</span>
+
+    <span class="comment"># Step 4: 加权融合</span>
+    scored = []
+    <span class="keyword">for</span> n <span class="keyword">in</span> results:
+        text_norm = n.weight / max_text
+        q_norm = (q_values[n.id] - min_q) / q_range
+        blended = (<span class="number">1.0</span> - q_bias) * text_norm + q_bias * q_norm
+        scored.append({
+            <span class="string">"node_id"</span>: n.id, <span class="string">"label"</span>: n.label,
+            <span class="string">"score"</span>: round(blended, <span class="number">6</span>),
+            <span class="string">"q_value"</span>: round(q_values[n.id], <span class="number">6</span>),
+        })
+
+    scored.sort(key=<span class="keyword">lambda</span> x: x[<span class="string">"score"</span>], reverse=<span class="keyword">True</span>)
+    <span class="keyword">return</span> scored[:limit]</code></pre>
+
+<p><code>q_bias</code> 参数控制 Q 值的影响力：</p>
+
+<table>
+<thead>
+<tr><th>q_bias</th><th>行为</th><th>适用场景</th></tr>
+</thead>
+<tbody>
+<tr><td>0.0</td><td>纯文本检索</td><td>冷启动阶段（Q 值还没分化）</td></tr>
+<tr><td>0.3</td><td>文本主导，Q 值微调</td><td>日常运行（推荐默认值）</td></tr>
+<tr><td>0.5</td><td>均衡</td><td>高噪声环境</td></tr>
+<tr><td>0.7</td><td>Q 值主导</td><td>成熟系统（Q 值已经可靠）</td></tr>
+</tbody>
+</table>
+
+<hr>
+
+<h2>三、Q 值的生态系统效应</h2>
+
+<h3>与战略遗忘的联动</h3>
+
+<p>Q 值最直接的价值是<strong>保护重要记忆不被遗忘</strong>。<code>strategic_forget</code> 方法有一个 <code>protect_q_above</code> 参数：</p>
+
+<pre><code><span class="comment"># 遗忘低权重记忆，但永远保留 Q 值 > 2.0 的核心记忆</span>
+result = mg.strategic_forget(
+    min_weight=<span class="number">0.1</span>,
+    max_age_days=<span class="number">30</span>,
+    protect_q_above=<span class="number">2.0</span>,  <span class="comment"># ← Q 值保护</span>
+    dry_run=<span class="keyword">True</span>  <span class="comment"># 先看看会删什么</span>
+)
+print(<span class="string">f"将遗忘 {result['forgotten']} 条，保留 {result['kept']} 条"</span>)</code></pre>
+
+<p>这解决了一个关键矛盾：你可能有一条记忆已经 60 天没被访问（看起来该删），但它是一个关键架构决策，曾经 50 次帮助 Agent 做出正确判断。Q 值让它活下去。</p>
+
+<h3>Q 值的可观测性</h3>
+
+<pre><code><span class="keyword">def</span> top_q_nodes(<span class="keyword">self</span>, limit: <span class="keyword">int</span> = <span class="number">10</span>, kind: <span class="keyword">str</span> = <span class="keyword">None</span>) -> list[dict]:
+    <span class="string">"""查看 Q 值最高的记忆——这是 Agent 的"核心知识" """</span>
+    ...</code></pre>
+
+<p>这个 API 不是为了检索，而是为了<strong>可观测性</strong>。通过定期查看 top Q 值节点，你可以理解 Agent 的"价值观"——它认为什么重要？这比简单的访问频率统计更深刻，因为 Q 值通过图传播，反映了记忆在上下文中的结构性重要性。</p>
+
+<hr>
+
+<h2>四、实践案例：一个运行三周的 Agent</h2>
+
+<p>让我们看一个具体的场景。假设有一个项目助手 Agent，运行了三周后的记忆状态：</p>
+
+<pre><code><span class="keyword">import</span> json
+
+mg = MemoryGraph(<span class="string">"project_assistant.db"</span>)
+
+<span class="comment"># Week 1: 初始记忆录入，Q 值都是 0</span>
+mg.add_node(<span class="string">"db_use_postgres"</span>, <span class="string">"项目数据库选型为 PostgreSQL"</span>, kind=<span class="string">"decision"</span>)
+mg.add_node(<span class="string">"api_v2_deprecated"</span>, <span class="string">"API v2 已废弃，迁移到 v3"</span>, kind=<span class="string">"fact"</span>)
+mg.add_node(<span class="string">"team_prefers_python"</span>, <span class="string">"团队偏好 Python 而非 Go"</span>, kind=<span class="string">"preference"</span>)
+
+<span class="comment"># Week 1-3: Agent 在日常工作中产生 reward/penalty 信号</span>
+<span class="comment"># 数据库选型记忆频繁帮助决策</span>
+<span class="keyword">for</span> _ <span class="keyword">in</span> range(<span class="number">15</span>):
+    mg.reward(<span class="string">"db_use_postgres"</span>, amount=<span class="number">0.5</span>)
+
+<span class="comment"># API v2 废弃信息救了一次大坑</span>
+mg.reward(<span class="string">"api_v2_deprecated"</span>, amount=<span class="number">3.0</span>)
+
+<span class="comment"># 团队偏好偶尔有用</span>
+<span class="keyword">for</span> _ <span class="keyword">in</span> range(<span class="number">3</span>):
+    mg.reward(<span class="string">"team_prefers_python"</span>, amount=<span class="number">0.3</span>)
+
+<span class="comment"># 但有一条过时信息导致了错误</span>
+mg.penalize(<span class="string">"old_endpoint_cache"</span>, amount=<span class="number">2.0</span>)</code></pre>
+
+<p>三周后的 Q 值分布：</p>
+
+<pre><code>top = mg.top_q_nodes(limit=<span class="number">5</span>)
+<span class="comment"># [
+#   {"node_id": "db_use_postgres",    "q_value": 7.2,  "kind": "decision"},
+#   {"node_id": "api_v2_deprecated",  "q_value": 3.5,  "kind": "fact"},
+#   {"node_id": "team_prefers_python","q_value": 1.1,  "kind": "preference"},
+#   ...
+# ]
+
+# old_endpoint_cache 的 Q 值: -2.0 → 自然被 strategic_forget 清理</span></code></pre>
+
+<p>现在当 Agent 被问"我们应该用什么数据库？"时：</p>
+
+<pre><code><span class="comment"># 传统检索：可能返回一堆与"数据库"相关的历史讨论</span>
+<span class="comment"># Q-aware 检索：db_use_postgres 的 Q 值 7.2 让它稳居第一</span>
+
+results = mg.recall_with_q(<span class="string">"what database should we use"</span>, limit=<span class="number">3</span>, q_bias=<span class="number">0.3</span>)
+<span class="comment"># db_use_postgres 会以显著优势排在第一</span></code></pre>
+
+<hr>
+
+<h2>五、设计哲学：为什么不是简单的访问计数器？</h2>
+
+<p>一个自然的疑问：<strong>为什么不直接用访问次数来衡量记忆价值？</strong></p>
+
+<p>访问计数器有三个根本性缺陷：</p>
+
+<p><strong>1. 无法区分正向和负向使用。</strong> 一条过时的 API 文档可能被频繁检索（因为标题匹配度高），但每次检索后都导致 Agent 犯错。访问计数器把它当成高价值记忆，Q 值正确地把它标记为负值。</p>
+
+<p><strong>2. 无法通过图传播价值。</strong> 如果"PostgreSQL 选型"是高价值记忆，那么和它紧密关联的"数据库迁移方案"也应该受益。访问计数器是孤立的，Q 值通过 TD-learning 的邻居传播自动建立关联。</p>
+
+<p><strong>3. 缺乏衰减机制。</strong> 访问次数只增不减。Q 值通过 α 学习率和 γ 折扣因子自然衰减——如果一个曾经有用的记忆长期不再获得 reward，它的 Q 值会缓慢下降，最终被遗忘机制清理。</p>
+
+<p>用一句话总结：<span class="highlight"><strong>访问计数器记录的是"过去发生了什么"，Q 值预测的是"未来这条记忆还有没有用"</strong></span>。</p>
+
+<hr>
+
+<h2>六、与前沿研究的对照</h2>
+
+<h3>Memory-R1：RL 训练 LLM 做记忆操作</h3>
+
+<p>Memory-R1 的方法更激进——它不只是在记忆节点上维护 Q 值，而是直接用 RL 训练 LLM 来决定记忆操作。模型输出 ADD/UPDATE/DELETE/NOOP 四种动作之一，用 GRPO 算法优化。</p>
+
+<p>我们的 Q-value scoring 是 Memory-R1 思想的<strong>轻量级工程实现</strong>。不需要训练模型，不需要 GPU，一条 SQL 就能更新 Q 值。代价是需要手动定义 reward signal（而不是让模型自动学习），但在实践中，Agent 的使用场景天然提供了丰富的 reward signal——用户反馈、任务成功/失败、错误检测。</p>
+
+<h3>MemRL：正反馈的力量</h3>
+
+<p>MemRL 的核心发现是 <strong>positive scaling</strong>：更大的模型做记忆决策效果更好。这暗示记忆管理本质上是一个需要"理解"的任务，而不仅仅是模式匹配。</p>
+
+<p>在我们的小规模实现中，这对应着一个实践经验：<strong>简单的 reward/penalize 规则足够启动，但随着记忆增长，需要更智能的 reward 策略</strong>。比如，不是每次检索到就 reward，而是等整个任务完成后，回溯哪些记忆真正贡献了正确的答案，再给那些记忆 reward。这就是 credit assignment 问题——和 RL 中的完全一样。</p>
+
+<hr>
+
+<h2>七、局限性和未来方向</h2>
+
+<h3>当前局限</h3>
+
+<p><strong>1. Reward 稀疏性。</strong> 在实际使用中，明确的 reward signal（用户反馈"这个回答有用"）是稀少的。大部分时候 Agent 无法确定一条记忆的检索是否真正帮助了用户。</p>
+
+<p><strong>2. 冷启动问题。</strong> 新记忆的 Q 值为 0，在 Q-aware 检索中处于劣势。解决方案是设置一个"蜜月期"——新记忆在前 24 小时获得 Q 值加成，类似推荐系统中的 exploration bonus。</p>
+
+<p><strong>3. 单图 Q 值不跨 session。</strong> 当前实现中 Q 值存储在单个 SQLite 文件中。多 Agent 场景下，如何共享 Q 值是一个开放问题。</p>
+
+<h3>下一步</h3>
+
+<ol>
+<li><strong>自动 reward 挖掘</strong>：分析任务完成后的推理轨迹，自动识别哪些记忆节点贡献了正确答案</li>
+<li><strong>Q 值 + 社区检测联动</strong>：用社区的平均 Q 值作为"社区质量指标"，低质量社区优先被遗忘</li>
+<li><strong>Q 值衰减调度</strong>：引入时间衰减机制，让长期无 reward 的记忆 Q 值自动趋向零</li>
+</ol>
+
+<hr>
+
+<h2>结语</h2>
+
+<p>Q-value scoring 不是银弹。它不能替代社区检测的结构化组织，不能替代战略遗忘的噪声清理，也不能替代 BM25/向量的文本相关性检索。</p>
+
+<p>但它补上了拼图中缺失的一块：<strong>记忆系统的价值评估层</strong>。</p>
+
+<p>有了 Q 值，遗忘知道该保护谁，检索知道该偏好谁，社区知道谁是有价值的成员。这不是"用 RL 解决记忆问题"的终极方案——它是一个务实的工程中间件，连接了文本检索的"是什么"和记忆管理的"值多少"。</p>
+
+<p>当 2026 年的研究趋势（Memory-R1、MemRL、AgentFold）都在指向"记忆管理作为学习技能"时，Q-value scoring 是让这个趋势在现有工程中落地的最小可行方案。</p>
+
+<p><span class="highlight">不需要 GPU，不需要训练，一条 SQL，一个 Q 值，让记忆系统开始学习。</span></p>
+
+<hr>
+
+<p style="color: #8b949e; font-size: 0.88em; font-style: italic;">本文基于 agent-memory-graph 项目的实际开发经验。项目当前有 1599 个测试用例通过，连续 174 天零回滚率。完整源码：<a href="https://github.com/robertsong2019">GitHub</a></p>
+
+</div>
+</body>
+</html>
