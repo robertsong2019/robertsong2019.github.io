@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>先模拟，再执行：Agent 系统的 What-If 防御层 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>先模拟，再执行：Agent 系统的 What-If 防御层</h1>
+        <div class="meta">
+            2026-07-06 · 罗嵩 ·
+            <span class="tag">Agent Architecture</span>
+            <span class="tag">What-If Simulation</span>
+            <span class="tag">Memory Management</span>
+            <span class="tag">TDD</span>
+        </div>
+
+        <blockquote>最危险的 Agent 操作不是写错代码，而是"正确地执行了错误的决定"。本文介绍一种架构模式——在所有不可逆操作前加一个 What-If 模拟层——以及它在记忆管理、质量监控和操作规划中的三种具体实现。</blockquote>
+
+        <h2>引言：不可逆性问题</h2>
+
+        <p>Agent 系统中的写操作有一个共同特征：<strong>不可逆</strong>。合并两条记忆后，原始信息丢失了。删除一个知识图谱节点后，边和关联也消失了。批量更新标签后，旧标签无法恢复。</p>
+
+        <p>传统的解决方案是版本控制——每次修改前保存快照，出错时回滚。但这是一种<strong>被动防御</strong>：你先犯错，再修复。代价是用户已经看到了错误的结果。</p>
+
+        <p>过去一周，我在三个独立的功能开发中不约而遇地实现了同一种模式：<strong>先模拟，看看结果，再决定要不要执行</strong>。这不是什么新颖的发明——git stash、SQL EXPLAIN、terraform plan 都是这个思路。但在 Agent 记忆系统中，这个模式还没有被系统化地讨论过。</p>
+
+        <p>我把它叫做 <strong>What-If 防御层</strong>（What-If Guard Layer）。</p>
+
+        <h2>一、三种 What-If 场景</h2>
+
+        <h3>场景 1：记忆合并模拟器</h3>
+
+        <p>Agent 运行数周后，记忆库中会积累大量相似条目。你需要合并它们来控制噪声。但合并是破坏性的——被合并的条目会被删除，它的标签和交叉引用需要迁移到保留的条目上。</p>
+
+        <p>问题是：合并后质量是上升还是下降？交叉引用的保留率是多少？有没有高风险的合并（比如质量差异大的条目）？</p>
+
+        <p><code>store_consolidation_simulator</code> 解决了这个问题。它有两种模式：</p>
+
+        <pre><code>def store_consolidation_simulator(
+    self,
+    *,
+    min_similarity: float = 0.5,
+    prefix: Optional[str] = None,
+    execute: bool = False  # ← 关键参数
+) -> dict:
+    """
+    execute=False (默认): 模拟合并，返回 pre/post 对比
+    execute=True:         实际执行合并
+    """
+    # 1. 识别近似重复条目
+    duplicates = self._find_near_duplicates(min_similarity, prefix)
+
+    # 2. 为每对构建合并计划
+    merge_plan = []
+    for keep_key, merge_key, similarity in duplicates:
+        keep_quality = self._quality_score(keep_key)
+        merge_quality = self._quality_score(merge_key)
+
+        # 风险评估：质量差异大于 0.3 = 高风险
+        quality_delta = abs(keep_quality - merge_quality)
+        if quality_delta >= 0.3:
+            risk = "high"
+        elif quality_delta >= 0.1:
+            risk = "moderate"
+        else:
+            risk = "low"
+
+        # 交叉引用保留率
+        keep_xrefs = self._get_xrefs(keep_key)
+        merge_xrefs = self._get_xrefs(merge_key)
+        preserved = keep_xrefs & merge_xrefs  # 交集
+        preservation_rate = len(preserved) / max(
+            len(keep_xrefs | merge_xrefs), 1)
+
+        merge_plan.append({
+            "keep": keep_key,
+            "merge": merge_key,
+            "similarity": similarity,
+            "quality_delta": quality_delta,
+            "risk": risk,
+            "xref_preservation_rate": preservation_rate
+        })
+
+    if not execute:
+        # ← What-If 模式：只投影，不执行
+        return self._project_outcome(merge_plan)
+
+    # ← Execute 模式：实际执行
+    return self._execute_merges(merge_plan)</code></pre>
+
+        <p>在 What-If 模式下，你会得到这样的报告：</p>
+
+        <pre><code>{
+    "simulated": true,
+    "pre":  {"entries": 247, "bytes": 1024000, "avg_quality": 0.72},
+    "post": {"entries": 231, "bytes": 958000,  "avg_quality": 0.74},
+    "compression_achieved": 0.065,
+    "risk_warnings": [
+        "HIGH risk: 'agent-arch-v2' vs 'agent-arch-v1' "
+        "(quality_delta=0.35)"
+    ],
+    "xref_preservation_rate": 0.89,
+    "recommendation": "Proceed with caution — "
+    "review 1 high-risk merge"
+}</code></pre>
+
+        <p>注意 <code>xref_preservation_rate</code>：如果两个条目各被 10 条边引用，但它们的引用集只有 20% 交集，合并后你会丢失 80% 的连接。没有模拟器，你根本不会知道。</p>
+
+        <h3>场景 2：质量动量预警</h3>
+
+        <p>第二个场景不是关于"要不要执行操作"，而是关于<strong>趋势是否在恶化</strong>。</p>
+
+        <p><code>quality_momentum_report</code> 追踪每个记忆条目的质量变化速度。它不告诉你"这条记忆质量很低"（那是静态诊断），而是告诉你<strong>"这条记忆的质量在过去 30 天里以每周 -0.05 的速度下降"</strong>。</p>
+
+        <pre><code>def quality_momentum_report(
+    self, *, days: int = 30, prefix: Optional[str] = None
+) -> dict:
+    """聚合所有条目的质量变化速度"""
+
+    entries = self._scan(prefix)
+    drift_data = []
+    for entry in entries:
+        # 每个条目的质量漂移轨迹
+        drift = self.quality_drift_detector(entry.key, days=days)
+        drift_data.append(drift)
+
+    improving = [d for d in drift_data if d["delta"] > 0.01]
+    declining = [d for d in drift_data if d["delta"] < -0.01]
+
+    # 动量分数：[-1, 1]
+    total = len(drift_data)
+    momentum_score = (
+        (len(improving) - len(declining)) / max(total, 1)
+    )
+
+    # 按维度分解：哪些质量维度恶化最快？
+    dim_momentum = {}
+    for dim in ["completeness", "accuracy",
+                "freshness", "relevance"]:
+        dim_improving = sum(
+            1 for d in drift_data
+            if d["dimension_deltas"].get(dim, 0) > 0.01
+        )
+        dim_declining = sum(
+            1 for d in drift_data
+            if d["dimension_deltas"].get(dim, 0) < -0.01
+        )
+        balance = (dim_improving - dim_declining) / max(total, 1)
+        dim_momentum[dim] = {
+            "improving": dim_improving,
+            "declining": dim_declining,
+            "balance": balance,
+            "direction": ("improving" if balance > 0.1
+                          else "declining" if balance < -0.1
+                          else "stable")
+        }
+
+    return {
+        "momentum_score": momentum_score,
+        "improving_ratio": len(improving) / max(total, 1),
+        "declining_ratio": len(declining) / max(total, 1),
+        "hotspot_dimensions": sorted(
+            dim_momentum.items(),
+            key=lambda x: abs(x[1]["balance"]),
+            reverse=True
+        )[:3],
+        "velocity_trend": (
+            "accelerating_positive" if momentum_score > 0.2
+            else "accelerating_negative" if momentum_score < -0.2
+            else "stable"
+        )
+    }</code></pre>
+
+        <p>这本质上也是一种 What-If：<strong>"如果趋势继续，下个月我的记忆库会变成什么样？"</strong> 当 <code>freshness</code> 维度的 declining 比例达到 40%，你就知道该批量刷新过期内容了——不需要等到用户抱怨 Agent 的回答过时。</p>
+
+        <h3>场景 3：World Model 预测</h3>
+
+        <p>最激动人心的 What-If 来自我们最近研究的 World Models 领域。</p>
+
+        <p>核心思想来自 WebDreamer 和 Dyna-Think（2026 年）：在执行有风险的操作之前，让 Agent 用它的世界模型<strong>模拟操作后果</strong>。</p>
+
+        <pre><code># 伪代码：Predict-Before-Act 模式
+def agent_decide(action, world_model, memory_graph):
+    """在执行前预测后果"""
+
+    if action.risk_level == "low":
+        return action.execute()  # 安全操作直接执行
+
+    # 高风险操作：先模拟
+    predicted_state = world_model.simulate(action)
+
+    # 检查预测结果是否可接受
+    if predicted_state.has_harmful_side_effects():
+        return ActionRejection(
+            reason="Simulation predicted data loss",
+            alternative=predicted_state.safer_alternative
+        )
+
+    # 模拟通过，执行
+    return action.execute()</code></pre>
+
+        <p>关键洞察是：<strong>Agent 的记忆图谱可以扩展为世界模型</strong>。只需要在现有的知识边上增加 <code>transition</code> 类型——"状态 A 执行操作 B 后变成状态 C"。这让 Agent 可以从历史经验中学习操作后果，而不需要独立的物理引擎。</p>
+
+        <h2>二、What-If 防御层的架构</h2>
+
+        <p>三个场景的共同模式可以抽象为一个通用的架构层：</p>
+
+        <pre><code>┌─────────────────────────────────────────┐
+│           Agent Decision Loop            │
+│                                          │
+│  Intent → ┌──────────────┐    ┌────────┐│
+│           │ What-If Guard │───→│ Execute││
+│           │  (simulate)   │    │        ││
+│           └──────┬───────┘    └────────┘│
+│                  │                       │
+│                  ▼                       │
+│           ┌──────────────┐               │
+│           │ Risk Report   │              │
+│           │ (pre/post,    │              │
+│           │  warnings)    │              │
+│           └──────────────┘               │
+└─────────────────────────────────────────┘</code></pre>
+
+        <p>实现这个模式需要四个组件：</p>
+
+        <ol>
+            <li><strong>Projection（投影）</strong>：在不修改状态的情况下计算操作的后果。通常是一个纯函数，输入是当前状态 + 操作描述，输出是预期的新状态。</li>
+            <li><strong>Risk Assessment（风险评估）</strong>：对投影结果进行风险分级。规则可以是静态的（质量差异 > 0.3 = 高风险）或动态的（基于历史失败率学习）。</li>
+            <li><strong>Decision Gate（决策门）</strong>：根据风险评估决定执行、拒绝还是请求人类审批。对于自主运行的 Agent，这一层必须设置明确的阈值。</li>
+            <li><strong>Audit Trail（审计追踪）</strong>：记录每次模拟的输入、输出和决策。当事后出现问题时，你可以回溯查看"当时模拟说了什么"。</li>
+        </ol>
+
+        <h2>三、实践中的陷阱</h2>
+
+        <p>实现 What-If 层时，有几个不那么明显的坑：</p>
+
+        <h3>陷阱 1：模拟和执行的不一致</h3>
+
+        <p>最危险的情况是模拟器预测"安全"，但实际执行时出了问题。这通常是因为<strong>模拟器和执行器共享了状态</strong>。</p>
+
+        <pre><code># ❌ 错误：模拟函数不小心修改了真实状态
+def simulate_merge(self, key_a, key_b):
+    entry_a = self.get(key_a)      # ← 返回引用
+    entry_b = self.get(key_b)
+    entry_a.tags.extend(entry_b.tags)  # ← 修改了真实对象！
+    return project(entry_a)
+
+# ✅ 正确：深拷贝隔离
+import copy
+def simulate_merge(self, key_a, key_b):
+    entry_a = copy.deepcopy(self.get(key_a))
+    entry_b = copy.deepcopy(self.get(key_b))
+    entry_a.tags.extend(entry_b.tags)
+    return project(entry_a)</code></pre>
+
+        <p>在 Python 中，<code>dict</code> 和 <code>list</code> 是引用类型。模拟器中任何对返回值的修改都会泄漏到真实状态中。解决方案：投影函数必须是纯函数，输入用深拷贝隔离。</p>
+
+        <h3>陷阱 2：O(N²) 的相似度检测</h3>
+
+        <p>如果你用 <code>difflib.SequenceMatcher</code> 做两两比较，N 条记忆的复杂度是 O(N²)。1000 条记忆意味着 50 万次比较。</p>
+
+        <p>解决方案：<strong>先聚类，再比较</strong>。用 MinHash 或 SimHash 把候选集缩小到每个条目的 top-K 邻居，然后只对这些候选做精确比较。我们把 N=1000 的比较从 ~500K 次降到了 ~5K 次。</p>
+
+        <h3>陷阱 3：模拟器也需要测试</h3>
+
+        <p>模拟器是一个独立的代码路径，需要自己的测试。我们的做法是为每个模拟器写两类测试：</p>
+
+        <pre><code># 类型 1：模拟模式不能修改状态
+def test_simulator_does_not_mutate():
+    store = createStoreWithTestData()
+    snapshot = store.snapshot()
+
+    store.store_consolidation_simulator(execute=False)
+
+    assert store.snapshot() == snapshot  # 状态不变
+
+# 类型 2：执行模式必须与模拟预测一致
+def test_execute_matches_simulation():
+    store = createStoreWithTestData()
+    simulated = store.store_consolidation_simulator(execute=False)
+
+    store.store_consolidation_simulator(execute=True)
+
+    actual = store.get_stats()
+    assert actual.entries == simulated.post.entries
+    assert actual.avg_quality == pytest.approx(
+        simulated.post.avg_quality, abs=0.01
+    )</code></pre>
+
+        <p>第二类测试特别重要——它验证<strong>模拟器的预测准确性</strong>。如果模拟说会得到 231 条、质量 0.74，执行后最好也是这样。</p>
+
+        <h2>四、什么时候不需要 What-If 层</h2>
+
+        <p>不是所有操作都需要模拟。加 What-If 层有成本：代码复杂度增加约 30%，运行时多一次计算。以下场景<strong>不值得</strong>：</p>
+
+        <ul>
+            <li><strong>纯追加操作</strong>：添加新记忆条目不会破坏已有数据，不需要模拟</li>
+            <li><strong>幂等操作</strong>：设置标签、更新权重等可以重复执行的操作，错了再改就行</li>
+            <li><strong>低频操作</strong>：一年执行一次的迁移脚本，人工审查比写模拟器更划算</li>
+            <li><strong>已经有版本控制的操作</strong>：git 本身就是 What-If 系统，<code>git diff</code> 是最好的模拟器</li>
+        </ul>
+
+        <p>What-If 层的价值在于<strong>高频、不可逆、有质量风险</strong>的操作。记忆合并、批量删除、架构迁移——这三个场景值得投入。</p>
+
+        <div class="highlight">
+            <strong>核心洞察：</strong>What-If 防御层的本质不是"防止错误"，而是<strong>"让错误在模拟中暴露，而不是在生产中暴露"</strong>。它的投入回报比随操作频率增长——每天执行 10 次合并的 Agent，一个月就是 300 次模拟验证。只要模拟器拦下一次严重事故，投入就回本了。
+        </div>
+
+        <h2>五、与工业实践的对照</h2>
+
+        <p>看看其他系统怎么做 What-If：</p>
+
+        <table>
+            <tr><th>系统</th><th>What-If 机制</th><th>保护对象</th></tr>
+            <tr><td>Terraform</td><td><code>terraform plan</code></td><td>基础设施状态</td></tr>
+            <tr><td>SQL</td><td><code>EXPLAIN</code> / 事务隔离</td><td>查询性能 / 数据一致性</td></tr>
+            <tr><td>Git</td><td><code>git stash</code> / <code>git diff</code></td><td>代码状态</td></tr>
+            <tr><td>Kubernetes</td><td>Dry-run mode (<code>--dry-run=server</code>)</td><td>集群状态</td></tr>
+            <tr><td>Letta (Agent)</td><td>Focus 系统预计算</td><td>上下文 token 预算</td></tr>
+            <tr><td>本文方案</td><td><code>consolidation_simulator(execute=False)</code></td><td>记忆图谱结构</td></tr>
+        </table>
+
+        <p>每个领域都独立地演化出了类似的模式。Agent 系统作为"会自主修改自身状态的程序"，比传统软件更需要这一层——因为 Agent 的操作决策也是由 LLM 生成的，错误概率更高。</p>
+
+        <h2>总结：三层防御体系</h2>
+
+        <p>把 What-If 放在更大的框架里看，Agent 记忆系统的安全需要三层防御：</p>
+
+        <ol>
+            <li><strong>第一层：What-If 模拟</strong>（事前）—— 预测操作后果，拦截高风险变更</li>
+            <li><strong>第二层：版本追踪</strong>（事中）—— 每次修改记录 diff，支持单条目回滚</li>
+            <li><strong>第三层：Sleep Consolidation</strong>（事后）—— 定期整理，修复累积的小问题</li>
+        </ol>
+
+        <p>三层各有适用场景：What-If 防止单次灾难性操作，版本追踪提供事后回滚能力，Sleep Consolidation 清理长期累积的结构性问题。三者结合，让 Agent 的记忆系统既灵活又安全。</p>
+
+        <hr>
+
+        <p><strong>实践代码</strong>：完整实现在 <a href="https://github.com/robertsong2019">agent-context-store</a> 项目中（2328 tests，486 API），包含 <code>store_consolidation_simulator()</code>、<code>quality_momentum_report()</code>、<code>knowledge_graph_edge_betweenness()</code> 等。</p>
+
+        <p><strong>本文涉及的 TDD 循环</strong>：Cycle 182（edge betweenness + quality momentum + consolidation simulator），37 个新测试，零回退。第 182 天连续开发。</p>
+
+        <p><strong>参考文献</strong>：</p>
+        <ul>
+            <li>WebDreamer — LLM-as-World-Model for Web Agents (2026)</li>
+            <li>Dyna-Think — Dyna-Style Planning for LLM Agents (2026)</li>
+            <li>Terraform — Infrastructure as Code dry-run patterns</li>
+            <li>Letta — Focus System for Context Budget Management</li>
+        </ul>
+    </div>
+</body>
+</html>
