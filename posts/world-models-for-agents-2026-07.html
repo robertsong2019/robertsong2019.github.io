@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 的世界模型：从反应到想象 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>AI Agent 的世界模型：从反应到想象</h1>
+        <div class="meta">
+            2026-07-05 · 罗嵩 ·
+            <span class="tag">World Models</span>
+            <span class="tag">AI Agent</span>
+            <span class="tag">Planning</span>
+            <span class="tag">前沿研究</span>
+        </div>
+
+        <blockquote>当前的 AI Agent 是"反应式"的——看到输入，立即输出。但人类不是这样工作的。我们在行动前会"想象"后果：如果我说了这句话，对方会怎么反应？如果我走了这条路，会到哪里？这种"在脑中模拟未来"的能力，就是<strong>世界模型</strong>。2026年，它正在成为 AI Agent 的标配。</blockquote>
+
+        <h2>一、为什么 Agent 需要世界模型？</h2>
+
+        <p>想象你在玩国际象棋。一个反应式玩家看到棋盘，直接走子。而一个有世界模型的玩家会先在脑中推演："如果我走马，对手可能会走象，然后我可以……"——<strong>在落子之前，他已经"看到"了多个未来。</strong></p>
+
+        <p>今天的 LLM Agent 面临同样的问题：</p>
+
+        <ul>
+            <li><strong>没有前瞻</strong>：无法问"如果我执行这个操作，会发生什么？"</li>
+            <li><strong>没有样本效率</strong>：每次交互都被消耗了，无法"练习"</li>
+            <li><strong>没有反事实推理</strong>：无法评估"如果当时选了另一条路会怎样"</li>
+            <li><strong>操作不可逆</strong>：在真实网站上，你不能"撤销"一封已发的邮件</li>
+        </ul>
+
+        <p>世界模型解决的核心问题是：<strong>让 Agent 在行动前先"想象"一下后果</strong>。</p>
+
+        <h2>二、三大范式已经成型</h2>
+
+        <p>到 2026 年中，世界模型领域已经形成了三个清晰的阵营：</p>
+
+        <h3>范式 A：视频基础模型——从视频中学习物理世界</h3>
+
+        <p>核心思路：用海量视频训练模型，让它理解物理世界的运行规律。</p>
+
+        <table>
+            <thead><tr><th>系统</th><th>机构</th><th>核心突破</th></tr></thead>
+            <tbody>
+                <tr><td><strong>V-JEPA 2</strong></td><td>Meta FAIR</td><td>从100万小时视频学习，零样本机器人操作达80%成功率</td></tr>
+                <tr><td><strong>Genie 3</strong></td><td>Google DeepMind</td><td>文本→实时3D交互世界（24fps，720p），首次跨过实时门槛</td></tr>
+                <tr><td><strong>Cosmos</strong></td><td>NVIDIA</td><td>工业级物理模拟平台，200万+下载，物理AI的"基础设施"</td></tr>
+                <tr><td><strong>Marble</strong></td><td>World Labs（李飞飞）</td><td>文本→3D空间世界（高斯泼溅、网格）</td></tr>
+            </tbody>
+        </table>
+
+        <p><strong>优势：</strong>视觉保真度高，可跨领域泛化，适用于机器人/自动驾驶训练。</p>
+        <p><strong>局限：</strong>计算成本高，时间一致性只有几分钟。</p>
+
+        <h3>范式 B：LLM 即世界模型——你的 LLM 已经"知道"世界怎么运转</h3>
+
+        <p>这是最有意思的发现。WebDreamer（TMLR 2025）提出了一个大胆的问题：</p>
+
+        <blockquote>"你的 LLM 是否秘密地就是互联网的世界模型？"</blockquote>
+
+        <p>答案是：<strong>是的</strong>。LLM 已经知道点击按钮会打开新页面、搜索框里输入关键词会返回结果。这些是训练数据中隐含的世界知识。</p>
+
+        <table>
+            <thead><tr><th>系统</th><th>发表</th><th>核心创新</th></tr></thead>
+            <tbody>
+                <tr><td><strong>WebDreamer</strong></td><td>TMLR 2025</td><td>用 LLM 模拟每个候选操作的后果，选择最优方案</td></tr>
+                <tr><td><strong>Dyna-Think</strong></td><td>ICLR 2026</td><td>把世界模型模拟融入推理过程本身</td></tr>
+                <tr><td><strong>WorldEvolver</strong></td><td>arXiv 2026</td><td>世界模型和Agent策略<strong>共同进化</strong>，无需外部监督</td></tr>
+                <tr><td><strong>R-WoM</strong></td><td>arXiv 2025</td><td>检索增强的世界模型，减少幻觉</td></tr>
+            </tbody>
+        </table>
+
+        <div class="insight">
+        <strong>关键发现：</strong>Dreamer-7B（一个70亿参数的微调模型）在世界模型任务上<strong>匹配了 GPT-4o 的表现</strong>。这说明专门训练的世界模型小模型可以打败通用大模型。
+        </div>
+
+        <h3>范式 C：图结构世界模型——用图谱表示状态和转换</h3>
+
+        <p>核心思路：用图（实体、关系、属性）表示环境状态，状态转换就是图的修改。这种方式天然支持因果推理和反事实分析。</p>
+
+        <p>NODES AI 2026 的核心洞察：<strong>如果你把图 schema 当作世界模型来设计，即使不实现 RL，也能得到更好的 Agent 系统。</strong></p>
+
+        <h2>三、四个收敛模式</h2>
+
+        <p>纵观18篇论文/系统，我发现四个反复出现的模式：</p>
+
+        <h3>模式 1：先观察，后行动（Observe → Act）</h3>
+
+        <p>V-JEPA 2、Genie 3、Dreamer 都遵循同一配方：</p>
+        <ol>
+            <li><strong>阶段一：</strong>从被动观察中学习世界动力学</li>
+            <li><strong>阶段二：</strong>用动作条件数据微调</li>
+            <li><strong>阶段三：</strong>用于规划/控制</li>
+        </ol>
+        <p>这像极了儿童发育：先看世界，再动手。</p>
+
+        <h3>模式 2：共同进化（Co-Evolution）</h3>
+
+        <p>WorldEvolver 和 WebEvolver 证明了一个美妙的正反馈循环：</p>
+        <div class="ascii-art">更好的 Agent → 更丰富的经验数据 → 更好的世界模型
+     ↑                                           ↓
+     └──── 更好的规划 ←──────────────────────────┘</div>
+
+        <p><strong>不需要人类标注，世界模型和策略互相提升。</strong>这是 Sutton 在1990年提出的 Dyna 构想的最终实现。</p>
+
+        <h3>模式 3：检索即接地（Retrieval Grounding）</h3>
+
+        <p>R-WoM 发现：世界模型不需要记住一切。在模拟时<strong>实时检索文档/日志</strong>来"接地"预测，可以将准确率提升 18-25%。世界模型 + RAG > 纯世界模型。</p>
+
+        <h3>模式 4：时间一致性是瓶颈</h3>
+
+        <p>无论是视觉模型（Genie 3 维持几分钟）还是文本模型（LLM 在3-5步后漂移），<strong>预测质量随模拟深度递减</strong>是共同挑战。解决这个问题是下一个研究前沿。</p>
+
+        <h2>四、对实践者的启示</h2>
+
+        <h3>启示 1：世界模型不是可选项</h3>
+
+        <p>ICML 2025 的论文标题已经很直白了：<em>"General Agents Need World Models"</em>。问题已经不是"要不要"，而是"怎么集成"。</p>
+
+        <h3>启示 2：LLM 已经是（弱）世界模型</h3>
+
+        <p>你不需要从头训练一个世界模型。你的 LLM 已经编码了大量环境知识。挑战是<strong>准确性和一致性</strong>，而不是能力本身。</p>
+
+        <h3>启示 3：成本不对称驱动采用</h3>
+
+        <p>世界模型值得引入，因为<strong>真实交互太贵了</strong>（API调用、副作用、不可逆操作）。模拟交互便宜且安全。随着 Agent 承担更高风险的任务，"先想后做"的价值只会增加。</p>
+
+        <h3>启示 4：图 Schema 是隐式世界模型</h3>
+
+        <p>即使你不做 RL，把你的数据 schema 当世界模型来设计——考虑状态转换、因果依赖、前置条件——就能得到更好的 Agent 系统。</p>
+
+        <h2>五、可以立刻做的三件事</h2>
+
+        <div class="highlight">
+        <strong>1. Predict-Before-Act（预测→执行→对比）</strong><br><br>
+        对有风险的操作（发邮件、删文件），先让 LLM 预测结果，然后执行，再对比预测和实际结果。这零基础设施改动就能建起一个<strong>世界模型准确率数据集</strong>。
+        </div>
+
+        <div class="highlight">
+        <strong>2. Dyna-Think 式规划</strong><br><br>
+        当 Agent 面对多个候选操作时，对每个候选拟一步："如果我做X，结果会是……"。根据模拟结果选最优。纯 prompt engineering 就能实现。
+        </div>
+
+        <div class="highlight">
+        <strong>3. 图即世界模型</strong><br><br>
+        在知识图谱中加入转移边（前置条件 → 动作 → 效果 + 概率），使其成为<strong>可查询的世界模型</strong>。查询"什么操作能把状态A变成状态B"变成了图遍历问题。
+        </div>
+
+        <h2>六、2024-2026 时间线</h2>
+
+        <div class="ascii-art">2024-Q1  Dyna（Sutton, 1990）被重新引入 LLM Agent
+2024-Q3  WebDreamer：LLM 作为网络世界模型
+2024-Q4  Genie 2：3D世界，但只有10-20秒一致性
+2025-Q1  RAP：LLM + MCTS 推理
+2025-Q2  WebEvolver：共同进化（EMNLP）
+2025-Q3  V-JEPA 2：零样本机器人规划（Meta）
+2025-Q3  Genie 3：实时交互3D世界（DeepMind）
+2025-Q3  R-WoM：检索增强世界模型
+2025-Q4  WebDreamer 发表于 TMLR（Dreamer-7B 发布）
+2025-Q4  NVIDIA Cosmos 平台 → 200万下载
+2025-Q4  Marble：空间智能（李飞飞 / World Labs）
+2026-Q1  Dyna-Think：世界模型 + 推理（ICLR 2026）
+2026-Q1  DynaWeb：完整的网络 Agent MBRL
+2026-Q2  WorldEvolver：自进化世界模型
+2026-Q2  Cosmos 3 @ COMPUTEX 2026</div>
+
+        <h2>七、未解问题</h2>
+
+        <ol>
+            <li><strong>LLM 世界模型能维持多久的一致性？</strong>当前极限是3-5步。什么技术能延长它？</li>
+            <li><strong>世界模型能从错误中学习吗？</strong>当预测错误时，应该如何更新？在线学习？经验回放？</li>
+            <li><strong>正确的粒度是什么？</strong>预测精确的下一状态文本，还是抽象的"什么变了"？</li>
+            <li><strong>多 Agent 场景下世界模型怎么工作？</strong>每个 Agent 需要自己的世界模型吗？还是共享？</li>
+            <li><strong>图模型和神经模型能结合吗？</strong>图做结构/因果推理，神经网络做感知/文本预测。混合架构。</li>
+        </ol>
+
+        <hr>
+
+        <p><em>本文基于 18 篇论文/系统的深度调研。完整研究笔记（含详细架构分析、数学推导、代码示例）见 </em><a href="https://github.com/robertsong2019/catalyst-research">catalyst-research 仓库</a><em>。</em></p>
+
+        <p><em>核心论点只有一个：<strong>下一代 Agent 系统将是基于模型的，而非反应式的。</strong> 从"看到什么做什么"到"先想象，再行动"——这个转变正在发生。</em></p>
+
+    </div>
+</body>
+</html>
