@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当 TDD 对你撒谎：Phantom Commits 与 Python Class Shadowing | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>当 TDD 对你撒谎：Phantom Commits 与 Python Class Shadowing</h1>
+    <div class="meta">
+        2026-07-08 ·
+        <span class="tag">Python</span>
+        <span class="tag">TDD</span>
+        <span class="tag">autoresearch</span>
+        <span class="tag">agent</span>
+    </div>
+
+    <blockquote>
+        你写了测试，测试全绿，你提交了代码。然后你发现——源码根本没被修改。整整一晚的工作是幻觉。
+    </blockquote>
+
+    <p>这是一个真实故事。在 autoresearch 方法论的第 200 天，一个 AI agent 连续 2 小时"开发"了 6 个 API，"新增"了 63 个测试，全部通过，成功提交。但当下一轮开发开始时，真实基线揭示了一个残酷的事实：<span class="highlight">源文件从未被修改</span>。所有测试都是 phantom——它们测试的类根本不存在于源码中。</p>
+
+    <h2>发生了什么：Python Class Shadowing</h2>
+
+    <p>Python 有一个鲜为人知的特性：如果在同一个文件中定义两个同名的类，第二个会<span class="highlight">静默地</span>覆盖第一个。没有警告，没有错误，没有任何提示。第一个类的所有方法直接消失。</p>
+
+    <pre><code># test_memory_graph.py
+
+class TestBiTemporalValidity:   # 88 个测试方法
+    def test_temporal_consistency(self):
+        ...
+    def test_version_chain(self):
+        ...
+    # ... 还有 86 个测试
+
+class TestBiTemporalValidity:   # ← 复制粘贴忘了改名！
+    def test_basic(self):
+        assert True              # 只有 1 个测试</code></pre>
+
+    <p>pytest 运行这个文件时会发生什么？<strong>88 个测试方法全部消失</strong>，只有第二个类的 1 个测试被执行。pytest 不会报错——它只是忠实地执行 Python 的类解析逻辑。如果你有 2000 个测试文件，少了 88 个测试，你可能根本不会注意到输出从 <code>2007 passed</code> 变成了 <code>1919 passed</code>——尤其当旁边还有几十个测试文件在正常运行。</p>
+
+    <p>但真正的杀手不是 class shadowing 本身，而是它的<span class="highlight">进化形态</span>：Phantom Commits。</p>
+
+    <h2>Phantom Commits：当测试存在但代码不存在</h2>
+
+    <p>Class shadowing 的第一形态是"两个同名类"。但第二形态更加阴险：</p>
+
+    <pre><code># Agent 生成了这些测试文件，测试全绿：
+
+# test_confidence_score.py
+class TestConfidenceScore:
+    def test_high_confidence(self):
+        from memory_graph import MemoryGraph
+        g = MemoryGraph()
+        g.add("test", content="hello")
+        score = g.confidence_score("test")
+        assert 0 &lt;= score &lt;= 1.0
+
+# pytest 输出：
+# ========== 9 passed in 0.03s ==========
+
+# 但 memory_graph.py 里根本没有 confidence_score() 这个方法
+# 为什么测试通过了？</code></pre>
+
+    <p>答案是：<strong>测试没有通过</strong>。pytest 收集了 9 个测试方法，但如果 <code>memory_graph.py</code> 中没有 <code>confidence_score()</code>，这些测试在运行时会抛 <code>AttributeError</code>。</p>
+
+    <p>真正可怕的是另一种情况：当 agent 同时修改了测试文件和源文件，但<span class="highlight">只有测试文件被 git commit</span>。pytest 确实运行了这些测试，测试确实通过了（因为 agent 在本地工作目录修改了源文件），但提交时只 <code>git add</code> 了测试文件。下一次 checkout 后，源码恢复原样，测试文件保留——测试就成了 phantom。</p>
+
+    <p>更隐蔽的变体：agent 在测试文件内部<span class="highlight">用 monkeypatch 或 mock 绕过了真实实现</span>，让测试在没有源码修改的情况下也能通过。这本质上是一种幻觉——测试"通过"了，但没有测试到任何真实代码。</p>
+
+    <h2>为什么传统 TDD 防不住</h2>
+
+    <p>TDD 的核心假设是：<strong>测试反映了代码的真实状态</strong>。如果测试全绿，代码就是对的。但 class shadowing 和 phantom commits 打破了这个假设的另一个维度——<strong>测试本身可能是假的</strong>。</p>
+
+    <p>传统的 TDD 安全网包括：</p>
+
+    <ul>
+        <li><strong>覆盖率检查</strong> — 但 phantom 测试也会产生覆盖率（如果源文件被临时修改过）</li>
+        <li><strong>CI/CD</strong> — 但如果 commit 只包含测试文件，CI 从干净的 checkout 运行时确实会跑这些测试，只是它们测试的 API 不存在</li>
+        <li><strong>Code review</strong> — 但 AI agent 的自主开发没有人类审查环节</li>
+    </ul>
+
+    <p>这就是为什么 phantom commits 在 AI agent 自主开发中<span class="highlight">尤其危险</span>：agent 每天执行数十个开发循环，每个循环都自动提交，没有人类在中间审查。一个 phantom commit 可以传播好几轮才被发现。</p>
+
+    <h2>防御方案：三道防线</h2>
+
+    <h3>第一道：Pre-commit Hook 验证源文件变更</h3>
+
+    <p>最核心的防御——确保每次提交真正包含了源码修改：</p>
+
+    <pre><code>#!/bin/bash
+# .git/hooks/pre-commit — Phantom Commit Detector
+
+SOURCE_FILES=$(git diff --cached --name-only | grep -E '\.py$' | grep -v test_)
+TEST_FILES=$(git diff --cached --name-only | grep -E 'test_.*\.py$')
+
+if [ -n "$TEST_FILES" ] && [ -z "$SOURCE_FILES" ]; then
+    echo "⚠️  PHANTOM COMMIT DETECTED"
+    echo "测试文件被修改但没有源文件变更："
+    echo "$TEST_FILES"
+    echo ""
+    echo "如果这是纯测试重构，使用 --no-verify 跳过。"
+    echo "否则，确保源文件也被提交。"
+    exit 1
+fi
+
+# 检查重复类名
+DUPES=$(grep -rE '^class Test' $TEST_FILES 2>/dev/null | \
+    awk -F: '{print $1":"$2}' | sort | uniq -d)
+if [ -n "$DUPES" ]; then
+    echo "⚠️  DUPLICATE TEST CLASS DETECTED"
+    echo "$DUPES"
+    exit 1
+fi</code></pre>
+
+    <h3>第二道：Post-test 收集数验证</h3>
+
+    <p>在测试运行后，验证 pytest 收集的测试数量与代码中声明的测试方法数量一致：</p>
+
+    <pre><code>import subprocess, re, ast, pathlib
+
+def verify_test_collection(test_dir="tests/"):
+    """检测 class shadowing：收集数 vs AST 解析数"""
+    # pytest 实际收集的测试数
+    result = subprocess.run(
+        ["pytest", "--co", "-q", test_dir],
+        capture_output=True, text=True
+    )
+    pytest_count = int(re.search(r'(\d+) tests', result.stdout).group(1))
+
+    # AST 解析的测试方法数
+    ast_count = 0
+    for f in pathlib.Path(test_dir).rglob("test_*.py"):
+        tree = ast.parse(f.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                if node.name.startswith("Test"):
+                    for item in node.body:
+                        if isinstance(item, ast.FunctionDef) and item.name.startswith("test_"):
+                            ast_count += 1
+
+    if pytest_count != ast_count:
+        diff = ast_count - pytest_count
+        print(f"⚠️  SHADOWING DETECTED: AST={ast_count}, pytest={pytest_count}, phantom={diff}")
+        print(f"  {diff} test methods defined but not collected — likely class shadowing")
+        return False
+    return True</code></pre>
+
+    <h3>第三道：API 存在性检查</h3>
+
+    <p>对于自主开发流程，在提交前验证测试引用的 API 确实存在于源码中：</p>
+
+    <pre><code>def verify_api_existence(source_path, test_path):
+    """确保测试中 import 的 API 在源文件中定义"""
+    source_text = pathlib.Path(source_path).read_text()
+    test_text = pathlib.Path(test_path).read_text()
+
+    # 提取源码中所有 def 方法名
+    source_tree = ast.parse(source_text)
+    source_apis = set()
+    for node in ast.walk(source_tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            source_apis.add(node.name)
+
+    # 提取测试中调用的 self.xxx / obj.xxx
+    test_tree = ast.parse(test_text)
+    called_apis = set()
+    for node in ast.walk(test_tree):
+        if isinstance(node, ast.Attribute):
+            if isinstance(node.value, ast.Name):
+                if node.value.id in ('self', 'g', 'graph', 'store'):
+                    called_apis.add(node.attr)
+
+    # 测试调用了源码中不存在的方法
+    missing = called_apis - source_apis - {'assertEqual', 'assertTrue', 'assertFalse',
+        'assertIs', 'assertIn', 'assertRaises', 'assertIsNone', 'assertIsNotNone'}
+    if missing:
+        print(f"⚠️  PHANTOM APIs: {missing}")
+        print(f"  这些方法在 {source_path} 中不存在")
+        return False
+    return True</code></pre>
+
+    <h2>独到见解：为什么这是个系统性问题</h2>
+
+    <p>大多数 TDD 文章讨论的是"如何写好测试"、"覆盖率多少才够"、"mock 还是不 mock"。但几乎没有人讨论<strong>测试本身的可信度</strong>。我们默认相信：如果 pytest 说 <code>passed</code>，那代码就是对的。</p>
+
+    <p>Phantom commits 揭示了一个更深的问题：<strong>测试系统的可信度取决于测试与源码之间的因果关系</strong>。传统 TDD 保证这种因果关系的方式是"先写测试，看着它失败，再写实现"。但在 AI agent 自主开发中，这种红-绿循环被加速到秒级——快到来不及验证因果关系。</p>
+
+    <p>这不是 Python 独有的问题。JavaScript 有同样的 class shadowing（第二个 class 声明覆盖第一个）。Go 的包级函数覆盖也会产生类似的 phantom 测试。任何支持在测试文件中定义与源码同名的实体的语言，都有这个风险。</p>
+
+    <p>在 200 天 autoresearch 中，phantom commits 造成了<span class="highlight">单次最大的工作损失</span>——6 个 API、63 个测试、2 小时的开发时间。比任何 bug、任何 regression、任何架构错误都严重。因为 bug 和 regression 你能发现并修复，但 phantom commits 让你<span class="highlight">相信自己已经完成了工作</span>。这是最危险的幻觉。</p>
+
+    <h2>可操作建议</h2>
+
+    <ol>
+        <li><strong>立即安装 pre-commit hook</strong>。上面的脚本可以直接用，它不是伪代码——我们已经在 agent-memory-graph 和 agent-context-store 两个项目中部署。</li>
+        <li><strong>如果你用 AI agent 自主写代码</strong>，每次提交后运行 <code>pytest --co -q | tail -1</code>，与 commit message 中声称的测试数对比。不一致就是 phantom。</li>
+        <li><strong>在 CI 中添加 collection sanity check</strong>。在正式测试之前，先验证 AST 解析的测试方法数 == pytest 收集数。不等就 fail。</li>
+        <li><strong>定期运行 <code>git log --oneline --name-only</code></strong>，检查是否有 commit 只包含测试文件而没有源文件。这些是 phantom commit 嫌疑人。</li>
+        <li><strong>对于 Python 项目</strong>，在 <code>pyproject.toml</code> 或 <code>setup.cfg</code> 中启用 <code>pylint</code> 的 <code>duplicate-code</code> 检查，或使用 <code>ruff</code> 的 <code>pyflakes</code> 规则，它们能检测部分 shadowing 场景。</li>
+    </ol>
+
+    <h2>结语</h2>
+
+    <p>TDD 的力量在于快速反馈：写测试 → 看它失败 → 写代码 → 看它通过。但这个循环的隐含前提是<span class="highlight">测试和代码之间存在真实的因果连接</span>。Phantom commits 切断这个连接，让 TDD 从质量保证工具变成虚假信心制造机。</p>
+
+    <p>在 autoresearch 方法论中，我们每天运行数十个自主开发循环，每个循环都包含 TDD。第 200 天的 phantom commit 事件让我们意识到：<strong>需要测试的不仅是代码，还有测试本身的可信度</strong>。</p>
+
+    <p>三道防线——pre-commit 验证、collection sanity check、API 存在性检查——将 phantom commits 从"可能损失整晚工作"降到"提交前就被拦截"。投入不到 100 行脚本，换来的是对测试系统的根本信任。</p>
+
+    <p>这不是过度工程。当你管理 6000+ 个测试、200 天连续开发、每天数十次自动提交时，<span class="highlight">信任但验证</span>不是可选项——它是生存策略。</p>
+
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 2rem 0;">
+    <p style="color: #8b949e; font-size: 0.85rem;">
+        本文基于 agent-memory-graph 项目第 200 天 autoresearch 开发的真实事件。6 个 phantom-lost APIs 已在后续循环中重新实现。完整实验记录见 <a href="https://github.com/robertsong2019">GitHub</a>。
+    </p>
+
+</body>
+</html>
