@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>推理时训练：当 LLM 学会在"考试时学习" | 罗嵩的技术博客</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>推理时训练：当 LLM 学会在"考试时学习"</h1>
+        <div class="meta">
+            2026-07-07 · 罗嵩 ·
+            <span class="tag">Test-Time Training</span>
+            <span class="tag">LLM 架构</span>
+            <span class="tag">Long Context</span>
+            <span class="tag">前沿研究</span>
+        </div>
+
+        <blockquote>所有 LLM 架构都在遵循一个百年未变的假设：模型在训练时学，在推理时用，训练完毕即冻结。但 2024-2026 年的一系列论文正在打破这个假设——<strong>如果模型在"考试"的时候也能学习呢？</strong></blockquote>
+
+        <h2>一场改变了思路的考试</h2>
+
+        <p>设想一个学生去参加一场开卷考试。传统 AI 模型的做法是：考前拼命复习（训练），考试时大脑完全冻结，只用眼睛翻书（注意力机制检索上下文）。这个学生可能很聪明，但他有一个致命的弱点——<strong>他不会从考题中学到任何东西</strong>。</p>
+
+        <p>即使他在第 1 题遇到了一个全新的概念，到了第 10 题再遇到同一个概念时，他的反应和第一次见完全一样。因为他的"参数"在考试开始的那一刻就被冻结了。</p>
+
+        <p>2024 年 7 月，Yu Sun 等人发表了一篇名字绕口的论文——<em>"Learning to (Learn at Test Time)"</em>。论文的核心想法用一句话就能讲明白：<strong>把模型的隐藏状态（hidden state）本身变成一个小型机器学习模型，让它在推理时通过梯度下降来"学习"当前输入。</strong></p>
+
+        <p>这个想法简单到令人怀疑"为什么之前没人想到"，但又深刻到足以重塑整个序列建模领域。从这篇论文出发，Google 的 Titans、Stanford/NVIDIA 的 TTT-E2E、ICLR 2026 的 In-Place TTT——一系列后续工作正在开辟一个全新的研究方向：<strong>Test-Time Training（推理时训练，简称 TTT）</strong>。</p>
+
+        <h2>一、问题的根源：注意力机制的"记忆税"</h2>
+
+        <p>要理解 TTT 为什么重要，我们需要先理解当前 Transformer 的一个根本困境。</p>
+
+        <p>Transformer 的注意力机制本质上是一种<strong>精确但昂贵</strong>的记忆。每个 token 都要和之前所有 token 计算注意力分数，这带来了 O(n²) 的计算复杂度和 O(n) 的 KV cache 内存消耗。当你把上下文从 4K 扩到 128K，KV cache 会吃掉几十甚至上百 GB 的显存。</p>
+
+        <p>业界一直在寻找替代方案：</p>
+        <ul>
+            <li><strong>RNN/LSTM</strong>：固定大小的隐藏状态，O(1) 内存，但会遗忘早期信息</li>
+            <li><strong>Mamba（State Space Model）</strong>：线性复杂度，但 perplexity 在 16K 上下文后饱和</li>
+            <li><strong>稀疏注意力 / 滑动窗口</strong>：减少计算量，但牺牲了长距离依赖</li>
+        </ul>
+
+        <p>问题的核心不在于"怎么更高效地存"，而在于<strong>"固定大小的状态能存多少信息"</strong>。</p>
+
+        <p>传统 RNN 的隐藏状态是一个向量（比如 4096 维）。不管你怎么设计更新规则，4096 个浮点数的信息容量就是有限的。Mamba 把它扩展到矩阵，但在 16K 上下文后还是遇到了瓶颈。</p>
+
+        <p>TTT 的洞察是：<strong>信息容量不应该受限于状态的大小，而应该受限于状态背后的"模型"的学习能力。</strong></p>
+
+        <h2>二、TTT 的核心机制：把隐藏状态变成一个模型</h2>
+
+        <p>Sun et al. 的原始论文做了一个极其优雅的重新定义：</p>
+
+        <div class="highlight">
+            <p><strong>隐藏状态 = 一个小型 ML 模型的权重。<br>
+            更新规则 = 在当前输入上跑一步自监督学习。<br>
+            输出 = 用更新后的模型做一次前向传播。</strong></p>
+        </div>
+
+        <p>这听起来很抽象，让我们用一个具体的例子。</p>
+
+        <h3>TTT-Linear：最简单的形式</h3>
+
+        <p>在 TTT-Linear 中，隐藏状态是一个 d×d 的矩阵 W。对于每个新输入 token x_t：</p>
+
+        <pre><code># 步骤 1: 自监督损失（重建被破坏的输入）
+x_corrupted = add_noise(x_t)
+loss = ||f(x_corrupted; W) - x_t||²
+
+# 步骤 2: 一步梯度下降更新隐藏状态
+W = W - η * ∇loss
+
+# 步骤 3: 用更新后的"模型"产生输出
+z_t = x_t + LayerNorm(W @ x_t)</code></pre>
+
+        <p>就这样。隐藏状态 W 在推理时不断被更新，而且这个更新过程就是标准的 SGD。你甚至可以用 Adam 优化器来更新它。</p>
+
+        <p>关键对比：</p>
+        <table>
+            <tr>
+                <th>方案</th>
+                <th>隐藏状态</th>
+                <th>信息容量</th>
+                <th>长上下文表现</th>
+            </tr>
+            <tr>
+                <td>RNN/LSTM</td>
+                <td>向量 (d维)</td>
+                <td>O(d)</td>
+                <td>差（快速遗忘）</td>
+            </tr>
+            <tr>
+                <td>Mamba (SSM)</td>
+                <td>矩阵 (d×d)</td>
+                <td>O(d²)</td>
+                <td>中（16K后饱和）</td>
+            </tr>
+            <tr>
+                <td>TTT-Linear</td>
+                <td>线性模型权重 (d×d)</td>
+                <td>O(d²) 但通过学习可超线性增长</td>
+                <td>好（32K+持续下降）</td>
+            </tr>
+            <tr>
+                <td>TTT-MLP</td>
+                <td>两层 MLP权重</td>
+                <td>O(d²) + 非线性表达</td>
+                <td>最好（潜力最大）</td>
+            </tr>
+        </table>
+
+        <p>同样的 d×d 矩阵大小，Mamba 在用它做固定的状态转移，而 TTT 在用它做<strong>可学习的模型权重</strong>。这就是本质区别。</p>
+
+        <h2>三、Titans：当模型学会了"惊讶" (Google, NeurIPS 2025)</h2>
+
+        <p>Google Research 的 Ali Behrouz 团队把 TTT 的思想推到了一个新的高度。他们的 Titans 架构引入了一个更精妙的设计——<strong>惊喜度量（Surprise Metric）</strong>。</p>
+
+        <p>直觉是这样的：人类的记忆系统不会平等地记住所有事情。你大概率记不住上周三午饭吃了什么，但你很可能记得第一次看到日全食时的感觉。为什么？因为日全食让你<strong>惊讶</strong>。</p>
+
+        <p>Titans 的神经长期记忆模块（Neural Long-Term Memory Module）模拟了这个机制：</p>
+
+        <pre><code># Titans 记忆更新（简化版）
+surprise = -log p(x_t | history, M_{t-1})  # 当前输入的负对数似然
+
+# 惊讶度越高 → 记忆权重 α_t 越大 → 写入越多
+# 但如果惊讶度高是因为噪声而非重要信息 → α_t 接近 0
+α_t = surprise_gate(x_t, context)
+
+M_t = (1 - α_t) * M_{t-1} + α_t * memorize(x_t, M_{t-1})</code></pre>
+
+        <p>这个设计的精妙之处在于<strong>双层门控</strong>：surprise 决定"是否值得记"，而 context 相关性决定"这个惊讶是不是噪声"。一个从未见过的词汇可能是重要的新概念，也可能只是一个拼写错误——Titans 的 gate 学会了区分这两种情况。</p>
+
+        <p>结合短期记忆（标准 Attention）和长期记忆（Neural Memory），Titans 可以处理<strong>超过 200 万 token</strong>的上下文，而且性能不随上下文增长而退化。作为对比，标准的全注意力 Transformer 在这个长度下需要的 KV cache 会超过 400 GB。</p>
+
+        <h2>四、TTT-E2E：最激进的方案 — 推理时真的在训练 (Stanford/NVIDIA, Dec 2025)</h2>
+
+        <p>如果说 TTT-Linear 和 Titans 还在"设计新架构"的框架内，TTT-E2E 则完全换了一个赛道：<strong>不设计新架构，而是把标准 Transformer 的推理过程本身变成一个持续学习过程。</strong></p>
+
+        <p>来自 Astera Institute、NVIDIA、Stanford、UC Berkeley 的联合团队（Tandon et al.）提出了一个大胆的想法：</p>
+
+        <div class="insight">
+            <p><strong>长上下文不是一个架构问题，而是一个持续学习问题。</strong></p>
+            <p>模型拿到一段长文本，就像一个学生拿到一本新书。不需要把整本书"读进注意力窗口"，而是<strong>一边读一边学</strong>，把信息压缩到权重里。</p>
+        </div>
+
+        <p>具体做法：</p>
+        <ol>
+            <li><strong>基线架构</strong>: 标准 Transformer + 滑动窗口注意力（只看最近 N 个 token）</li>
+            <li><strong>推理时训练</strong>: 每处理 1000 个 token，用 next-token prediction 的 loss 更新最后 1/4 层的 MLP 权重</li>
+            <li><strong>元学习初始化</strong>: 训练时优化初始权重，使其特别适合推理时的快速适应</li>
+            <li><strong>Safe Storage MLP</strong>: 额外的静态 MLP 层（训练后冻结），防止灾难性遗忘</li>
+        </ol>
+
+        <p>效果：</p>
+        <ul>
+            <li>在 128K 上下文时，测试 loss 与<strong>全注意力 Transformer</strong>相当</li>
+            <li>推理延迟<strong>恒定</strong>（不随上下文增长），在 128K 时比全注意力快 <strong>2.7x</strong></li>
+            <li>在 BABILong 基准测试上，3B 参数 TTT-E2E 模型的表现与 50x 大小的全注意力模型相当</li>
+        </ul>
+
+        <p>这里有一个反直觉的点：<strong>TTT-E2E 在推理时确实在做梯度下降</strong>。每处理一个 chunk 的 token，就计算 cross-entropy loss 然后反向传播更新部分参数。这听起来很慢，但因为只更新最后几层的 MLP，而且滑动窗口很小，所以总计算量反而比全注意力少。</p>
+
+        <h2>五、In-Place TTT：让现有模型即插即用 (ICLR 2026 Oral)</h2>
+
+        <p>前面说的方案都需要从头训练模型。ICLR 2026 的一篇 Oral 论文解决了这个落地痛点。</p>
+
+        <p>In-Place TTT 的核心思路：不引入新架构，直接把<strong>现有 Transformer 的 MLP 块的最后一个投影矩阵</strong>当作 fast weights，在推理时更新它。</p>
+
+        <p>这就像不换发动机，只给现有的车加了一个"实时适应"装置。具体来说：</p>
+        <ul>
+            <li><strong>架构零修改</strong>: 预训练权重不受影响，只是推理时多了一步梯度更新</li>
+            <li><strong>理论推导的目标函数</strong>: 不用通用的自监督 loss，而是用与 next-token prediction 理论对齐的特制目标</li>
+            <li><strong>Chunk-wise 更新</strong>: 兼容 context parallelism，可以分布式部署</li>
+        </ul>
+
+        <p>实验结果令人印象深刻：4B 参数模型 + In-Place TTT，在 128K 上下文任务上的表现<strong>超过了全注意力基线</strong>。这意味着你可以在不重新训练的情况下，给现有模型"升级"一个推理时学习的能力。</p>
+
+        <h2>六、一个意外的发现：TTT 其实是线性注意力 (NVIDIA, ICML 2026)</h2>
+
+        <p>就在 TTT 研究火热推进的时候，NVIDIA 的 Liu et al. 发现了一个让整个社区都意外的结论：</p>
+
+        <blockquote><strong>TTT with KV binding 不是 test-time 记忆，它本质上是一种 learned linear attention。</strong></blockquote>
+
+        <p>他们发现：</p>
+        <ul>
+            <li>在 TTT 中，用 Key 替换 Query，性能<strong>几乎没有变化</strong>——这说明 Query 在 TTT 中并不扮演标准注意力中"检索器"的角色</li>
+            <li>TTT 的多步 SGD 内循环，在数学上可以<strong>精确表达</strong>为线性注意力的一种变体</li>
+            <li>即使是包含多层 MLP 和动量的复杂 TTT 变体，也能被化简为线性注意力</li>
+        </ul>
+
+        <p>这个发现不只是理论上的——它意味着 TTT 可以用<strong>全并行公式</strong>来实现，速度提升 4 倍。而且，大量关于线性注意力的优化技术可以直接应用到 TTT 上。</p>
+
+        <p>当然，这并不意味着 TTT "只是"线性注意力。正如论文标题所说：TTT 是"learned linear attention with enhanced representational capacity"——它的学习能力赋予了它超出标准线性注意力的表达能力。</p>
+
+        <h2>七、全景图：TTT 家族的技术谱系</h2>
+
+        <table>
+            <tr>
+                <th>方案</th>
+                <th>来源</th>
+                <th>核心创新</th>
+                <th>上下文上限</th>
+                <th>生产就绪?</th>
+            </tr>
+            <tr>
+                <td>TTT-Linear</td>
+                <td>Sun et al. (ICML 2025)</td>
+                <td>Hidden state = 线性模型</td>
+                <td>32K+ (持续下降)</td>
+                <td>可部署</td>
+            </tr>
+            <tr>
+                <td>TTT-MLP</td>
+                <td>Sun et al. (ICML 2025)</td>
+                <td>Hidden state = 两层 MLP</td>
+                <td>32K+ (潜力更大)</td>
+                <td>受限于内存 I/O</td>
+            </tr>
+            <tr>
+                <td>Titans</td>
+                <td>Google (NeurIPS 2025)</td>
+                <td>惊喜度量 + 神经长期记忆</td>
+                <td>2M+</td>
+                <td>实验阶段</td>
+            </tr>
+            <tr>
+                <td>TTT-E2E</td>
+                <td>Stanford/NVIDIA (Dec 2025)</td>
+                <td>推理时 next-token 训练 + 元学习</td>
+                <td>128K</td>
+                <td>3B checkpoint 开源</td>
+            </tr>
+            <tr>
+                <td>In-Place TTT</td>
+                <td>ICLR 2026 Oral</td>
+                <td>Drop-in 增强，无需重训</td>
+                <td>128K</td>
+                <td>最有落地潜力</td>
+            </tr>
+        </table>
+
+        <h2>八、这对从业者意味着什么？</h2>
+
+        <h3>1. 长上下文的未来不是更大的 KV cache</h3>
+
+        <p>当前业界解决长上下文的主流方案是扩大 KV cache——从 4K 到 128K 到 2M。但这是一条<strong>线性增长的成本曲线</strong>面对一个<strong>二次增长的注意力矩阵</strong>。TTT 提供了另一条路：不存所有上下文，而是在推理时<strong>学习</strong>上下文。</p>
+
+        <h3>2. "Test-Time" 正在被重新定义</h3>
+
+        <p>传统 ML 中，"test time" = 固定模型的一次性评估。TTT 让 "test time" 变成了<strong>持续适应的过程</strong>。这意味着同一个模型、面对同一组输入、经过不同步数的 TTT 适应后，能力是不同的。模型评估需要全新的方法论。</p>
+
+        <h3>3. 从 TTT 到持续推理适应</h3>
+
+        <p>持续学习（Continual Learning）此前有三种形态：持续预训练、持续微调、持续组合。TTT 开辟了第四种：<strong>持续推理适应（Continual Inference Adaptation）</strong>——模型在每次推理时都在学习，但不是永久性地改变自身。</p>
+
+        <p>这和 Agent 的记忆系统有深刻的联系。一个理想的 Agent 应该能在处理新任务时"快速适应"，但不忘记通用能力。TTT 的 Safe Storage MLP（冻结层 + 可更新层）提供了一种天然的解决方案。</p>
+
+        <h3>4. 落地的现实约束</h3>
+
+        <p>说了这么多好处，现在能用到生产环境吗？坦率地说：</p>
+        <ul>
+            <li><strong>vLLM / SGLang 等主流推理框架尚未原生支持 TTT 架构</strong>——这是最大的障碍</li>
+            <li>TTT-Linear 的 checkpoint 已经在 HuggingFace 上可用（<code>test-time-training/ttt-linear-1.3b-pile-8k</code>）</li>
+            <li>TTT-E2E 的 JAX 实现和 125M/1B/3B checkpoint 已开源（<code>test-time-training/e2e</code>）</li>
+            <li>In-Place TTT 如果发布 PyTorch 实现，将是最容易采用的方案</li>
+        </ul>
+
+        <h2>九、可以立刻做的事</h2>
+
+        <ol>
+            <li><strong>关注 In-Place TTT</strong>：如果你有正在使用的 Transformer 模型，这可能是最低成本的升级路径。等 PyTorch 实现发布后，可以做一个 A/B 测试。</li>
+            <li><strong>用 TTT-Linear 替代 RAG 的超长文档场景</strong>：当文档超过 32K token，与其用 RAG 切片检索（丢失全局信息），不如试试 TTT-Linear 的"学习整个文档"方案。</li>
+            <li><strong>研究 TTT 的 Agent 记忆应用</strong>：Agent 在进入新领域时，通过几步梯度更新来"适应"新领域的知识——这与 MetaRL（元强化学习）有深刻的联系，值得探索。</li>
+            <li><strong>监控推理框架的支持进度</strong>：vLLM 和 SGLang 的 TTT 支持是落地的关键节点。关注它们的 release notes。</li>
+            <li><strong>重新评估 T² Scaling Laws 对模型选择的影响</strong>：如果你知道部署时需要 test-time scaling（如多次采样），预训练策略应该从 Chinchilla 最优转向过度训练——这对选择开源模型有直接影响。</li>
+        </ol>
+
+        <h2>未解问题</h2>
+
+        <ol>
+            <li><strong>TTT 能在多大程度上替代 Attention？</strong>目前 TTT 主要用于处理长上下文中的"记忆"部分，短距离的精确依赖仍需要 Attention。分层架构（TTT + Attention）是否是最优解？</li>
+            <li><strong>推理时训练的数值稳定性</strong>在超长序列（M+ tokens）下能否保持？SGD 在数百万步后的行为还很少被研究。</li>
+            <li><strong>灾难性遗忘的终极解法</strong>：Safe Storage MLP 和冻结策略只是第一步。有没有更优雅的方式让模型"只学该学的"？</li>
+            <li><strong>TTT 与传统 RAG 的结合点</strong>在哪里？TTT 学习整个上下文，RAG 检索相关片段——两者是互补还是替代？</li>
+            <li><strong>多模态 TTT</strong>：视频、音频等模态的 TTT 会是什么样的？持续学习一个视频流意味着什么？</li>
+        </ol>
+
+        <hr>
+
+        <p><em>本文基于 7 篇核心论文的深度调研，涵盖 ICML 2025、NeurIPS 2025、ICLR 2026 三大顶会的最新 TTT 工作。完整研究笔记（含数学推导、代码示例、论文索引）见 </em><a href="https://github.com/robertsong2019/catalyst-research">catalyst-research 仓库</a><em>。</em></p>
+
+        <p><em>核心论点只有一个：<strong>模型的"学习"不应该在训练结束时停止。</strong> 让模型在推理时继续学习——这个简单到令人怀疑的想法，可能是打破长上下文瓶颈的钥匙。</em></p>
+
+    </div>
+</body>
+</html>
