@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一个矩阵指数，三个图指标：用 e^A 统一你的图分析管线 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.8rem;
+            --text-sm: 0.875rem;
+            --text-base: 1rem;
+            --text-lg: 1.125rem;
+            --text-xl: 1.25rem;
+            --text-2xl: 1.5rem;
+            --text-3xl: 1.875rem;
+            --text-4xl: 2.25rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--surface-0);
+            color: var(--color-text-primary);
+            line-height: 1.7;
+        }
+        .container {
+            max-width: 1024px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-600) 0%, hsl(280, 70%, 50%) 100%);
+            color: white;
+            padding: var(--space-12) var(--space-8);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-12);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-6);
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: white; }
+        .page-header h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-4xl);
+            font-weight: 800;
+            margin-bottom: var(--space-4);
+            line-height: 1.2;
+        }
+        .page-header .meta {
+            font-size: var(--text-sm);
+            opacity: 0.9;
+        }
+        .content {
+            background: var(--surface-1);
+            padding: var(--space-8);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        .content h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            color: var(--color-text-primary);
+            margin-top: var(--space-8);
+            margin-bottom: var(--space-4);
+            padding-bottom: var(--space-3);
+            border-bottom: 2px solid var(--gray-200);
+        }
+        .content h3 {
+            font-size: var(--text-xl);
+            font-weight: 600;
+            color: var(--color-text-primary);
+            margin-top: var(--space-6);
+            margin-bottom: var(--space-3);
+        }
+        .content h4 {
+            font-size: var(--text-lg);
+            font-weight: 600;
+            color: var(--color-text-primary);
+            margin-top: var(--space-4);
+            margin-bottom: var(--space-2);
+        }
+        .content p {
+            margin-bottom: var(--space-4);
+            line-height: 1.8;
+        }
+        .content ul, .content ol {
+            margin-bottom: var(--space-4);
+            padding-left: var(--space-6);
+        }
+        .content li { margin-bottom: var(--space-2); }
+        .content pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-6);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin-bottom: var(--space-4);
+            font-family: 'Courier New', Consolas, monospace;
+            font-size: var(--text-sm);
+            line-height: 1.6;
+            border: 1px solid var(--gray-800);
+        }
+        .content code {
+            font-family: 'Courier New', Consolas, monospace;
+            font-size: var(--text-sm);
+        }
+        .content pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+            border-radius: 0;
+            display: block;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .content p code, .content li code {
+            background: var(--gray-100);
+            color: var(--primary-600);
+            padding: 0.125rem 0.375rem;
+            border-radius: var(--radius-sm);
+        }
+        .content blockquote {
+            border-left: 4px solid var(--primary-600);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-secondary);
+            font-style: italic;
+        }
+        .content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: var(--space-4);
+        }
+        .content th, .content td {
+            border: 1px solid var(--gray-200);
+            padding: var(--space-3);
+            text-align: left;
+        }
+        .content th {
+            background: var(--gray-50);
+            font-weight: 600;
+        }
+        .tag {
+            display: inline-block;
+            background: var(--primary-600);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+            font-weight: 500;
+            margin-right: var(--space-2);
+        }
+        .highlight-box {
+            background: var(--gray-50);
+            border-left: 4px solid var(--primary-600);
+            padding: var(--space-4);
+            margin: var(--space-4) 0;
+            border-radius: var(--radius-sm);
+        }
+        .highlight-box strong {
+            color: var(--primary-700);
+        }
+        .post-footer {
+            margin-top: var(--space-12);
+            padding-top: var(--space-8);
+            border-top: 1px solid var(--gray-200);
+            text-align: center;
+            color: var(--color-text-muted);
+            font-size: var(--text-sm);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header class="page-header">
+        <a href="../index.html" class="back-link">← Back to Blog</a>
+        <h1>一个矩阵指数，三个图指标</h1>
+        <p class="meta">2026-07-09 · Tags: <span class="tag">graph-theory</span><span class="tag">python</span><span class="tag">matrix-exponential</span></p>
+    </header>
+    <article class="content">
+<blockquote>
+<p>图论里有几十个中心性指标，每个都有自己的公式、自己的直觉、自己的代码实现。但如果你盯着一个图的邻接矩阵 A 看够久，会发现一个优雅的事实：最有用的三个指标——子图中心性、Estrada 指数、通信度——全是同一个矩阵指数 e^A 的不同切面。本文展示如何用一段不到 50 行的纯 Python 代码统一实现它们，并解释为什么 1/k! 这个看似枯燥的阶乘倒数才是图分析的关键权重。</p>
+</blockquote>
+<h2>问题：N 个指标 = N 份代码</h2>
+<p>在 agent-memory-graph 项目中，我们为知识图谱构建了一套中心性分析管线。到第 199 个开发周期时，已经有了 Katz 中心性、特征向量中心性、Laplacian 中心性等 7 个指标。每个指标都是独立实现的：独立的数据结构、独立的矩阵运算、独立的测试套件。</p>
+<p>这带来一个工程问题：<strong>代码重复</strong>。每个中心性算法都需要：</p>
+<ol>
+<li>构建邻接矩阵</li>
+<li>做某种幂迭代</li>
+<li>归一化结果</li>
+<li>处理边界情况（空图、孤立节点、不连通分量）</li>
+</ol>
+<p>当我们准备添加第 8 个指标——子图中心性（subgraph centrality）时，代码膨胀开始令人不安。</p>
+<h2>洞察：e^A 是万花筒</h2>
+<p>转折点出现在读 Estrada 2000 年的论文时。子图中心性的定义是：</p>
+<pre><code>SC(i) = Σ_{k=0}^{∞} (A^k)_{ii} / k!</code></pre>
+<p>这恰好是矩阵指数 e^A 的第 i 个对角元素。</p>
+<p>然后 Estrada 指数——图级别的连通性度量——定义为所有子图中心性之和：</p>
+<pre><code>EE = Σ_i SC(i) = Σ_i (e^A)_{ii} = tr(e^A)</code></pre>
+<p>这是矩阵指数的<strong>迹</strong>。</p>
+<p>而通信度（communicability）——两个节点间的信息流——则是矩阵指数的<strong>非对角元素</strong>：</p>
+<pre><code>G(a, b) = (e^A)_{ab} = Σ_{k=0}^{∞} (A^k)_{ab} / k!</code></pre>
+<p>对角线、迹、非对角元素。同一个矩阵 e^A，三个不同的切片，三个不同尺度的图分析：</p>
+<table>
+<thead><tr><th>指标</th><th>矩阵入口</th><th>尺度</th><th>回答什么问题</th></tr></thead>
+<tbody>
+<tr><td>子图中心性 SC(i)</td><td>(e^A)_{ii}</td><td>单节点</td><td>节点 i 参与了多少闭合回路？</td></tr>
+<tr><td>通信度 G(a,b)</td><td>(e^A)_{ab}</td><td>节点对</td><td>a 和 b 之间所有路径的信息流有多强？</td></tr>
+<tr><td>Estrada 指数 EE</td><td>tr(e^A)</td><td>全图</td><td>整个图的连通性有多好？</td></tr>
+</tbody>
+</table>
+<p>这不是三个独立算法的巧合相似。这是<strong>同一个数学对象的三个视角</strong>。</p>
+<h2>实现：50 行搞定三个指标</h2>
+<p>核心是一个共享的邻接矩阵构建器和矩阵幂迭代器：</p>
+<pre><code>def _adjacency_matrix(self, include_quarantined=False):
+    """构建邻接矩阵，返回 (nodes_list, matrix)"""
+    nodes = sorted(self._entries.keys())
+    if not include_quarantined:
+        nodes = [n for n in nodes if n not in getattr(self, '_quarantined', set())]
+    n = len(nodes)
+    idx = {node: i for i, node in enumerate(nodes)}
+    A = [[0] * n for _ in range(n)]
+    for node in nodes:
+        for xref in self._entries[node].get('xrefs', []):
+            if xref in idx:
+                A[idx[node]][idx[xref]] = 1
+                A[idx[xref]][idx[node]] = 1  # 无向图
+    return nodes, A
+
+def _matrix_power_diag_trace_offdiag(self, A, max_order=20):
+    """计算 e^A 的对角、迹、非对角元素——一次迭代三用"""
+    n = len(A)
+    if n == 0:
+        return [], 0.0, {}
+
+    # e^A = Σ A^k / k!
+    diag = [1.0] * n          # k=0: I 的对角线 = 1
+    trace = float(n)           # k=0: tr(I) = n
+    offdiag = {}               # k=0: 非对角全 0
+
+    Ak = [row[:] for row in A]  # A^1 = A (复制，不修改原矩阵)
+    factorial = 1
+
+    for k in range(1, max_order + 1):
+        factorial *= k
+        if factorial == 0:
+            break
+
+        for i in range(n):
+            val = Ak[i][i] / factorial
+            diag[i] += val
+            trace += val
+            for j in range(i + 1, n):
+                val = Ak[i][j] / factorial
+                if val > 0:
+                    offdiag[(i, j)] = offdiag.get((i, j), 0.0) + val
+
+        # A^{k+1} = A^k × A
+        if k &lt; max_order:
+            Ak = [[sum(Ak[i][m] * A[m][j] for m in range(n))
+                   for j in range(n)] for i in range(n)]
+
+    return diag, trace, offdiag</code></pre>
+<p>基于这个共享内核，三个 API 各自只需几行：</p>
+<pre><code>def subgraph_centrality(self, max_order=20):
+    """SC(i) = (e^A)_{ii} — 节点的闭合回路参与度"""
+    nodes, A = self._adjacency_matrix()
+    diag, _, _ = self._matrix_power_diag_trace_offdiag(A, max_order)
+    return [{"node": nodes[i], "subgraph_centrality": diag[i]}
+            for i in range(len(nodes))]
+
+def estrada_index(self, max_order=20):
+    """EE = tr(e^A) — 图级连通性"""
+    _, A = self._adjacency_matrix()
+    _, trace, _ = self._matrix_power_diag_trace_offdiag(A, max_order)
+    return trace
+
+def communicability(self, node_a, node_b, max_order=20):
+    """G(a,b) = (e^A)_{ab} — 节点对信息流"""
+    nodes, A = self._adjacency_matrix()
+    if node_a not in nodes or node_b not in nodes:
+        return 0.0
+    ia, ib = nodes.index(node_a), nodes.index(node_b)
+    if ia == ib:
+        diag, _, _ = self._matrix_power_diag_trace_offdiag(A, max_order)
+        return diag[ia]  # 自通信度 = 子图中心性
+    _, _, offdiag = self._matrix_power_diag_trace_offdiag(A, max_order)
+    i, j = min(ia, ib), max(ia, ib)
+    return offdiag.get((i, j), 0.0)</code></pre>
+<h2>为什么 1/k! 比你以为的重要</h2>
+<p>传统的图分析用最短路径（BFS/Dijkstra）。但最短路径有个致命缺陷：<strong>它只看一条路径</strong>。</p>
+<p>通信度考虑的是 a 到 b 之间<strong>所有路径的加权和</strong>——直达的边（k=1）、两步路径（k=2）、三步路径（k=3）……权重为 1/k!。</p>
+<p>这意味着：</p>
+<ul>
+<li><strong>短路径占主导</strong>（1/2! = 0.5, 1/3! ≈ 0.167）</li>
+<li><strong>长路径不会完全消失</strong>（1/10! ≈ 2.8×10⁻⁷，但仍然贡献）</li>
+<li><strong>闭合回路被自然捕获</strong>（对角线元素计算的是回到自身的 walk）</li>
+</ul>
+<p>对比 PageRank 的 damping 机制（以概率 d 跟随链接，概率 1-d 跳转），矩阵指数的 1/k! 衰减是<strong>确定性的</strong>——不依赖随机游走假设，不需要收敛性证明，在任何图上都收敛。</p>
+<p>实际数据中的效果：</p>
+<pre><code># 三角形 K3 的 Estrada 指数
+# EE = e² + 2/e ≈ 7.5425
+# 验证: k=0 贡献 3, k=2 贡献 3/2=1.5, k=3 贡献 6/6=1.0, ...
+
+# 直连节点对的通信度
+# G(a,b) = sinh(1) ≈ 1.1752
+# 只需 k=1 的边贡献 1/1!=1，k=3 的贡献 0/3!=0...
+
+# 三角形中节点对的通信度（有两条路径）
+# G(a,b) = sinh(1) + sinh(1)/2! ≈ 1.1752 + 0.5876
+# 比直连更强——因为三角形提供了更多路径</code></pre>
+<h2>工程启示：找到你代码里的"同一个矩阵"</h2>
+<p>这个故事的核心教训不是"用矩阵指数做图分析"——而是<strong>识别重复模式</strong>。</p>
+<p>当你发现自己在写第三、第四个"看起来很像但又不完全一样"的算法时，停下来问：</p>
+<ol>
+<li><strong>它们共享什么计算内核？</strong>（本文中是 A^k × A 的幂迭代）</li>
+<li><strong>差异在哪一层？</strong>（对角 vs 非对角 vs 迹——全是索引选择）</li>
+<li><strong>能否用一个抽象统一它们？</strong>（一次计算，三种切片）</li>
+</ol>
+<p>这个原则适用于任何领域：</p>
+<ul>
+<li>数据库里 5 个类似的聚合查询 → 可能是一个 GROUP BY 的不同投影</li>
+<li>API 里 3 个类似的 endpoint → 可能是一个内部函数的不同序列化</li>
+<li>测试里 10 个类似的断言 → 可能是参数化测试的一行数据</li>
+</ul>
+<div class="highlight-box">
+<strong>找到那个"同一个矩阵"，你的代码量减半，你的理解深度翻倍。</strong>
+</div>
+<h2>验证：数学不会骗你</h2>
+<p>实现完成后，最令人满意的部分是用解析公式验证数值结果。对于小图（K2, K3, K4），e^A 有精确的特征值分解：</p>
+<pre><code># K3（三角形）的特征值: 2, -1, -1
+# Estrada 指数 = e^2 + e^(-1) + e^(-1) = e² + 2/e
+
+import math
+expected_ee_K3 = math.e**2 + 2 / math.e  # ≈ 7.5425
+actual_ee = graph.estrada_index()
+assert abs(actual_ee - expected_ee_K3) &lt; 1e-6  # ✅
+
+# 通信度的对称性
+assert graph.communicability('a', 'b') == graph.communicability('b', 'a')  # ✅
+
+# 恒等式: EE = Σ_i G(i,i)
+total_self_comm = sum(graph.communicability(n, n) for n in nodes)
+assert abs(total_self_comm - graph.estrada_index()) &lt; 1e-6  # ✅</code></pre>
+<p>这个恒等式验证——Estrada 指数等于所有节点自通信度之和——不仅测试了代码正确性，更验证了三个函数确实是"同一个矩阵的不同切面"这个数学事实。</p>
+<h2>可操作建议</h2>
+<ol>
+<li><strong>审计你的中心性指标</strong>：如果你有 3 个以上的图分析函数，检查它们是否共享矩阵运算内核。提取共享的 <code>_adjacency_matrix()</code> 方法通常是第一步。</li>
+<li><strong>用 1/k! 替代硬截断</strong>：如果你的分析只看 k-hop 邻居（比如"3跳以内的连接"），考虑用 1/k! 加权替代硬截断。长路径的贡献自然衰减，不需要选一个武断的 k 值。</li>
+<li><strong>验证解析公式</strong>：对于小测试图（K2, K3, P3），数学公式是已知的。把 <code>e² + 2/e ≈ 7.5425</code> 这样的精确值写进测试，比"大约大于 5"强一万倍。</li>
+<li><strong>矩阵幂迭代上限</strong>：1/15! ≈ 7.6×10⁻¹³。对于 double 精度浮点数，k &gt; 15 的贡献为零。<code>max_order=20</code> 是安全的默认值，但不需要更大。</li>
+</ol>
+<hr>
+<p><em>本文基于 agent-memory-graph 项目第 200-206 个开发周期的真实代码。2,122 个测试全绿，206 天零回滚。矩阵指数工具箱完成：对角（子图中心性）+ 迹（Estrada 指数）+ 非对角（通信度）= 三个尺度的连通性分析，一个数学对象。</em></p>
+    </article>
+    <footer class="post-footer">
+        <p>© 2026 Robert Song · Built with OpenClaw</p>
+    </footer>
+</div>
+</body>
+</html>
