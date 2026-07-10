@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代码即动作：AI Agent 从函数调用到自主编程的进化 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>代码即动作：AI Agent 从函数调用到自主编程的进化</h1>
+        <div class="meta">
+            2026-07-10 · 罗嵩 ·
+            <span class="tag">AI Agent</span>
+            <span class="tag">Code Action</span>
+            <span class="tag">Tool Use</span>
+            <span class="tag">GPT-5.6</span>
+        </div>
+
+        <blockquote>设想你雇了一位助手，你每次只能给他一个指令："帮我查一下这个邮箱"——他查完回来——"现在帮我查那个"——他又去查——"现在把两个结果对比一下"……这得多累？如果你能直接说"帮我查这两个邮箱，对比结果，把异常的标出来，如果超过 10 条就只给前 10 条"呢？2026 年 7 月，GPT-5.6 的 Programmatic Tool Calling 让 AI Agent 终于能听懂后面这种指令了。但这背后的研究脉络，其实从 2022 年就开始了。</blockquote>
+
+        <h2>一、JSON 的紧箍咒</h2>
+
+        <p>绝大多数人对 AI Agent 的理解还停留在这样一个画面：模型输出一段 JSON，系统解析后调用对应的工具，再把结果塞回模型的上下文。</p>
+
+        <pre><code>// 这就是 2023-2025 年绝大多数 Agent 的行动方式
+{
+  "tool": "search",
+  "args": { "query": "今天北京天气" }
+}</code></pre>
+
+        <p>这种模式叫 <strong>JSON Tool Calling</strong>，它简单、可控、易解析。但它有三个致命的限制：</p>
+
+        <ul>
+            <li><strong>无法组合</strong>：每次只能调用一个工具。想先搜索、再过滤、再排序？请来回复三轮对话。</li>
+            <li><strong>无法迭代</strong>：没有循环、没有条件判断。即使模型已经知道"如果结果 A 为空就搜 B"，它也得等 A 的结果返回后才能行动。</li>
+            <li><strong>无法携带状态</strong>：中间结果必须序列化成文本塞回上下文窗口。一个 500 行的搜索结果，模型只需要其中 2 行，但 500 行都得占着 token。</li>
+        </ul>
+
+        <p>这就像给一个程序员一台电脑，但只允许他一次敲一个键。</p>
+
+        <h2>二、代码：被忽视的完美行动空间</h2>
+
+        <p>2024 年 2 月（ICML 2024），Xingyao Wang 等人发表了一篇看起来非常"显然"的论文——<em>CodeAct: Executable Code Actions Elicit Better LLM Agents</em>。核心想法一句话就能说清楚：<strong>让 Agent 直接输出可执行的 Python 代码作为行动，而不是 JSON。</strong></p>
+
+        <pre><code># CodeAct: 用代码代替 JSON
+results = [search(q) for q in queries]
+filtered = [r for r in results if r.relevance > 0.8]
+return filtered[:10]</code></pre>
+
+        <p>上面三行代码做了什么？搜索多个查询、过滤低相关性的结果、取前 10 条。如果用 JSON 模式，这需要至少三轮工具调用和上下文往返。而代码行动一轮就搞定了。</p>
+
+        <p>CodeAct 在 17 个 LLM 上的实验显示：<strong>代码行动比 JSON 行动的成功率高出最多 20%</strong>。原因不复杂——代码天然支持组合（函数调用链）、迭代（循环和条件）、状态（变量赋值），而这些恰恰是 JSON 格式从设计上就做不到的。</p>
+
+        <div class="highlight">💡 <strong>为什么等了这么久？</strong> 早期 LLM 生成代码的可靠性太差。一个小小的语法错误就会让整个行动失败。但到 2024 年，主流模型的代码生成能力已经足够可靠，CodeAct 的时机到了。</div>
+
+        <h2>三、更早的先驱：Voyager 和 Eureka</h2>
+
+        <p>其实在 CodeAct 之前，已经有两个系统默默证明了"代码即动作"的威力。</p>
+
+        <h3>Voyager：用代码构建终身技能库</h3>
+
+        <p>2023 年 5 月，NVIDIA 的团队发布了 <strong>Voyager</strong>——一个在 Minecraft 中自主探索的 Agent。Voyager 不学不练，但它做了一件更聪明的事：<strong>把每次成功的行动都写成代码函数，存入"技能库"</strong>。</p>
+
+        <pre><code># Voyager 自动生成的技能示例（简化版）
+def craft_iron_ingot(iron_ore_count):
+    furnace = find_nearest("furnace")
+    move_to(furnace)
+    for _ in range(iron_ore_count):
+        put_in_furnace("iron_ore")
+    wait_for_smelting()
+    return collect_from_furnace("iron_ingot")</code></pre>
+
+        <p>下次遇到需要铁锭的任务，Voyager 直接调用 <code>craft_iron_ingot()</code>，不用从头推理。这意味着它的能力是<strong>递增的</strong>——解决过的每一个问题都会变成未来任务的一块拼图。这也是为什么 Voyager 获取物品的速度是之前 SOTA 的 3.3 倍。</p>
+
+        <h3>Eureka：代码生成的奖励超越人类</h3>
+
+        <p>同年 10 月的 <strong>Eureka</strong>（ICLR 2024）更加大胆：让 GPT-4 直接编写强化学习的奖励函数代码。结果？在 29 个环境中，<strong>83% 的任务上超越了人类专家手工设计的奖励函数</strong>。</p>
+
+        <p>这两个系统共同指向一个趋势：代码不只是 Agent 的输出格式，而是 Agent 的<strong>思维方式</strong>。</p>
+
+        <h2>四、Agent 需要自己的"IDE"</h2>
+
+        <p>2024 年 5 月，Princeton 的团队发表了 <strong>SWE-Agent</strong>，提出了一个被忽视已久的概念：<strong>Agent-Computer Interface (ACI)</strong>。</p>
+
+        <p>就像人类程序员从记事本升级到 IDE 会效率翻倍一样，Agent 也需要专门设计的交互界面。SWE-Agent 的核心发现令人震惊：<strong>仅仅改变 Agent 与计算机交互的界面设计，就能让 pass@1 从 2% 跳到 12.5%</strong>——6 倍的提升，模型本身完全没变。</p>
+
+        <p>这说明什么？Agent 的瓶颈很多时候不在推理能力，而在<strong>交互带宽</strong>。JSON 模式就像通过一个 2400 波特的调制解调器上网——你可能有光纤级别的算力，但接口就是那么窄。</p>
+
+        <h3>SmolAgents：极简主义的力量</h3>
+
+        <p>2025 年 1 月，HuggingFace 发布了 <strong>SmolAgents</strong>，一个极简的代码 Agent 框架。它的理念简单到令人发指：让 Agent 直接写 Python 代码，用 <code>exec()</code> 执行，通过工具函数与外部世界交互。</p>
+
+        <pre><code>from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel
+
+agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=HfApiModel())
+agent.run("花豹全速跑过艺术桥需要多少秒？")</code></pre>
+
+        <p>SmolAgents 证明了"代码即动作"的理念已经从学术论文走进了开源生态。但同时，它直接用 <code>exec()</code> 运行模型生成的代码——这是巨大的<strong>安全债务</strong>，我们后面会展开。</p>
+
+        <h2>五、LLM 作为工具制造者</h2>
+
+        <p>前面说的系统都有一个共同特点：Agent 只能使用<strong>预定义</strong>的工具。但如果 Agent 能<strong>制造新工具</strong>呢？</p>
+
+        <p>2023 年 5 月的 <strong>LATM (LLMs As Tool Makers)</strong> 论文提出了这个想法。它的架构分两阶段：</p>
+
+        <ol>
+            <li><strong>工具制造阶段</strong>：用 GPT-4 分析一类任务，编写一个 Python 函数来解决这类任务</li>
+            <li><strong>工具使用阶段</strong>：用便宜的 GPT-3.5 调用这个函数来处理后续请求</li>
+        </ol>
+
+        <pre><code># 阶段1: GPT-4 制造工具
+def analyze_sentiment_batch(texts):
+    # GPT-4 写的代码，包含批量处理、缓存、错误处理
+    results = []
+    for text in texts:
+        score = nlp_model(text)
+        results.append({"text": text, "sentiment": score})
+    return results
+
+# 阶段2: GPT-3.5 使用工具
+# 只需一行调用，达到 GPT-4 水平的分析质量
+result = analyze_sentiment_batch(customer_reviews)</code></pre>
+
+        <p>这意味着<strong>工具制造的一次性成本可以被无限摊薄</strong>。GPT-4 花费 10 分钟造一个完美的情感分析工具，之后 GPT-3.5 每次调用只需要几毫秒。性能持平，成本降到 1/16。</p>
+
+        <h2>六、2026 年的里程碑：GPT-5.6 的程序式编排</h2>
+
+        <p>2026 年 7 月 9 日，OpenAI 发布了 GPT-5.6。除了模型本身的能力提升，最引人注目的是两个新功能：</p>
+
+        <h3>Programmatic Tool Calling：模型写 JavaScript 编排工具</h3>
+
+        <p>GPT-5.6 可以在响应中<strong>直接生成 JavaScript 代码</strong>，在 OpenAI 托管的隔离 V8 沙箱中运行。这段代码可以：</p>
+
+        <ul>
+            <li>并行调用多个工具（不再逐一请求）</li>
+            <li>使用循环和条件处理中间结果</li>
+            <li>过滤大量工具输出，只返回模型需要的部分</li>
+        </ul>
+
+        <p>关键设计决策：</p>
+
+        <table>
+            <thead><tr><th>设计选择</th><th>原因</th></tr></thead>
+            <tbody>
+                <tr><td>JavaScript 而非 Python</td><td>V8 沙箱成熟，启动快，无文件系统依赖</td></tr>
+                <tr><td>隔离运行时（无 Node.js/网络/文件系统）</td><td>安全边界清晰，支持 Zero Data Retention</td></tr>
+                <tr><td><code>output_schema</code> 约束工具输出</td><td>让生成的代码可以可靠地使用返回字段</td></tr>
+                <tr><td><code>allowed_callers</code> 控制调用路径</td><td>区分"模型直接调"和"代码代调"，保留审批边界</td></tr>
+            </tbody>
+        </table>
+
+        <p>这是一个精妙的安全设计。写入操作仍然需要直接调用（保留人类审批），但读取和数据处理可以走程序式路径（效率优先）。</p>
+
+        <h3>Multi-Agent Ultra：并行扩展的新维度</h3>
+
+        <p>GPT-5.6 的 Ultra 模式更进一步：默认启动 <strong>4 个 Agent 并行工作</strong>，最多可扩展到 16 个。这不是简单的任务分发，而是<strong>协调式多 Agent 协作</strong>——Agent 之间可以分工、可以交叉验证、可以汇总结果。</p>
+
+        <p>在 BrowseComp 测试中，4 Agent 并行比 1 Agent 准确率提高了约 15%，同时延迟反而<strong>降低</strong>了（因为并行完成子任务比串行处理更快）。这暗示了一个深刻的事实：<strong>复杂任务的瓶颈不是推理深度，而是探索广度</strong>。</p>
+
+        <h2>七、完整进化时间线</h2>
+
+        <div class="ascii-art">  2022.10  ReAct
+     │      文本推理 + 文本动作
+     │      "Thought → Action → Observation" 循环
+     ▼
+  2023.05  Voyager | LATM
+     │      代码技能库  |  LLM 制造工具
+     ▼
+  2023.10  Eureka
+     │      代码生成超越人类专家设计
+     ▼
+  2024.02  CodeAct (ICML) | OpenCodeInterpreter
+     │      代码 = 统一行动空间  |  开源 Code Interpreter
+     ▼
+  2024.05  SWE-Agent
+     │      Agent-Computer Interface (ACI)
+     ▼
+  2025.01  SmolAgents
+     │      极简代码 Agent 框架（HuggingFace）
+     ▼
+  2026.07  GPT-5.6
+            Programmatic Tool Calling + Multi-Agent Ultra
+            模型写 JS 编排工具 | 4-16 Agent 并行</div>
+
+        <h2>八、安全的隐形债务</h2>
+
+        <p>当模型从"调用预定义函数"变成"编写任意代码"时，安全模型完全改变了。</p>
+
+        <p><strong>JSON 调用的安全很简单</strong>：验证参数类型、检查权限、设好速率限制就行。工具的行为是确定性的。</p>
+
+        <p><strong>代码执行的安全极其复杂</strong>：模型生成的代码可能有意或无意地访问不该访问的数据、消耗过多资源、甚至触发安全漏洞。一个看起来无害的 <code>while True</code> 循环就能让整个系统挂起。</p>
+
+        <p>GPT-5.6 的 V8 沙箱方案是目前最成熟的设计：无网络、无文件系统、无子进程、无持久状态、支持 Zero Data Retention。但这只是<strong>平台级</strong>的解决方案。</p>
+
+        <p>开源生态的问题更严重。SmolAgents 直接用 <code>exec()</code> 运行模型生成的 Python 代码，这意味着模型可以执行<strong>任何</strong>宿主环境允许的操作——读文件、发网络请求、删数据库。如果你在生产环境用 SmolAgents，请务必加上 Docker/firejail/E2B 沙箱。<strong>永远不要直接 exec() 模型输出。</strong></p>
+
+        <div class="highlight">⚠️ <strong>实用建议</strong>：如果你正在构建代码 Agent，按安全等级递增选择：(1) 白名单函数 + <code>eval()</code> → (2) firejail 限制 → (3) Docker 容器 → (4) E2B/MicroVM 远程沙箱。至少做到第 2 级。</div>
+
+        <h2>九、这对你意味着什么</h2>
+
+        <p>如果你正在构建或维护 AI Agent 系统，以下是你可以<strong>立刻做</strong>的事情：</p>
+
+        <ol>
+            <li><strong>审视你的工具调用格式</strong>：如果你还在用 JSON，问自己——我的场景是否真的需要逐一调用？如果不需要，考虑迁移到代码格式。Python 的 <code>ast.literal_eval()</code> + 白名单模块是一个低成本的起点。</li>
+            <li><strong>建立技能缓存</strong>：Agent 成功完成的复杂任务，可以自动保存为可复用函数。这是 LATM 和 Voyager 的核心思路，也是降低推理成本的有效手段。</li>
+            <li><strong>设计 ACI 而非 API</strong>：不要只是给 Agent 一堆工具函数。思考 Agent 需要什么样的交互体验——批量操作？结果摘要？错误恢复？SWE-Agent 告诉我们，好的 ACI 设计可以带来 6 倍性能提升。</li>
+            <li><strong>试验并行 Agent</strong>：如果你的任务可以被分解为独立子任务，尝试并行运行多个 Agent。GPT-5.6 的数据显示，4 个简单 Agent 并行往往比 1 个复杂 Agent 串行更快更准。</li>
+            <li><strong>加固沙箱</strong>：如果模型生成的代码有任何执行路径，确保它在隔离环境中运行。这不是"nice to have"，而是"must have"。</li>
+        </ol>
+
+        <h2>结语：从 API 调用者到程序员</h2>
+
+        <p>回顾这条进化线，从 2022 年的 ReAct 到 2026 年的 GPT-5.6，AI Agent 的行动空间经历了三次根本性扩展：</p>
+
+        <ul>
+            <li><strong>文本 → 代码</strong>：从受限的预定义格式到任意可编程操作</li>
+            <li><strong>使用者 → 制造者</strong>：从调用预定义工具到创造新工具</li>
+            <li><strong>串行 → 并行</strong>：从单 Agent 逐一执行到多 Agent 协调并行</li>
+        </ul>
+
+        <p>每一次扩展都不是渐进改良，而是<strong>能力维度的增加</strong>。Agent 正在从"会调 API 的聊天机器人"变成"会写程序来解决问题的协作者"。</p>
+
+        <p>这让人想起 Andrej Karpathy 的一句话：<em>"Software 2.0 的代码不是人写的，而是网络学的。"</em> 而 2026 年的 Agent 正在告诉我们：Software 3.0 的代码，可能是 Agent 自己现场写、现场跑、现场改的。</p>
+
+        <p>区别在于——你的系统准备好让它跑了吗？</p>
+
+        <hr>
+
+        <h3>参考文献</h3>
+
+        <ul>
+            <li>ReAct: Yao et al., "ReAct: Synergizing Reasoning and Acting in Language Models", ICLR 2023</li>
+            <li>Voyager: Wang et al., "Voyager: An Open-Ended Embodied Agent with Large Language Models", arXiv:2305.16291</li>
+            <li>LATM: Cai et al., "Large Language Models as Tool Makers", arXiv:2305.17126</li>
+            <li>Eureka: Ma et al., "Eureka: Human-Level Reward Design via Coding Large Language Models", ICLR 2024</li>
+            <li>CodeAct: Wang et al., "Executable Code Actions Elicit Better LLM Agents", ICML 2024</li>
+            <li>OpenCodeInterpreter: Li et al., arXiv:2402.14658</li>
+            <li>SWE-Agent: Yang et al., arXiv:2405.15793</li>
+            <li>SmolAgents: HuggingFace, https://github.com/huggingface/smolagents</li>
+            <li>GPT-5.6: OpenAI, "GPT-5.6: Frontier intelligence that scales with your ambition", July 2026</li>
+            <li>Programmatic Tool Calling: OpenAI API Documentation, July 2026</li>
+            <li>Code is the Wand: Yang et al., arXiv:2401.00812</li>
+        </ul>
+
+        <p style="margin-top: 30px; color: #999; font-size: 0.85em;">本文基于 2026 年 7 月公开的论文和产品发布信息撰写。观点仅代表作者个人判断。</p>
+    </div>
+</body>
+</html>
