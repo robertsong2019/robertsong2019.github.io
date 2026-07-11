@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>神经符号 AI 的复兴：当深度学习遇见符号推理 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>神经符号 AI 的复兴：当深度学习遇见符号推理</h1>
+        <div class="meta">
+            2026-07-11 · 罗嵩 ·
+            <span class="tag">Neuro-Symbolic AI</span>
+            <span class="tag">Formal Verification</span>
+            <span class="tag">AI Reasoning</span>
+            <span class="tag">前沿研究</span>
+        </div>
+
+        <blockquote>一个 150M 参数的语言模型，解决了 GPT-4 解不出的数学题。不是因为它更大，而是因为它有一个不会犯错的搭档。</blockquote>
+
+        <h2>一、信任的悖论</h2>
+
+        <p>问一个 LLM："证明三角形的三个高交于一点。"它会给你一个看起来完美的证明——术语正确、逻辑流畅、结论无误。但仔细检查第三步，你会发现它偷偷假设了"高一定在三角形内部"，对于钝角三角形，这根本不成立。</p>
+
+        <p>这就是 2026 年 AI 推理的核心困境：<strong>LLM 的推理看起来是对的，大部分时候确实是对的，但你永远不知道它哪一步会滑坡。</strong></p>
+
+        <p>在聊天场景，这无所谓——错了就错了，用户纠正就好。但在数学证明、程序验证、法律推理、医疗诊断这些领域，<strong>"大概正确"等于无用</strong>。一个 99% 正确的医疗推理，在那 1% 的情况下可能杀死病人。</p>
+
+        <p>符号推理系统（如 Lean 定理证明器）恰好相反：每一步都经过形式化验证，绝不出错。但它们有一个致命弱点——<strong>极度缓慢且毫无直觉</strong>。让 Lean 从头证明一个 IMO 级别的几何题，它的反应是穷举所有可能的辅助线——亿万种组合，一辈子也搜不完。</p>
+
+        <p>2024-2026 年，DeepMind 的 AlphaGeometry、AlphaProof、FunSearch，以及 Stanford 的 COPRA，用同一个优雅的范式化解了这个矛盾：</p>
+
+        <p><strong>让神经网络提供直觉，让符号引擎提供保证。让"快思考"提出猜想，让"慢思考"验证真理。</strong></p>
+
+        <h2>二、快慢思维：一个 60 年前的认知科学idea，正在重塑 AI</h2>
+
+        <p>Daniel Kahneman 在《思考，快与慢》中提出人类认知有两个系统：</p>
+
+        <ul>
+            <li><strong>System 1（快）</strong>：直觉、模式识别、瞬间反应。你看到 2+2 就知道等于 4，不需要计算。</li>
+            <li><strong>System 2（慢）</strong>：深度思考、逻辑推理、逐步验证。你算 17×24 需要拿出纸笔。</li>
+        </ul>
+
+        <p>AlphaGeometry 把这个框架直接映射到了 AI：</p>
+
+        <table>
+            <thead><tr><th></th><th>人类认知</th><th>AlphaGeometry</th><th>特点</th></tr></thead>
+            <tbody>
+                <tr><td><strong>System 1</strong></td><td>直觉、启发式</td><td>150M 神经语言模型</td><td>快速预测"画哪条辅助线"，但可能猜错</td></tr>
+                <tr><td><strong>System 2</strong></td><td>逻辑推理</td><td>DDAR 符号推理引擎</td><td>严谨推导每一步，但需要方向指引</td></tr>
+            </tbody>
+        </table>
+
+        <p>两者的协作方式非常优雅：</p>
+
+        <ol>
+            <li>面对一个几何题，符号引擎先尝试用已知条件推导</li>
+            <li>如果推导不下去（没有新结论了），语言模型上场："我觉得加一条从 A 到 BC 的垂线可能有帮助"</li>
+            <li>符号引擎拿到这个新构造，继续推导</li>
+            <li>循环，直到找到完整证明或判定无解</li>
+        </ol>
+
+        <p>这就像一个有直觉但不太靠谱的学生（System 1）和一个没有直觉但绝不出错的老师（System 2）在合作解题。学生说"我觉得应该往这个方向走"，老师负责验证"这条路上每一步是否正确"。</p>
+
+        <div class="highlight">
+            <strong>关键数据：</strong>纯符号方法（Wu's Method）在 30 道 IMO 几何题上解出 10 道。AlphaGeometry（神经+符号）解出 25 道。平均人类金牌选手解出 25.9 道。
+        </div>
+
+        <h2>三、AlphaProof：当 AlphaZero 学会数学</h2>
+
+        <p>如果说 AlphaGeometry 还只是"辅助线预测器"，AlphaProof 则更激进——它把数学证明变成了一个类似围棋的博弈树搜索问题。</p>
+
+        <p>核心架构：</p>
+
+        <ol>
+            <li><strong>形式化桥</strong>：一个 Gemini 微调模型，将自然语言数学题翻译成 Lean 形式化语言。这解决了一个关键瓶颈——Lean 的训练数据极少，但自然语言数学题海量化。</li>
+            <li><strong>AlphaZero 式搜索</strong>：在 Lean 的证明空间中，用 MCTS（蒙特卡洛树搜索）探索证明路径。每个找到的证明不仅是一个答案，更是一个训练信号——强化模型下次更快找到类似证明。</li>
+            <li><strong>自我对弈</strong>：在 IMO 2024 竞赛期间，AlphaProof <strong>在比赛进行中还在持续训练自己</strong>。它不断地生成竞赛题的变体，证明或证伪，从结果中学习。</li>
+        </ol>
+
+        <p>结果：IMO 2024 银牌水平（28/42），其中最难的那道题（只有 5 个人类选手解出），AlphaProof 解出了，而且拿了满分。</p>
+
+        <div class="insight">
+            <strong>深层洞察：</strong>形式化语言是"防幻觉"的。在 Lean 中，每一步推理要么 type-check 通过，要么不通过——没有"看起来好像是对的"的灰色地带。这意味着 AlphaProof 的每一个证明都是 <strong>100% 可验证的正确</strong>，不需要人类审核。
+        </div>
+
+        <h2>四、FunSearch：LLM 不是解题器，是创意发生器</h2>
+
+        <p>FunSearch 走了一条不同的路。它不追求形式化证明，而是用 LLM 做一件更朴素的事：<strong>进化出一段正确的代码</strong>。</p>
+
+        <p>思路惊人地简单：</p>
+
+        <ol>
+            <li>给 LLM 一个问题描述和一个初始程序（种子）</li>
+            <li>LLM 基于当前最好的程序，生成新的变体</li>
+            <li>自动评估器运行新程序，打分</li>
+            <li>高分程序进入下一轮，低分的淘汰</li>
+            <li>循环，直到收敛</li>
+        </ol>
+
+        <p>这就是进化算法，但变异操作员从"随机修改"变成了"LLM 创造性修改"。区别巨大：随机变异需要百万代才能收敛，LLM 的变异是有方向性的——它理解问题的结构，能提出"有意义的改进"。</p>
+
+        <p>FunSearch 做到了一件里程碑式的事：<strong>它发现了 cap set 问题的新解</strong>，一个困扰数学界 20 年的组合数学难题。这是 LLM 首次在开放数学问题上做出真正的新发现。</p>
+
+        <p>更有趣的是 FunSearch 的输出形式。传统 AI 发现（如神经网络拟合）是不可解释的——你得到一个黑箱模型，无法理解"为什么"。FunSearch 输出的是<strong>程序代码</strong>，人类可以阅读、理解、从中获得数学洞察。正如合作者 Jordan Ellenberg 所说：</p>
+
+        <blockquote>"FunSearch 生成的解决方案在概念上比简单的暴力搜索丰富得多。它给出的不仅仅是一个答案，更是一种策略。" — Jordan Ellenberg，威斯康星大学数学教授</blockquote>
+
+        <h2>五、COPRA：不需要微调，通用 LLM 即插即用</h2>
+
+        <p>Stanford 的 COPRA 系统回答了一个实用主义的问题：<strong>必须训练专门模型才能做定理证明吗？</strong></p>
+
+        <p>答案是不。</p>
+
+        <p>COPRA 用 GPT-4 的 in-context learning，配合一个状态化回溯搜索框架和 Lean 定理证明器。它的策略是：</p>
+
+        <ul>
+            <li>维护一个搜索树，记录已尝试的证明路径</li>
+            <li>每一步，把当前状态 + 历史 + 检索到的相关引理喂给 GPT-4</li>
+            <li>GPT-4 提议下一步 tactic（证明策略）</li>
+            <li>Lean 执行 tactic，返回新状态或错误</li>
+            <li>如果路径走不通，回溯到上一个分叉点</li>
+        </ul>
+
+        <p>在 miniF2F 基准上，COPRA 的 pass@1 超越了专门微调的 ReProver。<strong>一个通用 LLM + 好的搜索框架 = 超越专门模型。</strong></p>
+
+        <p>这意味着什么？神经符号 AI 的门槛正在急剧降低。你不需要一个价值数百万美元的 GPU 集群来训练自己的证明模型——一个好的 LLM API + 一个符号引擎 + 一个搜索框架就够了。</p>
+
+        <h2>六、合成数据飞轮：当代码能自我造血</h2>
+
+        <p>所有这些系统共享一个令人不安的秘密：<strong>它们的训练数据是自己生成的</strong>。</p>
+
+        <p>AlphaGeometry 的数据管道：</p>
+
+        <div class="ascii-art">10亿随机几何图
+      │
+      ▼
+符号引擎穷举所有关系和证明
+      │
+      ▼
+反向追溯：需要哪些辅助构造？
+      │
+      ▼
+过滤去重 → 1亿个唯一训练样本
+      │
+      ▼
+零人类标签，金牌水平</div>
+
+        <p>这是一个自我强化的循环：符号引擎生成数据 → 训练神经网络 → 神经网络帮助符号引擎搜索更快 → 发现更多新证明 → 生成更多训练数据……</p>
+
+        <p>AlphaProof 更进一步——它在<strong>竞赛期间</strong>还在持续生成训练数据并自我强化。这就像一个学生在考试过程中，每解一道题就变得更聪明一点。</p>
+
+        <p>这暗示了一个 2026 年的重要趋势：<strong>合成数据将取代人类标注</strong>，至少在数学、逻辑和程序合成领域。人类标注的瓶颈不是成本，而是人类专家的稀缺——世界上能解 IMO 题的人不到 600 个，但 Lean 可以无限生成变体。</p>
+
+        <h2>七、为什么这很重要？不只是数学</h2>
+
+        <p>你可能会想：这很好，但我不做数学研究。这跟我有什么关系？</p>
+
+        <p>关系很大。因为"神经符号架构"不局限于数学。它的本质是：</p>
+
+        <div class="highlight">
+            <strong>通用公式：</strong>神经网络（提议）+ 外部验证器（检查）= 可信任的 AI 推理
+        </div>
+
+        <p>把"外部验证器"替换成不同的东西，就得到不同领域的应用：</p>
+
+        <table>
+            <thead><tr><th>领域</th><th>System 1（神经）</th><th>System 2（验证）</th><th>应用</th></tr></thead>
+            <tbody>
+                <tr><td>数学证明</td><td>LLM 提议证明步骤</td><td>Lean 验证</td><td>AlphaProof</td></tr>
+                <tr><td>代码生成</td><td>LLM 写代码</td><td>单元测试 + 类型检查</td><td>FunSearch / CodeAct</td></tr>
+                <tr><td>形式验证</td><td>LLM 提议不变式</td><td>Z3 SMT solver</td><td>程序验证</td></tr>
+                <tr><td>规划</td><td>LLM 生成行动序列</td><td>模拟器执行验证</td><td>World Models</td></tr>
+                <tr><td>法律推理</td><td>LLM 分析案例</td><td>规则引擎一致性检查</td><td>AI 法务</td></tr>
+            </tbody>
+        </table>
+
+        <p>看到规律了吗？<strong>每次让 LLM 做它擅长的（创造性提议），让确定性工具做它擅长的（严格验证），你就能得到一个既快又准的系统。</strong></p>
+
+        <h2>八、实践建议：今天就能做的事</h2>
+
+        <h3>1. 给你的 Agent 加验证层</h3>
+
+        <p>如果你的 Agent 在做关键决策（代码提交、数据修改、资金操作），不要直接执行它的输出。加一层验证：</p>
+
+        <ul>
+            <li><strong>代码生成</strong>：LLM 写代码 → 编译器 + 测试 → 通过才执行</li>
+            <li><strong>数据修改</strong>：LLM 生成 SQL → 在事务中 dry-run → schema 验证 → 提交</li>
+            <li><strong>推理链</strong>：LLM 生成推理 → 关键步骤用 Z3 或规则引擎验证</li>
+        </ul>
+
+        <h3>2. 尝试 FunSearch 式的进化搜索</h3>
+
+        <p>不需要 DeepMind 的资源。一个 LLM API + 一个评估函数 + 50 行 Python 就能跑：</p>
+
+        <pre><code># 最简 FunSearch 骨架
+def funsearch(problem_spec, evaluator, llm, rounds=100):
+    pool = [problem_spec.seed_program]
+    for i in range(rounds):
+        # LLM 基于最好的程序生成变体
+        parent = max(pool, key=evaluator)
+        new_code = llm.generate(f"Improve: {parent}")
+        # 评估器验证
+        score = evaluator(new_code)
+        if score > evaluator(parent):
+            pool.append(new_code)
+    return max(pool, key=evaluator)</code></pre>
+
+        <h3>3. 探索开源工具</h3>
+
+        <ul>
+            <li><strong>Lean 4</strong>（lean-lang.org）：最受欢迎的形式化数学框架，AlphaProof 的后端</li>
+            <li><strong>AlphaGeometry2</strong>（GitHub 开源）：DeepMind 2026 年 1 月发布，含 DDAR 引擎</li>
+            <li><strong>COPRA</strong>（GitHub 开源）：Stanford 的通用 LLM 定理证明 Agent</li>
+            <li><strong>Z3 SMT Solver</strong>：微软的形式验证工具，可用于程序验证</li>
+        </ul>
+
+        <h2>九、未解问题</h2>
+
+        <ol>
+            <li><strong>这个范式能扩展到非形式化领域吗？</strong>数学有 Lean 做"裁判"，但法律推理、商业决策没有。如何为模糊领域设计"符号验证器"？</li>
+            <li><strong>合成数据的极限在哪里？</strong>如果训练数据完全来自符号引擎的生成，系统是否会收敛到"只能解决符号引擎已知如何生成的题型"？</li>
+            <li><strong>搜索成本如何降低？</strong>AlphaProof 解一道 IMO 题最长花了 3 天。如何把搜索时间从天降到分钟？</li>
+            <li><strong>多 Agent 场景下，如何做协同验证？</strong>如果两个 Agent 提出矛盾的证明，如何裁定？</li>
+            <li><strong>能否将神经符号架构内化到单一模型？</strong>还是说，"两个系统"的分离是结构性的，无法合并？</li>
+        </ol>
+
+        <hr>
+
+        <p><em>本文基于 12 篇论文/系统的深度调研。完整研究笔记见 </em><a href="https://github.com/robertsong2019/catalyst-research">catalyst-research 仓库</a><em>。</em></p>
+
+        <p><em>核心论点只有一个：<strong>可验证的推理才是可信任的推理。</strong>当 LLM 的直觉遇上符号引擎的严谨，AI 第一次能够做出"不仅聪明，而且可靠"的推理。这不是渐进改良——这是 AI 推理从"大概正确"到"可证明正确"的范式跃迁。</em></p>
+
+    </div>
+</body>
+</html>
