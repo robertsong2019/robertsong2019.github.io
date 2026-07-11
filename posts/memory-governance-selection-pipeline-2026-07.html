@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>检索不到就够了？给 Agent 记忆装上治理层 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+.tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a href="../index.html" class="back-link">← 返回首页</a>
+
+<h1>检索不到就够了？给 Agent 记忆装上治理层——三阶段门控选择管线</h1>
+<div class="meta">
+2026-07-12 · 罗嵩 ·
+<span class="tag">Agent Memory</span>
+<span class="tag">Governance</span>
+<span class="tag">GraphRAG</span>
+<span class="tag">MRMS</span>
+</div>
+
+<blockquote>当我们谈论 Agent 记忆时，绝大多数人想到的是"存"和"取"。但生产环境的记忆系统还缺一个关键层：<strong>治理</strong>。一条记忆被检索到了，但它还有效吗？它被其他记忆反驳了吗？它是否已被标记为过时？如果检索系统不管这些，那 LLM 就会在生成时引用已废弃的信息。本文展示如何用 MRMS 论文启发的三阶段门控管线——结构化过滤 → 向量召回 → 图谱标注——把治理逻辑嵌入检索过程，让每条返回的记忆都自带"安全标签"。</blockquote>
+
+<h2>引言：检索的幻觉</h2>
+
+<p>你有一个漂亮的检索系统。向量召回 + PPR 图扩散 + RRF 融合 + 中心性重排序，precision@10 达到 0.85。看起来很美。</p>
+
+<p>但如果你问 Agent："Python 3.11 的 GIL 改进了吗？"它检索到一条记忆：</p>
+
+<pre><code>{
+  "claim": "Python GIL 无法被移除",
+  "score": 0.92,
+  "kind": "fact"
+}</code></pre>
+
+<p>问题是：这条记忆写于 2021 年。2024 年 PEP 703 已被接受，Python 3.13 有了实验性 no-GIL 模式。这条记忆<strong>已被取代</strong>，但检索系统仍然以 0.92 的高分返回它。</p>
+
+<p>Agent 基于这条过时记忆生成了回答。用户得到了错误信息。信任崩塌。</p>
+
+<p>这不是假设。这是每一个生产环境 Agent 记忆系统都会遇到的问题——<strong>检索质量不等于输出质量</strong>。2026 年的 MRMS 论文（arXiv:2607.04617）把这个问题定义为"retrieval-generation gap"：检索深度不等于生成质量，上下文工程可以减少 19-53% 的 token 消耗。</p>
+
+<p>根源在于：传统检索只关心"相不相关"，不关心"可不可信"。</p>
+
+<p>我在 agent-memory-graph 项目中实现了 <code>select_governed()</code>——一个 MRMS 风格的三阶段门控选择管线，在检索之上叠加治理层。本文是设计思路和核心实现的完整剖析。</p>
+
+<hr>
+
+<h2>设计哲学：记忆不是文档</h2>
+
+<p>传统 RAG 检索的是文档——文档是静态的，一旦写入就不再变化。但 Agent 记忆更像数据库里的记录——它有生命周期：</p>
+
+<ol>
+<li><strong>诞生</strong>：Agent 观察到一个事实，写入记忆</li>
+<li><strong>活跃期</strong>：被反复检索、引用、交叉验证</li>
+<li><strong>衰退</strong>：新证据出现，置信度下降</li>
+<li><strong>废弃</strong>：被新记忆明确取代（supersede）</li>
+<li><strong>隔离</strong>：发现错误或被投毒，标记为 quarantined</li>
+</ol>
+
+<p>传统检索把所有记忆当作文档平等对待。但一条活跃的记忆和一条已被取代的记忆，不应该以相同的权重进入 LLM 上下文。</p>
+
+<h3>治理的三个维度</h3>
+
+<p>MRMS 论文提出记忆基底（substrate）有两个轴：表征维度（文本/向量/图）和时间维度（版本/有效期）。在实践中，我发现还需要第三个轴：<strong>可信度维度</strong>——这条记忆有多可信？</p>
+
+<p>这三个轴决定了：一条记忆<strong>是否应该</strong>被检索到，以及被检索到后<strong>应该如何标注</strong>。</p>
+
+<hr>
+
+<h2>第一阶段：结构化门控——在检索之前过滤</h2>
+
+<h3>问题</h3>
+
+<p>如果一条记忆已被标记为 quarantined（疑似错误或被投毒），或者已被 superseded（被新记忆取代），它就不应该出现在检索结果中。但如果在检索之后才过滤，你已经浪费了计算资源，而且 RRF 融合的分数已经被污染。</p>
+
+<h3>解决方案：前置排除</h3>
+
+<pre><code>def select_governed(self, query, *, min_confidence=0.0,
+                    kinds=None, require_tags=None,
+                    limit=10, explain=False):
+    """MRMS-style three-stage governed selection pipeline.
+    
+    Stage 1: Structured gates — quarantine + supersede + kind + tag
+    Stage 2: Vector recall — delegate to retrieve()
+    Stage 3: Graph expansion — evidence/conflicts/superseded_by
+    """
+    # ── Stage 1: Structured gates ────────────────────────
+    excluded = set()
+    
+    # Quarantine gate: 排除被隔离的记忆
+    quarantined = {
+        row["id"] for row in self.conn.execute(
+            "SELECT id FROM nodes WHERE quarantined = 1"
+        ).fetchall()
+    }
+    excluded |= quarantined
+    
+    # Superseded gate: 排除已过期的记忆
+    now = time.time()
+    superseded_ids = {
+        row["id"] for row in self.conn.execute(
+            "SELECT id FROM nodes WHERE valid_to IS NOT NULL "
+            "AND valid_to < ?", (now,)
+        ).fetchall()
+    }
+    excluded |= superseded_ids
+    
+    # Kind gate: 按类型过滤
+    if kinds:
+        kind_excluded = {
+            row["id"] for row in self.conn.execute(
+                "SELECT id FROM nodes WHERE kind NOT IN (%s)"
+                % ",".join("?" * len(kinds)),
+                tuple(kinds),
+            ).fetchall()
+        }
+        excluded |= kind_excluded
+    
+    # Tag gate: 按标签过滤
+    if require_tags:
+        required = set(require_tags)
+        for row in self.conn.execute(
+            "SELECT id, tags FROM nodes"
+        ).fetchall():
+            node_tags = set(
+                json.loads(row["tags"]) if row["tags"] else []
+            )
+            if not required.issubset(node_tags):
+                excluded.add(row["id"])</code></pre>
+
+<h3>关键设计决策</h3>
+
+<p><strong>为什么用 SQL 而不是内存过滤？</strong> 当图中有 10,000+ 节点时，把所有节点加载到内存再过滤会很慢。SQL WHERE 子句利用索引，在毫秒级完成过滤。</p>
+
+<p><strong>为什么不直接在 retrieve() 里加 filter？</strong> 关注点分离。retrieve() 是纯检索引擎，它的职责是"找到最相关的"。select_governed() 是治理层，它的职责是"只让合格的通过"。这种分层让你可以独立优化检索算法和治理策略。</p>
+
+<p><strong>explain 模式</strong>：当 <code>explain=True</code> 时，返回每阶段的统计信息：</p>
+
+<pre><code>{
+  "governance": {
+    "query": "Python GIL",
+    "stages": [
+      {
+        "name": "structured_gate",
+        "total_nodes": 1200,
+        "passed": 1156,
+        "excluded": 44,
+        "quarantined": 3,
+        "superseded": 41,
+        "elapsed_ms": 2.3
+      }
+    ]
+  }
+}</code></pre>
+
+<hr>
+
+<h2>第二阶段：向量召回——委托而非重写</h2>
+
+<p>门控通过后，进入检索阶段。这里的设计很简洁：<strong>不重写检索引擎，委托给已有的 <code>retrieve()</code></strong>。</p>
+
+<pre><code># ── Stage 2: Vector recall (delegate to retrieve) ─────
+candidates = self.retrieve(
+    query,
+    limit=max(limit * 3, 30),  # over-fetch
+    rerank=True,
+    rerank_centrality="degree",
+)
+
+# 应用门控过滤
+gated_candidates = [
+    c for c in candidates 
+    if c.get("node_id") in gate_passed
+]
+
+# 应用置信度过滤
+if min_confidence > 0:
+    gated_candidates = [
+        c for c in gated_candidates
+        if self.get_confidence(
+            c.get("node_id", "")) >= min_confidence
+    ]</code></pre>
+
+<h3>为什么要 over-fetch？</h3>
+
+<p>门控会过滤掉一部分候选。如果 retrieve() 返回 top-10，门控可能砍掉 3 条，只剩 7 条。为了最终仍有足够的候选做图谱标注，需要 over-fetch——通常 <code>limit * 3</code> 或至少 30。</p>
+
+<p>这是一个简单但关键的工程决策：<strong>治理是有成本的，你需要用更大的候选池来对冲这个成本</strong>。</p>
+
+<hr>
+
+<h2>第三阶段：图谱标注——让每条记忆自带安全标签</h2>
+
+<p>这是最有价值的一层。检索返回的记忆缺少上下文：这条记忆有支持证据吗？有冲突吗？被什么取代了？</p>
+
+<pre><code># ── Stage 3: Graph expansion + annotation ─────────────
+packets = []
+
+for cand in gated_candidates[:limit]:
+    nid = cand.get("node_id", "")
+    node = cand.get("node") or self.get_node(nid)
+    
+    evidence, conflicts, superseded_by = [], [], []
+    
+    edge_rows = self.conn.execute(
+        "SELECT target, relation FROM edges WHERE source=? "
+        "UNION "
+        "SELECT source AS target, relation FROM edges "
+        "WHERE target=?",
+        (nid, nid),
+    ).fetchall()
+    
+    for erow in edge_rows:
+        other = self.get_node(erow["target"])
+        rel = erow["relation"]
+        entry = {"id": erow["target"], 
+                 "claim": other.label, 
+                 "relation": rel}
+        
+        if rel in ("supports", "corroborates"):
+            evidence.append(entry)
+        elif rel in ("contradicts", "conflicts_with"):
+            conflicts.append(entry)
+        elif rel in ("superseded_by", "replaces"):
+            superseded_by.append(entry)
+    
+    is_safe = (len(conflicts) == 0 
+               and len(superseded_by) == 0)
+    
+    packets.append({
+        "node_id": nid,
+        "claim": node.label,
+        "score": cand.get("score", 0.0),
+        "is_safe": is_safe,
+        "evidence": evidence,
+        "conflicts": conflicts,
+        "superseded_by": superseded_by,
+    })</code></pre>
+
+<h3>返回结果长什么样？</h3>
+
+<pre><code>result = graph.select_governed(
+    "Python GIL 改进",
+    min_confidence=0.3,
+    explain=True
+)
+
+# result["results"][0]:
+{
+    "claim": "PEP 703: Python 3.13 free-threading",
+    "score": 0.91,
+    "is_safe": True,
+    "evidence": [
+        {"claim": "Guido 支持 free-threading", 
+         "relation": "supports"}
+    ],
+    "conflicts": [],
+    "superseded_by": []
+}
+
+# result["results"][1]:
+{
+    "claim": "Python GIL 无法被移除",
+    "score": 0.87,
+    "is_safe": False,      # ← 不安全
+    "evidence": [],
+    "conflicts": [
+        {"claim": "PEP 703: free-threading",
+         "relation": "contradicts"}
+    ],
+    "superseded_by": [
+        {"claim": "PEP 703: free-threading",
+         "relation": "superseded_by"}
+    ]
+}</code></pre>
+
+<p>注意第二条结果：score 仍然很高（0.87），但 <code>is_safe: False</code>。LLM 在生成时看到这些标注，就知道<strong>不要引用这条记忆</strong>，或者需要声明它已被取代。</p>
+
+<hr>
+
+<h2>闭环：检索失败日志——让记忆系统自我进化</h2>
+
+<p>门控管线解决了"不该返回什么"。但还有另一个问题："<strong>应该返回但返回不了什么</strong>"。</p>
+
+<p>当用户查询了一个应该有答案的话题，但检索系统什么都找不到——这意味着记忆图谱有缺口。如果你不记录这些失败，你就永远不知道该往图谱里添加什么。</p>
+
+<pre><code>def log_retrieval_failure(self, query, result_count=0, 
+                          top_score=0.0, stage="recall"):
+    """SAGE reader-writer feedback: 记录检索失败"""
+    cur = self.conn.execute(
+        """INSERT INTO retrieval_failures
+           (query, result_count, top_score, stage, timestamp)
+           VALUES (?, ?, ?, ?, ?)""",
+        (query, result_count, top_score, 
+         stage, time.time()),
+    )
+    self.conn.commit()
+    return cur.lastrowid</code></pre>
+
+<h3>分析失败模式</h3>
+
+<pre><code>def analyse_retrieval_failures(self, *, min_failures=3, 
+                                since_hours=24):
+    """分组分析失败查询，识别图谱缺口"""
+    cutoff = time.time() - since_hours * 3600
+    rows = self.conn.execute(
+        """SELECT query, COUNT(*) as cnt,
+                  MAX(timestamp) as last_ts
+           FROM retrieval_failures
+           WHERE timestamp >= ?
+           GROUP BY query
+           HAVING cnt >= ?
+           ORDER BY cnt DESC""",
+        (cutoff, min_failures),
+    ).fetchall()
+    
+    results = []
+    for r in rows:
+        query = r["query"]
+        tokens = [t for t in query.lower().split() 
+                  if len(t) > 2]
+        suggested = set()
+        for token in tokens:
+            node_rows = self.conn.execute(
+                "SELECT id, label FROM nodes "
+                "WHERE LOWER(label) LIKE ? LIMIT 5",
+                (f"%{token}%",),
+            ).fetchall()
+            for nr in node_rows:
+                suggested.add(nr["id"])
+        
+        severity = ("high" 
+                    if r["cnt"] >= min_failures * 2 
+                    else "medium")
+        results.append({
+            "query": query,
+            "failure_count": r["cnt"],
+            "suggested_node_ids": list(suggested),
+            "severity": severity,
+        })
+    return results</code></pre>
+
+<h3>SAGE 读写反馈循环</h3>
+
+<pre><code>用户查询 → 检索(reader) → 返回结果 → 记录失败
+                                              ↓
+                                    分析失败模式
+                                              ↓
+                                    补充图谱(writer)
+                                              ↓
+                                    下次检索更准确</code></pre>
+
+<p>关键洞察：<strong>检索失败不是 bug，是信号</strong>。同一个查询失败 3 次以上，说明图谱缺了这条记忆。</p>
+
+<hr>
+
+<h2>完整工作流</h2>
+
+<pre><code>from agent_memory_graph import MemoryGraph
+
+graph = MemoryGraph(":memory:")
+
+# 写入记忆
+graph.add("Python GIL 无法被移除", kind="fact",
+          tags=["python", "gil"])
+graph.add("PEP 703: free-threading", kind="fact",
+          tags=["python", "gil", "pep"])
+graph.add_edge("pep703", "old_gil", "superseded_by")
+graph.add_edge("pep703", "old_gil", "contradicts")
+
+# 治理化检索
+result = graph.select_governed(
+    "Python GIL",
+    min_confidence=0.2,
+    explain=True
+)
+
+# 检查 governance trace
+for stage in result["governance"]["stages"]:
+    print(f"{stage['name']}: {stage['elapsed_ms']}ms")
+
+# 使用结果
+for packet in result["results"]:
+    if packet["is_safe"]:
+        print(f"✅ {packet['claim']}")
+    else:
+        print(f"⚠️  {packet['claim']} — "
+              f"被 {len(packet['superseded_by'])} 条记忆取代")
+
+# 检索失败时记录
+if len(result["results"]) < 3:
+    graph.log_retrieval_failure(
+        "Python GIL",
+        result_count=len(result["results"]),
+        top_score=result["results"][0]["score"] 
+            if result["results"] else 0
+    )
+
+# 定期分析失败模式
+failures = graph.analyse_retrieval_failures(
+    min_failures=3, since_hours=24
+)
+for f in failures:
+    print(f"缺口: '{f['query']}' 失败 "
+          f"{f['failure_count']} 次")</code></pre>
+
+<hr>
+
+<h2>独到见解：为什么治理层比检索层更难做</h2>
+
+<p>调研 2026 年主流 Agent 记忆系统后，我发现一个清晰的分层：</p>
+
+<table>
+<tr><th>层级</th><th>问题</th><th>难度</th><th>做了的人</th></tr>
+<tr><td>检索</td><td>找到相关内容</td><td>⭐⭐</td><td>所有人</td></tr>
+<tr><td>治理</td><td>过滤不可信内容</td><td>⭐⭐⭐⭐</td><td>极少</td></tr>
+<tr><td>自愈</td><td>自动补充缺口</td><td>⭐⭐⭐⭐⭐</td><td>几乎没有</td></tr>
+</table>
+
+<p>Mem0 v3 有基础的 conflict detection 但 BEAM contradiction_resolution 仅 35.7%。Zep 有 bi-temporal 但缺少图级别的冲突标注。Mandol（LoCoMo SOTA 92.21%）有定量检索但治理是后处理而非前置门控。</p>
+
+<p>治理层难做的原因：</p>
+
+<ol>
+<li><strong>需要多维度元数据</strong>：quarantine、valid_to、confidence、kind、tags——这些不是可选装饰，是治理的前提。大多数系统连 valid_to 都没有。</li>
+<li><strong>图结构是必需品</strong>：没有 <code>supports</code>/<code>contradicts</code>/<code>superseded_by</code> 这样的语义边，第三阶段标注就不可能实现。这不是向量数据库能做的。</li>
+<li><strong>读写反馈是长期投资</strong>：retrieval failure log 的价值在第 7 天才开始显现。大多数团队没有耐心等。</li>
+<li><strong>治理降低了 recall</strong>：过滤掉不安全的记忆，precision 上去了，但 recall 可能下降。需要勇气来接受"少即是多"。</li>
+</ol>
+
+<hr>
+
+<h2>可操作建议</h2>
+
+<ol>
+<li><strong>至少加一个 valid_to 字段。</strong> 这是治理的最低门槛。两个字段——<code>valid_to</code> 和 <code>quarantined</code>——就能覆盖 80% 的治理需求。</li>
+<li><strong>语义边不是可选的。</strong> 至少需要三种语义边：<code>supports</code>、<code>contradicts</code>、<code>superseded_by</code>。</li>
+<li><strong>检索失败日志只需一张表。</strong> 5 个字段，50 行代码，但它是记忆系统自我进化的基础。</li>
+<li><strong>explain 模式是产品功能。</strong> 让 Agent 看到"这次检索过滤掉了 3 条被取代的记忆"，有助于 LLM 做出更好的决策。</li>
+<li><strong>over-fetch 是治理的隐性成本。</strong> 候选池越大，治理层越不容易"饿死"。</li>
+</ol>
+
+<hr>
+
+<h2>结语</h2>
+
+<p>Agent 记忆系统正在从"搜索引擎"进化为"知识治理系统"。检索是入口，但不是终点。一条记忆被检索到，只意味着它相关；是否可信、是否最新、是否有冲突——这些才是决定 Agent 输出质量的关键。</p>
+
+<p>三阶段门控管线的核心思想很简单：<strong>在检索之前过滤掉不该出现的，在检索之后标注出需要注意的，在一切失败之后记录下来以便改进</strong>。</p>
+
+<p>这不是一个复杂的系统。核心实现不到 150 行 Python。但它需要你从"记忆是文档"切换到"记忆是有生命周期的记录"。</p>
+
+<p>一旦完成这个切换，你会发现治理层不是成本——它是记忆系统的免疫力。</p>
+
+<hr>
+
+<p><em>本文基于 agent-memory-graph 项目 cycle 222 的开发实践，以及 MRMS（arXiv:2607.04617）和 SAGE（arXiv:2605.12061）的研究洞见。完整源码和 2568 个测试在 <a href="https://github.com/robertsong2019/agent-memory-graph">GitHub</a>。</em></p>
+
+</div>
+</body>
+</html>
