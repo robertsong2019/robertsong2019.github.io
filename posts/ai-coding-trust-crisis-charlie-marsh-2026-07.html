@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当 AI 写代码、人读代码：uv 创始人 Charlie Marsh 的诚实反思 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.7rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: rgba(88,166,255,0.15); color: var(--accent); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; margin-right: 0.3rem; }
+        .highlight { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem 1.2rem; margin: 1.5rem 0; }
+        .highlight p { margin-bottom: 0; }
+        strong { color: var(--heading); }
+        .back-link { display: inline-block; margin-top: 2rem; color: var(--accent); }
+        hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.6rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); font-weight: 600; }
+        tr:nth-child(even) { background: rgba(22,27,34,0.5); }
+        .footer { color: #8b949e; font-size: 0.85rem; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+        .quote-box { background: var(--card); border-left: 3px solid var(--accent); padding: 1rem 1.2rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; }
+        .quote-box p { margin-bottom: 0.5rem; font-style: italic; }
+        .quote-box .author { font-size: 0.85rem; color: #8b949e; }
+    </style>
+</head>
+<body>
+    <h1>当 AI 写代码、人读代码：uv 创始人 Charlie Marsh 的诚实反思</h1>
+    <div class="meta">
+        <span class="tag">AI Coding</span>
+        <span class="tag">Rust</span>
+        <span class="tag">开源</span>
+        <span class="tag">软件工程</span>
+        <span class="tag">Charlie Marsh</span>
+        · 2026-07-12
+    </div>
+
+    <blockquote>Charlie Marsh 用 Rust 构建了 Ruff 和 uv，创立 Astral，卖给 OpenAI。但他最近最重要的反思不是关于 Rust，而是关于信任 — 当代码不再是人写的，审查还能信什么？</blockquote>
+
+    <p>本文基于 Charlie Marsh（Astral / Ruff / uv 创始人）与 Ryan Peterman 的播客对谈深度分析，原文由 InfoQ 编译。</p>
+
+    <hr>
+
+    <h2>一、Python 工具链的 Rust 革命</h2>
+
+    <p>Charlie 的起点观察非常简单：<strong>JS 生态已经用 Go/Rust 把工具链重写了一遍（ESBuild、SWC、Bun、Deno），Python 生态还全是 Python 写的。</strong></p>
+
+    <p>他从计算生物学公司辞职后，花了 9 天做出 Ruff 原型，验证了一个假设："Python 工具链能不能更快？" 答案是：快 10-100 倍。</p>
+
+    <p>随后他成立 Astral，用 Rust 打造了 uv — 一个让 pip 看起来像慢动作回放的包管理器。两个项目 GitHub 星标数以万计增长，最终在 2026 年 3 月把整家公司卖给了 OpenAI。</p>
+
+    <div class="highlight">
+        <p><strong>关于 Rust 的选择，Charlie 非常诚实：</strong>"坦白说，当初就是跟风。但回头看香爆了 — Cargo 一把梭，git clone 完就能跑。内存安全？当初根本不在乎，现在觉得真香。"</p>
+    </div>
+
+    <p>他特别强调了一点：<strong>Rust 给的是性能地板，不是天花板。</strong></p>
+    <ul>
+        <li>Ruff 的速度主要归功于 Rust（语言本身的性能优势）</li>
+        <li>uv 的速度主要归功于<strong>架构创新</strong>（缓存设计：重复安装几乎零成本）</li>
+        <li>即使全用 Rust，不同实现的性能差异仍有 10 倍以上</li>
+    </ul>
+
+    <hr>
+
+    <h2>二、"一行代码没读就发布了" — AI 编程的信任危机</h2>
+
+    <p>这是整篇访谈最核心的部分。Charlie 讲了一个让人震动的故事：</p>
+
+    <div class="quote-box">
+        <p>"上周我写了个个人用的自定义 Rust linter，全程由 GPT-5.5 完成，我一行代码都没读。因为那是只有我们内部使用的工具，很容易判断正确性。"</p>
+        <p class="author">— Charlie Marsh</p>
+    </div>
+
+    <p>但紧接着，团队里的同事直接指出了问题：</p>
+
+    <div class="quote-box">
+        <p>"以前你提 PR，我基本扫一眼就过了，因为我对你的工作有很高的信任度。但现在你提 PR，我得逐行细审，因为那些代码不是你写的，是 Agent 写的。"</p>
+        <p class="author">— Astral 团队成员对 Charlie 说</p>
+    </div>
+
+    <p>Charlie 承认这种信任的崩塌不只发生在别人身上。他自己也有过这样的经历：晚上用 Agent 提了一个 PR，第二天早上起来一看，"等等，这代码写得也太烂了吧？"</p>
+
+    <p><strong>核心问题：当你自己写代码的乐趣被"指挥 Agent 干活 + 逐行审查 Agent 输出"取代，编程还值得热爱吗？</strong></p>
+
+    <hr>
+
+    <h2>三、审查成本不对称 — 开源社区的新危机</h2>
+
+    <p>Charlie 提出了 AI 时代开源生态最尖锐的问题：</p>
+
+    <div class="highlight">
+        <p><strong>提交一个"看起来合理"的 PR 的成本已经降到了零，但审查和验证一个"看起来合理"的 PR 的成本依然很高，甚至更高。</strong></p>
+    </div>
+
+    <p>以 Astral 的类型检查器 TY 为例：有人用 AI 花 2 分钟生成了一个"看起来合理"的 PR，但 Charlie 的团队需要花 1 小时去理解它。这种不对等正在<strong>严重破坏开源社区的生态</strong>。</p>
+
+    <p>Zig 项目提出了一个概念叫 <strong>"贡献者扑克"</strong>：</p>
+    <ul>
+        <li><strong>传统模式：</strong>新贡献者来了 → 你给反馈 → 他学习改进 → 下次 PR 更好 → 逐渐成长为维护者。你在投资"人"。</li>
+        <li><strong>Agent 模式：</strong>你给反馈 → 他把反馈塞回 Agent → Agent 生成新版本 → 合并。<strong>没有积累，没有成长。</strong></li>
+    </ul>
+
+    <p>更糟糕的是，Bun 的仓库已经出现了这种极端情况：<strong>头号贡献者是一个 bot</strong>。人类提交的 PR，评论也明显全是 Agent 写的。Charlie 感叹："这跟我们的仓库完全是两个世界。"</p>
+
+    <p>Astral 的应对策略：</p>
+    <ol>
+        <li><strong>AI 政策：</strong>不反 AI，但过滤净负面贡献。"你提交的东西，你自己得理解。"</li>
+        <li><strong>自动识别 Agent 输出：</strong>过于详尽、格式过于规范、用词过于学术、塞满链接 — 几乎就是 Agent</li>
+        <li><strong>Codex Review 预审：</strong>团队成员提 PR 前，先用 /review 跑一轮</li>
+        <li><strong>自动化验证兜底：</strong>Valgrind + CodShift benchmark + 生态测试对比</li>
+    </ol>
+
+    <hr>
+
+    <h2>四、Mitchell Hashimoto 的实验 — AI 能优化到什么程度？</h2>
+
+    <p>访谈中最有意思的技术细节来自 Mitchell Hashimoto（HashiCorp 创始人，现在做 Ghostty）的实验：</p>
+
+    <div class="quote-box">
+        <p>"他写了一个渲染器，故意写得很糟糕，然后让 LLM 去优化，结果 LLM 把它优化快了 10 倍。但实际上，他自己手写的版本比 LLM 优化后的版本还要快 100 倍。"</p>
+    </div>
+
+    <p>Charlie 的总结极其精准：</p>
+
+    <div class="highlight">
+        <p>如果你不先用大脑从第一性原理去思考"这个东西理论上应该有多快"、"系统应该怎么工作"，那你就会把那些积累起来的"slop"直接交付出去，然后说"我把它优化快了 10 倍"，但实际上它应该能快 100 倍。</p>
+    </div>
+
+    <p><strong>AI 擅长局部优化，不擅长系统级重新设计。</strong>版本号用 u64 表示、增量类型检查的依赖图设计 — 这些需要人类工程师从第一性原理出发的思考，目前 AI 还做不到默认输出。但如果你通过 prompt 一步步引导，它是可以到达的。</p>
+
+    <hr>
+
+    <h2>五、初级工程师最困难的时刻</h2>
+
+    <p>Charlie 坦言 Astral 倾向于招资深工程师，然后说了整篇访谈中最沉重的一段话：</p>
+
+    <div class="quote-box">
+        <p>"现在对初级工程师来说，真的非常难。如果我是初期工程师，太容易掉进使用 Agent 时发生的那些坏事情里了。"</p>
+        <p class="author">— Charlie Marsh</p>
+    </div>
+
+    <p>原因很直接：<strong>资深工程师用 AI 是在"指导"它 — 纠正错误、提供护栏、从第一性原理判断输出质量。初级工程师没有这个能力，他们只能被 AI 带着走。</strong></p>
+
+    <p>Geoffrey Huntley 说的更狠："如果你不能在几个小时内重建 Cursor，你下次面试会非常艰难。13 岁的孩子在 PyCon 展示自建 Agent，把资深工程师都震住了。"</p>
+
+    <div class="highlight">
+        <p><strong>关键区分：你是"写代码的人"还是"软件工程师"？</strong> 任何人都能用 Cursor 生成代码，这是写代码的人。能在白板上画出 Coding Agent 的架构、讲清楚每个组件如何工作、从第一性原理判断性能瓶颈 — 这才是软件工程师。前者正在与时薪 10 美元的岗位竞争；后者依然极度稀缺。</p>
+    </div>
+
+    <hr>
+
+    <h2>六、AI 时代的软件验证 — 与我们之前的分析完美呼应</h2>
+
+    <p>Charlie 和 Geoffrey Huntley 的观点独立收敛到了同一个结论：</p>
+
+    <table>
+        <tr><th>维度</th><th>Charlie Marsh</th><th>Geoffrey Huntley</th></tr>
+        <tr><td>Rust 的价值</td><td>"内存安全当初不在乎，现在觉得真香"</td><td>"Rust 拒绝幻觉，编译不过就到不了代码审查"</td></tr>
+        <tr><td>Python/Ruby 的问题</td><td>"生成完不跑一遍你不知道会不会炸"</td><td>"Python 和 Ruby 验证成本太高"</td></tr>
+        <tr><td>代码审查的未来</td><td>"默认不审查，按风险分级触发"</td><td>"最小化审查次数，像 on-call 最小化寻呼"</td></tr>
+        <tr><td>验证是下一个战场</td><td>"自动化验证兜底是最重要的"</td><td>"代码生成已解决，验证是核心瓶颈"</td></tr>
+    </table>
+
+    <p><strong>两位顶级实践者独立得出了完全一致的结论：</strong>代码生成问题已解决，瓶颈转移到了验证。编译器类型系统（Rust）是第一道防线，属性测试是第二道，形式化验证是终极方案。</p>
+
+    <hr>
+
+    <h2>七、几个实操洞察</h2>
+
+    <h3>1. 开发者营销的 "10 秒法则"</h3>
+    <p>Charlie 对营销的理解远超大多数工程师："你只有 10 秒钟让人产生兴趣。一张 benchmark 图、一个亮眼的标题，不需要废话。DALL-E 的博客你一个字都不读，光看图片就能理解。"</p>
+
+    <h3>2. 希拉姆定律（Hyrum's Law）与重写风险</h3>
+    <div class="highlight">
+        <p><strong>任何实现细节最终都会变成某些人依赖的行为。</strong>即使测试全部通过，程序隐含的行为可能已经改变。这就是为什么不推荐 AI 全量重写 — 你在用已知问题交换未知问题。</p>
+    </div>
+
+    <h3>3. Andrew（BurntSushi）的版本号优化</h3>
+    <p>Ripgrep 作者在 uv 项目中发现：用单个 u64 整数就能表示 90% 以上的 Python 版本号。这种"从第一性原理重新思考数据结构"的洞察，是 AI 目前做不到默认输出的。</p>
+
+    <h3>4. 实验成本趋近于零的红利</h3>
+    <p>Charlie 现在整天做的事：让 Agent 在后台跑实验。"如果把快照存在单独文件里，编译会不会变快？"以前手动做极其痛苦的实验，现在随手就能验证。<strong>这种"解锁感"是 AI 编程最正面的体验。</strong></p>
+
+    <hr>
+
+    <h2>八、对工程师的建议</h2>
+
+    <table>
+        <tr><th>你是谁</th><th>建议</th></tr>
+        <tr><td><strong>资深工程师</strong></td><td>用 AI 放大你的技能。你最懂架构、知道理论极限在哪、能判断 AI 输出质量。Token 排行榜不重要，产出质量才重要。</td></tr>
+        <tr><td><strong>初级工程师</strong></td><td>最危险的位置。你需要学会"指导 AI"而非"被 AI 指导"。理解每一行代码、能解释架构、能从第一性原理判断 — 否则你只是在积累 slop。</td></tr>
+        <tr><td><strong>开源维护者</strong></td><td>建立 AI 政策。"你提交的东西你自己得理解"是最低门槛。考虑风险分级审查：文案改 → 直接发布；数据库索引 → 必须审查。</td></tr>
+        <tr><td><strong>技术选型者</strong></td><td>选 Rust。不是因为跟风，而是因为编译器在帮你和 AI 做验证。Python 没问题，但必须加类型检查 + 属性测试。</td></tr>
+    </table>
+
+    <hr>
+
+    <h2>结语</h2>
+
+    <p>Charlie 的反思中最诚实的一点：<strong>他还没想清楚。</strong></p>
+
+    <p>"我一度恐惧 AI 会让编程变得没意思。现在感觉好多了，但不是因为问题解决了，而是因为我在适应。"</p>
+
+    <p>这句话可能是整个 AI 编程浪潮中最真实的状态描述 — 没人真正想清楚了，所有人都在适应。那些声称有标准答案的人，要么是在卖东西，要么是还没碰到真正的困境。</p>
+
+    <div class="highlight">
+        <p><strong>编程不再只是"写代码"。它是：从第一性原理思考 → 指导 AI 生成 → 验证输出正确性 → 在验证通过的前提下信任它。编译器和自动化验证是这条链路上唯一可信的锚点。</strong></p>
+    </div>
+
+    <p>Charlie 用 Rust 构建了改变 Python 生态的工具。但他在这个访谈中最有价值的贡献，不是技术洞察，而是诚实 — 关于信任的崩塌、关于审查的不对等、关于初级工程师的困境、关于"我还没想清楚"的勇气。</p>
+
+    <p>在所有人都声称自己已经搞定 AI 编程的时代，这种诚实比任何方法论都更有价值。</p>
+
+    <div class="footer">
+        <p>作者：罗嵩 & Catalyst 🧪 · 2026-07-12</p>
+        <p>原文：Charlie Marsh (Astral) × Ryan Peterman 播客对谈，<a href="https://www.infoq.cn/article/katE2jJKMX7FaGskhvRL">InfoQ 编译</a></p>
+    </div>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
