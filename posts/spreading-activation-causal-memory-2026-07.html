@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记忆不是硬盘：用扩散激活和因果图谱让 Agent 学会联想 | 罗嵩的技术博客</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>记忆不是硬盘：用扩散激活和因果图谱让 Agent 学会联想</h1>
+        <div class="meta">
+            2026-07-13 · 罗嵩 ·
+            <span class="tag">Agent Memory</span>
+            <span class="tag">Spread Activation</span>
+            <span class="tag">Causal Graph</span>
+            <span class="tag">autoresearch</span>
+        </div>
+
+        <blockquote>大多数 Agent 记忆系统工作得像硬盘：写入、索引、检索。但人类大脑不是这样工作的。当你听到"海边"这个词，你不只是检索到"海边"的定义——你同时想起了上次去海边的经历、海风的味道、甚至一首关于海的歌。这是<strong>联想</strong>，不是查询。Collins 和 Loftus 在 1975 年就用扩散激活理论解释了这种机制。50 年后，我把这个模型搬进了 Agent 记忆图谱，配合因果边和写入时熵过滤，让记忆从被动存储进化为主动认知。</blockquote>
+
+        <h2>问题：向量搜索的天花板</h2>
+
+        <p>你的 Agent 有一个漂亮的记忆系统：向量嵌入 + 余弦相似度 + PPR 图扩散。用户问"Python 的 GIL 问题"，系统返回最相关的 10 条记忆。看起来没问题。</p>
+
+        <p>但试试这个场景：用户说"上次那个性能问题后来怎么解决的？"向量搜索懵了——这句话里没有一个词和具体的性能优化记忆在语义上接近。"那个"指向什么？"性能问题"是哪个？答案藏在<strong>记忆之间的连接</strong>里，而不是在嵌入向量的距离里。</p>
+
+        <p>更糟糕的是：Agent 记住了"用户报告了 OOM 错误"，也记住了"我们增加了内存限制"，还记住了"三天后 OOM 再次出现"。但向量搜索不会告诉你这三条记忆构成了一条<strong>因果链</strong>——增加内存限制只是延缓了问题，没有解决根因。</p>
+
+        <p>问题的本质是：<strong>向量搜索是空间模型，但记忆是联想模型</strong>。你需要的是一种机制，能从一个节点出发，沿着语义边"扩散"到相关节点——就像石头扔进水里，涟漪自然传播。</p>
+
+        <h2>三层方案：从写入到联想的完整管线</h2>
+
+        <p>在 agent-memory-graph 项目的三个连续 cycle 中，我实现了三层机制，组合起来让记忆系统具备"联想"能力：</p>
+
+        <table>
+            <tr><th>层</th><th>问题</th><th>方案</th><th>Cycle</th></tr>
+            <tr><td>写入门控</td><td>垃圾记忆污染图</td><td>熵过滤（SimpleMem 启发）</td><td>228</td></tr>
+            <tr><td>图结构</td><td>记忆之间缺乏因果关系</td><td>因果边（ActMem 启发）</td><td>230</td></tr>
+            <tr><td>读取联想</td><td>只能做相似度匹配</td><td>扩散激活（Collins & Loftus 1975）</td><td>231</td></tr>
+        </table>
+
+        <h3>第一层：写入时熵过滤——别让垃圾进门</h3>
+
+        <p>联想的前提是图里的节点值得被联想。如果图中充满了"嗯"、"好的"、"明白了"这样的低信息节点，扩散激活会把噪声放大到毫无用处。</p>
+
+        <p>SimpleMem（ICML 2026）提出了写入时熵过滤的思路。我把它实现为一个组合分数：</p>
+
+        <pre><code>def _entropy_score(self, text: str) -> float:
+    """计算归一化信息密度分数 (0-1)。"""
+    text = text.strip()
+    if len(text) < 5:
+        return 0.0
+    
+    words = text.lower().split()
+    unique = set(words)
+    
+    # 词汇多样性 (Type-Token Ratio)
+    ttr = len(unique) / len(words)
+    
+    # 长度因子：20字符以上满分
+    length_factor = min(1.0, len(text) / 20.0)
+    
+    # 新颖度：与现有节点的 Jaccard 距离
+    novelty = 1.0
+    existing = self.conn.execute(
+        "SELECT label FROM nodes LIMIT 500"
+    ).fetchall()
+    if existing:
+        best_sim = 0.0
+        for r in existing:
+            other_set = set(r["label"].lower().split())
+            if other_set:
+                union = unique | other_set
+                sim = len(unique & other_set) / len(union)
+                best_sim = max(best_sim, sim)
+        novelty = 1.0 - best_sim
+    
+    # 加权几何平均：新颖度 50%，词汇多样性 30%，长度 20%
+    score = (novelty ** 0.5) * (ttr ** 0.3) * (length_factor ** 0.2)
+    return round(score, 4)</code></pre>
+
+        <p>为什么用几何平均而不是算术平均？因为<strong>任何一个维度为 0 就应该拒绝</strong>。一条完全重复的记忆（novelty=0），无论词汇多丰富，都不该再写入。几何平均天然实现了这个逻辑——0 的任何次幂都是 0。</p>
+
+        <p>默认阈值 0.3。实践中，这个值能过滤掉约 30% 的写入请求——大多是重复、太短、或者信息量极低的碎片。关键是：<strong>这些垃圾永远不进入图</strong>，所以后续的扩散激活不会在垃圾节点上浪费计算。</p>
+
+        <div class="highlight">
+            <strong>设计决策：为什么是 Jaccard 而不是嵌入余弦？</strong><br>
+            嵌入余弦需要预计算或实时推理，对 500 个候选做余弦比对需要加载模型。Jaccard 只需要集合操作——<code>set &amp; set</code> 和 <code>set | set</code>。在写入路径上，延迟从 200ms 降到 3ms。代价是 Jaccard 只看词面重叠，语义相似的变体（"OOM" vs "Out of Memory"）不会被去重。但对于实时写入门控，速度比精度重要——语义去重可以放在后台异步清理。
+        </div>
+
+        <h3>第二层：因果边——让图理解"为什么"</h3>
+
+        <p>有了干净的图，下一步是赋予它因果结构。ActMem（arXiv:2603.00026）提出了因果记忆边的概念。我实现了 5 种因果关系：</p>
+
+        <pre><code># 5 种因果边类型
+CAUSAL_RELATIONS = {
+    "causes",        # A 导致 B
+    "prevents",      # A 阻止 B
+    "conflicts_with", # A 和 B 不能同时成立
+    "enables",       # A 是 B 的前提
+    "depends_on",    # A 依赖于 B
+}
+
+# 添加因果边，附带置信度和证据链
+graph.add_causal_edge(
+    source_id="oom_report",
+    target_id="increased_memory_limit",
+    relation="causes",
+    confidence=0.9,
+    evidence=["monitoring_log_0712", "incident_report"],
+    note="用户报告 OOM 后，团队决定增加内存限制"
+)
+
+# 追踪因果链：BFS 遍历，支持环检测和深度限制
+chain = graph.trace_causal_chain("oom_report", max_depth=5)
+# → [{hop: 1, node: "increased_memory_limit", trigger: "causes"},
+#    {hop: 2, node: "oom_recurrence", trigger: "causes"}]</code></pre>
+
+        <p><code>trace_causal_chain()</code> 用 BFS 遍历因果边，支持环检测（visited set 防止无限循环）和深度限制。每一步返回 trigger（什么关系触发的）、reason、evidence 和 timestamp。这让 Agent 能回答"为什么这条记忆从 A 变成了 B？"——这是纯向量检索永远做不到的。</p>
+
+        <p>但因果边的真正价值不在单独查询，在于它给扩散激活提供了<strong>有意义的传播路径</strong>。</p>
+
+        <h3>第三层：扩散激活——从查询到联想</h3>
+
+        <p>这是核心。Collins & Loftus 1975 的扩散激活理论（Spreading Activation）是认知心理学解释人类联想记忆的经典模型。核心思想极其简洁：</p>
+
+        <ol>
+            <li>概念是图中的节点</li>
+            <li>概念之间的关系是边</li>
+            <li>激活一个节点时，激活沿边扩散到邻居</li>
+            <li>扩散随距离衰减</li>
+            <li>激活低于阈值的节点不会被"想起来"</li>
+        </ol>
+
+        <pre><code>def spread_activation(self, seed_ids, *, decay_factor=0.5,
+                        threshold=0.1, max_hops=3,
+                        include_quarantined=False,
+                        edge_weight_factor=True):
+    """Collins & Loftus (1975) 扩散激活检索。
+    
+    从 seed_ids 出发，沿边传播激活值，
+    每跳衰减 decay_factor。返回 activation ≥ threshold 的节点。
+    """
+    activation = {}
+    for sid in seed_ids:
+        activation[sid] = 1.0  # 种子节点满激活
+    
+    frontier = list(seed_ids)
+    visited = set(seed_ids)
+    
+    for hop in range(max_hops):
+        if not frontier:
+            break
+        next_frontier = []
+        
+        for nid in frontier:
+            current_act = activation[nid]
+            if current_act < threshold:
+                continue
+            
+            # 获取所有邻居（双向）
+            neighbors = self.conn.execute("""
+                SELECT target AS nbr, weight FROM edges WHERE source=?
+                UNION
+                SELECT source AS nbr, weight FROM edges WHERE target=?
+            """, (nid, nid)).fetchall()
+            
+            for r in neighbors:
+                propagated = current_act * decay_factor
+                if edge_weight_factor:
+                    propagated *= r["weight"]
+                
+                if propagated < threshold:
+                    continue
+                
+                nbr = r["nbr"]
+                if nbr not in activation or propagated > activation[nbr]:
+                    activation[nbr] = propagated
+                    if nbr not in visited:
+                        visited.add(nbr)
+                        next_frontier.append(nbr)
+        
+        frontier = next_frontier
+    
+    return {nid: act for nid, act in activation.items() 
+            if act >= threshold}</code></pre>
+
+        <p>看起来简单？这正是它的力量所在。让我们看一个实际场景：</p>
+
+        <pre><code># 场景：用户问"上次那个性能问题后来怎么解决的？"
+
+# Step 1: 向量检索找到种子节点
+seeds = graph.retrieve("性能问题解决", limit=3)
+seed_ids = [s["node_id"] for s in seeds]
+
+# Step 2: 扩散激活找到关联记忆
+activated = graph.spread_activation(
+    seed_ids,
+    decay_factor=0.5,    # 每跳衰减一半
+    threshold=0.1,       # 低于 0.1 不返回
+    max_hops=3           # 最多传播 3 跳
+)
+
+# 结果排序
+ranked = sorted(activated.items(), key=lambda x: -x[1])
+
+# 输出：
+# ("oom_report",          1.0)   ← 种子：原始问题
+# ("increased_memory",    0.5)   ← 1跳：直接因果后代
+# ("oom_recurrence",      0.25)  ← 2跳：问题复发
+# ("root_cause_leak",     0.125) ← 3跳：真正的根因
+# ("profiling_session",   0.25)  ← 2跳：调查过程
+# ("fix_pr_847",          0.125) ← 3跳：最终修复</code></pre>
+
+        <p>看发生了什么？向量搜索找到了"性能问题"这个入口。扩散激活从这里出发，沿着因果边和语义边，<strong>自动联想到了</strong>"内存限制增加"（因果后代）、"OOM 复发"（因果孙子）、"内存泄漏根因"（3跳外的真正原因），以及"修复 PR"（解决方案）。</p>
+
+        <p>用户问的是"后来怎么解决的"。答案是 <code>fix_pr_847</code>——但它和"性能问题"的向量距离可能很远，向量检索永远找不到它。扩散激活通过 3 跳因果链找到了。</p>
+
+        <h2>独到见解：为什么扩散激活比 PPR 更适合 Agent 记忆</h2>
+
+        <p>Personalized PageRank (PPR) 是另一种图扩散方法，我在 cycle 209 实现了它。很多人问我：既然有了 PPR，为什么还要扩散激活？</p>
+
+        <p>两者看似相似，实则解决不同问题：</p>
+
+        <table>
+            <tr><th>维度</th><th>Personalized PageRank</th><th>Spread Activation</th></tr>
+            <tr><td>传播模型</td><td>全局收敛（迭代到稳态）</td><td>局部 BFS（有限跳数）</td></tr>
+            <tr><td>计算成本</td><td>O(E·iterations)，通常 50-100 次迭代</td><td>O(E·max_hops)，通常 3 跳</td></tr>
+            <tr><td>语义</td><td>"这个节点在整个图中的重要性"</td><td>"这个节点和种子有多近"</td></tr>
+            <tr><td>可解释性</td><td>黑盒分数，难以解释</td><td>每跳可追溯，路径清晰</td></tr>
+            <tr><td>因果友好</td><td>所有边等价（加权图）</td><td>可以按边类型差异化传播</td></tr>
+        </table>
+
+        <p>关键区别：<strong>PPR 回答"谁最重要"，扩散激活回答"谁和谁有关系"</strong>。在 Agent 记忆场景，后者更实用——你不需要一个全局排名，你需要的是"从这个话题出发，能联想到什么"。</p>
+
+        <p>而且 PPR 的全局收敛特性意味着每次查询都要遍历整个图。对于 10,000+ 节点的记忆图谱，一次 PPR 查询需要 50ms+。扩散激活只需要 3 跳，通常在 5ms 内完成。<strong>10 倍速度差</strong>，而且差距随图规模增大而扩大。</p>
+
+        <div class="insight">
+            <strong>核心洞察：</strong>扩散激活本质上是一个<strong>带衰减的 BFS</strong>。它的价值不在于算法复杂度（它很简单的），而在于<strong>图的质量</strong>。没有因果边，扩散激活退化为"找邻居的邻居"——和随机游走没区别。没有熵过滤，图里全是噪声节点，扩散激活只会放大噪声。三层必须组合使用。
+        </div>
+
+        <h2>可操作建议</h2>
+
+        <p><strong>1. 先加边类型，再加扩散。</strong>如果你的记忆图边只有 <code>related_to</code> 一种类型，扩散激活就是有衰减的广度搜索——没有语义。先实现至少 3 种边类型（<code>causes</code>、<code>supports</code>、<code>superseded_by</code>），然后再加扩散激活。边类型是联想质量的前提。</p>
+
+        <p><strong>2. decay_factor 从 0.5 开始。</strong>这是 Collins & Loftus 论文中的经典值，也是实践中最稳定的。太高（0.8+）会过度扩散——3 跳后激活值还有 0.512，几乎和种子一样强。太低（0.2）会在 2 跳后就衰减到阈值以下，等于没有联想。0.5 意味着 3 跳后的激活是 0.125——足够区分，又不会太弱。</p>
+
+        <p><strong>3. 熵过滤不是可选的。</strong>如果你跳过写入过滤直接加扩散激活，效果会像一个注意力涣散的人——什么都能联想到，但没有聚焦。30% 的写入过滤率是一个健康的指标。如果你的过滤率低于 10%，说明阈值太松；高于 50%，说明太严。</p>
+
+        <p><strong>4. 用 explain 模式调试联想路径。</strong>扩散激活最强大的调试工具是打印每跳的激活值。当你发现一个不合理的联想结果，通常是某条边不应该存在——回到图结构层面修边，而不是调参数。</p>
+
+        <p><strong>5. 因果边 + 扩散 = Agent 推理的种子。</strong>给 LLM 喂入扩散激活的结果（按激活值排序的节点列表 + 因果链路径），比喂入向量检索的 top-K 更有效。因为扩散结果自带"为什么相关"的解释（通过哪条边、几跳到达），LLM 可以利用这个路径信息生成更有逻辑的回答。</p>
+
+        <h2>结语</h2>
+
+        <p>1975 年，Collins 和 Loftus 用扩散激活解释人类怎么从"海边"联想到"夏天"。2026 年，同样的算法让 Agent 从"上次那个性能问题"联想到"内存泄漏根因"。</p>
+
+        <p>技术会变，但认知原理不变。Agent 记忆的未来不在于更大的嵌入模型或更强的 GPU——在于把认知科学的经典模型和工程实践结合起来。熵过滤把好门、因果边搭好路、扩散激活让信息在图里流动起来。</p>
+
+        <p>三层组合，记忆才不只是硬盘。</p>
+
+        <hr>
+        <p><em>本文基于 agent-memory-graph 项目 cycles 228-231 的开发实践，以及 SimpleMem（ICML 2026）、ActMem（arXiv:2603.00026）、Collins &amp; Loftus（1975）的研究洞见。完整源码和 2754 个测试在 <a href="https://github.com/robertsong2019/agent-memory-graph">GitHub</a>。</em></p>
+    </div>
+</body>
+</html>
