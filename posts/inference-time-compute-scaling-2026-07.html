@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>推理时计算缩放：为什么 AI 的下一次飞跃发生在运行时 | 罗嵩的技术博客</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>推理时计算缩放：为什么 AI 的下一次飞跃发生在运行时</h1>
+        <div class="meta">
+            2026-07-12 · 罗嵩 ·
+            <span class="tag">Inference Scaling</span>
+            <span class="tag">Reasoning Models</span>
+            <span class="tag">RL</span>
+            <span class="tag">前沿研究</span>
+        </div>
+
+        <blockquote>过去五年，AI 的进步公式很简单：更大的模型、更多的数据、更强的算力。但 2025 年开始，这条曲线正在弯曲——不是因为撞墙了，而是因为人们发现了一个被忽视的事实：<strong>同一个模型，给它更多时间"思考"，它就能给出更好的答案</strong>。这不是微调，不是 RAG，而是在推理阶段投入更多计算。AI 的主战场，正在从训练场转移到运行时。</blockquote>
+
+        <h2>一、一个改变一切的实验</h2>
+
+        <p>2024 年 8 月，Google DeepMind 的 Charlie Snell 团队发表了一篇看似平淡的论文——《Scaling LLM Test-Time Compute》。论文回答了一个简单但关键的问题：</p>
+
+        <blockquote>如果允许一个 LLM 在回答问题时使用更多计算（但不是更多参数），它能把性能提升多少？</blockquote>
+
+        <p>答案令人震惊。在数学推理任务上，一个使用了推理时计算优化策略的小模型，<strong>可以超越比它大 14 倍的模型</strong>。而且，如果能根据问题难度智能分配计算量，效率可以比简单的"多采样取最优" (best-of-N) 高出 4 倍以上。</p>
+
+        <p>这篇论文的意义不在于具体的数字，而在于它揭示了一个新的缩放维度——<strong>推理时计算缩放 (Inference-Time Compute Scaling)</strong>。在此之前，"缩放"几乎等于"堆参数"。在此之后，"缩放"有了第二层含义：让模型想得更深、更久、更仔细。</p>
+
+        <div class="highlight">
+            <strong>类比：</strong>想象你去考试。传统 LLM 是一个"看到题目就立刻写答案"的学生——无论题目多难，思考时间一样。推理时缩放让这个学生变成了"遇到难题会多想一会儿"的人——<strong>思考时间变成了一个可以调节的旋钮</strong>。
+        </div>
+
+        <h2>二、推理时缩放的三条路线</h2>
+
+        <p>到 2026 年中，推理时计算缩放已经形成了三条清晰的技术路线，每条都有独特的优势和代表系统。</p>
+
+        <h3>路线 A：更多采样——"猴子打字"的力量</h3>
+
+        <p>Stanford 的 Bradley Brown（Llama 系列作者之一）团队发现了一个简单到令人难以置信的规律：让模型对同一个问题生成多个答案，然后选最好的，覆盖率（至少答对一次的概率）随采样次数呈<strong>对数线性增长</strong>。</p>
+
+        <p>他们给这个现象起了一个戏谑的名字——<em>"Large Language Monkeys"</em>。在 SWE-bench（真实 GitHub issue 修复任务）上，DeepSeek-Coder-V2 从采样 1 次的 15.9% 解决率，飙升到采样 250 次的 56%——<strong>超过了当时单次采样的 SOTA（43%）</strong>。</p>
+
+        <p>这条路线的关键瓶颈是：如何从 250 个候选答案中选出正确的那个？在有自动验证器的领域（代码编译通过、数学证明验证），这不是问题。但在开放性任务上，选择器本身成为了新的瓶颈。</p>
+
+        <h3>路线 B：链式推理——"让它想出来"</h3>
+
+        <p>这是目前最成功的路线，也是 OpenAI o1/o3、DeepSeek-R1、Kimi k1.5 等模型采用的方式。核心思路：让模型在给出最终答案前，先生成一段长长的"思考过程" (Chain-of-Thought)。</p>
+
+        <p>2025 年初，三篇论文几乎同时验证了这个方向的不同侧面：</p>
+
+        <table>
+            <thead><tr><th>系统</th><th>机构</th><th>核心发现</th></tr></thead>
+            <tbody>
+                <tr><td><strong>DeepSeek-R1</strong></td><td>DeepSeek</td><td>纯 RL（规则奖励）即可让模型自发产生长链推理，无需教它"怎么想"</td></tr>
+                <tr><td><strong>Kimi k1.5</strong></td><td>月之暗面</td><td>RL + 长上下文缩放，且能将长推理蒸馏为高效短推理 (long2short)</td></tr>
+                <tr><td><strong>s1</strong></td><td>Stanford</td><td>仅用 1000 条精选数据 + "预算强制"微调，超越 o1-preview 27%</td></tr>
+            </tbody>
+        </table>
+
+        <p><strong>DeepSeek-R1 的故事最戏剧性。</strong>DeepSeek 团队原本以为需要复杂的训练管线——过程奖励模型 (PRM)、蒙特卡洛树搜索 (MCTS)、价值函数——才能让模型学会推理。结果发现：<strong>只用规则奖励（答案对给 1 分，错给 0 分）的 vanilla RL，模型自己就长出了推理链</strong>。所有复杂工程都是不必要的。</p>
+
+        <blockquote>这就像你不需要教一个孩子"怎么解题"——你只需要告诉他答案对不对，他自己会摸索出解题策略。前提是，他已经足够聪明（预训练足够充分）。</blockquote>
+
+        <p><strong>s1 论文的"预算强制" (Budget Forcing) 则是最优雅的 trick。</strong>当模型想要结束回答时，在它的输出后面追加一个 "Wait"。就这么简单——模型会认为"等等，让我再检查一下"，然后开始自我纠错。这个操作可以把 AIME24 的准确率从 50% 外推到 57%。</p>
+
+        <h3>路线 C：隐式推理——"不说话，在想"</h3>
+
+        <p>2025 年 2 月，马里兰大学的 Jonas Geiping 团队提出了一个更激进的想法：<strong>推理不一定需要生成文本</strong>。</p>
+
+        <p>他们的模型架构包含一个循环块 (recurrent block)，可以在推理时"循环"任意次数。每一次循环不产生任何外部 token，但在隐空间中对表示进行了更深层次的变换。这就像人类思考——<strong>很多时候，"想"不是在脑子里自言自语，而是一种说不清的直觉加工过程</strong>。</p>
+
+        <p>这个 3.5B 参数的模型通过增加循环次数，在推理任务上可以达到等效 50B 参数模型的效果。而且它有三个独特优势：</p>
+
+        <ul>
+            <li><strong>不需要专门的推理训练数据</strong>——CoT 需要高质量推理轨迹，latent reasoning 不需要</li>
+            <li><strong>不受上下文窗口限制</strong>——循环不消耗 token 预算</li>
+            <li><strong>能捕捉"不可言说"的推理</strong>——有些推理模式难以用自然语言表达</li>
+        </ul>
+
+        <h2>三、核心发现：推理能力是被"唤醒"的，不是被"教会"的</h2>
+
+        <p>如果让我从这批研究中提炼一个最重要的洞察，那就是：</p>
+
+        <div class="insight">
+            <strong>推理能力在预训练阶段就已经被编码进模型了。后训练（RL 或 SFT）的作用不是"教"，而是"唤醒"。</strong>
+        </div>
+
+        <p>证据来自三个独立的方向：</p>
+
+        <ol>
+            <li><strong>LIMO（上海 AI Lab）</strong>：只用 1000 条精选数据微调，就能让 Qwen2.5-32B 在 AIME 上达到 63.3%（之前的方法用 100 倍数据才能达到类似效果）。作者提出"LIMO 假设"：预训练已经编码了领域知识，后训练只需要提供"认知模板"来引导推理路径。</li>
+            <li><strong>Open-Reasoner-Zero（开源社区）</strong>：用最简单的 vanilla PPO + 规则奖励，只花了 DeepSeek-R1-Zero 十分之一的训练步数，就达到了同等甚至更好的效果。复杂的训练工程不是必需的。</li>
+            <li><strong>s1（Stanford）</strong>：1000 条数据 + 一个 "Wait" 的 trick，就能超越拥有完整训练管线的 o1-preview。</li>
+        </ol>
+
+        <p>这三条独立证据指向同一个结论：<strong>大模型是"潜力股"，推理能力是"沉睡的巨人"。</strong>你不需要教它推理，你只需要戳它一下。</p>
+
+        <p>这让我想起进化生物学中的一个概念——<em>预适应 (pre-adaptation)</em>。恐龙的羽毛最初是为了保暖，后来恰好被用于飞行。同样，LLM 在预测下一个 token 的过程中"顺便"学会了推理，而这个能力在预训练结束后一直处于休眠状态。推理时缩放本质上是<strong>激活了一个已经存在但未被使用的能力</strong>。</p>
+
+        <h2>四、改变了 AI 的经济学</h2>
+
+        <p>推理时缩放不仅是技术突破，更是经济学范式的转变。</p>
+
+        <p><strong>旧模型：</strong>训练成本（一次性、可摊销）&raquo; 推理成本（每次调用，但很低）</p>
+        <p><strong>新模型：</strong>训练成本（一次性）+ 推理成本（每次调用，且随推理深度增长）</p>
+
+        <p>当推理时计算成为性能的主要驱动力，AI 的成本结构发生了根本性变化：</p>
+
+        <table>
+            <thead><tr><th></th><th>训练缩放</th><th>推理时缩放</th></tr></thead>
+            <tbody>
+                <tr><td>成本模型</td><td>一次性投入，长期摊销</td><td>每次调用都付出</td></tr>
+                <tr><td>缩放效率</td><td>边际收益递减（需要指数级参数增长）</td><td>对数线性（采样 N 倍，覆盖率指数增长）</td></tr>
+                <tr><td>硬件需求</td><td>H100/H200 集群（训练芯片）</td><td>推理芯片（GPU/ASIC/NPU）</td></tr>
+                <tr><td>定价模式</td><td>订阅制（SaaS）</td><td>按思考深度计费（Reasoning-as-a-Service）</td></tr>
+                <tr><td>部署策略</td><td>大模型 → 数据中心</td><td>小模型 + 深推理 → 边缘设备？</td></tr>
+            </tbody>
+        </table>
+
+        <p>OpenAI 已经在 o1/o3 系列中按推理深度分级定价。可以预见，未来的 AI 服务会有一个"思考时间"滑块——快速回答便宜，深度推理贵。这就像云计算中的按需计算，只不过粒度从"CPU 秒"变成了"思考秒"。</p>
+
+        <h2>五、隐忧：推理时缩放的暗面</h2>
+
+        <p>在乐观情绪之外，推理时缩放也带来了真实的挑战：</p>
+
+        <h4>1. 推理成本爆炸</h4>
+        <p>如果一个推理任务需要 10 倍的计算量才能达到可用准确率，那么 AI 的实际部署成本可能不降反升。特别是在高并发场景下（搜索引擎、客服），推理成本会线性增长。</p>
+
+        <h4>2. 验证器瓶颈</h4>
+        <p>"Large Language Monkeys" 路线的成功依赖于一个好的验证器。在代码（编译器）和数学（证明验证器）领域，验证器是免费的。但在法律分析、医疗诊断、产品决策等领域，<strong>我们没有验证器</strong>。投票和奖励模型在几百个样本之后就会饱和。</p>
+
+        <h4>3. 推理 != 理解</h4>
+        <p>更长的 CoT 不等于更好的理解。模型可能在长推理链中引入更多错误——就像一个学生写了很多过程但推导方向错了。Snell 等人的实验也显示：在最难的问题上，推理时计算的效果显著下降。</p>
+
+        <h4>4. 碳脚印</h4>
+        <p>10 倍的推理计算意味着 10 倍的能耗。在 AI 行业已经面临能源约束的背景下，推理时缩放会加剧这个问题。Geiping 的 latent reasoning 路线可能在这里有独特优势——隐空间循环不需要生成 token，能耗远低于 CoT。</p>
+
+        <h2>六、你现在就可以做什么</h2>
+
+        <p>理论够了，来点实际的。无论你是研究者、工程师还是产品经理，这里有一些可以立刻着手的事情：</p>
+
+        <h4>对于开发者：用 s1 方法构建你自己的推理模型</h4>
+        <ol>
+            <li>选择一个开源基座模型（推荐 Qwen2.5-32B-Instruct 或 DeepSeek-Coder-V2）</li>
+            <li>从你的业务场景中精选 500-1000 个"需要推理的高质量问题"，配上高质量推理轨迹</li>
+            <li>用 s1 的 budget forcing 技术做简单 SFT（代码已在 GitHub 开源）</li>
+            <li>在推理时通过 <code>max_tokens</code> 和 "Wait" 后缀控制思考深度</li>
+        </ol>
+
+        <h4>对于架构师：重新评估推理基础设施</h4>
+        <ul>
+            <li>如果你的业务场景有明确的验证器（代码、数学、逻辑），优先采用重复采样路线</li>
+            <li>如果需要实时响应，采用链式推理但限制思考深度（Kimi k1.5 的 long2short 方法）</li>
+            <li>评估 latent reasoning 模型在长上下文场景中的潜力</li>
+            <li><strong>关键指标</strong>：不再只是 tokens/sec，而是 "solved problems per dollar"</li>
+        </ul>
+
+        <h4>对于产品经理：设计"思考深度可调"的体验</h4>
+        <ul>
+            <li>向用户提供"快速回答"和"深度思考"两种模式</li>
+            <li>在 UI 中展示推理过程摘要，让用户理解"模型在想什么"</li>
+            <li>允许用户在推理不充分时要求"再多想一会儿"——相当于手动调节 budget forcing</li>
+            <li>监控不同问题类型的最佳推理深度，做动态路由（简单问题浅推理，困难问题深推理）</li>
+        </ul>
+
+        <h2>结语：从"快思"到"慢想"</h2>
+
+        <p>丹尼尔·卡尼曼在《思考，快与慢》中把人类思维分为两个系统：System 1 快速直觉，System 2 深度推理。过去十年的 LLM 都在模仿 System 1——看到输入，立刻输出。推理时计算缩放第一次让 LLM 拥有了真正的 "System 2"。</p>
+
+        <p>这个转变的重要性不亚于从 GPT-2 到 GPT-3 的参数缩放。而且它有一个独特的优势：<strong>它不需要从头训练一个新模型</strong>。现有模型已经有了推理潜力，只需要被"唤醒"。这意味着推理时缩放的红利可以被快速、廉价地获取——不像预训练缩放需要数亿美元和数万张 GPU。</p>
+
+        <p>2026 年的 AI 圈正在经历一场悄然的权力转移：算力的价值正在从训练侧流向推理侧，模型的优势正在从"更大"转向"更深"，竞争的焦点正在从"训练数据"转向"推理策略"。</p>
+
+        <p>下一次 AI 的飞跃，不在更庞大的训练集群里，而在每一次推理时的深度思考中。</p>
+
+        <hr>
+
+        <h4>参考文献</h4>
+        <ul style="font-size: 0.85em; color: #666;">
+            <li>Snell et al. "Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters." arXiv:2408.03314 (2024).</li>
+            <li>Brown et al. "Large Language Monkeys: Scaling Inference Compute with Repeated Sampling." arXiv:2407.21787 (2024).</li>
+            <li>DeepSeek-AI. "DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning." arXiv:2501.12948 (2025).</li>
+            <li>Kimi Team. "Kimi k1.5: Scaling Reinforcement Learning with LLMs." arXiv:2501.12599 (2025).</li>
+            <li>Muennighoff et al. "s1: Simple test-time scaling." arXiv:2501.19393 (2025).</li>
+            <li>Huang et al. "LIMO: Less is More for Reasoning." arXiv:2502.03387 (2025).</li>
+            <li>Geiping et al. "Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach." arXiv:2502.05171 (2025).</li>
+            <li>Hu et al. "Open-Reasoner-Zero: An Open Source Approach to Scaling Up RL on the Base Model." arXiv:2503.24290 (2025).</li>
+        </ul>
+
+        <p style="margin-top: 30px; font-size: 0.85em; color: #999;">
+            <em>本文基于 2025-2026 年的公开论文和技术报告撰写。部分类比和观点为作者个人解读，不代表论文作者立场。</em>
+        </p>
+    </div>
+</body>
+</html>
