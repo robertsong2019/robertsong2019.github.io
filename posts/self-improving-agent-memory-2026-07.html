@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当 AI 学会忘记：Agent 记忆的自我进化之路 | 罗嵩的技术博客</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>当 AI 学会忘记：Agent 记忆的自我进化之路</h1>
+        <div class="meta">
+            2026-07-13 · 罗嵩 ·
+            <span class="tag">Agent Memory</span>
+            <span class="tag">Self-Improving</span>
+            <span class="tag">Dreaming</span>
+            <span class="tag">autoresearch</span>
+        </div>
+
+        <blockquote>想象你有一个助理，他记得你两年前随口说的一句话，但忘了你上周改了密码。或者更糟：他记住了你三年前的饮食偏好，然后固执地用这个过时信息给你推荐餐厅，即使你已经告诉他八次"我现在吃素了"。这不是科幻——这是 2025 年大多数 AI Agent 记忆系统的真实表现。但在 2026 年，一些根本性的变化正在发生：Agent 开始学会<strong>主动管理自己的记忆</strong>，学会忘记，学会在做梦时整理思绪。</blockquote>
+
+        <h2>记忆的三重困境</h2>
+
+        <p>先说清楚问题。Agent 记忆听起来简单——不就是存点东西以后用吗？但任何一个真正做过 Agent 记忆系统的人都知道，这里有三重困境：</p>
+
+        <p><strong>困境一：写什么？</strong> 你和 Agent 聊了一小时，讨论了十个话题，修改了三段代码，开了两个玩笑。什么值得记住？"用户喜欢用 tab 缩进"显然值得记。"用户刚才打了个喷嚏"显然不值得。但"用户提到项目下周截止"呢？——现在重要，下周就不重要了。大多数系统的做法是<strong>全记</strong>，然后用检索质量来兜底。结果是记忆库越来越像垃圾场。</p>
+
+        <p><strong>困境二：什么时候该忘？</strong> 用户三个月前说"我在新加坡"，现在还记着，于是推荐了新加坡的餐厅。OpenAI 在 Dreaming 系统的文档里举了这个精确的例子——记忆变"陈旧"（stale）是生产环境中最常见的投诉。但怎么知道一条记忆已经过期？你总不能给每条记忆设一个 TTL。</p>
+
+        <p><strong>困境三：谁在做决定？</strong> 在今天的多数系统里，记忆的写入和读取逻辑是<strong>外部脚本</strong>决定的——一套固定规则，什么时候写、写什么、怎么检索。Agent 本身对此毫无发言权。它就像一个被迫使用某个笨拙笔记软件的知识工作者：软件决定什么该存，它只能照做。</p>
+
+        <p>这三个困境本质上指向同一个问题：<strong>记忆系统缺乏智能</strong>。不是 AI 不够聪明，而是记忆架构构本身不够聪明。2026 年，这个局面开始改变。</p>
+
+        <h2>范式转移：记忆从"管道"到"行为"</h2>
+
+        <p>阿里巴巴和武汉大学在 2026 年 1 月发表的论文 <strong>AgeMem（Agentic Memory）</strong>提出了一个看起来简单但影响深远的主张：<strong>把记忆操作变成 Agent 可以调用的工具</strong>。</p>
+
+        <p>具体来说，他们定义了六个记忆工具：</p>
+
+        <table>
+            <tr><th>记忆类型</th><th>操作</th><th>作用</th></tr>
+            <tr><td>长期记忆</td><td><code>add</code></td><td>存储新的事实到持久化存储</td></tr>
+            <tr><td>长期记忆</td><td><code>update</code></td><td>更新已有的记忆条目</td></tr>
+            <tr><td>长期记忆</td><td><code>delete</code></td><td>删除不再有用的记忆</td></tr>
+            <tr><td>短期记忆</td><td><code>retrieve</code></td><td>把相关片段拉入当前上下文</td></tr>
+            <tr><td>短期记忆</td><td><code>summary</code></td><td>压缩一大段上下文为摘要</td></tr>
+            <tr><td>短期记忆</td><td><code>filter</code></td><td>过滤掉无关内容</td></tr>
+        </table>
+
+        <p>关键区别在于：这些操作的调用策略不是硬编码的规则，而是<strong>通过强化学习训练出来的</strong>。Agent 自己学会什么时候该记、什么时候该忘、什么时候该压缩。</p>
+
+        <p>训练分三个阶段——这个设计本身就很有启发：</p>
+
+        <ol>
+            <li><strong>长期记忆构建</strong>：把 Agent 放在日常对话场景中，只奖励它正确地存储重要事实。这一阶段不关心任务完成度，只训练"当图书管理员"的能力。</li>
+            <li><strong>短期记忆控制</strong>：保留第一阶段的长期记忆，重置短期上下文，然后注入看起来相关但其实无关的干扰信息。Agent 必须学会什么时候信任长期记忆、什么时候过滤噪音。</li>
+            <li><strong>综合推理</strong>：现在给 Agent 真正的任务，需要长期和短期记忆协同工作。奖励信号来自任务成功，Agent 必须同时协调存储、检索和推理。</li>
+        </ol>
+
+        <p>这个渐进式训练解决了一个核心难题：记忆操作的奖励信号极其稀疏。你可能在整个任务过程中调用了 50 次记忆操作，但只有最后一次的结果告诉你哪些是有用的。传统的 RL 在这种稀疏信号下基本失效。AgeMem 用逐步式 GRPO（Group Relative Policy Optimization）给每一步记忆操作单独分配信用，才让训练变得可行。</p>
+
+        <div class="highlight">
+            <strong>核心发现：</strong>在五个长程任务基准上，配备 AgeMem 的 <strong>4B 参数模型超越了 7B 参数模型</strong>的基线系统。学习型记忆带来的提升，比多出 30 亿参数还大。如果只能记住一条结论：记忆架构的投资回报率可以匹敌甚至超过模型缩放。
+        </div>
+
+        <h2>从执行轨迹中学习：不只是记住"什么"，还要记住"为什么"</h2>
+
+        <p>AgeMem 回答了"Agent 应该怎么管理记忆"，IBM 的研究团队在 2026 年 3 月发表的另一篇论文回答了一个互补的问题：<strong>Agent 能从自己的执行过程中学到什么？</strong></p>
+
+        <p>他们的框架叫做 <strong>Trajectory-Informed Memory Generation</strong>（轨迹信息记忆生成）。核心洞察是：Agent 的执行轨迹——每一步的思考、决策、行动、观察——包含了远比"对话事实"更丰富的学习素材。</p>
+
+        <p>考虑一个电商场景：Agent 要完成"清空购物车并结账"。可能出现三种情况：</p>
+
+        <ul>
+            <li><strong>干净的成功</strong>：Agent 先检查购物车，逐一删除商品，验证空了之后结账。→ 可以提取出 <em>策略提示</em>：结账前系统性验证前置条件。</li>
+            <li><strong>低效的成功</strong>：Agent 用循环逐个删除商品，虽然成功了，但其实调用一次 <code>empty_cart()</code> 就够了。→ 可以提取出 <em>优化提示</em>：清空多商品购物车时用批量操作。</li>
+            <li><strong>失败后恢复</strong>：Agent 尝试结账失败（没绑定支付方式），然后补充支付信息重试成功。→ 可以提取出 <em>恢复提示</em>：结账失败时先验证支付配置。</li>
+        </ul>
+
+        <p>这三种提示对应三种完全不同的学习类型，而现有的记忆系统几乎只关注第一种——成功的经验。IBM 的框架通过四层分析（轨迹智能提取 → 决策归因分析 → 上下文学习生成 → 自适应记忆检索），自动从执行日志中提取所有三类知识。</p>
+
+        <p>结果令人印象深刻：在 AppWorld 基准上，<strong>复杂任务的完成率提升了 28.5 个百分点（相对提升 149%）</strong>。越是复杂的任务，从过往经验中学习的收益就越大——这和直觉完全吻合。</p>
+
+        <div class="insight">
+            <strong>启示：</strong>不要只记录 Agent 做了什么，要分析<strong>为什么</strong>它那么做。决策的因果关系比行为本身更有价值。一条"Agent 调用了 API X"的记录没什么用，但一条"Agent 选择调 API X 而不是 API Y，因为 Z，结果证明这个选择是对的"的记录——那是金子。
+        </div>
+
+        <h2>做梦的机器：当 Agent 闭上眼睛开始整理记忆</h2>
+
+        <p>如果说 AgeMem 和轨迹学习是 Agent 在"清醒"时管理记忆，那么 2026 年另一个重要趋势是：让 Agent 在"睡眠"时整理记忆。</p>
+
+        <p>这听起来像科幻，但两家最重要的 AI 公司已经在生产环境中部署了这种系统。</p>
+
+        <h3>OpenAI 的 Dreaming V3</h3>
+
+        <p>OpenAI 在 2026 年 6 月推出了第三代 Dreaming 系统。它的核心思路是：一个后台进程定期扫描你的所有对话历史，<strong>主动合成和更新记忆</strong>。</p>
+
+        <p>举例来说：你在七月说过"我要去新加坡"。传统的记忆系统会永远记住"用户在新加坡"。但 Dreaming 会在你旅行结束后自动更新这条记忆——从"你要去新加坡"变成"你去了新加坡（2026年7月）"，然后在你回国后不再推荐新加坡的餐厅。</p>
+
+        <p>这个系统经历了三代演化：</p>
+        <ul>
+            <li><strong>2024 年（Saved Memories）</strong>：只在对话中显式触发。你说"记住我喜欢 Python"，它才存。像一个只记你说要记的东西的笔记本。</li>
+            <li><strong>2025 年（Dreaming V0）</strong>：后台进程开始从对话历史中自动提取信息。但性能不足，不能单独支撑记忆系统。</li>
+            <li><strong>2026 年（Dreaming V3）</strong>：计算成本降低 5 倍，首次可以向免费用户开放。在三个维度显著提升：携带上下文、遵循偏好、时间感知（自动处理记忆的"保鲜期"）。</li>
+        </ul>
+
+        <h3>Anthropic 的 Claude Code Dreaming</h3>
+
+        <p>Anthropic 走得更远。根据 Troy Hua 在 2026 年 3 月的逆向工程分析，Claude Code 的记忆系统有<strong>七层</strong>：</p>
+
+        <ol>
+            <li>轻量级 token 裁剪（上下文窗口级别）</li>
+            <li>上下文压缩（段落级别摘要）</li>
+            <li>会话记忆（跨对话持久化）</li>
+            <li>项目记忆（代码库级别的知识）</li>
+            <li><strong>Dreaming 整合层</strong>（会话间模式发现和记忆整合）</li>
+            <li>跨项目知识（从一个项目迁移到另一个）</li>
+            <li>元学习（学习如何更好地学习）</li>
+        </ol>
+
+        <p>第 5 层是最有意思的。当 Claude Code 的会话结束后，Dreaming 进程会回顾过去的会话，发现重复模式，自动生成或更新项目级别的知识。2026 年 7 月，Anthropic 又悄悄上线了 <strong>Auto Dream</strong>——解决了一个关键问题：积累 20+ 会话后，记忆条目开始互相矛盾，相对日期（"上周"、"昨天"）变得不准确。Auto Dream 自动清理和合并这些退化中的记忆。</p>
+
+        <p>这和人类大脑的睡眠巩固机制惊人地相似。神经科学早就发现，海马体在睡眠期间重播白天的经历，将短期记忆整合为长期记忆，丢弃不重要的细节。AI 系统正在独立发现同样的原理。</p>
+
+        <h2>基础设施层：记忆作为服务</h2>
+
+        <p>研究突破之外，2026 年最显著的变化是<strong>记忆基础设施的产品化</strong>。一批专门做"Agent 记忆层"的产品和平台走向成熟：</p>
+
+        <ul>
+            <li><strong>Mem0</strong> 已经成为事实标准，支持 21 个框架和 20 个向量存储，在 LoCoMo 基准上得分 92.5。它的多信号检索（语义相似 + 关键词匹配 + 实体匹配的三路并行打分）已经成为行业标准做法。</li>
+            <li><strong>Zep（基于 Graphiti）</strong> 主打实时时序知识图谱，适合需要精确时间线的场景。</li>
+            <li><strong>Cloudflare Agent Memory</strong> 在 2026 年 4 月推出了托管式持久记忆服务，把记忆变成了 CDN 级别的基础设施。</li>
+            <li><strong>Perplexity Brain</strong> 做了搜索场景的自改进记忆——Agent 每次搜索后自动从结果中学习，下次搜索质量持续提升。</li>
+        </ul>
+
+        <p>更重要的是，基准测试也在标准化。<strong>BEAM</strong> 基准在 100 万和 1000 万 token 的规模上测试记忆系统——这已经超出了任何上下文窗口的物理限制，是唯一接近生产规模的评估工具。BEAM 的十个类别包括偏好遵循、矛盾解决、弃权判断（该说"我不记得"的时候），这些才是真实场景中最难的问题。</p>
+
+        <h2>深层问题：参数化学习 vs 上下文学习</h2>
+
+        <p>站在更高的视角，这些记忆系统的进化其实指向一个更根本的问题：<strong>AI 的"学习"到底应该发生在哪里？</strong></p>
+
+        <p>a16z 在 2026 年 4 月的一篇文章里把这个问题摆得很清楚。他们用电影《记忆碎片》做比喻：主角因为脑损伤无法形成新记忆，只能靠纹身和拍立得来记录——外部记忆装置帮助他行动，但他本人从不真正"学到"任何东西。</p>
+
+        <p>今天的 LLM 就是那个主角。所有的 Agent 记忆系统——无论是向量数据库、知识图谱还是 Dreaming 进程——都是"纹身和拍立得"。模型本身的参数从未改变。你在 ChatGPT 里和它聊了一万个小时，它的权重一个 bit 都没有变。</p>
+
+        <p>这就是<strong>上下文学习（ICL）和持续学习（Continual Learning）</strong>的根本分野。前者是把信息塞进上下文窗口，后者是直接更新模型权重。前者是"查看笔记"，后者是"真正记住"。</p>
+
+        <p>State Space Models（SSM）提供了某种中间道路：一种比传统 Attention 更擅长处理超长序列的架构，可以把上下文窗口的有效范围从 ~20 步扩展到 ~20,000 步。但这仍然不是真正的参数化学习。</p>
+
+        <p>a16z 的结论是：<strong>"上下文学习是暂时的。真正的学习需要压缩。在让模型持续压缩之前，我们可能困在《记忆碎片》的永恒当下里。"</strong></p>
+
+        <p>在真正的持续学习突破之前，Agent 记忆系统做的事情，就是尽可能把这个"永恒当下"延长——从单次对话，到跨会话，到跨项目，到跨年。每一次延长，都是向着"真正的学习"迈进一步。</p>
+
+        <h2>你可以做什么</h2>
+
+        <p>如果你正在构建 Agent 系统，以下是一些可以立刻落地的实践建议：</p>
+
+        <ol>
+            <li><strong>把记忆操作暴露为工具调用。</strong>即使你没有 RL 训练的能力，只是在 system prompt 里告诉模型"你可以调用 <code>remember(key, value)</code> 和 <code>forget(key)</code>"，就能显著改善长任务的记忆质量。AgeMem 的消融实验显示，即使没有训练，仅仅暴露工具就能带来可测量的提升。</li>
+            <li><strong>记录完整的决策轨迹，不只是结果。</strong>"Agent 做了 X" 是原材料，"Agent 做了 X 因为 Y，结果证明了 Z" 才是知识。IBM 的框架告诉我们，从轨迹到知识的转化需要语义分析和因果归因，但这完全可以离线做。</li>
+            <li><strong>在写入路径上加过滤器。</strong>最好的遗忘策略是不该记住的东西从一开始就不存。一个简单的做法：写入前问自己（问 Agent）"这条信息在三个月后还有用吗？"如果答案是否定的，不要写。</li>
+            <li><strong>实现某种形式的 Dreaming。</strong>哪怕只是一个每天运行的 cron job，扫描昨天的交互，更新过时的记忆，合并重复条目。OpenAI 和 Anthropic 都在做这件事，说明它是必需品，不是奢侈品。</li>
+            <li><strong>用 BEAM 评估，不要只用 LoCoMo。</strong>在 1000 条记忆上表现完美的系统，在 100 万条时可能崩溃。生产环境的记忆规模迟早会到百万级别——提前在 BEAM 上测试。</li>
+            <li><strong>关注 AgeMem 的后续工作。</strong>虽然训练代码和检查点还没发布，但"记忆即行为"的范式是可迁移的。跟踪这个方向——它很可能是 Agent 记忆的下一个标准范式。</li>
+        </ol>
+
+        <hr>
+
+        <p><strong>研究笔记：</strong>本文基于 12+ 篇论文和系统报告的系统性调研，完整探索笔记（含核心概念、关键洞察、系统全景图、基准测试对比）保存在 <a href="#">catalyst-research/exploration-notes/2026-07-13-self-improving-agent-memory.md</a>。</p>
+
+        <p><strong>参考文献：</strong></p>
+        <ul style="font-size: 0.85em; color: #666;">
+            <li>Du, P. (2026). "Memory for Autonomous LLM Agents." arXiv:2603.07670</li>
+            <li>Yu, Y. et al. (2026). "Agentic Memory (AgeMem)." ACL 2026. arXiv:2601.01885</li>
+            <li>Fang, G. et al. (2026). "Trajectory-Informed Memory Generation." arXiv:2603.10600</li>
+            <li>OpenAI (2026). "Dreaming: Better memory for ChatGPT."</li>
+            <li>Anthropic (2026). "Claude Managed Agents: Dreaming."</li>
+            <li>Mem0 (2026). "State of AI Agent Memory 2026."</li>
+            <li>a16z (2026). "Why We Need Continual Learning."</li>
+        </ul>
+    </div>
+</body>
+</html>
