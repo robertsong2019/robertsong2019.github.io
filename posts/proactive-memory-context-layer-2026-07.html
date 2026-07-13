@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆不该等提问：为 Agent 构建主动感知层 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+.tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+.ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+</style>
+</head>
+<body>
+<div class="container">
+<a href="../index.html" class="back-link">← 返回首页</a>
+
+<h1>记忆不该等提问：为 Agent 构建主动感知层</h1>
+<div class="meta">
+2026-07-14 · 罗嵩 ·
+<span class="tag">Agent Memory</span>
+<span class="tag">Proactive Context</span>
+<span class="tag">知识图谱</span>
+<span class="tag">认知架构</span>
+</div>
+
+<blockquote>所有 Agent 记忆系统都在做同一件事：等用户提问，然后搜索。但人类记忆不是这样工作的——相关的上下文会自动浮现，不需要你"搜索"。本文展示如何用三层架构——社区检测 → 意图结晶 → 无查询推送——让 Agent 记忆从被动检索进化到主动感知。</blockquote>
+
+<h2>一个反直觉的发现</h2>
+
+<p>Apple 在 ACL 2026 发表了一个令人意外的实验结果：</p>
+
+<div class="highlight">在多轮对话任务中，<strong>全量记忆注入（71% 准确率）反而比无记忆基线（79%）更差</strong>。</div>
+
+<p>原因不复杂——无关记忆就是噪声。当你把所有历史都塞进上下文窗口，Agent 会被淹没在信息中，反而抓不住重点。</p>
+
+<p>Apple 的解法是"选择性持久化"：写入时只保留四类记忆。但这里有一个更深层的问题：<strong>写入时重要的记忆，读取时未必重要</strong>。反过来，写入时不起眼的细节，可能在特定上下文中成为关键线索。</p>
+
+<p>我们需要的不只是写入时过滤，而是<strong>读取时的主动组装</strong>。</p>
+
+<h2>检索范式的盲区</h2>
+
+<p>2026 年的 Agent 记忆系统几乎都是检索驱动的：</p>
+
+<div class="ascii-art">用户 Query → Embedding/Keyword → Top-K 结果 → 拼接 Prompt</div>
+
+<p>这在"事实查询"场景下没问题。但 Agent 不是搜索引擎。Agent 需要<strong>持续地感知</strong>环境，而不是只在被问到时才翻记忆。</p>
+
+<p>考虑这个场景：你想知道"上周的设计评审有没有遗漏"。Agent 检索到了评审记录，回复了你。但你接着想："等等，那个评审和上个月的架构变更有没有冲突？"——这次检索可能空手而归，因为你不知道该搜什么关键词。</p>
+
+<p><strong>问题的本质不是检索能力不够，而是检索这个范式本身有盲区。</strong></p>
+
+<h2>从人类认知到 Agent 架构</h2>
+
+<p>人脑的海马体-皮层系统有一个关键机制：记忆不是被搜索的，而是<strong>被激活的</strong>。</p>
+
+<ul>
+<li>你看到自行车，骑车的记忆自动激活——不需要"搜索"</li>
+<li>你走进办公室，同事的名字自然涌现——不需要"检索"</li>
+<li>这种激活是<strong>前认知的</strong>——它发生在你意识到之前</li>
+</ul>
+
+<p>CogniFold（2026）在 Agent 记忆中模拟了这个机制，提出三层扩展：事件层 → 概念层 → 意图层。上层自动从下层涌现，形成越来越抽象的记忆表征。在 LoCoMo 基准上达到 81.23%，LongMemEval 达到 93.0%。</p>
+
+<p>基于这个思路，我构建了一个三层主动感知架构。</p>
+
+<h2>三层架构设计</h2>
+
+<div class="ascii-art">Layer 3: Intent Space (意图空间)
+              ↑ crystallize
+Layer 2: Concept Community (概念社区)
+              ↑ detect
+Layer 1: Event Memory (事件记忆)
+              ↑ write
+    Raw Memory Entries</div>
+
+<h3>第一层：事件记忆</h3>
+
+<p>标准记忆层。每个条目有内容、时间戳、标签：</p>
+
+<pre><code>from agent_memory_graph import MemoryGraph
+
+mg = MemoryGraph()
+
+mg.add("讨论了微服务架构的拆分方案，决定采用领域驱动设计", 
+       tags=["架构", "微服务", "DDD"])
+mg.add("张三提出服务网格的运维成本可能过高", 
+       tags=["架构", "服务网格", "风险"])
+mg.add("完成了用户认证模块的 OAuth 2.0 集成", 
+       tags=["认证", "OAuth", "开发"])
+mg.add("评审了 API 网关的技术选型，Kong vs Envoy", 
+       tags=["API网关", "技术选型"])
+mg.add("李四建议用 Istio 替代 Linkerd 做服务网格", 
+       tags=["服务网格", "Istio"])
+mg.add("微服务拆分后的监控方案确定用 OpenTelemetry", 
+       tags=["监控", "OpenTelemetry", "微服务"])</code></pre>
+
+<p>到这里和普通记忆系统没有区别。但下一步开始发生变化。</p>
+
+<h3>第二层：社区自组织</h3>
+
+<p>系统自动运行 Label Propagation Algorithm，发现记忆的聚类结构：</p>
+
+<pre><code># 自动发现社区结构
+communities = mg.detect_communities(algorithm="lpa")
+
+for cid, members in communities.items():
+    print(f"社区 {cid}: {members}")
+# 社区 0: [微服务拆分, 服务网格风险, Istio建议, 微服务监控]
+# 社区 1: [OAuth集成]
+# 社区 2: [API网关选型]</code></pre>
+
+<p>社区检测不需要预定义分类——它基于记忆之间的共现关系（共享标签、引用同一实体、时间邻近）<strong>自动发现</strong>概念簇。系统自己发现"微服务"是一个活跃主题，而不靠人工打标。</p>
+
+<p>但社区本身是隐式的。我们需要的下一步，是让这些隐式概念变成<strong>显式的记忆节点</strong>。</p>
+
+<h3>第三层：意图结晶</h3>
+
+<p><code>crystallize_intents()</code> 在社区密度超过阈值时，自动创建一个 intent 节点，把整个社区"结晶"为可引用的实体：</p>
+
+<pre><code># 自动结晶：社区密度 > 阈值时创建 intent 节点
+result = mg.crystallize_intents(
+    density_threshold=0.3,
+    intent_prefix="intent:"
+)
+
+print(result)
+# {
+#   "crystallized": ["intent:微服务"],
+#   "skipped": [],
+#   "details": {
+#     "intent:微服务": {
+#       "community_id": 0,
+#       "member_count": 4,
+#       "density": 0.42,
+#       "abstracted_keys": ["微服务拆分", "服务网格风险", ...]
+#     }
+#   }
+# }</code></pre>
+
+<p>结晶后，intent 节点通过 <code>abstracts</code> 边链接所有成员：</p>
+
+<div class="ascii-art">[intent:微服务] ──abstracts──→ [微服务拆分方案]
+                ──abstracts──→ [服务网格风险]
+                ──abstracts──→ [Istio建议]
+                ──abstracts──→ [微服务监控]</div>
+
+<p>这个操作是<strong>幂等的</strong>——重复运行不会创建重复节点：</p>
+
+<pre><code># 再次运行——已结晶的社区会被跳过
+result2 = mg.crystallize_intents()
+# {"crystallized": [], "skipped": ["intent:微服务"]}</code></pre>
+
+<h2>无查询上下文推送</h2>
+
+<p>最后一步是真正的"主动感知"——在没有用户查询的情况下组装并推送上下文：</p>
+
+<pre><code># 无需 query！系统主动组装上下文
+context = mg.read_proactive_context(
+    active_intents=["intent:微服务"],
+    top_k=5,
+    min_score=0.2,
+    deduplicate=True
+)
+
+print(context)
+# {
+#   "bundles": [{
+#     "intent": "intent:微服务",
+#     "context_score": 0.87,
+#     "entries": [
+#       {"key": "微服务拆分方案", "score": 0.92, ...},
+#       {"key": "Istio建议", "score": 0.85, ...},
+#       ...
+#     ]
+#   }],
+#   "total_entries": 5
+# }</code></pre>
+
+<h3>评分机制：Cache Temperature</h3>
+
+<p>每个记忆条目有一个 0-1 的 <code>cache_temperature</code> 分数，控制其在主动推送中的优先级：</p>
+
+<pre><code>def compute_cache_temperature(entry):
+    """记忆的'温度'——越高越容易被主动推送"""
+    age_score = temporal_score(entry)
+    access_score = min(entry.access_count / 10, 1.0)
+    validity_score = 1.0 if entry.valid else 0.0
+    
+    # 加权组合
+    return (
+        age_score ** 0.40 *
+        access_score ** 0.35 *
+        validity_score ** 0.25
+    )</code></pre>
+
+<p>其中 <code>temporal_score</code> 使用连续衰减函数，而不是二元的"新/旧"判断：</p>
+
+<pre><code>import math
+
+def temporal_score(age_days, half_life_days=30, alpha=0.5):
+    """
+    连续的时间评分 [0, 1]
+    
+    alpha=0:   静态事实（永不衰减）
+    alpha=0.5: 平衡衰减（默认）
+    alpha=1:   激进衰减（高度时效性）
+    """
+    if alpha == 0:
+        return 1.0
+    return math.exp(-alpha * age_days / half_life_days)</code></pre>
+
+<div class="highlight"><strong>关键洞察</strong>：不同类型记忆需要不同衰减策略。用户偏好几乎是永久的（α≈0），今天的会议纪要高度时效（α≈1）。系统允许每条记忆指定自己的 α 值。</div>
+
+<h2>实战：完整三层管线</h2>
+
+<pre><code># === 阶段 1: 日常写入 ===
+mg.add("用户反馈登录页面加载慢，P95 延迟 3.2s",
+       tags=["性能", "登录", "P95"])
+mg.add("分析发现是 OAuth 回调阻塞了渲染",
+       tags=["性能", "OAuth", "渲染"])
+mg.add("用 Redis 缓存 session 后 P95 降到 800ms",
+       tags=["性能", "Redis", "session"])
+mg.add("用户要求支持深色模式",
+       tags=["UI", "深色模式"])
+mg.add("深色模式需要处理品牌色的对比度问题",
+       tags=["UI", "深色模式", "品牌色"])
+
+# === 阶段 2: 社区检测 + 意图结晶 ===
+mg.detect_communities()
+mg.crystallize_intents(density_threshold=0.3)
+# 自动发现：intent:性能优化 (3条, density 0.67)
+#           intent:深色模式 (2条, density 0.50)
+
+# === 阶段 3: 主动上下文推送 ===
+context = mg.read_proactive_context(
+    active_intents=["intent:性能优化", "intent:深色模式"],
+    top_k=3
+)
+# Agent 现在拥有"前认知"上下文：
+# 知道性能优化在推进、深色模式在讨论中
+# 不需要用户提问就能感知到</code></pre>
+
+<h3>对比：有 vs 没有主动感知</h3>
+
+<pre><code># ❌ 传统方式：用户必须问对问题
+answer = mg.search("登录页面性能问题")
+
+# ❌ 全量注入：研究表明更差
+all_memories = mg.search("", top_k=999)
+
+# ✅ 主动感知：系统自己推送
+context = mg.read_proactive_context(
+    active_intents=["intent:性能优化"]
+)</code></pre>
+
+<h2>为什么这是范式转换</h2>
+
+<table>
+<thead><tr><th>维度</th><th>传统检索</th><th>主动感知</th></tr></thead>
+<tbody>
+<tr><td>触发方式</td><td>用户 query</td><td>系统自驱动</td></tr>
+<tr><td>上下文组装</td><td>关键词匹配</td><td>意图 + 社区 + 温度</td></tr>
+<tr><td>抽象层级</td><td>平坦的 top-K</td><td>事件 → 概念 → 意图</td></tr>
+<tr><td>时间感知</td><td>二元（新/旧）</td><td>连续相位衰减</td></tr>
+<tr><td>信号密度</td><td>低（靠用户精炼 query）</td><td>高（系统预过滤）</td></tr>
+</tbody>
+</table>
+
+<p>这个架构的深层启示是：<strong>Agent 记忆系统不应该只是一个数据库，而应该是一个认知层</strong>——它主动感知、自我组织、预判需求。</p>
+
+<h2>工程细节</h2>
+
+<h3>幂等性</h3>
+
+<p>三层操作都是幂等的，可以安全重复执行：</p>
+
+<pre><code>mg.detect_communities()           # 结果确定
+mg.crystallize_intents()          # 跳过已结晶
+mg.read_proactive_context(...)    # 只读，不修改状态</code></pre>
+
+<p>你可以在每次写入后、每次会话开始时运行它们，没有副作用。</p>
+
+<h3>性能</h3>
+
+<pre><code># 复杂度（N = 记忆数，E = 边数，C = 社区数）
+detect_communities:     O(N + E)
+crystallize_intents:    O(C × avg_community_size)
+read_proactive_context: O(K × log N)   # K = 活跃意图数
+
+# 10,000 条记忆规模：完整管线 < 50ms</code></pre>
+
+<h3>与检索管线共存</h3>
+
+<p>主动感知不替代检索——它<strong>补充</strong>检索：</p>
+
+<pre><code># 1. 启动时：主动感知铺底
+proactive = mg.read_proactive_context(active_intents=current_intents)
+
+# 2. 用户提问：检索增强
+reactive = mg.retrieve(query=user_input, top_k=10)
+
+# 3. 合并：背景 + 焦点
+full_context = merge_and_deduplicate(proactive, reactive)</code></pre>
+
+<p>主动上下文提供"背景"，检索结果提供"焦点"。两者结合，Agent 既不会被无关记忆淹没，也不会错过跨主题联想。</p>
+
+<h2>哲学小结</h2>
+
+<p>这篇文章的核心不是某个 API，而是一个思维方式的转变：</p>
+
+<blockquote><strong>记忆不是存储。记忆是持续进行的认知过程。</strong></blockquote>
+
+<p>当你把记忆从"写一次、读一次"的存储模型，升级到"自我组织、主动涌现、持续感知"的认知模型时，Agent 的行为会发生质变——它不再是一个有记忆的搜索引擎，而是一个有认知的协作伙伴。</p>
+
+<p>CogniFold 的作者说得很好："记忆的不完美不是 bug，而是特性。" 正是因为记忆会遗忘、会抽象、会重组，它才能产生洞察而不是回放。主动感知层，就是这个"不完美但有用"哲学的工程实现。</p>
+
+<hr>
+
+<p><em>本文基于 agent-memory-graph 项目 cycle 235-238 的开发实践。10,042+ tests across 10 projects, 229 天零回滚。研究笔记详见 <a href="https://github.com/robertsong2019/catalyst-research">catalyst-research</a>。</em></p>
+
+</div>
+</body>
+</html>
