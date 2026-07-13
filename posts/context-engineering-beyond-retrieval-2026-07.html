@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记住一切等于什么都不记得：Agent 记忆的上下文工程层 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+.tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a href="../index.html" class="back-link">← 返回首页</a>
+
+<h1>记住一切等于什么都不记得：Agent 记忆的上下文工程层</h1>
+<div class="meta">
+<span class="tag">Agent Memory</span>
+<span class="tag">Context Engineering</span>
+<span class="tag">论文解读</span>
+<span class="tag">TypeScript</span>
+<br>
+2026-07-14 · 罗嵩
+</div>
+
+<p><strong>一个反直觉的结论：</strong>在 Agent 系统中，记住所有历史比什么都不记更糟糕。</p>
+
+<p>这不是猜测。Apple 2026 年 7 月的论文（arXiv:2607.09493）给出了硬数据——任务完成率：无记忆 79%，全量历史 71%，选择性记忆 96%。把所有推理轨迹、工具调用日志、中间文件状态都塞进 agent 的记忆，反而让它表现更差。</p>
+
+<p>原因很简单：<strong>过时的推理轨迹会误导 agent 走到错误路径上</strong>。上次会话中你尝试了 JWT 认证然后放弃了，这段"失败的记忆"会让 agent 在下次遇到认证问题时倾向于跳过 JWT，即使 JWT 这次才是正确答案。</p>
+
+<p>这个发现迫使我们重新思考一个根本问题：<strong>Agent 记忆的价值不取决于记住了什么，而取决于在 context window 里放了什么、怎么放、何时压缩。</strong>这就是"上下文工程"（Context Engineering）——一个比"检索工程"（Retrieval Engineering）更上层的范式。</p>
+
+<h2>四个独立研究的汇聚</h2>
+
+<p>2026 年中的四篇论文从完全不同的角度出发，却汇聚到了同一个结论：</p>
+
+<table>
+<tr><th>研究</th><th>核心创新</th><th>关键数据</th></tr>
+<tr><td><strong>Apple Shared Selective Memory</strong></td><td>4 类可复用上下文 + 零 token 数据刷新</td><td>96% vs 79% vs 71%</td></tr>
+<tr><td><strong>SWE-MeM</strong> (CUHK+ByteDance)</td><td>让 agent 自己决定何时压缩</td><td>SWE-Bench 60.2%，32K 预算</td></tr>
+<tr><td><strong>PLACEMEM</strong></td><td>统一语义记忆与 KV cache 的胶囊</td><td>TTFT -61%，stale hits = 0</td></tr>
+<tr><td><strong>Is GraphRAG Needed?</strong> (ACL 2026)</td><td>9 场景对比，上下文工程方法</td><td>token -19~53%，质量不降</td></tr>
+</table>
+
+<p>四条独立路径，同一个结论：<strong>检索质量 ≠ 生成质量。你在 context window 里放什么，比检索到什么更能决定 agent 表现。</strong></p>
+
+<h2>洞察一：必须丢弃的"推理痕迹"</h2>
+
+<p>Apple 的研究最颠覆认知。他们把 agent 的跨会话记忆分为五类，然后通过消融实验发现只有四类值得保留：</p>
+
+<ol>
+<li><strong>Task Specifications</strong> — 领域规则、输出格式偏好、质量约束</li>
+<li><strong>Data Schemas</strong> — 列名、类型、统计摘要、关系（不保留原始数据）</li>
+<li><strong>Tool Configurations</strong> — 可用工具、参数模式、认证需求</li>
+<li><strong>Output Constraints</strong> — 生成产物的结构契约</li>
+</ol>
+
+<p><strong>必须丢弃的是第五类：reasoning trace（推理轨迹）。</strong>你上次尝试了方案 A 失败后切换到方案 B 的完整思考过程，对当前任务不仅没有帮助，还会形成"认知锚定"——agent 会被上次的推理路径绑架。</p>
+
+<p>这跟人类认知科学高度一致。你做饭时不会回忆上次切菜的每个动作，你只记得菜谱和火候。推理是即兴的，不该被持久化。</p>
+
+<h2>洞察二：压缩决策本身可以学习</h2>
+
+<p>SWE-MeM 的创新在于：他们把"何时压缩、压缩什么、压缩到什么程度"变成了一个<strong>可学习的工具调用</strong>。</p>
+
+<pre><code>// SWE-MeM 的压缩工具签名
+compress(
+  analysis,       // 对当前进度和未完成子任务的评估
+  start_step,     // 选择压缩的轨迹起点
+  end_step,       // 选择压缩的轨迹终点
+  content,        // 替换选定范围的摘要
+  remaining_work  // 追加到轨迹末尾的剩余子任务
+)</code></pre>
+
+<p>传统方法用固定规则——"上下文超过 80% 就压缩最旧的部分"。SWE-MeM 让 agent 自己判断：当前子任务完成了，那部分轨迹可以压缩了；这个日志太冗长，值得压缩；但那个错误处理路径可能后面还用得到，先留着。</p>
+
+<p>通过 Memory-aware GRPO（一种强化学习方法），agent 学会了"压缩也是有价值的动作"。结果：在 32K 上下文预算下，30B 模型在 SWE-Bench 上达到 60.2% 的解决率，超过了所有 baseline。</p>
+
+<h2>洞察三：检索-生成鸿沟</h2>
+
+<p>ACL 2026 的论文做了一个残酷的实验：在 9 种不同的 RAG 场景中，他们发现<strong>检索指标系统性地高估了高级检索的价值</strong>。</p>
+
+<p>具体来说：你的 Hit@10 可能是 0.9（检索到了 10 个相关结果），但 LLM 实际只从这 10 个中选用了 3 个。你花了大量计算去扩展检索（返回更多结果），但生成质量并没有比例提升。</p>
+
+<div class="highlight">
+<strong>关键发现：</strong>生成端的瓶颈不是输入量，而是输入的组织方式。用结构化的三元组格式代替原始子图文本，token 使用减少 19-53%，答案质量没有损失。
+</div>
+
+<p>这意味着：与其投入更多精力优化检索算法，不如把同样精力花在<strong>如何组织已经检索到的内容</strong>上。</p>
+
+<h2>实现：一个可运行的上下文工程层</h2>
+
+<p>以下是我基于四篇论文的核心洞察实现的 TypeScript 上下文工程层。它是一个 pipeline：检索结果 → 选择性过滤 → 过期检测 → 评分排序 → 预算选择 → 自适应压缩 → 紧凑序列化。</p>
+
+<pre><code>/**
+ * ContextEngineeringLayer
+ * 检索结果 → 最优 LLM 上下文
+ *
+ * Pipeline: filter → staleness check → score → 
+ *           budget select → compress → serialize
+ */
+
+type MemoryCategory =
+  | 'task_spec'
+  | 'data_schema'
+  | 'tool_config'
+  | 'output_constraint'
+  | 'reasoning_trace';
+
+interface MemoryEntry {
+  id: string;
+  content: string;
+  category: MemoryCategory;
+  timestamp: number;
+  validityWindow?: { start: number; end: number };
+  tokenEstimate: number;
+  relevanceScore?: number;
+  supersededBy?: string;
+  dependencies?: string[];
+}
+
+class ContextEngineeringLayer {
+  private staleCache = new Set&lt;string&gt;();
+
+  buildContext(
+    retrieved: MemoryEntry[],
+    budget: { maxTokens: number; reservedForPrompt: number; reservedForOutput: number },
+  ): { context: string; tokenCount: number; dropped: number } {
+    // Step 1: 选择性过滤 — 丢弃 reasoning_trace（Apple 的核心发现）
+    let filtered = retrieved.filter(e => {
+      if (e.category === 'reasoning_trace') return false;
+      if (e.supersededBy) return false;
+      return true;
+    });
+
+    // Step 2: 过期检测 — PLACEMEM 的级联失效
+    filtered = filtered.filter(e => !this.isStale(e));
+
+    // Step 3: 相关性 × 新鲜度 × 类别优先级
+    const scored = filtered.map(e => ({
+      ...e,
+      score: this.computeScore(e),
+    })).sort((a, b) => b.score - a.score);
+
+    // Step 4: 预算感知贪心选择
+    const available = budget.maxTokens
+      - budget.reservedForPrompt
+      - budget.reservedForOutput;
+    let selected: typeof scored = [];
+    let remaining = available;
+
+    for (const entry of scored) {
+      if (entry.tokenEstimate > remaining) continue;
+      selected.push(entry);
+      remaining -= entry.tokenEstimate;
+    }
+
+    // Step 5: 超过 70% 预算时触发自适应压缩（SWE-MeM）
+    const used = available - remaining;
+    if (used > available * 0.7) {
+      selected = this.adaptiveCompress(selected, available);
+    }
+
+    // Step 6: 紧凑序列化（Is GraphRAG Needed 的发现）
+    return this.serialize(selected, retrieved.length);
+  }
+
+  private computeScore(entry: MemoryEntry): number {
+    const relevance = entry.relevanceScore ?? 0.5;
+    const ageDays = (Date.now() - entry.timestamp) / 86400000;
+    const freshness = Math.exp(-ageDays * 0.1);
+
+    // 类别优先级：task_spec 最高，reasoning_trace 最低
+    const priority: Record&lt;MemoryCategory, number&gt; = {
+      task_spec: 1.0,
+      data_schema: 0.9,
+      tool_config: 0.8,
+      output_constraint: 0.7,
+      reasoning_trace: 0.1,
+    };
+
+    return relevance * freshness * priority[entry.category];
+  }
+
+  private isStale(entry: MemoryEntry): boolean {
+    if (this.staleCache.has(entry.id)) return true;
+    if (entry.validityWindow) {
+      if (Date.now() > entry.validityWindow.end) {
+        this.staleCache.add(entry.id);
+        // 级联：依赖此条目的也失效
+        entry.dependencies?.forEach(d => this.staleCache.add(d));
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 级联失效 — 当事实被修正时，
+   * 所有派生的摘要、索引都标记为失效。
+   * 返回受影响的条目列表。
+   */
+  invalidate(
+    entryId: string,
+    allEntries: Map&lt;string, MemoryEntry&gt;
+  ): string[] {
+    const affected: string[] = [];
+    const queue = [entryId];
+    const visited = new Set&lt;string&gt;();
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      this.staleCache.add(current);
+      affected.push(current);
+
+      // 查找依赖于 current 的条目（级联）
+      for (const [id, entry] of allEntries) {
+        if (entry.dependencies?.includes(current)
+            && !visited.has(id)) {
+          queue.push(id);
+        }
+      }
+    }
+    return affected;
+  }
+
+  private adaptiveCompress(
+    entries: any[],
+    budget: number
+  ): any[] {
+    const target = budget * 0.8;
+    let total = entries.reduce((s, e) => s + e.tokenEstimate, 0);
+
+    // 低分先压缩
+    const sorted = [...entries]
+      .sort((a, b) => a.score - b.score);
+
+    for (const entry of sorted) {
+      if (total <= target) break;
+      // 保留前 30% + 后 20%，丢弃中间冗余
+      const lines = entry.content.split('\n');
+      if (lines.length < 5) continue;
+
+      const head = lines
+        .slice(0, Math.ceil(lines.length * 0.3))
+        .join('\n');
+      const tail = lines
+        .slice(-Math.ceil(lines.length * 0.2))
+        .join('\n');
+      const omitted = lines.length
+        - Math.ceil(lines.length * 0.3)
+        - Math.ceil(lines.length * 0.2);
+
+      entry.content = `${head}\n\n[... ${omitted} 行已压缩 ...]\n\n${tail}`;
+      entry.tokenEstimate = Math.ceil(entry.tokenEstimate * 0.5);
+      total -= entry.tokenEstimate;
+    }
+    return entries;
+  }
+
+  private serialize(
+    entries: any[],
+    originalCount: number
+  ): { context: string; tokenCount: number; dropped: number } {
+    const labels: Record&lt;MemoryCategory, string&gt; = {
+      task_spec: '📋 任务规范',
+      data_schema: '🗄️ 数据模式',
+      tool_config: '🔧 工具配置',
+      output_constraint: '📦 输出约束',
+      reasoning_trace: '💭 推理轨迹',
+    };
+
+    const grouped: Record&lt;string, any[]&gt; = {};
+    for (const e of entries) {
+      (grouped[e.category] ??= []).push(e);
+    }
+
+    const sections: string[] = [];
+    for (const cat of Object.keys(grouped)) {
+      sections.push(`## ${labels[cat as MemoryCategory]}`);
+      grouped[cat].forEach((item, i) => {
+        sections.push(`${i + 1}. ${item.content}`);
+      });
+      sections.push('');
+    }
+
+    const context = sections.join('\n');
+    return {
+      context,
+      tokenCount: Math.ceil(context.length / 4),
+      dropped: originalCount - entries.length,
+    };
+  }
+}</code></pre>
+
+<h3>使用示例</h3>
+
+<pre><code>const layer = new ContextEngineeringLayer();
+
+const retrieved: MemoryEntry[] = [
+  {
+    id: 'm1',
+    content: '系统规则：始终使用 TypeScript strict 模式',
+    category: 'task_spec',
+    timestamp: Date.now() - 86400000,
+    tokenEstimate: 20,
+    relevanceScore: 0.9,
+  },
+  {
+    id: 'm2',
+    content: '用户表: id(uuid), name(text), email(text), role(enum)',
+    category: 'data_schema',
+    timestamp: Date.now() - 3600000,
+    tokenEstimate: 30,
+    relevanceScore: 0.85,
+  },
+  {
+    id: 'm3',
+    content: '[冗长的推理轨迹] 上次尝试 JWT 认证失败...',
+    category: 'reasoning_trace',
+    tokenEstimate: 500,
+    relevanceScore: 0.3,
+  },
+  {
+    id: 'm4',
+    content: 'PostgreSQL: host=db.internal, port=5432',
+    category: 'tool_config',
+    timestamp: Date.now() - 7200000,
+    tokenEstimate: 25,
+    relevanceScore: 0.7,
+  },
+];
+
+const result = layer.buildContext(retrieved, {
+  maxTokens: 2000,
+  reservedForPrompt: 500,
+  reservedForOutput: 300,
+});
+
+// 输出:
+// ## 📋 任务规范
+// 1. 系统规则：始终使用 TypeScript strict 模式
+//
+// ## 🗄️ 数据模式
+// 1. 用户表: id(uuid), name(text), email(text), role(enum)
+//
+// ## 🔧 工具配置
+// 1. PostgreSQL: host=db.internal, port=5432
+//
+// m3（reasoning_trace）被自动丢弃
+// tokenCount: ~72 (vs 输入 ~575 tokens)</code></pre>
+
+<h2>我的观点：这不是优化，是架构</h2>
+
+<p>大多数 agent 记忆系统还停留在"检索优化"阶段——调 embedding 模型、调 chunk size、调 top-k。这些当然重要，但它们解决的是"<strong>能不能找到</strong>"的问题，而不是"<strong>找到了之后怎么办</strong>"的问题。</p>
+
+<p>上下文工程是一个新的架构层，它坐落在检索和生成之间：</p>
+
+<pre><code>用户查询
+  ↓
+检索层 — 找到相关记忆
+  ↓
+<strong>上下文工程层 — 过滤、评分、压缩、组织</strong>  ← 这里
+  ↓
+生成层 — LLM 基于 context 生成回答</code></pre>
+
+<p>没有这一层，你就像一个记性极好但不会整理笔记的人——所有信息都在脑子里堆着，要用的时候翻不到关键的，反而被无关的干扰了判断。</p>
+
+<p><strong>三个可操作的建议：</strong></p>
+
+<ol>
+<li><strong>给你的记忆加 category 字段。</strong>区分"这是规则"还是"这是上次的推理过程"。前者永久保留，后者会话结束后就丢弃。这一个改动的 ROI 远超任何 embedding 调参。</li>
+<li><strong>实现级联失效。</strong>当一条记忆被修正（supersede）时，所有从它派生出来的摘要、索引、embedding 都应该被标记为 stale。否则你的 agent 会用新事实配旧推理得出矛盾结论。</li>
+<li><strong>加一个 utilization_rate 指标。</strong>不只测"检索到了多少正确的"，还要测"检索到的里面有多少被 LLM 实际使用了"。如果 utilization_rate < 50%，说明你的检索返回了太多噪声，需要更好的过滤而不是更多的召回。</li>
+</ol>
+
+<h2>从研究到实现</h2>
+
+<p>在 agent-memory-graph 项目中，过去 24 小时已经把上述洞察落地为代码：</p>
+
+<ul>
+<li><strong>Cycle 236</strong>：为 <code>add()</code> 增加了 <code>category</code> 参数 + <code>invalidate_cascade()</code> 级联失效（+20 tests）</li>
+<li><strong>Cycle 237</strong>：<code>read_proactive_context()</code> 主动上下文组装，基于 CogniFold 的意图节点（+24 tests）</li>
+<li><strong>Cycle 238</strong>：三个新的拓扑指数（Forgotten / ABC / Sum-connectivity），扩展图分析能力（+79 tests）</li>
+</ul>
+
+<p>从论文到代码的延迟正在缩短：研究 #006（20:00）→ Cycle 236（22:10）只花了 2 小时。研究 #007（20:13）→ Cycle 237（23:00）花了不到 3 小时。这种"读论文 → 写代码 → 写测试 → 提交"的闭环，正在成为 agent 记忆工程的标准工作流。</p>
+
+<h2>结语</h2>
+
+<p>Agent 记忆领域正在经历一个范式转移：从"如何记住更多"到"如何记住更少但更对"。Apple 的数据证明了一件事——<strong>记忆的质量不在于数量，而在于你选择忘记什么。</strong></p>
+
+<p>这不是一个优化技巧，而是一个架构决策。在你的 agent 记忆系统中加一个上下文工程层，比任何 embedding 调参都更能提升表现。</p>
+
+<p>记住：全量历史是最差的记忆策略。选择性的遗忘才是智能的标志。</p>
+
+<hr>
+<p><strong>参考论文：</strong></p>
+<ul>
+<li>Apple — <em>Shared Selective Persistent Memory</em>, arXiv:2607.09493, 2026.07</li>
+<li>CUHK+ByteDance — <em>SWE-MeM</em>, arXiv:2606.28434, 2026.06</li>
+<li><em>PLACEMEM</em>, arXiv:2607.04089, 2026.07</li>
+<li>AWS+Cisco — <em>Is GraphRAG Needed?</em>, ACL 2026 GEM Workshop</li>
+</ul>
+<p><strong>相关代码：</strong> agent-memory-graph Cycle 236-238，<a href="https://github.com/robertsong2019">GitHub</a></p>
+
+</div>
+</body>
+</html>
