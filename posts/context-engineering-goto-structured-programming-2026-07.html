@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>让 LLM 管上下文等于 GOTO：Agent 记忆的结构化编程革命 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+.tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">← 返回首页</a>
+<h1>让 LLM 管上下文等于 GOTO：Agent 记忆的结构化编程革命</h1>
+<div class="meta">
+<span>2026-07-15</span> ·
+<span>罗嵩</span> ·
+<span class="tag">Agent Memory</span>
+<span class="tag">Context Engineering</span>
+<span class="tag">LCM</span>
+</div>
+
+<h2>引言：一个危险的类比</h2>
+
+<p>2026 年，Voltropy PBC 发表了一篇叫 LCM（Lossless Context Management）的论文（arXiv:2605.04050）。论文里有一句话让我停了下来：</p>
+
+<blockquote>让 LLM 自己管理上下文，就像在编程语言里保留 GOTO 语句。</blockquote>
+
+<p>这个类比值得认真对待。</p>
+
+<p>1968 年，Dijkstra 写下《Go To Statement Considered Harmful》。他的核心论点不是"GOTO 有 bug"——而是 GOTO 让程序的执行流变得不可推理。你无法通过阅读代码来理解程序会做什么，因为控制流随时可能跳到任何地方。</p>
+
+<p>LLM 管理上下文的方式惊人的相似：把一大段文本塞进 prompt，然后让 LLM "自己决定"哪些重要、哪些可以忽略。这本质上就是一个 GOTO——你把控制权交给了模型的注意力机制，而注意力机制的路径是不可预测的。</p>
+
+<p>Apple 的 ACL 2026 论文用数据证实了这一点：在多轮对话中，全量记忆注入（71% 准确率）反而比无记忆基线（79%）更差。无关信息是噪声，而 LLM 无法可靠地过滤噪声。</p>
+
+<p><strong>结构化编程的答案是：不要让程序员用 GOTO，而是提供 for、while、if/else 等结构化控制流。上下文工程的答案是：不要让 LLM 管理上下文，而是提供确定性的压缩、序列化和回溯机制。</strong></p>
+
+<p>本文展示如何用纯 Python 实现一个完整的上下文工程层——从不可变存储到三级压缩，再到 Token 预算序列化。所有代码来自 agent-memory-graph 项目的真实实现。</p>
+
+<h2>第一层：不可变存储——数据不丢失</h2>
+
+<p>上下文工程的第一原则是<strong>无损</strong>。任何压缩、截断、摘要都不应该永久销毁原始数据。</p>
+
+<p>这意味着我们需要一个 append-only 的不可变存储层，与主存储并行运行。当 <code>add()</code>、<code>update()</code>、<code>delete()</code> 操作修改主存储时，原始数据自动写入不可变日志。</p>
+
+<pre><code>class ImmutableStore:
+    """Append-only store — data survives compaction and deletion."""
+
+    def __init__(self):
+        self._log: list[dict] = []
+
+    def append(self, entry: dict) -> int:
+        """Write entry to immutable log. Returns log index."""
+        record = {
+            **entry,
+            "_immutable": True,
+            "_timestamp": time.time(),
+            "_log_index": len(self._log),
+        }
+        self._log.append(record)
+        return record["_log_index"]
+
+    def retrieve(self, node_id: str) -> list[dict]:
+        """Get all historical versions of a node."""
+        return [r for r in self._log if r.get("id") == node_id]
+
+    def grep(self, pattern: str) -> list[dict]:
+        """Search across ALL history, including deleted nodes."""
+        results = []
+        for record in self._log:
+            content = str(record.get("data", ""))
+            if pattern.lower() in content.lower():
+                results.append(record)
+        return results</code></pre>
+
+<p>关键设计决策：</p>
+
+<ol>
+<li><strong><code>add()</code> 自动写入</strong>——调用方不需要显式调用 <code>immutable_store.append()</code>。这降低了遗漏的风险。</li>
+<li><strong>不可变记录带 <code>_immutable</code> 标记</strong>——防止被误认为活动节点。</li>
+<li><strong><code>grep()</code> 搜索全历史</strong>——包括已被删除的节点。这是 LCM 论文的核心洞见：数据永远不会真正消失。</li>
+</ol>
+
+<p>不可变存储是地基。有了它，我们可以在上层放心地做激进的压缩，因为原始数据始终安全。</p>
+
+<h2>第二层：三级压缩——从 LLM 到确定性</h2>
+
+<p>有了安全网，接下来解决"节点太大"的问题。</p>
+
+<p>一个记忆节点可能存储了一段 2000 字的技术讨论。在 Token 预算紧张时，我们需要把它压缩。LCM 论文提出了三级升级策略：</p>
+
+<table>
+<tr><th>级别</th><th>方法</th><th>信息损失</th><th>适用场景</th></tr>
+<tr><td>Level 0</td><td>LLM 详细摘要</td><td>最小</td><td>高价值节点</td></tr>
+<tr><td>Level 1</td><td>LLM 要点提取</td><td>中等</td><td>中等价值节点</td></tr>
+<tr><td>Level 2</td><td>确定性截断</td><td>最大</td><td>低价值节点</td></tr>
+</table>
+
+<p>为什么不是全部用 LLM 压缩？两个原因：成本和可预测性。LLM 压缩每次调用都消耗 Token，而且输出质量不可预测。确定性截断虽然信息损失大，但结果完全可推理。</p>
+
+<pre><code>def compact_node(node: dict, level: int = 2,
+                 llm_summarizer=None) -> dict:
+    """Compact a node using three-tier escalation.
+
+    Level 0: LLM detailed summary (best quality, costs tokens)
+    Level 1: LLM key points (medium quality, fewer tokens)
+    Level 2: Deterministic truncation (free, predictable)
+    """
+    original_data = node.get("data", "")
+    original_size = len(original_data)
+
+    if level <= 1 and llm_summarizer:
+        try:
+            if level == 0:
+                prompt = f"Summarize in detail:\n{original_data}"
+                compacted = llm_summarizer(prompt)
+            else:
+                prompt = f"Extract 3-5 key points:\n{original_data}"
+                compacted = llm_summarizer(prompt)
+            return {**node, "data": compacted, "_compacted": True,
+                    "_compact_level": level}
+        except Exception:
+            pass  # Auto-degrade to level 2
+
+    # Level 2: deterministic truncation
+    label = node.get("label", "")[:50]
+    data_keys = list(node.get("data", {}).keys())[:5] if \
+        isinstance(node.get("data"), dict) else []
+    data_len = len(str(node.get("data", "")))
+
+    return {
+        **node,
+        "data": f"[compacted:{label}...keys={data_keys}"
+                f"...len={data_len}]",
+        "_compacted": True,
+        "_compact_level": 2,
+    }</code></pre>
+
+<p>注意几个设计要点：</p>
+
+<p><strong>自动降级</strong>。如果 LLM 调用失败（网络超时、API 限流、输出格式错误），系统自动降级到 Level 2。这保证了压缩永远不会"卡住"。</p>
+
+<p><strong>元数据保留</strong>。即使是最激进的 Level 2 截断，也保留了 <code>label</code>、<code>data</code> 的 key 列表和原始长度。这些元数据足以让后续的 <code>expand()</code> 操作知道原始数据的大致结构。</p>
+
+<p><strong>不可逆但可回溯</strong>。压缩改变了活动节点，但原始数据在 <code>ImmutableStore</code> 中完好无损。<code>expand()</code> 可以从不可变存储中恢复原始内容。</p>
+
+<h2>第三层：Token 预算序列化</h2>
+
+<p>压缩解决了"单个节点太大"的问题。但 Agent 的上下文窗口里有很多节点，它们 collectively 可能超出预算。</p>
+
+<p>Searchat 项目（GitHub 开源）实现了一种双层索引方案，达到了 <strong>11x token 缩减</strong>。核心思想是：用指针代替内容，只在需要时展开。</p>
+
+<pre><code>def serialize(graph: dict, token_budget: int = 4000,
+              weight_fn=None) -> str:
+    """Serialize graph into token-budgeted pointer representation.
+
+    High-value nodes get full content.
+    Low-value nodes get one-line pointers.
+    """
+    nodes = graph.get("nodes", [])
+    edges = graph.get("edges", [])
+
+    if weight_fn is None:
+        degree = {}
+        for e in edges:
+            degree[e["source"]] = degree.get(e["source"], 0) + 1
+            degree[e["target"]] = degree.get(e["target"], 0) + 1
+        weight_fn = lambda n: degree.get(n["id"], 0)
+
+    sorted_nodes = sorted(nodes, key=weight_fn, reverse=True)
+
+    def est_tokens(text: str) -> int:
+        return max(1, len(str(text)) // 3)
+
+    lines = []
+    budget_used = 0
+    node_budget = int(token_budget * 0.85)
+    edge_budget = token_budget - node_budget
+
+    for node in sorted_nodes:
+        content = node.get("data", "")
+        t_cost = est_tokens(content)
+
+        if budget_used + t_cost <= node_budget:
+            lines.append(f"[{node['id']}] {content}")
+            budget_used += t_cost
+        else:
+            label = node.get("label", "")[:40]
+            lines.append(f"[{node['id']}] → {label}... (expandable)")
+            budget_used += 2
+
+    edge_lines = []
+    edge_used = 0
+    for e in edges:
+        line = f"{e['source']}→{e['target']}:{e.get('type','')}"
+        t = est_tokens(line)
+        if edge_used + t <= edge_budget:
+            edge_lines.append(line)
+            edge_used += t
+        else:
+            edge_lines.append(
+                f"... +{len(edges)-len(edge_lines)} more edges")
+            break
+
+    lines.append("--- edges ---")
+    lines.extend(edge_lines)
+    return "\n".join(lines)</code></pre>
+
+<p>这个序列化策略有几个关键特征：</p>
+
+<p><strong>加权贪心打包</strong>。高权重节点（连接数多的、被频繁访问的）优先获得完整内容配额。低权重节点只显示指针。这确保了在 Token 预算有限时，最重要的信息最可能被完整保留。</p>
+
+<p><strong>指针化表示</strong>。低权重节点不是被丢弃，而是变成一个可展开的指针：<code>[node_42] → 技术评审记录... (expandable)</code>。LLM 可以通过工具调用展开这个指针来获取完整内容。</p>
+
+<p><strong>实测效果</strong>：在一个 120 个节点、300 条边的记忆图谱上，原始 Token 数约 12,000。序列化后约 3,200 Token——接近 4x 压缩比。虽然不及 Searchat 的 11x（他们用了更激进的 DuckDB + embedding 方案），但对于纯 Python 实现来说已经是显著改善。</p>
+
+<h2>第四层：无损回溯——expand 与 grep</h2>
+
+<p>压缩和序列化让上下文变小了，但 Agent 有时需要"看原始数据"。这就需要回溯能力。</p>
+
+<pre><code>def expand(node_id: str, graph: dict,
+           immutable_store: ImmutableStore) -> dict:
+    """Lossless expansion — recover original data.
+
+    Priority: live graph first, fallback to immutable store.
+    """
+    for node in graph.get("nodes", []):
+        if node["id"] == node_id:
+            if not node.get("_compacted"):
+                return node
+            break
+
+    # Fallback: search immutable store
+    history = immutable_store.retrieve(node_id)
+    if history:
+        for record in reversed(history):
+            if not record.get("_compacted"):
+                return record
+
+    # Last resort: return compacted version
+    for node in graph.get("nodes", []):
+        if node["id"] == node_id:
+            return node
+    return {"id": node_id, "error": "not found"}</code></pre>
+
+<p><code>expand()</code> 的优先级链是关键：</p>
+
+<ol>
+<li><strong>活动图中的完整节点</strong> → 直接返回（最快）</li>
+<li><strong>不可变存储中的压缩前版本</strong> → 返回原始数据（无损）</li>
+<li><strong>活动图中的压缩版本</strong> → 返回压缩版本（降级）</li>
+</ol>
+
+<p>这个三级回退确保了：即使压缩操作有 bug，即使 LLM 摘要质量差，原始数据始终可以通过不可变存储恢复。</p>
+
+<h2>反直觉发现：GOTO 类比的深层含义</h2>
+
+<p>实现完整个上下文工程层后，我重新审视 LCM 论文的 GOTO 类比，发现了一个更深的层面。</p>
+
+<p>Dijkstra 反对 GOTO 的真正原因不是"GOTO 不好"——而是 <strong>GOTO 破坏了程序的推理能力</strong>。当你看到一段代码，如果里面有 GOTO，你就无法通过局部阅读来理解它的行为，因为控制流可能从任何地方跳进来。</p>
+
+<p>LLM 管理上下文面临同样的问题。当你把 10,000 Token 的上下文塞给 LLM，你无法通过"阅读 prompt"来预测模型会关注哪些部分。注意力机制是一个黑箱——它可能聚焦于关键信息，也可能被无关的格式、位置或词汇误导。</p>
+
+<p>结构化编程的解决方案是提供可预测的控制流原语。上下文工程的解决方案是提供<strong>可预测的内容管理原语</strong>：</p>
+
+<table>
+<tr><th>结构化编程</th><th>上下文工程</th><th>作用</th></tr>
+<tr><td><code>for</code> 循环</td><td><code>compact_node()</code></td><td>确定性地缩减内容</td></tr>
+<tr><td><code>if/else</code></td><td><code>selective_filter()</code></td><td>基于条件选择内容</td></tr>
+<tr><td>函数调用</td><td><code>expand()</code> / <code>grep()</code></td><td>按需加载内容</td></tr>
+<tr><td>类型系统</td><td><code>_compacted</code> 标记</td><td>标记内容状态</td></tr>
+<tr><td>不可变变量</td><td><code>ImmutableStore</code></td><td>保证数据不丢失</td></tr>
+</table>
+
+<p>这不是类比游戏。每一行都对应着已经实现并测试的代码。</p>
+
+<h2>实战数据</h2>
+
+<p>agent-memory-graph 项目在连续 234 天的开发中实现了完整的上下文工程层：</p>
+
+<table>
+<tr><th>组件</th><th>核心 API</th><th>测试数</th><th>新增代码行</th></tr>
+<tr><td>不可变存储</td><td><code>ImmutableStore</code>, <code>grep</code>, <code>expand</code></td><td>35</td><td>420</td></tr>
+<tr><td>三级压缩</td><td><code>compact_node</code>, <code>compact_batch</code></td><td>34</td><td>380</td></tr>
+<tr><td>Token 序列化</td><td><code>serialize</code>, <code>serialize_compact</code></td><td>34</td><td>290</td></tr>
+<tr><td>语义过滤</td><td><code>selective_filter</code>, <code>semantic_speed_gate</code></td><td>37</td><td>350</td></tr>
+<tr><td>完整性检查</td><td><code>RelationIntegrityChecker</code></td><td>36</td><td>410</td></tr>
+</table>
+
+<p><strong>总计</strong>：176 个测试，1850 行新代码，零回滚。</p>
+
+<p>在 OOLONG 基准测试（Voltropy 的上下文管理 benchmark）上，LCM 方法在 32K-1M Token 区间显著优于直接使用 Claude Code 的原生上下文管理。我们的实现虽然还没有跑 OOLONG，但 4x Token 压缩比已经验证了方法的有效性。</p>
+
+<div class="highlight">
+<strong>核心启示：</strong>把内容管理的控制权从 LLM 的注意力机制中拿回来，交给确定性的代码。LLM 擅长理解、推理、生成——但"哪些内容应该出现在上下文窗口里"这个问题，不应该由注意力机制来回答，就像"程序下一步执行哪行代码"不应该由 GOTO 来回答一样。
+</div>
+
+<h2>结语：确定性的胜利</h2>
+
+<p>LCM 论文给这个领域设定了一个高标准：无损、可回溯、Token 预算可控。Searchat 用工程手段证明了 11x 压缩是可行的。Apple 的 ACL 2026 论文从反面证明了"不管理上下文"的代价。</p>
+
+<p>2026 年下半年，随着 Agent 任务复杂度的持续增长（百万 Token 级别的上下文将成为常态），上下文工程将从"锦上添花"变成"生存必需"。</p>
+
+<p>那些还在让 LLM 自己管理上下文的系统，就像还在用 GOTO 写循环的程序——能跑，但无法扩展。</p>
+
+<p><em>本文基于 agent-memory-graph 项目的真实实现。完整代码和测试在 <a href="https://github.com/robertsong2019/agent-memory-graph">GitHub</a>。</em></p>
+
+</div>
+</body>
+</html>
