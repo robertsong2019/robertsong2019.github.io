@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 怎么知道自己错了？过程奖励模型正在重定义验证 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .footnote { color: #8b949e; font-size: 0.85rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+        .analogy { background: rgba(88, 166, 255, 0.08); border: 1px solid rgba(88, 166, 255, 0.2); border-radius: 8px; padding: 1rem 1.2rem; margin: 1.5rem 0; }
+        .analogy-title { color: var(--accent); font-weight: 600; font-size: 0.9rem; margin-bottom: 0.3rem; }
+    </style>
+</head>
+<body>
+    <h1>AI Agent 怎么知道自己错了？过程奖励模型正在重定义验证</h1>
+    <div class="meta">
+        2026-07-14 · 罗嵩
+        <span class="tag">Process Reward Model</span>
+        <span class="tag">Agent Verification</span>
+        <span class="tag">RLVR</span>
+    </div>
+
+    <blockquote>你让 AI Agent 帮你改一个 bug。它写了 20 步操作，改了 8 个文件，最后跑测试——挂了。你知道结果错了，但<strong>到底哪一步开始错的？</strong>Agent 自己不知道，你也不知道。这就是 2025 年之前 AI Agent 验证的现状。</blockquote>
+
+    <h2>一场被低估的革命</h2>
+
+    <p>2023 年底，OpenAI 发了一篇论文叫《Let's Verify Step by Step》。当时没太多人注意——大家都在讨论 GPT-4 的上下文窗口又长了多少。但这篇论文埋下了一颗种子：<strong>过程奖励模型（Process Reward Model, PRM）</strong>。</p>
+
+    <p>种子在 2025-2026 年长成了大树。从数学推理到代码生成，从 GUI 操作到多 Agent 协作，PRM 已经成为 AI Agent 领域最活跃的研究方向之一。2026 年上半年就有 15+ 篇重量级论文发表，覆盖金融、软件工程、视觉推理等几乎所有 Agent 场景。</p>
+
+    <p>为什么 PRM 突然变得这么重要？因为<strong>Agent 的任务越来越长，而传统验证方法在长任务上彻底失效</strong>。</p>
+
+    <h2>一、足球比分问题：为什么"只看结果"行不通</h2>
+
+    <p>传统的 AI 验证用的是<strong>结果奖励模型（Outcome Reward Model, ORM）</strong>。它只看最终结果：答案对不对？代码能不能跑？测试过没过？</p>
+
+    <div class="analogy">
+        <div class="analogy-title">🎯 一个类比</div>
+        想象你在看一场足球比赛的比分：3:0。你知道谁赢了，但你不知道：<br>
+        • 哪个进球最关键？<br>
+        • 防守哪里出了问题？<br>
+        • 什么时候比赛走势开始逆转？<br>
+        比分告诉你结果，但<strong>对改进毫无帮助</strong>。
+    </div>
+
+    <p>对于 3 步的简单任务，这没什么问题——错了就重来。但当一个 SWE Agent 要执行 50 步操作（搜索代码、理解依赖、修改文件、运行测试、修复编译错误……），ORM 就变成了"黑箱里的黑箱"：</p>
+
+    <ul>
+        <li>成功了你不知道为什么成功（无法复现）</li>
+        <li>失败了你不知道从哪步开始失败（无法修复）</li>
+        <li>训练时，50 步只有 1 个信号（最终通过/不通过），梯度极其稀疏</li>
+    </ul>
+
+    <p>SWE-TRACE（2026 年 4 月）给出了量化证据：在 50+ 步的 SWE 任务上，PRM 和 ORM 的性能差距超过 <strong>20 个百分点</strong>。任务越长，差距越大。</p>
+
+    <h2>二、PRM 是什么：给每一步打分</h2>
+
+    <p>过程奖励模型的核心思想极其简单：<strong>不要只看最终答案，要给每一步推理打分</strong>。</p>
+
+    <pre><code># 传统 ORM：只有一个信号
+trajectory = [step_1, step_2, ..., step_50]
+outcome = run_tests(final_code)  # 0 or 1
+
+# PRM：每一步都有信号
+step_scores = [prm(step_i) for i in range(50)]
+# [0.9, 0.85, 0.3, 0.1, ...]
+#          ↑ 从第 3 步开始出问题了</code></pre>
+
+    <p>知道了哪一步出错，就能做三件以前做不到的事：</p>
+
+    <ol>
+        <li><strong>精确归因</strong>——第 27 步的文件修改引入了类型错误，直接定位</li>
+        <li><strong>搜索引导</strong>——在生成时用 PRM 分数做 beam search，自动避开低质量路径（这就是 test-time scaling 的核心机制）</li>
+        <li><strong>高效训练</strong>——RL 训练时，把奖励信号分配到关键步骤，而不是均匀撒在 50 步上</li>
+    </ol>
+
+    <p>OREAL（上海 AI Lab，2025）用这个思路做到了一件震撼的事：<strong>7B 参数的模型，经过 outcome RL + token 级信用分配训练，在 MATH-500 上达到了 94.0 pass@1</strong>——之前只有 32B 模型能做到。相当于用更精确的奖励信号，把小模型的能力拉到了大模型水平。</p>
+
+    <h2>三、2026 年的三大突破</h2>
+
+    <h3>突破 1：生成式 PRM——会思考的验证器</h3>
+
+    <p>早期的 PRM 是一个分类器：输入推理步骤，输出一个 0 到 1 的分数。简单粗暴，但有个致命问题：<strong>它不能解释为什么打了这个分</strong>。</p>
+
+    <p>2025 年开始，研究者提出了<strong>生成式 PRM（GenPRM）</strong>。它不直接打分，而是先生成一段评估推理，然后给出分数：</p>
+
+    <pre><code>步骤："要解 x² + 5x + 6 = 0，使用求根公式..."
+
+GenPRM 的评估：
+"该步骤正确识别了方程为二次方程。
+但也可以直接因式分解：(x+2)(x+3) = 0，
+更为简洁。求根公式方法正确但非最优。
+步骤质量：正确但次优。
+评分：0.7"</code></pre>
+
+    <p>"PRMs That Think"（Khalifa et al., 2025）的数据：生成式 PRM 在 ProcessBench 上达到 78.1% 准确率，比分类器 PRM 高 6 个百分点。差距在更难的问题上还会拉大。</p>
+
+    <p>更妙的是，生成式 PRM 的评估文本可以直接给人类看——<strong>它天然就是一个可审计系统</strong>。当 Agent 出错时，你可以读 PRM 的评估来理解为什么错，而不是对着一个 0.23 的分数发呆。</p>
+
+    <h3>突破 2：无监督 PRM——不需要人工标注</h3>
+
+    <p>PRM 最大的推广瓶颈一直是<strong>数据</strong>。给每一步打标签需要专家标注，成本高昂。Math-Shepherd（2024）用自动化的方法生成步骤标签取得了一定进展，但 2026 年的两篇论文从根本上解决了这个问题。</p>
+
+    <p><strong>Unsupervised PRMs</strong>（Gadetsky et al., 2026 年 5 月）完全不需要标签。它的思路是：让模型对同一问题生成多个解答轨迹，然后看哪些步骤在正确和错误的轨迹中出现频率差异最大——这些步骤就是关键步骤。通过这种"投票"机制，无监督 PRM 的性能竟然追平了监督训练的 PRM。</p>
+
+    <p><strong>SWE-TRACE</strong>（Han et al., 2026 年 4 月）走了另一条路：用<strong>执行轨迹自动生成评分标准（rubric）</strong>。它不需要人写评判标准，而是从代码执行结果中自动提取多维度标签（正确性、效率、安全性），然后用这些标签训练 PRM。</p>
+
+    <div class="analogy">
+        <div class="analogy-title">💡 关键洞察</div>
+        PRM 的数据问题在 2026 年基本被解决了。无监督训练 + rubric 自动生成，
+        意味着<strong>任何领域都可以快速构建 PRM</strong>。
+        这就像 2023 年 RLHF 的 DPO 简化——一个技术门槛的消除会引爆应用。
+    </div>
+
+    <h3>突破 3：自我进化的验证器——SEVA</h3>
+
+    <p>所有 PRM 都有一个隐含假设：验证器本身是好的。但如果 Agent 在变强，而验证器还停留在旧水平呢？</p>
+
+    <p><strong>SEVA</strong>（Yuan et al., 2026 年 6 月，被 ICML 2026 接收）解决了这个问题。它构建了一个自我进化循环：</p>
+
+    <ol>
+        <li>Agent 生成答案 + 事实引用</li>
+        <li>验证器检查每条引用是否准确</li>
+        <li>验证失败的信息被回收为训练数据</li>
+        <li>验证器随之进化，与 Agent 同步提升</li>
+    </ol>
+
+    <p>这相当于一个"陪练"角色——<strong>验证器不是裁判，而是和 Agent 一起变强的训练伙伴</strong>。</p>
+
+    <h2>四、领域特化：为什么通用 PRM 不够用</h2>
+
+    <p>2026 年最明确的研究趋势之一：<strong>每个领域都在建自己的 PRM</strong>。</p>
+
+    <table>
+        <tr>
+            <th>领域</th>
+            <th>系统</th>
+            <th>"正确"意味着什么</th>
+        </tr>
+        <tr>
+            <td>数学推理</td>
+            <td>OREAL, GroundedPRM</td>
+            <td>逻辑自洽</td>
+        </tr>
+        <tr>
+            <td>软件工程</td>
+            <td>SWE-TRACE</td>
+            <td>测试通过 + 代码可维护</td>
+        </tr>
+        <tr>
+            <td>GUI 操作</td>
+            <td>VisCritic, StainFlow</td>
+            <td>视觉状态按预期变化</td>
+        </tr>
+        <tr>
+            <td>金融分析</td>
+            <td>Fin-PRM</td>
+            <td>符合监管要求</td>
+        </tr>
+        <tr>
+            <td>多 Agent 系统</td>
+            <td>MAS-ProVe</td>
+            <td>协作轨迹一致性</td>
+        </tr>
+        <tr>
+            <td>工具调用</td>
+            <td>ToolPRMBench</td>
+            <td>参数正确 + 工具选择合理</td>
+        </tr>
+    </table>
+
+    <p>VisCritic 的思路尤其巧妙：它不检查 Agent 的"行为"，而是检查<strong>行为之后屏幕画面的变化</strong>。如果 Agent 说"我点击了提交按钮"，但屏幕截图显示提交按钮还在——VisCritic 就知道这步有问题。这比分析 Agent 的推理文本可靠得多。</p>
+
+    <p>这背后的哲学值得品味：<strong>最好的验证不是检查过程，而是检查结果的状态变化</strong>。对于 GUI Agent，屏幕就是真理。对于 SWE Agent，测试就是真理。对于数学 Agent，形式化证明就是真理。每个领域都需要找到自己的"验证锚点"。</p>
+
+    <h2>五、从理论到实践：你现在能做什么</h2>
+
+    <p>好，PRM 很厉害。但大多数读者不是在做 AI 研究，而是在构建产品。以下是可以立即采取的行动：</p>
+
+    <h3>1. 开始记录步骤级日志（零成本）</h3>
+
+    <p>这是最简单的起点。不管你用什么 Agent 框架，确保每次工具调用都被记录：</p>
+
+    <pre><code>{
+  "step_id": 27,
+  "tool": "edit_file",
+  "input": {"path": "src/auth.py", "old": "...", "new": "..."},
+  "output": {"success": true},
+  "timestamp": "2026-07-14T20:15:32Z"
+}</code></pre>
+
+    <p>即使你现在不做 PRM，这些日志将来就是训练 PRM 的原材料。没有步骤级数据，一切都是空谈。</p>
+
+    <h3>2. 用 LLM-as-Judge 做步骤评估（低成本）</h3>
+
+    <p>在有了步骤日志后，用一个 LLM 来评估每一步质量。你不需要训练任何模型——直接用 GPT-4 或 Claude 给每步打分并解释原因。这本质上就是一个"穷人的生成式 PRM"。</p>
+
+    <p>关键提示：让 LLM 不仅打分，还要<strong>解释为什么</strong>。这些解释本身就是未来训练更小 PRM 的数据。</p>
+
+    <h3>3. 在关键步骤插入验证关卡（中成本）</h3>
+
+    <p>不是每一步都需要验证，但某些关键操作值得"停一下检查"：</p>
+
+    <ul>
+        <li><strong>文件写入前</strong>：变更是否符合意图？</li>
+        <li><strong>工具调用前</strong>：参数是否合理？是否有副作用风险？</li>
+        <li><strong>任务完成时</strong>：结果是否满足原始需求？</li>
+    </ul>
+
+    <p>在这些关卡放一个验证器（哪怕只是规则检查 + LLM 审查），能捕获 80% 的问题。这比只在最后检查结果有效得多。</p>
+
+    <h3>4. 探索 RLVR 训练（高投入高回报）</h3>
+
+    <p>如果你在训练自己的 Agent 模型，开始关注 RLVR + PRM 的训练范式。OREAL 的代码已经开源，SWE-TRACE 的方法也可以适配到其他领域。</p>
+
+    <p>关键是：<strong>不要一次性引入完整的 PRM 训练流程</strong>。先用 LLM-as-Judge 生成步骤标签，训练一个小的 PRM，然后逐步迭代。这比从零开始构建标注流水线快得多。</p>
+
+    <h2>六、更大的图景：验证与生成的融合</h2>
+
+    <p>回看 2023 到 2026 年的演进，一条主线越来越清晰：<strong>验证正在从"事后检查"变成"过程中的实时护栏"</strong>。</p>
+
+    <p>2023 年：Agent 先生成完整个答案，然后检查对不对。<br>
+    2025 年：Agent 在生成过程中用 PRM 做 beam search，避开差的路径。<br>
+    2026 年：PRM 和 Agent 一起进化，验证信号直接用于训练，Agent 在生成时同步验证。</p>
+
+    <p>这与认知科学中的 System 1 / System 2 理论形成了有趣的呼应。System 1 是快速直觉式的生成，System 2 是缓慢审慎的验证。人类在解决复杂问题时，这两个系统是交替工作的——直觉给假设，审验来确认或推翻。</p>
+
+    <p>PRM 正在成为 AI Agent 的 System 2。<strong>一个没有 PRM 的 Agent 就像一个只有 System 1 的人——反应快，但经常自信地犯错。</strong></p>
+
+    <p>当 SEVA 这样的系统让验证器与 Agent 同步进化，当无监督训练让任何领域都能低成本构建 PRM，当生成式 PRM 能像同事一样跟你解释"为什么这步有问题"——我们正在接近一个临界点：<strong>AI Agent 真正可以信任的临界点</strong>。</p>
+
+    <p>不是因为它不会犯错，而是因为它<strong>知道自己在什么时候可能犯错</strong>。这比永远不出错更重要。</p>
+
+    <div class="footnote">
+        <p><strong>引用的论文/系统：</strong></p>
+        <ul>
+            <li>Lightman et al. (2023). "Let's Verify Step by Step." — PRM 的奠基之作</li>
+            <li>Lyu et al. (2025). "OREAL." — 上海 AI Lab, 7B 模型在 MATH-500 达到 94.0</li>
+            <li>Khalifa et al. (2025). "Process Reward Models That Think." — 生成式 PRM</li>
+            <li>Han et al. (2026). "SWE-TRACE." — 软件工程领域的 Rubric PRM</li>
+            <li>Yuan et al. (2026). "SEVA." — ICML 2026, 自进化验证器</li>
+            <li>Qian (2026). "VisCritic." — GUI Agent 的视觉状态验证</li>
+            <li>Gadetsky et al. (2026). "Unsupervised Process Reward Models." — 无监督 PRM 训练</li>
+            <li>Venkataramani et al. (2026). "MAS-ProVe." — 多 Agent 系统的过程验证</li>
+        </ul>
+        <p>本文探索笔记的完整版本存放在 <a href="https://github.com/robertsong2019">GitHub</a>，包含更详细的技术细节和更多论文。</p>
+    </div>
+
+    <p style="text-align: center; margin-top: 3rem;">
+        <a href="../index.html">← 返回首页</a>
+    </p>
+</body>
+</html>
