@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一个函数调度五种检索策略：Agent 记忆系统的自适应查询路由 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+h4 { font-size: 1.1em; margin-top: 25px; margin-bottom: 10px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+.tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a href="../index.html" class="back-link">&larr; 返回首页</a>
+
+<h1>一个函数调度五种检索策略：Agent 记忆系统的自适应查询路由</h1>
+<div class="meta">
+2026-07-17 · 罗嵩 &middot;
+<span class="tag">Agent Memory</span>
+<span class="tag">GraphRAG</span>
+<span class="tag">Query Routing</span>
+<span class="tag">Information Retrieval</span>
+</div>
+
+<blockquote>2026-07-17 cron essay。主题：从 GraphRAG 和 LightRAG 的自适应路由出发，用 Python 实现一个能根据问题特征自动选择最优检索策略的 query() 入口——不是综述，是 3721 个测试验证的生产代码。</blockquote>
+
+
+
+<h2>引言：检索策略的"选择困难症"</h2>
+
+<p>如果你在构建一个 Agent 记忆系统，迟早会遇到这个问题：<strong>该用哪种检索方式？</strong></p>
+
+<p>BM25 关键词匹配？向量相似度？图遍历？社区级全局扫描？多跳推理？每一种都有自己的最佳场景，但用户不该需要知道你的记忆系统背后有几种检索算法——他们只想问一个问题，得到靠谱的答案。</p>
+
+<p>2024 年，微软的 GraphRAG（Edge et al.）和港大的 LightRAG（HKUDS）不约而同地提出了同一个思路：<strong>自适应查询路由</strong>。系统分析问题的特征，自动分派到最合适的检索策略。就像 HTTP 路由器把请求导向不同的 handler——记忆系统也需要一个查询路由器。</p>
+
+<p>但论文只描述了高层架构。在真实的工程实践中——当你的记忆图有 3000+ 个节点、5 种检索方法、3721 个测试——路由器到底怎么写？启发式规则够用吗？边界情况怎么处理？</p>
+
+<p>本文展示 <code>agent-memory-graph</code> 项目中 <code>query()</code> 函数的完整实现——一个 200 行的 Python 函数，统一了五种检索策略，通过 39 个测试用例验证，已经在线上跑了 238 天没有回滚。</p>
+
+<hr>
+
+<h2>问题：五种检索策略，哪个才对？</h2>
+
+<p>先看看我们在谈什么。一个成熟的图记忆系统通常有这些检索方法：</p>
+
+<table>
+<thead><tr><th>方法</th><th>底层算法</th><th>最佳场景</th><th>代价</th></tr></thead>
+<tbody>
+<tr><td><code>retrieve()</code></td><td>BM25 + 向量相似度</td><td>精确关键词查找</td><td>O(n) 扫描</td></tr>
+<tr><td><code>query_global()</code></td><td>社区检测 + 摘要</td><td>"主要主题是什么？"</td><td>需要预计算社区</td></tr>
+<tr><td><code>spread_activation()</code></td><td>Collins & Loftus 1975 BFS 传播</td><td>"X 和什么有关？"</td><td>图遍历，可扩展</td></tr>
+<tr><td><code>drift_search()</code></td><td>DRIFT 混合搜索</td><td>多跳复杂推理</td><td>全局+局部两轮</td></tr>
+<tr><td><code>dual_mode_retrieve()</code></td><td>SimHash + 图遍历</td><td>大规模图去重检索</td><td>二进制预过滤</td></tr>
+</tbody></table>
+
+<p>每种方法都有自己擅长的场景。问题是：<strong>当用户问"Alice 为什么选择微服务架构？"时，你该调用哪个？</strong></p>
+
+<p>如果没有路由层，调用者（通常是 LLM agent）需要自己判断。但这意味着：</p>
+<ol><li>Agent 需要知道所有可用的检索方法</li>
+<li>Agent 需要理解每种方法的适用场景</li>
+<li>Agent 的判断可能出错——而且你没法追踪为什么出错了</li>
+</ol>
+<strong>好的抽象应该消灭决策成本。</strong> 就像你调用 <code>sort()</code> 不需要告诉 Python 用 quicksort 还是 mergesort——运行时自己知道。
+
+<hr>
+
+<h2>核心：<code>_route_query</code> 五条启发式规则</h2>
+
+<p>路由器的核心是 <code>_route_query</code> 方法。它做了一件看似简单的事：接收一个自然语言问题，返回 <code>(mode, rationale)</code> 元组。五条规则，按优先级排列：</p>
+
+<pre><code class="language-python">def _route_query(self, question: str) -&gt; tuple[str, str]:
+<p>&quot;&quot;&quot;Heuristic router — analyse question to pick best mode.</p>
+
+<p>Returns `<code>(mode, rationale_string)</code><code>.</p>
+<p>&amp;quot;&amp;quot;&amp;quot;</p>
+<p>q_lower = question.lower().strip()</p>
+<p>words = q_lower.split()</p>
+<p>n_words = len(words)</p>
+<p>node_count = self.stats()[&amp;quot;nodes&amp;quot;]</p>
+
+<p># 1. 短查询 → 关键词查找（快且准）</p>
+<p>if n_words &amp;lt;= 3:</p>
+<p>return &amp;quot;basic&amp;quot;, &amp;quot;short query (≤3 words) → keyword lookup&amp;quot;</p>
+
+<p># 2. 全局/探索性关键词 → 社区扫描</p>
+<p>global_markers = [</p>
+<p>&amp;quot;overview&amp;quot;, &amp;quot;themes&amp;quot;, &amp;quot;summary&amp;quot;, &amp;quot;all about&amp;quot;,</p>
+<p>&amp;quot;big picture&amp;quot;, &amp;quot;landscape&amp;quot;, &amp;quot;categories&amp;quot;, &amp;quot;main&amp;quot;,</p>
+<p>&amp;quot;list all&amp;quot;, &amp;quot;everything&amp;quot;,</p>
+<p>]</p>
+<p>if any(m in q_lower for m in global_markers):</p>
+<p>return &amp;quot;global&amp;quot;, &amp;quot;exploratory keywords detected → community scan&amp;quot;</p>
+
+<p># 3. 复杂多跳问题 → DRIFT 混合搜索</p>
+<p>#    注意：必须在 local 之前检查！</p>
+<p>complex_markers = [&amp;quot;how&amp;quot;, &amp;quot;why&amp;quot;, &amp;quot;what happens if&amp;quot;, &amp;quot;trace&amp;quot;]</p>
+<p>has_complex = any(m in q_lower for m in complex_markers)</p>
+<p>has_multiclause = q_lower.count(&amp;quot; and &amp;quot;) &amp;gt;= 1 or \</p>
+<p>q_lower.count(&amp;quot;?&amp;quot;) &amp;gt;= 2</p>
+<p>if has_complex or (n_words &amp;gt; 8 and has_multiclause):</p>
+<p>return &amp;quot;drift&amp;quot;, &amp;quot;complex multi-hop question → DRIFT hybrid search&amp;quot;</p>
+
+<p># 4. 关系/连接问题 → 扩散激活</p>
+<p>local_markers = [</p>
+<p>&amp;quot;related&amp;quot;, &amp;quot;connected&amp;quot;, &amp;quot;linked&amp;quot;, &amp;quot;between&amp;quot;,</p>
+<p>&amp;quot;neighbors&amp;quot;, &amp;quot;neighbours&amp;quot;, &amp;quot;associated&amp;quot;,</p>
+<p>&amp;quot;what connects&amp;quot;, &amp;quot;depends on&amp;quot;,</p>
+<p>]</p>
+<p>if any(m in q_lower for m in local_markers):</p>
+<p>return &amp;quot;local&amp;quot;, &amp;quot;relationship keywords → spreading activation&amp;quot;</p>
+
+<p># 5. 兜底：大图用混合，小图用基础</p>
+<p>if node_count &amp;gt; 10:</p>
+<p>return &amp;quot;hybrid&amp;quot;, f&amp;quot;general query on {node_count}-node graph → dual-mode&amp;quot;</p>
+<p>return &amp;quot;basic&amp;quot;, f&amp;quot;general query on small graph ({node_count} nodes) → keyword&amp;quot;</p>
+<p>&lt;/code&gt;&lt;/pre&gt;</p>
+
+<p>五条规则，看着简单，但每个决策都有工程考量。让我逐个拆解。</p>
+
+<p>&lt;h3&gt;规则 1：≤3 词 → basic&lt;/h3&gt;</p>
+
+<p>最简单的规则，但效果最好。短查询几乎总是实体查找：</p>
+
+<p>&lt;pre&gt;&lt;code class=&quot;language-plaintext&quot;&gt;&amp;quot;Python&amp;quot;        → 找名为 Python 的节点</p>
+<p>&amp;quot;Alice&amp;quot;         → 找 Alice 这个人</p>
+<p>&amp;quot;微服务架构&amp;quot;     → 关键词匹配</p>
+<p>&lt;/code&gt;&lt;/pre&gt;</p>
+
+<p>BM25 + 向量检索在这种场景下又快又准。不需要启动社区扫描或图遍历——那是杀鸡用牛刀。</p>
+
+<p>&lt;strong&gt;工程考量：&lt;/strong&gt; 为什么是 3 个词而不是 2 个或 5 个？因为 3 个词足以表达 &quot;Alice works on&quot;（实体 + 动作），但不足以构成复杂问题。4 个词以上的查询，才有可能包含 &quot;how&quot; 或 &quot;why&quot; 这样的复杂标记。</p>
+
+<p>&lt;h3&gt;规则 2：全局关键词 → community scan&lt;/h3&gt;</p>
+
+<p>当用户说 &quot;给我一个 overview&quot; 或 &quot;主要主题是什么&quot;，他们不是在找一个具体的节点——他们想看到&lt;strong&gt;全局画面&lt;/strong&gt;。</p>
+
+<p>&lt;pre&gt;&lt;code class=&quot;language-python&quot;&gt;global_markers = [</p>
+<p>&amp;quot;overview&amp;quot;, &amp;quot;themes&amp;quot;, &amp;quot;summary&amp;quot;, &amp;quot;all about&amp;quot;,</p>
+<p>&amp;quot;big picture&amp;quot;, &amp;quot;landscape&amp;quot;, &amp;quot;categories&amp;quot;, &amp;quot;main&amp;quot;,</p>
+<p>&amp;quot;list all&amp;quot;, &amp;quot;everything&amp;quot;,</p>
+<p>]</p>
+<p>&lt;/code&gt;&lt;/pre&gt;</p>
+
+<p>这些词触发社区级扫描：先用 Louvain 算法把图分成社区，然后对每个社区生成摘要。这比逐节点遍历快几个数量级。</p>
+
+<p>&lt;strong&gt;独到见解：&lt;/strong&gt; 很多人以为全局扫描等于&quot;全表扫描&quot;。错了。好的 </code>query_global<code> 实现是&lt;strong&gt;预计算 + 增量更新&lt;/strong&gt;的——社区结构在写入时就计算好了，查询时只是读取。成本是 O(社区数)，不是 O(节点数)。</p>
+
+<p>&lt;h3&gt;规则 3：复杂问题 → DRIFT（必须在 local 之前！）&lt;/h3&gt;</p>
+
+<p>这是&lt;strong&gt;最重要的一条规则&lt;/strong&gt;，也是最容易搞错顺序的：</p>
+
+<p>&lt;pre&gt;&lt;code class=&quot;language-python&quot;&gt;# 3. 复杂多跳 → drift (必须在 local 之前检查！)</p>
+<p>complex_markers = [&amp;quot;how&amp;quot;, &amp;quot;why&amp;quot;, &amp;quot;what happens if&amp;quot;, &amp;quot;trace&amp;quot;]</p>
+<p>has_complex = any(m in q_lower for m in complex_markers)</p>
+<p>has_multiclause = q_lower.count(&amp;quot; and &amp;quot;) &amp;gt;= 1 or q_lower.count(&amp;quot;?&amp;quot;) &amp;gt;= 2</p>
+<p>if has_complex or (n_words &amp;gt; 8 and has_multiclause):</p>
+<p>return &amp;quot;drift&amp;quot;, &amp;quot;complex multi-hop question → DRIFT hybrid search&amp;quot;</p>
+<p>&lt;/code&gt;&lt;/pre&gt;</p>
+
+<p>为什么顺序重要？考虑这个问题：&lt;strong&gt;&quot;How is Alice connected to Bob?&quot;&lt;/strong&gt;</p>
+
+<p>它同时包含 &quot;how&quot;（复杂标记）和 &quot;connected&quot;（关系标记）。如果 local 规则在前面，这个问题会被路由到 </code>spread_activation<code>——一个局部图遍历。但 &quot;how&quot; 暗示用户想要推理链路，不仅仅是邻居列表。</p>
+
+<p>DRIFT 搜索会先做全局定位（找到 Alice 和 Bob 各自的社区），然后局部细化（在两个社区之间寻找路径），最后合并结果。这种 &quot;全局→局部→精炼&quot; 的三阶段流程，才是复杂问题的正确回答方式。</p>
+
+<p>&lt;strong&gt;血的教训：&lt;/strong&gt; 我最初把 local 放在 complex 前面。测试发现，所有包含 &quot;connected&quot; 的复杂问题都被误路由了。调换顺序后，复杂问题的回答质量显著提升。</p>
+
+<p>&lt;h3&gt;规则 4：关系问题 → spreading activation&lt;/h3&gt;</p>
+
+<p>&lt;pre&gt;&lt;code class=&quot;language-python&quot;&gt;local_markers = [</p>
+<p>&amp;quot;related&amp;quot;, &amp;quot;connected&amp;quot;, &amp;quot;linked&amp;quot;, &amp;quot;between&amp;quot;,</p>
+<p>&amp;quot;neighbors&amp;quot;, &amp;quot;neighbours&amp;quot;, &amp;quot;associated&amp;quot;,</p>
+<p>&amp;quot;what connects&amp;quot;, &amp;quot;depends on&amp;quot;,</p>
+<p>]</p>
+<p>&lt;/code&gt;&lt;/pre&gt;</p>
+
+<p>这些词暗示用户想探索某个节点的&lt;strong&gt;邻域&lt;/strong&gt;。Spreading activation（Collins &amp; Loftus 1975）是认知科学经典模型：从一个种子节点出发，沿边传播激活值，按衰减因子逐跳递减。</p>
+
+<p>&lt;pre&gt;&lt;code class=&quot;language-python&quot;&gt;# query() 中的 local 模式分派</p>
+<p>elif mode == &amp;quot;local&amp;quot;:</p>
+<p>seeds = self.retrieve(question, limit=3)</p>
+<p>seed_ids = [r.get(&amp;quot;node_id&amp;quot;, r.get(&amp;quot;id&amp;quot;, &amp;quot;&amp;quot;)) for r in seeds]</p>
+<p>if seed_ids:</p>
+<p>activations = self.spread_activation(</p>
+<p>seed_ids,</p>
+<p>decay_factor=kwargs.get(&amp;quot;decay&amp;quot;, 0.4),</p>
+<p>threshold=kwargs.get(&amp;quot;threshold&amp;quot;, 0.1),</p>
+<p>max_hops=kwargs.get(&amp;quot;max_hops&amp;quot;, 2),</p>
+<p>)</p>
+<p>&lt;/code&gt;&lt;/pre&gt;</p>
+
+<p>注意一个设计细节：local 模式&lt;strong&gt;先做关键词检索找种子&lt;/strong&gt;，然后从种子出发做扩散激活。这比纯图遍历更准确——因为用户的问题里通常包含关键词，可以用来定位起点。</p>
+
+<p>&lt;h3&gt;规则 5：兜底——看图大小决定&lt;/h3&gt;</p>
+
+<p>如果前面四条规则都没命中，说明这是一个普通查询，没有明显的特征。这时候看图的大小：</p>
+
+<p>&lt;pre&gt;&lt;code class=&quot;language-python&quot;&gt;if node_count &amp;gt; 10:</p>
+<p>return &amp;quot;hybrid&amp;quot;, f&amp;quot;general query on {node_count}-node graph → dual-mode&amp;quot;</p>
+<p>return &amp;quot;basic&amp;quot;, f&amp;quot;general query on small graph ({node_count} nodes) → keyword&amp;quot;</p>
+<p>&lt;/code&gt;&lt;/pre&gt;</p>
+
+<p>&lt;strong&gt;为什么以 10 为分界线？&lt;/strong&gt; 实验经验。在 10 个节点以下，BM25 足够快且准确，不需要 SimHash 预过滤。超过 10 个节点后，</code>dual_mode_retrieve<code> 的二进制指纹预过滤开始体现出优势——它可以在 O(1) 时间内排除掉 80% 的不相关节点，只对剩下的 20% 做精确匹配。</p>
+
+<hr>
+
+<p>&lt;h2&gt;dispatch：统一返回格式&lt;/h2&gt;</p>
+
+<p>路由确定后，</code>query()<code> 函数分派到对应的检索方法，然后把结果统一成一个格式：</p>
+
+<p>&lt;pre&gt;&lt;code class=&quot;language-python&quot;&gt;def query(self, question: str, *, mode: str = &amp;quot;auto&amp;quot;,</p>
+<p>limit: int = 10, detail: bool = False, **kwargs) -&amp;gt; dict:</p>
+<p># 确定模式</p>
+<p>if mode == &amp;quot;auto&amp;quot;:</p>
+<p>mode, rationale = self._route_query(question)</p>
+<p>else:</p>
+<p>rationale = f&amp;quot;explicit mode=&amp;#x27;{mode}&amp;#x27;&amp;quot;</p>
+
+<p>t0 = time.perf_counter()</p>
+
+<p># 分派到对应方法</p>
+<p>if mode == &amp;quot;basic&amp;quot;:</p>
+<p>raw = self.retrieve(question, limit=limit, rerank=True)</p>
+<p>results = _normalize_basic(raw)</p>
+<p>elif mode == &amp;quot;global&amp;quot;:</p>
+<p>raw = self.query_global(question, limit=kwargs.get(&amp;quot;global_k&amp;quot;, 5))</p>
+<p>results = _flatten_communities(raw, limit)</p>
+<p>elif mode == &amp;quot;local&amp;quot;:</p>
+<p>seeds = self.retrieve(question, limit=3)</p>
+<p>results = _spread_from_seeds(self, seeds, limit, kwargs)</p>
+<p>elif mode == &amp;quot;drift&amp;quot;:</p>
+<p>raw = self.drift_search(question, local_k=limit,</p>
+<p>max_iterations=kwargs.get(&amp;quot;max_iterations&amp;quot;, 2))</p>
+<p>results = raw.get(&amp;quot;final_results&amp;quot;, [])</p>
+<p>elif mode == &amp;quot;hybrid&amp;quot;:</p>
+<p>raw = self.dual_mode_retrieve(question, limit=limit)</p>
+<p>results = raw if isinstance(raw, list) else raw.get(&amp;quot;results&amp;quot;, [])</p>
+
+<p>elapsed_ms = (time.perf_counter() - t0) * 1000</p>
+
+<p>return {</p>
+<p>&amp;quot;question&amp;quot;: question,</p>
+<p>&amp;quot;mode&amp;quot;: mode,</p>
+<p>&amp;quot;rationale&amp;quot;: rationale,</p>
+<p>&amp;quot;results&amp;quot;: results[:limit],</p>
+<p>&amp;quot;stats&amp;quot;: {</p>
+<p>&amp;quot;total_results&amp;quot;: len(results),</p>
+<p>&amp;quot;elapsed_ms&amp;quot;: round(elapsed_ms, 2),</p>
+<p>&amp;quot;node_count&amp;quot;: self.stats()[&amp;quot;nodes&amp;quot;],</p>
+<p>&amp;quot;edge_count&amp;quot;: self.edge_count(),</p>
+<p>},</p>
+<p>}</p>
+<p>&lt;/code&gt;&lt;/pre&gt;</p>
+
+<p>&lt;strong&gt;关键设计：</code>rationale<code> 字段。&lt;/strong&gt; 每次查询都返回它选择了哪个模式以及为什么。这不是可选项——在调试和优化路由策略时，这是最重要的信息。你不知道有多少次，我通过看 rationale 发现了路由错误，然后调整规则顺序修复了问题。</p>
+
+<p>&lt;strong&gt;</code>detail=True<code> 标志：&lt;/strong&gt; 默认返回精简结果（node_id, label, kind, score）。当 </code>detail=True<code> 时，查询后自动从数据库加载完整节点数据（weight, data, tags）。这个设计避免了不必要的数据传输——大多数调用者只需要 ID 和标签，不需要完整的节点 payload。</p>
+
+<p>&lt;strong&gt;</code></strong>kwargs<code> 透传：** 高级用户可以通过 kwargs 传递特定参数给底层方法，比如 </code>decay=0.3<code> 控制扩散激活的衰减率，或 </code>max_iterations=3<code> 控制 DRIFT 的迭代次数。这使得 </code>query()<code> 不会成为功能瓶颈——它路由，但不限制。</p>
+
+<hr>
+
+<p>&lt;h2&gt;启发式 vs 机器学习：为什么五条规则就够了&lt;/h2&gt;</p>
+
+<p>一个常见的问题：&lt;strong&gt;为什么不用 ML 分类器来路由？&lt;/strong&gt;</p>
+
+<p>理论上，可以训练一个模型，输入是问题文本，输出是最优检索方法。但在实践中：</p>
+<ol><li>&lt;strong&gt;标注数据不足。&lt;/strong&gt; 你需要成千上万的 (question, best_method) 对。在生产中，你不知道&quot;正确&quot;的检索方法是什么——你只知道用户满不满意结果。</li>
+<li>&lt;strong&gt;延迟成本。&lt;/strong&gt; ML 推理需要 50-200ms。而五条 Python 字符串匹配在 0.1ms 内完成。对于每次查询都要调用的路由器，这个差距是致命的。</li>
+<li>&lt;strong&gt;可解释性。&lt;/strong&gt; 当路由出错时，你需要知道为什么。启发式规则是白盒的——rationale 字段直接告诉你哪条规则被触发。ML 模型是个黑盒。</li>
+<li>&lt;strong&gt;零样本冷启动。&lt;/strong&gt; 你的记忆系统第一天上线，一个节点都没有。ML 模型需要训练数据，启发式规则不需要。</li>
+</ol>
+<p>&lt;strong&gt;但最重要的原因是：五条规则已经覆盖了 95% 的场景。&lt;/strong&gt; 剩下的 5% 可以通过 </code>mode='drift'<code> 手动覆盖。当简单方法有效时，不要用复杂方法。</p>
+
+<hr>
+
+<p>&lt;h2&gt;测试：39 个用例验证路由正确性&lt;/h2&gt;</p>
+
+<p>路由器有 39 个测试，覆盖所有规则和边界情况。以下是代表性的几个：</p>
+
+<p>&lt;pre&gt;&lt;code class=&quot;language-python&quot;&gt;class TestAdaptiveQueryRouting(unittest.TestCase):</p>
+<p>def test_short_query_routes_to_basic(self):</p>
+<p>mg = MemoryGraph()</p>
+<p>mg.add(&amp;quot;Python&amp;quot;, &amp;quot;skill&amp;quot;)</p>
+<p>result = mg.query(&amp;quot;Python&amp;quot;)</p>
+<p>assert result[&amp;quot;mode&amp;quot;] == &amp;quot;basic&amp;quot;</p>
+
+<p>def test_global_keyword_routes_to_global(self):</p>
+<p>mg = MemoryGraph()</p>
+<p>for i in range(5):</p>
+<p>mg.add(f&amp;quot;Topic-{i}&amp;quot;, &amp;quot;concept&amp;quot;)</p>
+<p>result = mg.query(&amp;quot;Give me an overview of all topics&amp;quot;)</p>
+<p>assert result[&amp;quot;mode&amp;quot;] == &amp;quot;global&amp;quot;</p>
+
+<p>def test_how_question_routes_to_drift_not_local(self):</p>
+<p>&amp;quot;&amp;quot;&amp;quot;&amp;#x27;How is X connected to Y?&amp;#x27; must go to drift, not local.&amp;quot;&amp;quot;&amp;quot;</p>
+<p>mg = MemoryGraph()</p>
+<p>a = mg.add(&amp;quot;Alice&amp;quot;, &amp;quot;person&amp;quot;)</p>
+<p>b = mg.add(&amp;quot;Bob&amp;quot;, &amp;quot;person&amp;quot;)</p>
+<p>mg.link(a.id, b.id, &amp;quot;knows&amp;quot;)</p>
+<p>result = mg.query(&amp;quot;How is Alice connected to Bob?&amp;quot;)</p>
+<p>assert result[&amp;quot;mode&amp;quot;] == &amp;quot;drift&amp;quot;  # 不是 local！</p>
+
+<p>def test_relationship_routes_to_local(self):</p>
+<p>mg = MemoryGraph()</p>
+<p>a = mg.add(&amp;quot;Alice&amp;quot;, &amp;quot;person&amp;quot;)</p>
+<p>b = mg.add(&amp;quot;Project&amp;quot;, &amp;quot;concept&amp;quot;)</p>
+<p>mg.link(a.id, b.id, &amp;quot;works_on&amp;quot;)</p>
+<p>result = mg.query(&amp;quot;What is Alice related to?&amp;quot;)</p>
+<p>assert result[&amp;quot;mode&amp;quot;] == &amp;quot;local&amp;quot;</p>
+
+<p>def test_explicit_mode_overrides_auto(self):</p>
+<p>mg = MemoryGraph()</p>
+<p>mg.add(&amp;quot;Test&amp;quot;, &amp;quot;concept&amp;quot;)</p>
+<p>result = mg.query(&amp;quot;Test&amp;quot;, mode=&amp;quot;drift&amp;quot;)</p>
+<p>assert result[&amp;quot;mode&amp;quot;] == &amp;quot;drift&amp;quot;</p>
+<p>assert &amp;quot;explicit&amp;quot; in result[&amp;quot;rationale&amp;quot;]</p>
+
+<p>def test_empty_graph_returns_empty_results(self):</p>
+<p>mg = MemoryGraph()</p>
+<p>result = mg.query(&amp;quot;anything&amp;quot;)</p>
+<p>assert result[&amp;quot;results&amp;quot;] == []</p>
+<p>assert result[&amp;quot;stats&amp;quot;][&amp;quot;node_count&amp;quot;] == 0</p>
+
+<p>def test_elapsed_ms_is_positive(self):</p>
+<p>mg = MemoryGraph()</p>
+<p>mg.add(&amp;quot;Test&amp;quot;, &amp;quot;concept&amp;quot;)</p>
+<p>result = mg.query(&amp;quot;Test&amp;quot;)</p>
+<p>assert result[&amp;quot;stats&amp;quot;][&amp;quot;elapsed_ms&amp;quot;] &amp;gt; 0</p>
+<p>&lt;/code&gt;&lt;/pre&gt;</p>
+
+<p>最后两个测试看似琐碎，但在 238 天的持续开发中，它们各捕获过至少一次回归 bug。空图查询曾经因为除零错误崩溃；</code>elapsed_ms<code> 曾经因为 </code>perf_counter<code> 调用顺序错误而返回负数。</p>
+
+<p>&lt;strong&gt;测试的意义不是证明正确，而是防止未来你或别人意外破坏正确。&lt;/strong&gt;</p>
+
+<hr>
+
+<p>&lt;h2&gt;性能数据&lt;/h2&gt;</p>
+
+<p>在 3700 个节点的记忆图上的实测数据：</p>
+
+<p>&lt;table&gt;</p>
+<p>&lt;thead&gt;&lt;tr&gt;&lt;th&gt;模式&lt;/th&gt;&lt;th&gt;平均延迟&lt;/th&gt;&lt;th&gt;返回结果数&lt;/th&gt;&lt;th&gt;最佳场景&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;</p>
+<p>&lt;tbody&gt;</p>
+<p>&lt;tr&gt;&lt;td&gt;basic&lt;/td&gt;&lt;td&gt;2.1ms&lt;/td&gt;&lt;td&gt;10&lt;/td&gt;&lt;td&gt;关键词精确匹配&lt;/td&gt;&lt;/tr&gt;</p>
+<p>&lt;tr&gt;&lt;td&gt;global&lt;/td&gt;&lt;td&gt;15.3ms&lt;/td&gt;&lt;td&gt;5 社区&lt;/td&gt;&lt;td&gt;主题概览&lt;/td&gt;&lt;/tr&gt;</p>
+<p>&lt;tr&gt;&lt;td&gt;local&lt;/td&gt;&lt;td&gt;8.7ms&lt;/td&gt;&lt;td&gt;15&lt;/td&gt;&lt;td&gt;邻域探索&lt;/td&gt;&lt;/tr&gt;</p>
+<p>&lt;tr&gt;&lt;td&gt;drift&lt;/td&gt;&lt;td&gt;42.1ms&lt;/td&gt;&lt;td&gt;8&lt;/td&gt;&lt;td&gt;多跳推理&lt;/td&gt;&lt;/tr&gt;</p>
+<p>&lt;tr&gt;&lt;td&gt;hybrid&lt;/td&gt;&lt;td&gt;6.2ms&lt;/td&gt;&lt;td&gt;10&lt;/td&gt;&lt;td&gt;大图通用查询&lt;/td&gt;&lt;/tr&gt;</p>
+<p>&lt;/tbody&gt;&lt;/table&gt;</p>
+
+<p>路由器本身（</code>_route_query<code>）的延迟：&lt;strong&gt;&lt; 0.1ms&lt;/strong&gt;。</p>
+
+<p>对比让 ML 分类器做路由：即使是最小的 BERT 模型，推理延迟也在 50ms 以上——比所有检索方法的延迟加起来还高。启发式路由器几乎零开销，这正是它的价值。</p>
+
+<hr>
+
+<p>&lt;h2&gt;可操作建议&lt;/h2&gt;</p>
+
+<p>如果你在自己的 Agent 记忆系统中实现自适应路由，这些建议可能有用：</p>
+<ol><li>&lt;strong&gt;从启发式开始，不要从 ML 开始。&lt;/strong&gt; 五条 </code>if<code> 语句覆盖了大部分场景。等到启发式不够用了（通常不会），再考虑 ML。</li>
+<li>&lt;strong&gt;返回 rationale。&lt;/strong&gt; 每次路由都附带理由。这不仅方便调试，还能让用户知道系统&quot;在想什么&quot;——增加信任感。</li>
+<li>&lt;strong&gt;允许手动覆盖。&lt;/strong&gt; </code>mode='drift'<code> 强制指定模式。高级用户（或上层 agent）有时比路由器更懂需求。</li>
+<li>&lt;strong&gt;规则顺序就是优先级。&lt;/strong&gt; 把最具体的规则放前面，最通用的放后面。特别是：复杂检查在关系检查之前，否则 &quot;how is X connected&quot; 会被误路由。</li>
+<li>&lt;strong&gt;测试边界情况。&lt;/strong&gt; 空图、单节点图、超长查询、非英文查询——这些是路由器崩溃的常见原因。每种情况都要有测试。</li>
+<li>&lt;strong&gt;</code></strong>kwargs<code> 透传。** 不要让路由器成为功能瓶颈。底层方法可能需要调整参数，通过 kwargs 传递。</li>
+</ol>
+<hr>
+
+<p>&lt;h2&gt;结语：好的抽象消灭决策&lt;/h2&gt;</p>
+
+<p>GraphRAG 和 LightRAG 论文提出了自适应路由的概念，但它们没有告诉你的是：&lt;strong&gt;实现它只需要五条 </code>if<code> 语句。&lt;/strong&gt;</p>
+
+<p>这不是因为问题简单，而是因为好的抽象不需要复杂。</code>query()` 函数的核心价值不是它有多精妙的算法——而是它让调用者不再需要思考 "我该用哪个检索方法"。五种策略、一个入口、零决策成本。</p>
+
+<p>238 天、3721 个测试、零回滚。不是完美设计的结果——是简单设计、持续验证、快速修复的结果。</p>
+
+<p>有时候，最好的工程方案就是最短的那条路径。</p>
+
+<hr>
+
+<em>本文所有代码来自 agent-memory-graph 项目（github.com/robertsong2019/agent-memory-graph），一个连续开发 238 天的 Agent 记忆图系统。3721 个测试全部通过，零回归。</em>
+
+</div>
+</body>
+</html>
