@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>纯向量检索已死：Agent 记忆数据库的三引擎融合 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .footnote { color: #8b949e; font-size: 0.85rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+        .insight-box { background: #1a2332; border: 1px solid var(--accent); border-radius: 8px; padding: 1rem 1.2rem; margin: 1.5rem 0; }
+        .insight-box .label { color: var(--accent); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body>
+    <h1>纯向量检索已死：Agent 记忆数据库的三引擎融合</h1>
+    <div class="meta">
+        2026-07-16 · 罗嵩 ·
+        <span class="tag">Agent Memory</span>
+        <span class="tag">Knowledge Graph</span>
+        <span class="tag">Vector Search</span>
+        <span class="tag">Mem0</span>
+        <span class="tag">Zep</span>
+    </div>
+
+    <blockquote>你的 Agent 记得用户上周说要换工作吗？记得他半年前提过的过敏药物吗？如果你的答案是"我们用了向量数据库"——你可能在解决一个比你想的难得多的问题，用了一个比你想的弱得多的工具。</blockquote>
+
+    <p>这篇文章讲的是 2024-2026 年间，AI Agent 记忆系统经历的一次安静但深刻的架构革命。这不是又一篇"RAG 入门"——这是一份关于<strong>记忆基础设施正在如何被重新设计</strong>的深度分析。</p>
+
+    <h2>一、为什么"把所有东西丢进向量库"不好使了？</h2>
+
+    <p>先说一个让很多人不舒服的事实：<strong>RAG 是为文档设计的，不是为对话设计的。</strong></p>
+
+    <p>传统 RAG 的流程很优雅：文档 → 切块 → 嵌入 → 向量数据库 → 查询时 Top-K → 拼到 prompt 里。对于"查询公司请假政策"这种场景，它很好用。</p>
+
+    <p>但 Agent 的记忆需求完全不同：</p>
+
+    <ul>
+        <li><strong>事实会变</strong>："我用 Postgres" → 三个月后变成 "我们迁移到了 CockroachDB"。向量库里两条记录都在，哪条是当前的？</li>
+        <li><strong>关系很重要</strong>："张三是我老板"不仅是一个事实，它还隐含了"张三批准我的休假"、"张三的优先级高于我"。向量检索看不到关系。</li>
+        <li><strong>时间维度</strong>："上次他说喜欢 A" 和 "他现在喜欢 A" 是完全不同的信息。向量嵌入没有时间戳的概念。</li>
+        <li><strong>来源要可追溯</strong>：当 Agent 基于一条记忆做决策时，你需要知道这条记忆是从哪次对话中提取的。出了问题，你得能溯源。</li>
+    </ul>
+
+    <p>所以问题不是"向量检索不好"，而是<strong>单一信号——无论是什么信号——都不够</strong>。</p>
+
+    <h2>二、三引擎融合：SQL + Vector + Graph</h2>
+
+    <p>2025-2026 年最值得关注的架构创新，是<strong>存储层的垂直分离</strong>。Mem0 给出了最清晰的实现：</p>
+
+    <table>
+        <thead><tr><th>存储引擎</th><th>存什么</th><th>解决什么查询</th></tr></thead>
+        <tbody>
+            <tr><td>SQL 数据库</td><td>结构化事实 + 元数据</td><td>精确查询、过滤、排序</td></tr>
+            <tr><td>向量数据库</td><td>语义嵌入</td><td>"跟这个概念相似的记忆有哪些"</td></tr>
+            <tr><td>图存储</td><td>实体关系</td><td>"跟这个人/项目相关的所有事实"</td></tr>
+        </tbody>
+    </table>
+
+    <p>这不是"三个库做三件事"——而是<strong>同一条记忆同时存在于三个存储中</strong>，每个存储服务于不同的检索信号。当你查询时，三路结果通过排序融合（如 RRF）给出最终答案。</p>
+
+    <p>类比一下：就像人脑有工作记忆（前额叶）、情景记忆（海马体）、语义记忆（新皮层）——不同脑区负责不同模式的信息处理，但它们是协同工作的。</p>
+
+    <h2>三、时间是记忆的第一公民</h2>
+
+    <p>这是我认为被严重低估的一个创新。</p>
+
+    <p>Zep/Graphiti 的核心贡献不是"用了知识图谱"——GraphRAG 也用了。它真正的突破是<strong>双时序知识图谱（Bi-temporal Knowledge Graph）</strong>：</p>
+
+    <ul>
+        <li>每条事实有 <code>valid_from</code> 和 <code>valid_to</code> 两个时间戳</li>
+        <li>当事实改变时，旧事实被 <strong>废止（invalidate）</strong>，而非删除</li>
+        <li>查询可以指定 "as-of" 语义："截至 2026 年 3 月，用户的偏好是什么？"</li>
+    </ul>
+
+    <div class="insight-box">
+        <div class="label">💡 为什么这比听起来重要？</div>
+        <p>想象一个客服 Agent。用户 1 月说"我对青霉素过敏"，3 月说"医生确认了可以用药"。如果没有时序管理，Agent 可能同时检索到两条矛盾的信息，不知道哪条是最新的。有了时序图谱，Agent 知道 3 月的信息废止了 1 月的——<strong>矛盾自动消解</strong>。</p>
+    </div>
+
+    <p>这比图谱结构本身更重要。图谱是骨架，时序是语义。一个没有时序的知识图谱，就像一个没有时间轴的历史书——所有事件都堆在一起，你分不清因果。</p>
+
+    <h2>四、四信号混合检索：新的工程标准</h2>
+
+    <p>基于 Mem0 和 Zep 的实践，行业已经收敛出<strong>四个正交的检索信号</strong>：</p>
+
+    <table>
+        <thead><tr><th>信号</th><th>技术</th><th>擅长</th><th>失败场景</th></tr></thead>
+        <tbody>
+            <tr><td>语义</td><td>向量相似度</td><td>"跟我概念上相关的东西"</td><td>精确名称、代码、ID</td></tr>
+            <tr><td>关键词</td><td>BM25</td><td>名称、标识符、精确匹配</td><td>同义词、概念变体</td></tr>
+            <tr><td>实体</td><td>图遍历</td><td>关系查询、多跳推理</td><td>独立的事实查询</td></tr>
+            <tr><td>时序</td><td>时间窗口过滤</td><td>"最近""之前""什么时候"</td><td>非时间性查询</td></tr>
+        </tbody>
+    </table>
+
+    <p>关键工程问题：<strong>怎么融合四路结果？</strong></p>
+
+    <p>标准答案是 <strong>Reciprocal Rank Fusion (RRF)</strong>：</p>
+
+    <pre><code># RRF 融合公式——简单但极其有效
+def rrf_fusion(rankings, k=60):
+    scores = {}
+    for ranking in rankings:
+        for rank, doc_id in enumerate(ranking):
+            scores[doc_id] = scores.get(doc_id, 0) + 1 / (k + rank + 1)
+    return sorted(scores, key=scores.get, reverse=True)
+
+# 四路检索 → 各自排序 → RRF 融合
+final_results = rrf_fusion([
+    semantic_search(query, top_k=50),
+    bm25_search(query, top_k=50),
+    entity_graph_search(query, top_k=50),
+    temporal_filter_search(query, top_k=50),
+])</code></pre>
+
+    <p>RRF 之美在于它不需要校准分数——只看排名。语义相似度 0.87 和 BM25 分数 15.3 没有可比性，但排名 #1 和排名 #3 是可比的。这使得融合极其鲁棒。</p>
+
+    <h2>五、Mem0 vs Zep：两大阵营的设计哲学</h2>
+
+    <p>这是 2026 年 Agent 记忆领域最重要的技术选型决策。让我用一个比喻来解释它们的区别：</p>
+
+    <p><strong>Mem0 像一个高效的档案管理员</strong>——它听你说话，提取关键信息，分类归档。查询时，它快速翻到最相关的几页。简单、高效、适合"记住用户偏好"级别的需求。</p>
+
+    <p><strong>Zep 像一个侦探</strong>——它不仅记录你说的话，还追踪你说这些话的时间、你后来改了什么主意、各条信息之间有什么隐藏的联系。查询时，它可以做时间线重建和多跳推理。复杂、强大、适合需要深度推理的场景。</p>
+
+    <table>
+        <thead><tr><th>维度</th><th>Mem0</th><th>Zep/Graphiti</th></tr></thead>
+        <tbody>
+            <tr><td>核心架构</td><td>向量 + 实体图 + SQL</td><td>时序知识图谱</td></tr>
+            <tr><td>记忆更新</td><td>追加式（新事实不会自动废止旧事实）</td><td>自动废止（新事实自动标记旧事实无效）</td></tr>
+            <tr><td>时间推理</td><td>有限（时间元数据过滤）</td><td>完整（bi-temporal，支持 as-of 查询）</td></tr>
+            <tr><td>LOCOMO 基准</td><td>26% 相对提升 vs OpenAI</td><td>LongMemEval +18.5% vs full-context</td></tr>
+            <tr><td>p95 延迟</td><td>91% 降低 vs full-context</td><td>90% 降低 vs full-context</td></tr>
+            <tr><td>适合场景</td><td>偏好记忆、事实提取、个性化推荐</td><td>复杂关系、时间推理、企业知识管理</td></tr>
+            <tr><td>运维复杂度</td><td>低（托管版零配置）</td><td>中（需要 Neo4j 或兼容图数据库）</td></tr>
+        </tbody>
+    </table>
+
+    <p>还有第三个选择：<strong>Letta（原 MemGPT）</strong>。它的设计哲学完全不同——不是"存什么"，而是"怎么管"。它把 LLM 的 context window 当作 RAM，把外部存储当作硬盘，用类似操作系统的页面置换算法自动管理上下文。适合超长对话和需要"反思"能力的 Agent。</p>
+
+    <h2>六、来源追踪：从可选功能到安全必需品</h2>
+
+    <p>2026 年的 Agent 安全年，<strong>记忆投毒攻击</strong>已经成为真实威胁。ShadowMerge 论文展示了 93.8% 成功率攻破 Mem0 图记忆系统——攻击者不需要任何特殊权限，只需要通过正常对话就能把恶意信息注入 Agent 的知识图谱。</p>
+
+    <p>在这种背景下，Zep 的 <strong>Episodes</strong> 设计——每条派生事实都追溯到原始输入——从审计需求升级为安全防线：</p>
+
+    <pre><code>// 每条记忆的结构
+{
+    fact: "User prefers Postgres",
+    confidence: 0.95,
+    source: {
+        episode_id: "ep_2026_03_15_002",
+        raw_message: "我们项目决定用 Postgres",
+        timestamp: "2026-03-15T10:30:00Z",
+        speaker: "user"
+    },
+    valid_from: "2026-03-15",
+    valid_to: null  // 仍然有效
+}</code></pre>
+
+    <p>当一条高影响力记忆（影响 Agent 决策路径的记忆）的来源可疑时——比如 confidence 低、source 不匹配、或来自非正常对话时段——安全系统可以自动拦截。</p>
+
+    <div class="insight-box">
+        <div class="label">⚠️ 实践建议</div>
+        <p>如果你在设计生产 Agent 的记忆系统，<strong>从第一天就加上 provenance 追踪</strong>。事后补的成本是指数级的——你需要为每条已有记忆回溯来源，而很多来源信息可能已经丢失。</p>
+    </div>
+
+    <h2>七、MCP 正在统一记忆访问协议</h2>
+
+    <p>最后说一个趋势：记忆正在从"每个 Agent 一个私有库"变成"跨 Agent 共享基础设施"。</p>
+
+    <p>Zep 已经发布了 MCP Server，Mem0 也在跟进。这意味着什么？你的 Claude Desktop、Cursor 编辑器、自研 Agent 可以共享同一个用户记忆图谱——你在 Cursor 里告诉它"我用 Tailwind CSS"，你的客服 Agent 自动也知道这个信息。</p>
+
+    <p>这跟数据库的历史如出一辙：</p>
+    <ol>
+        <li>第一阶段：每个应用内嵌自己的存储（文件、SQLite）</li>
+        <li>第二阶段：独立的数据库服务（MySQL、Postgres）</li>
+        <li>第三阶段：标准化的查询协议（SQL、ODBC、JDBC）</li>
+    </ol>
+
+    <p>Agent 记忆正在进入第三阶段。<strong>MCP 就是记忆层的 SQL。</strong></p>
+
+    <h2>你今天可以做什么</h2>
+
+    <p>不需要从零构建一个 Zep。以下是三个可以立刻执行的改进：</p>
+
+    <p><strong>1. 给向量检索加上 BM25（如果你还没做）</strong></p>
+    <p>这是性价比最高的改进。80 行代码实现 BM25 + RRF 融合，对精确匹配场景的提升是立竿见影的。大多数向量数据库（Qdrant、Weaviate、Milvus）已经内置了混合检索支持，只需要开启。</p>
+
+    <p><strong>2. 给记忆加时间戳和 as-of 查询</strong></p>
+    <p>不需要完整的时序知识图谱。在现有记忆表里加 <code>valid_from</code> 和 <code>valid_to</code> 列，更新记忆时设置旧记忆的 <code>valid_to</code> 而非删除。查询时支持时间过滤。<strong>50 行代码的改动，解决 80% 的时序问题。</strong></p>
+
+    <p><strong>3. 记录记忆来源</strong></p>
+    <p>在记忆写入时额外存储 <code>source_message_id</code>、<code>source_type</code>（对话/文档/系统推断）、<code>confidence</code>。这不解决当前问题，但当你遇到记忆投毒或错误推理时，你会感谢过去的自己。</p>
+
+    <hr>
+
+    <p>记忆系统是 Agent 的地基。地基不牢，上面的推理、规划、工具调用都是空中楼阁。2026 年的地基标准已经从"有个向量库"升级到了"三引擎融合 + 时序管理 + 来源追溯"。<strong>这不是过度工程，这是生产环境的最低要求。</strong></p>
+
+    <div class="footnote">
+        <p><strong>参考系统：</strong> Mem0 (arXiv:2504.19413) · Zep/Graphiti (arXiv:2501.13956) · Letta/MemGPT (arXiv:2310.08560) · Long Term Memory (arXiv:2410.15665)</p>
+        <p><strong>探索笔记：</strong> 完整研究笔记保存在 <code>catalyst-research/exploration-notes/2026-07-16-agent-memory-database-convergence.md</code></p>
+    </div>
+
+    <p style="margin-top: 2rem;"><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
