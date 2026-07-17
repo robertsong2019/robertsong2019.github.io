@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>洗碗机、形式化证明与 AI 编程的终局 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: rgba(88,166,255,0.15); color: var(--accent); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; margin-right: 0.3rem; }
+        .highlight { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem 1.2rem; margin: 1.5rem 0; }
+        .highlight p { margin-bottom: 0; }
+        strong { color: var(--heading); }
+        .back-link { display: inline-block; margin-top: 2rem; color: var(--accent); }
+        hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+        .analogy-box { background: rgba(46,160,67,0.08); border: 1px solid rgba(46,160,67,0.3); border-radius: 8px; padding: 1.2rem 1.5rem; margin: 1.5rem 0; }
+        .analogy-box p { margin-bottom: 0.3rem; }
+        .timeline-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin: 1.5rem 0; }
+        .timeline-box h3 { margin-top: 0; }
+    </style>
+</head>
+<body>
+    <h1>洗碗机、形式化证明与 AI 编程的终局</h1>
+    <div class="meta">
+        2026-07-17 · 罗嵩 ·
+        <span class="tag">AI编程</span>
+        <span class="tag">形式化验证</span>
+        <span class="tag">CompCert</span>
+        <span class="tag">思考</span>
+    </div>
+
+    <p>我有一个判断：AI 写代码，最终会彻底碾压人类。</p>
+
+    <p>不是"比人类快一点"，不是"在某些领域超越"，而是像洗碗机对手洗那样——<strong>范式性碾压</strong>。这篇文章解释为什么我对此相当确定。</p>
+
+    <h2>洗碗机为什么比手洗干净？</h2>
+
+    <p>先说洗碗机。很多人觉得洗碗机就是个"自动刷碗的机器"，但它不是。洗碗机的工作原理是 <strong>70°C 高温水流 + 高压喷淋 + 专用清洁剂</strong>。人手受不了 70°C 的水，也没法持续施加那种压力。</p>
+
+    <div class="analogy-box">
+        <p>洗碗机赢的方式，不是"模仿人手洗得更好"，而是<strong>换了一个完全不同的范式</strong>——用了人类根本做不到的物理条件。</p>
+    </div>
+
+    <p>AI 写代码的碾压逻辑完全一样。它不是"打字比人快"，而是引入了人类做不到（或不愿做）的验证维度。</p>
+
+    <h2>程序是可验证的闭环——这是 AI 的独特优势</h2>
+
+    <p>写作、画画、音乐，这些东西的质量是主观的，没法"证明对错"。AI 在这些领域可以很强，但永远没法<strong>证明</strong>自己比人好。</p>
+
+    <p>但代码不一样。代码是可验证的：</p>
+
+    <ol>
+        <li><strong>测试驱动</strong> — 机器跑 10000 个测试用例不会累，人会</li>
+        <li><strong>类型系统</strong> — 编译器在代码运行前就排除了整类错误</li>
+        <li><strong>模糊测试</strong> — 机器可以每秒生成数万个随机输入来发现边界 bug</li>
+        <li><strong>静态分析</strong> — 不运行代码就能检测安全漏洞和逻辑错误</li>
+        <li><strong>形式化证明</strong> — 用数学方式<strong>证明</strong>程序在数学上没有漏洞</li>
+    </ol>
+
+    <p>这五层验证，每一层都是"机器比人强"的领域。而最厉害的是第五层——形式化证明。</p>
+
+    <h2>CompCert：一个真实的证据</h2>
+
+    <p>2009 年，法国 INRIA 做了一件事：用 Coq 定理证明器，从数学上证明了他们写的 C 编译器 <strong>CompCert</strong> 的语义正确性。不是"测了很多用例没发现问题"，是<strong>数学上证明了不会出问题</strong>。</p>
+
+    <p>后来有一个著名的模糊测试实验（Yang et al., 2011），用 Csmith 随机生成数百万个 C 程序，喂给各大编译器。结果：</p>
+
+    <div class="highlight">
+        <p><strong>所有编译器——GCC、LLVM、Intel ICC——都被找到了 bug。只有 CompCert 没有。</strong></p>
+    </div>
+
+    <p>不是 CompCert 的开发者比 GCC/LLVM 的开发者聪明。是因为 GCC/LLVM 依赖人类 review + 测试来保证正确性，而 CompCert 用数学证明。<strong>这是范式的胜利，不是智力的胜利。</strong></p>
+
+    <p>类似的项目还有 <strong>seL4 微内核</strong>——世界上第一个从形式化证明到二进制完全验证的操作系统内核。9000+ 行 Isabelle 证明脚本，证明了内核的功能正确性。这种工作，人类团队花几年时间才能做一次。但如果 AI 能自动化这个过程呢？</p>
+
+    <h2>关键区分：证明 ≠ 没有 Bug</h2>
+
+    <p>这里有一个必须说清楚的区分：形式化证明证明的不是"程序没有 bug"，而是<strong>"程序符合规约（specification）"</strong>。</p>
+
+    <blockquote>
+        数学证明能保证 implementation 正确，但不能保证 specification 正确。<br>
+        规约本身的正确性，仍然是人的问题。
+    </blockquote>
+
+    <p>如果 spec 写错了，证明了也没用——你证明了"程序正确地做了一件错误的事"。</p>
+
+    <p>但 AI 的进化路径很清晰：先自动化 implementation 的验证，再逐步自动化 specification 的生成和验证。当 AI 能从自然语言描述自动生成 spec → 生成代码 → 生成证明 → 全部验证通过——那才是真正的闭环。</p>
+
+    <h2>AI + 形式化验证：碾压的公式</h2>
+
+    <p>更准确的说法不是"AI 会碾压人类"，而是：</p>
+
+    <div class="highlight">
+        <p><strong>"AI + 形式化验证 + 自动测试闭环" 这个组合会碾压"纯人类手写代码"。</strong></p>
+    </div>
+
+    <p>就像洗碗机不是单独一个刷子在赢，是高温 + 水压 + 清洁剂 + 定时器的系统工程在赢。</p>
+
+    <p>而且这个闭环的速度是碾压性的。AI 写代码 → 自动测试 → 发现失败 → 自动修复 → 重新验证——这个循环可以每秒跑几次，人类一天只能跑几次。反馈循环快几个数量级，学习速度就快几个数量级。</p>
+
+    <h2>现实约束</h2>
+
+    <p>我不是盲目乐观。有几个现实约束：</p>
+
+    <p><strong>1. 形式化验证的成本极高。</strong> seL4 的证明大约是 1 行代码 : 100 行证明脚本。人类手动写证明的成本让形式化验证只能用在关键系统上。但 AI 自动生成证明的能力正在快速提升——Lean 4 + AI 已经能自动证明不少数学定理了（AlphaProof, 2024 IMO 银牌水平）。</p>
+
+    <p><strong>2. 不是所有代码都需要形式化证明。</strong> UI 布局、业务逻辑、配置文件——这些用测试覆盖就够了。形式化验证应该用在关键路径上：密码学、协议实现、内核、分布式共识。AI 的价值在于<strong>自动判断哪部分需要什么级别的验证</strong>。</p>
+
+    <p><strong>3. 这个转变不是一夜之间。</strong> 但方向是确定的。</p>
+
+    <h2>时间线预测</h2>
+
+    <div class="timeline-box">
+        <p><strong>2-3 年内：</strong>AI 自动生成测试 + 类型安全 + 属性测试，在大多数业务代码上达到或超过人类水准。很多团队已经在用。</p>
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 1rem 0;">
+        <p><strong>5 年内：</strong>AI + 形式化证明工具（Lean/Coq）集成到日常开发流程。关键路径自动验证。形式化验证的成本从"几年一个人"降到"几分钟一次"。</p>
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 1rem 0;">
+        <p><strong>更远：</strong>从 spec 到 implementation 到 proof 全自动。人类只负责描述"我想要什么"。程序员的工作从"写代码"变成"写规约"。</p>
+    </div>
+
+    <h2>结语</h2>
+
+    <p>Karpathy 说 Software 1.0 是人类写规则，2.0 是神经网络学权重，3.0 是用自然语言指导 AI 生成整个系统。每一层都是抽象的升级，而形式化验证是让这种升级<strong>可信</strong>的基础设施。</p>
+
+    <p>程序的可验证性，是 AI 超越人类的唯一可靠路径。其他领域没法闭环验证，所以不会有这种确定性。而在编程这个领域——CompCert 已经证明了范式可行，AI 将让它从"花几年证明一个编译器"变成"几分钟证明一个函数"。</p>
+
+    <p>洗碗机不会模仿人手洗。AI 不会模仿人手写代码。<strong>它会用人类做不到的方式，做人类做不到的事。</strong></p>
+
+    <p>这个判断，我很确定。</p>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</body>
+</html>
