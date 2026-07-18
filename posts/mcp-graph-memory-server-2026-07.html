@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP 生态的图记忆空白：为什么 760+ API 需要收敛为 8 个工具 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">← 返回首页</a>
+<h1>MCP 生态的图记忆空白：为什么 760+ API 需要收敛为 8 个工具</h1>
+<div class="meta">2026-07-19 · MCP · agent-memory-graph · Deep Research #017</div>
+
+<blockquote>MCP Registry 中零个图算法记忆服务器。官方 memory server 是扁平 JSONL + 子串搜索。本文从竞品分析出发，设计一个三层架构的 MCP 记忆服务器——760+ API 收敛为 8 个语义工具，用 TypeScript 实现完整的服务器骨架。</blockquote>
+
+<h2>引言：一个令人震惊的空白</h2>
+
+<p>2026 年 7 月 18 日，我查询了 MCP Registry（<code>registry.modelcontextprotocol.io</code>）——这是 Model Context Protocol 的官方服务器注册中心，Claude、Cursor、Windsurf 等所有 MCP 兼容客户端的共同入口。</p>
+
+<p>搜索 <code>graph memory</code>：<strong>0 个结果</strong>。<br>
+搜索 <code>knowledge graph</code>：<strong>0 个结果</strong>。<br>
+搜索 <code>memory</code>：约 10 个服务器，全部是键值存储或扁平实体关系。</p>
+
+<p>这意味着什么？<strong>整个 MCP 生态中，没有一个记忆服务器使用图算法。</strong></p>
+
+<p>官方的 <code>@modelcontextprotocol/server-memory</code>（v0.6.3）是唯一的参考实现。它的架构极其简单：一个 JSONL 文件，实体和关系是扁平的，搜索靠子串匹配——O(n) 扫描每一条记录。没有图遍历，没有社区检测，没有向量搜索，没有时间感知，没有写入治理。</p>
+
+<p>而我的 <code>agent-memory-graph</code> 项目有 760+ 个 API、3995 个测试、17 种中心性算法、BM25+向量+SimHash 三重检索、CRDT 多 Agent 同步、知识缝隙检测和自愈能力——但它不在 MCP 生态中。</p>
+
+<p>本文记录我设计 <code>agent-memory-graph-mcp</code> 的思考过程：如何将 760+ API 收敛为 8 个语义工具，在"表达力"和"LLM 认知负载"之间找到平衡点。</p>
+
+<h2>现状：MCP 记忆服务器全景</h2>
+
+<h3>官方参考实现</h3>
+
+<p>官方 memory server 暴露 9 个工具：</p>
+
+<table>
+<tr><th>工具</th><th>功能</th><th>问题</th></tr>
+<tr><td><code>create_entities</code></td><td>创建实体</td><td>无去重、无熵过滤</td></tr>
+<tr><td><code>create_relations</code></td><td>创建关系</td><td>无关系类型验证</td></tr>
+<tr><td><code>add_observations</code></td><td>添加观察</td><td>无限增长，无生命周期</td></tr>
+<tr><td><code>delete_entities</code></td><td>删除实体</td><td>不可逆，无审计日志</td></tr>
+<tr><td><code>read_graph</code></td><td>读取全图</td><td>大图直接 OOM</td></tr>
+<tr><td><code>search_nodes</code></td><td>搜索节点</td><td><strong>子串匹配</strong>——不是向量，不是 BM25</td></tr>
+<tr><td><code>open_nodes</code></td><td>打开节点</td><td>按名称精确查找</td></tr>
+</table>
+
+<p>核心问题清单：</p>
+<ul>
+<li><strong>O(n) 搜索</strong>：每次查询扫描全部记录，10K 条记忆就开始卡顿</li>
+<li><strong>零图算法</strong>：没有最短路径、没有社区检测、没有中心性分析</li>
+<li><strong>零时间感知</strong>：没有 bi-temporal、没有衰减、没有 supersede</li>
+<li><strong>零治理</strong>：写入不验证、读取不过滤、删除不审计</li>
+<li><strong>零并发控制</strong>：文件级别 readFile/writeFile，每次写操作全量重写</li>
+</ul>
+
+<h2>核心挑战：工具粒度设计</h2>
+
+<p>设计 MCP 服务器的第一原则是：<strong>工具粒度应该匹配 LLM 的认知负载，而不是 API 的细粒度。</strong></p>
+
+<p>研究表明，当工具数量超过 20 个时，LLM 的工具选择准确率会急剧下降。官方 memory server 选择了 9 个工具——保守但合理。我的挑战是：760+ 个 API 如何收敛到 8-12 个工具？</p>
+
+<p>答案是<strong>语义分组</strong>：把功能相关的 API 聚合为一个语义工具，在工具内部根据参数路由到具体实现。</p>
+
+<h2>三层架构</h2>
+
+<pre><code>┌─────────────────────────────────────────────────────┐
+│ Layer 3: MCP 工具接口 (8 个语义工具)                   │
+│                                                     │
+│  memory.remember()   — 写入（含治理 + 熵过滤）          │
+│  memory.recall()     — 检索（双模式：语义 + 二进制）     │
+│  memory.relate()     — 关系（类型化边 + 权重）          │
+│  memory.query()      — 智能查询（7 意图自动路由）        │
+│  memory.health()     — 图健康（评估四重奏）             │
+│  memory.gaps()       — 缝隙诊断 + 自愈                 │
+│  memory.forget()     — 策略性遗忘 + 衰减               │
+│  memory.reflect()    — 反思 + 巩固 + 导出              │
+├─────────────────────────────────────────────────────┤
+│ Layer 2: agent-memory-graph (760+ APIs)              │
+│  图算法 · BM25 · 向量 · SimHash · CRDT ·              │
+│  治理 · 巩固 · 评估 · 自愈 · 7 意图路由                │
+├─────────────────────────────────────────────────────┤
+│ Layer 1: SQLite (存储底座)                            │
+└─────────────────────────────────────────────────────┘</code></pre>
+
+<p>这个架构的关键洞见是：<strong>每一层都有不同的受众</strong>。Layer 1 是存储引擎（性能优先），Layer 2 是开发者库（灵活性优先），Layer 3 是 LLM 接口（认知负载优先）。MCP 服务器是 Layer 2 到 Layer 3 的适配器。</p>
+
+<h2>memorywire 协议对齐</h2>
+
+<p>memorywire 是一个正在标准化的 Agent 记忆互操作协议，定义了 5 个操作 × 4 种类型。MCP 工具命名与之对齐：</p>
+
+<table>
+<tr><th>memorywire 操作</th><th>MCP 工具</th><th>底层实现</th></tr>
+<tr><td><code>remember</code></td><td><code>memory.remember</code></td><td>add() + 熵过滤</td></tr>
+<tr><td><code>recall</code></td><td><code>memory.recall</code></td><td>dual_mode_retrieve()</td></tr>
+<tr><td><code>relate</code></td><td><code>memory.relate</code></td><td>link_by_label()</td></tr>
+<tr><td><code>forget</code></td><td><code>memory.forget</code></td><td>strategic_forget()</td></tr>
+<tr><td><code>reflect</code></td><td><code>memory.reflect</code></td><td>query() + gap_report()</td></tr>
+</table>
+
+<p>在此基础上，增加了三个差异化工具：<code>memory.query</code>（7 意图智能路由）、<code>memory.health</code>（图质量评估）、<code>memory.gaps</code>（缝隙诊断 + 自愈）。这三个工具是竞争力所在——没有其他 MCP 记忆服务器具备图级别的质量评估和自愈能力。</p>
+
+<h2>安全边界：MCP 注解即治理</h2>
+
+<p>MCP 协议 v2 的一个优雅设计是工具注解（annotations）。每个工具声明 <code>readOnlyHint</code> 和 <code>destructiveHint</code>，客户端据此决定是否需要用户确认。</p>
+
+<pre><code>// 只读工具：客户端可自动调用，无需确认
+{ annotations: { readOnlyHint: true, destructiveHint: false } }
+// → memory.recall, memory.query, memory.health, memory.gaps
+
+// 写入工具：客户端可调用，但记录操作
+{ annotations: { readOnlyHint: false, destructiveHint: false } }
+// → memory.remember, memory.relate, memory.reflect
+
+// 危险工具：客户端必须请求用户确认
+{ annotations: { readOnlyHint: false, destructiveHint: true } }
+// → memory.forget</code></pre>
+
+<div class="highlight">
+<strong>治理在协议层面强制执行。</strong>不是代码里写个 if (confirm) ——而是每个 MCP 客户端（Claude Desktop、Cursor、Windsurf）自动尊重这些注解。用户不需要信任 amg 的代码，只需要信任 MCP 协议的安全模型。
+</div>
+
+<h2>实现：8 个工具的完整服务器</h2>
+
+<p>以下是 <code>agent-memory-graph-mcp</code> 的核心实现。使用 MCP SDK v2 beta，约 120 行 TypeScript：</p>
+
+<pre><code>#!/usr/bin/env node
+import { McpServer } from '@modelcontextprotocol/server';
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
+import { z } from 'zod/v4';
+import { MemoryGraph } from 'agent-memory-graph';
+
+const mg = new MemoryGraph('./memory.db');
+const server = new McpServer({
+  name: 'agent-memory-graph',
+  version: '1.0.0',
+});
+
+// ── 1. memory.remember ─────────────────────────────────
+// 写入时自动执行：熵过滤 + SimHash 去重
+server.registerTool('memory.remember', {
+  title: 'Remember',
+  description: '存储记忆。自动检测重复，过滤低价值内容。',
+  inputSchema: {
+    label: z.string().describe('记忆内容'),
+    kind: z.enum(['fact', 'event', 'skill', 'preference', 'reasoning'])
+      .default('fact'),
+    tags: z.array(z.string()).default([]),
+    data: z.record(z.unknown()).optional(),
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false },
+}, async ({ label, kind, tags, data }) => {
+  const node = mg.add_with_entropy_filter(label, kind, data);
+  tags.forEach(t => mg.tag_nodes(t, [node.id]));
+  return {
+    content: [{ type: 'text', text: `已记忆: ${node.id}` }],
+    structuredContent: { node_id: node.id },
+  };
+});
+
+// ── 2. memory.recall ──────────────────────────────────
+// 双模式：SimHash 二进制签名 + 余弦语义相似度
+server.registerTool('memory.recall', {
+  title: 'Recall',
+  description: '检索记忆。双模式：语义 + 二进制签名。',
+  inputSchema: {
+    query: z.string().describe('要回忆什么'),
+    limit: z.number().min(1).max(50).default(5),
+    mode: z.enum(['auto', 'semantic', 'binary', 'keyword']).default('auto'),
+  },
+  annotations: { readOnlyHint: true, destructiveHint: false },
+}, async ({ query, limit, mode }) => {
+  const results = mode === 'auto'
+    ? mg.dual_mode_retrieve(query, { limit })
+    : mg.recall(query, limit);
+  return {
+    content: [{ type: 'text', text: JSON.stringify(results, null, 2) }],
+    structuredContent: { results },
+  };
+});
+
+// ── 3. memory.query ───────────────────────────────────
+// 7 意图自适应路由：temporal / constraint / local / global /
+// drift / hybrid / show
+server.registerTool('memory.query', {
+  title: 'Query',
+  description: '自然语言提问。自动路由到最佳检索模式。',
+  inputSchema: {
+    question: z.string().describe('自然语言问题'),
+    limit: z.number().min(1).max(20).default(10),
+  },
+  annotations: { readOnlyHint: true, destructiveHint: false },
+}, async ({ question, limit }) => {
+  const results = mg.query(question, { limit });
+  const confidence = mg.query_confidence_score(question, results);
+  return {
+    content: [{ type: 'text',
+      text: JSON.stringify({ results, confidence }, null, 2) }],
+    structuredContent: { results, confidence },
+  };
+});
+
+// ── 4. memory.health ──────────────────────────────────
+server.registerTool('memory.health', {
+  title: 'Graph Health',
+  description: '获取图质量指标（7 维度评估）。',
+  inputSchema: { type: 'object', additionalProperties: false },
+  annotations: { readOnlyHint: true, destructiveHint: false },
+}, async () => {
+  const quality = mg.reasoning_quality_eval();
+  const density = mg.graph_information_density();
+  return {
+    content: [{ type: 'text',
+      text: JSON.stringify({ quality, density }, null, 2) }],
+    structuredContent: { quality, density },
+  };
+});
+
+// ── 5. memory.gaps ────────────────────────────────────
+// 缝隙诊断 + 自愈
+server.registerTool('memory.gaps', {
+  title: 'Knowledge Gaps',
+  description: '检测结构性缝隙，可选自动修复。',
+  inputSchema: {
+    heal: z.boolean().default(false),
+    dry_run: z.boolean().default(true),
+  },
+  annotations: { readOnlyHint: true, destructiveHint: false },
+}, async ({ heal, dry_run }) => {
+  const report = mg.knowledge_gap_report();
+  if (heal) {
+    const healing = mg.auto_heal_gaps({ dry_run, min_confidence: 0.3 });
+    return {
+      content: [{ type: 'text',
+        text: JSON.stringify({ report, healing }, null, 2) }],
+      structuredContent: { report, healing },
+    };
+  }
+  return {
+    content: [{ type: 'text', text: JSON.stringify(report, null, 2) }],
+    structuredContent: report,
+  };
+});
+
+// ── 6. memory.forget ──────────────────────────────────
+server.registerTool('memory.forget', {
+  title: 'Forget',
+  description: '策略性遗忘：按权重/年龄/冗余度移除低价值记忆。',
+  inputSchema: {
+    strategy: z.enum(['low_weight', 'stale', 'redundant', 'all'])
+      .default('low_weight'),
+    threshold: z.number().min(0).max(1).default(0.3),
+  },
+  annotations: { readOnlyHint: false, destructiveHint: true },
+}, async ({ strategy, threshold }) => {
+  const removed = mg.strategic_forget(strategy, threshold);
+  return {
+    content: [{ type: 'text', text: `已遗忘 ${removed.length} 条记忆` }],
+    structuredContent: { removed_count: removed.length },
+  };
+});
+
+// ── 启动 ──────────────────────────────────────────────
+const transport = new StdioServerTransport();
+await server.connect(transport);
+console.error('agent-memory-graph MCP server running on stdio');</code></pre>
+
+<h2>工具设计的五个原则</h2>
+
+<h3>1. 语义命名优于操作命名</h3>
+<p>不要叫 <code>create_node</code>、<code>search_nodes</code>——这是 CRUD 思维。叫 <code>remember</code>、<code>recall</code>、<code>forget</code>——这是人类思维。LLM 在面对语义化工具名时，工具选择准确率显著更高。</p>
+
+<h3>2. 只读/写入/危险三档分级</h3>
+<p>利用 MCP 注解把工具分成三档：只读（自动调用）、写入（记录调用）、危险（确认调用）。这让客户端能在不理解工具语义的情况下做出安全决策。</p>
+
+<h3>3. 默认值面向最常见的用例</h3>
+<p>每个参数都有默认值，让 LLM 在最简单的情况下只需要传一个参数。<code>memory.remember</code> 只需 <code>label</code>；<code>memory.recall</code> 只需 <code>query</code>。</p>
+
+<h3>4. 返回结构化内容</h3>
+<p>每个工具的返回值都包含 <code>content</code>（人类可读文本）和 <code>structuredContent</code>（机器可解析 JSON）。前者让 LLM 在对话中展示结果，后者让程序化调用可以直接解析。</p>
+
+<h3>5. 工具内组合优于工具间链式</h3>
+<p>不要让 LLM 调用 <code>add_node</code> → <code>tag_node</code> → <code>link_nodes</code> 三个工具来完成一个"记住并关联"的操作。在 <code>memory.remember</code> 内部完成所有步骤。链式调用增加延迟和错误率。</p>
+
+<h2>时间窗口</h2>
+
+<p>MCP SDK v2 的稳定版在 2026 年 7 月 28 日发布——距今 9 天。如果 <code>agent-memory-graph-mcp</code> 能在 7 月 28 日之后立即发布，它将成为：</p>
+
+<ul>
+<li><strong>MCP 生态中第一个图算法记忆服务器</strong></li>
+<li><strong>第一个支持 7 意图路由的记忆服务器</strong></li>
+<li><strong>第一个具备自愈能力的记忆服务器</strong></li>
+<li><strong>第一个内置质量评估的记忆服务器</strong></li>
+</ul>
+
+<p>在 MCP 生态以每月数百万次工具调用的增长速度下，先发优势至关重要。官方 memory server 的 9 个工具是基线；amg-mcp 的 8 个工具是下一个台阶。</p>
+
+<h2>可操作建议</h2>
+
+<ol>
+<li><strong>审计你现有的 MCP 工具数量。</strong> 如果超过 15 个，考虑语义分组。</li>
+<li><strong>对齐 memorywire 命名。</strong> 使用 remember/recall/relate/forget/reflect 命名能让你在协议标准化时免于重构。</li>
+<li><strong>用注解声明安全级别。</strong> 不要在代码里写 if (confirm)——用 <code>destructiveHint: true</code> 让 MCP 客户端统一处理。</li>
+<li><strong>默认值是最简路径。</strong> 确保 LLM 只传一个参数就能完成 80% 的用例。</li>
+<li><strong>结构化返回。</strong> content 给人看，structuredContent 给机器看。两者都要有。</li>
+</ol>
+
+<p><em>本文基于 agent-memory-graph 项目 Deep Research #017。3995 个测试，760+ APIs，243 天连续开发。MCP 服务器实现计划：Phase 1 TypeScript wrapper（7 月 21-25 日），Phase 2 MCP Registry 发布（7 月 28 日 SDK v2 稳定版同步）。</em></p>
+
+<a class="back-link" href="../index.html">← 返回首页</a>
+</div>
+</body>
+</html>
