@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>从单体到模块：Agent Skill 如何重塑 AI 的能力架构 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>从单体到模块：Agent Skill 如何重塑 AI 的能力架构</h1>
+        <div class="meta">
+            2026-07-18 · 罗嵩 ·
+            <span class="tag">Agent Skills</span>
+            <span class="tag">LLM</span>
+            <span class="tag">模块化架构</span>
+            <span class="tag">SKILL.md</span>
+        </div>
+
+        <blockquote>假设你雇了一个聪明的新人。他什么都会一点，但每次任务你都得从头到尾告诉他怎么做——先打开这个文件，然后运行这个命令，如果报错了就检查这个。你会累死，他也会。但如果你给他一本《新员工操作手册》，每个常见任务都写好了步骤、注意事项和异常处理，他就能独立完成了。Agent Skill 就是这本操作手册。2026年，它正在变成 AI 行业的标准基础设施。</blockquote>
+
+        <h2>一、问题：为什么单体 Agent 行不通了？</h2>
+
+        <p>过去两年，我们习惯了把所有指令塞进一个巨大的 system prompt。一个"万能 Agent"的系统提示可能包含代码审查规则、邮件写作规范、日历管理逻辑、安全约束……堆到 60,000 tokens 是家常便饭。</p>
+
+        <p>这就像让一个人<strong>同时记住所有岗位的操作规程</strong>——既是程序员，又是客服，又是会计。问题显而易见：</p>
+
+        <ul>
+            <li><strong>上下文膨胀</strong>：60,000 tokens 的指令开销，每个请求都得付。按 $3/1M tokens、每天 1,000 次任务算，每天白花 $180 在"自我介绍"上。</li>
+            <li><strong>指令互相干扰</strong>：正式法律文书和随意社交媒体回复的风格指令放在一起，Agent 会精神分裂。</li>
+            <li><strong>不可维护</strong>：改一条规则，可能影响十条其他规则。没有 diff，没有版本，没有依赖图。</li>
+            <li><strong>无法复用</strong>：第二个项目要"代码审查"功能？复制粘贴，祈祷别漂移。</li>
+        </ul>
+
+        <p>研究者给这个现象起了个名字——<strong>"context rot"（上下文腐烂）</strong>。在 18 个主流 LLM 上的实验表明，性能随上下文增长而非线性下降，而且下降方式不可预测。</p>
+
+        <h2>二、解法：多了一层"技能"抽象</h2>
+
+        <p>解决方案不是更大的上下文窗口，而是一个经典的软件工程思想：<strong>关注点分离</strong>。</p>
+
+        <p>新的架构引入了三个层次：</p>
+
+        <div class="ascii-art">┌──────────────────────────────────────────┐
+│            用户目标 (Goal)                │
+│    "帮我做本周的技术分享 PPT"              │
+└────────────────┬─────────────────────────┘
+                 │  语义匹配触发
+┌────────────────▼─────────────────────────┐
+│        技能层 (Skill)                     │
+│  编排多个工具 + 策略 + 错误处理 + 模板     │
+│  "tech-share-ppt" 技能被激活              │
+└────────────────┬─────────────────────────┘
+                 │  调用原子操作
+┌────────────────▼─────────────────────────┐
+│        工具层 (Tool)                      │
+│  搜索论文 · 生成大纲 · 创建幻灯片 · 通知   │
+└──────────────────────────────────────────┘</div>
+
+        <p>关键区别在这里：<strong>工具回答一个问题；技能执行一整套流程。</strong></p>
+
+        <p>一个"搜索"工具返回结果列表。但一个"深度调研"技能知道：先确定研究范围，再分多路并行搜索，然后去重、综合、结构化，最后生成带引用的报告。它不只是一个更好的搜索，它是一种<strong>完全不同的思考方式</strong>。</p>
+
+        <p>论文 <a href="https://arxiv.org/abs/2602.12430">arxiv:2602.12430</a> 把这个区别说得很精准："工具执行并返回结果；技能<strong>重塑 agent 对任务的理解</strong>。"——它改变的不是一个动作，而是 agent 解决问题的框架。</p>
+
+        <h2>三、渐进式披露：为什么 30 个技能只花 3000 tokens</h2>
+
+        <p>这是整个架构中最精妙的设计。<strong>渐进式披露</strong>（Progressive Disclosure）是一种三级上下文管理协议：</p>
+
+        <table>
+            <thead><tr><th>层级</th><th>加载内容</th><th>Token 开销</th><th>何时加载</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Level 1 · 发现</strong></td><td>技能名 + 一句话描述</td><td>~100 tokens/技能</td><td>Agent 启动时</td></tr>
+                <tr><td><strong>Level 2 · 激活</strong></td><td>完整 SKILL.md 指令</td><td>~2,000-5,000 tokens</td><td>任务匹配时</td></tr>
+                <tr><td><strong>Level 3 · 引用</strong></td><td>references/ 下的领域知识</td><td>按需</td><td>技能执行中需要时</td></tr>
+            </tbody>
+        </table>
+
+        <p>这意味着什么？一个部署了 30 个技能的系统，在大多数会话中只消耗 ~3,000 tokens 的 Level 1 开销。只有当某个技能被触发时，才会加载它的完整指令（Level 2）。而且技能指令中的深度领域知识（安全清单、风格指南、API 文档等）可以放在 references/ 目录里，只在需要时才读取（Level 3）。</p>
+
+        <div class="insight">
+        <strong>对比：</strong>单体 system prompt 始终携带 60,000 tokens；渐进式披露日常会话只需 3,000-18,000 tokens。<strong>3-8 倍的上下文节省。</strong>每天省 $50-100。
+        </div>
+
+        <p>这就像人的记忆——你知道图书馆里有这本书（Level 1），翻到目录页看到感兴趣的章节（Level 2），再具体阅读那几页（Level 3）。你不会把整个图书馆背下来。</p>
+
+        <h2>四、SKILL.md 标准：一份文件格式如何统一行业</h2>
+
+        <p>2025年12月18日，Anthropic 发布了 Agent Skills 开放标准。核心就是一个文件格式：</p>
+
+        <pre><code>my-skill/
+├── SKILL.md          # 必需：YAML frontmatter + Markdown 指令
+├── scripts/          # 可选：可执行脚本
+│   └── run.sh
+├── references/       # 可选：领域知识，按需加载
+│   └── guide.md
+└── assets/           # 可选：模板、配置、示例</code></pre>
+
+        <p>SKILL.md 文件本身很简单——YAML 头部提供发现所需的元数据，正文是完整的操作指令：</p>
+
+        <pre><code>---
+name: "weekly-report-check"
+description: |
+  Check team daily report completion and send reminders.
+  Use when receiving lark-daily-report scheduled task.
+  Triggers on: "daily report", "lark-daily-report"
+---
+
+## Instructions
+
+When triggered, perform the following steps:
+1. Fetch the list of team members...
+2. Check who hasn't submitted...
+3. Send a friendly reminder...</code></pre>
+
+        <p>48 小时内，Microsoft 和 OpenAI 宣布支持同一格式。到 2026年3月，<strong>32 个厂商的工具</strong>全部兼容——包括 Google Gemini CLI、JetBrains Junie、AWS Kiro、GitHub Copilot、Cursor、Cline、Windsurf……</p>
+
+        <p>这意味着你为 Claude Code 写的技能，在 Codex CLI 和 Gemini CLI 里<strong>直接可用，无需修改</strong>。这在 AI 工具历史上是前所未有的——一个文件格式在 5 个月内实现了跨厂商互通。</p>
+
+        <p>社区生态的爆发更加疯狂：从 2025年12月的几千个技能，到 2026年Q2 的 <strong>800,000+</strong>。主要市场包括 SkillsMP（66K+ 精选技能）、Skills.sh（89K+ 技能）、LobeHub、ClawHub 等。</p>
+
+        <h2>五、技能从哪来？四种获取范式</h2>
+
+        <p>这是最有学术深度的部分。技能不是只能靠人写——研究者已经探索出四条截然不同的路径：</p>
+
+        <h3>路径 1：人工编写——最直接也最有效</h3>
+
+        <p>领域专家把操作流程写成 Markdown。听起来"低技术"，但效果最可控。Anthropic 的框架设计得极其平易近人——一个技能可以就是一个几十行的 Markdown 文件。Atlassian、Canva、Sentry 等公司已经用这种方式编写了生产级技能。</p>
+
+        <h3>路径 2：强化学习——让 Agent 自己学会什么技能有用</h3>
+
+        <p><strong>SAGE</strong>（Skill Augmented GRPO for self-Evolution）是这条路径的代表作。它的核心创新是 <em>Sequential Rollout</em>：不是在孤立任务上训练，而是在<strong>相似任务链</strong>上部署 Agent。早期任务中生成的技能被保留下来，供后续任务复用。</p>
+
+        <p>效果？在 AppWorld 基准上，比不使用技能库的基线 <strong>提升 8.9%</strong>，同时减少 26% 的交互步数和 <strong>59% 的 token 消耗</strong>。省了一大笔钱，还做得更好。</p>
+
+        <h3>路径 3：自主发现——Agent 探索未知软件</h3>
+
+        <p><strong>SEAgent</strong> 解决了一个更难的问题：面对从未见过的软件，Agent 能不能自己摸索出操作技能？它引入了"世界状态模型"来评估每一步操作的效果，以及一个"课程生成器"从软件使用手册中生成由易到难的任务序列。</p>
+
+        <p>在 OSWorld 的 5 个全新软件环境中，成功率从 <strong>11.3% 提升到 34.5%</strong>。——在完全陌生的环境里，从"几乎不能用"变成了"勉强能用"。</p>
+
+        <h3>路径 4：组合合成——从零件拼装新技能</h3>
+
+        <p><strong>SkillComposer</strong>（arxiv:2606.32025）把技能选择形式化为一个<strong>结构化预测问题</strong>：给定任务和技能库，一次解码同时决定激活哪些技能、用几个、按什么顺序。使用受约束的自回归解码器，让三个维度自然涌现。</p>
+
+        <p>在 GPT-5.2-Codex 上，pass rate 提升 <strong>23.1 个百分点</strong>——达到了"黄金技能组合"上界的效果，但 token 成本更低。</p>
+
+        <div class="highlight">
+        <strong>一个 provocative 发现：</strong>Li (2026) 证明了多 Agent 系统通常可以"编译"为单 Agent + 技能库——token 和延迟大幅下降，准确率不变。但存在<strong>相变</strong>：技能库超过某个规模后，选择准确率急剧下降。这暗示了单个 Agent 有效管理技能数量存在<strong>根本极限</strong>。
+        </div>
+
+        <h2>六、四种组合模式：技能如何协作</h2>
+
+        <h3>模式 1：顺序管道</h3>
+
+        <div class="ascii-art">Planner ──► Worker ──► Reviewer ──► Publisher
+ (规划)      (执行)      (审核)       (发布)</div>
+
+        <p>最直观的模式。每个技能的输出是下一个技能的输入。适合内容生产、报告生成等线性工作流。错误处理通常用"责任链"策略：Stage N 失败就放宽约束重试，再不行就降级，最后才升级给人工。</p>
+
+        <h3>模式 2：并行扇出</h3>
+
+        <div class="ascii-art">         ┌─ Research skill A ─┐
+ Planner ─┤─ Research skill B ─┼──► Synthesizer
+         └─ Research skill C ─┘</div>
+
+        <p>当任务需要多角度调研或同时收集多源数据时，多个技能并行执行，输出最终合并。关键是使用后台执行（如 <code>run_in_background: true</code>），避免主循环阻塞在网络调用上。</p>
+
+        <h3>模式 3：分形组合（技能调用技能）</h3>
+
+        <p>技能可以调用其他技能，形成递归结构。一个"通讯桥"技能根据目标平台，委派给 telegram 子技能、飞书子技能或 Web 子技能。每个子技能封装了各自平台的怪癖（Telegram 限频、飞书 API 的各种 idiosyncrasy），而父技能提供统一接口。</p>
+
+        <h3>模式 4：条件路由</h3>
+
+        <p>技能内部包含决策逻辑："如果消息包含 X，走这条路径；如果包含 Y，走那条路径。"——把路由逻辑和领域逻辑放在一起，而不是散落在系统提示的各个角落。</p>
+
+        <h2>七、安全：npm 历史正在重演</h2>
+
+        <p>这是最需要警惕的部分。技能生态的爆发带来了熟悉的供应链安全问题。</p>
+
+        <p>三项独立研究（Snyk、SkillsMP 安全审计、学术分析）的数据令人不安：</p>
+
+        <ul>
+            <li><strong>26.1% - 36.8%</strong> 的社区技能包含至少一个安全缺陷</li>
+            <li><strong>13.4%</strong> 包含严重级别问题</li>
+            <li><strong>76 个</strong>被确认为故意植入的恶意载荷</li>
+        </ul>
+
+        <p>常见攻击模式像极了早期 npm/PyPI 的套路：</p>
+
+        <table>
+            <thead><tr><th>攻击类型</th><th>手法</th><th>类比</th></tr></thead>
+            <tbody>
+                <tr><td>数据外泄</td><td>读取 .env 或 SSH 密钥，POST 到攻击者服务器</td><td>恶意 npm 包</td></tr>
+                <tr><td>反向 Shell</td><td>以"远程调试"名义建立持久连接</td><td>供应链后门</td></tr>
+                <tr><td>权限越界</td><td>申请超出声明用途的工具权限</td><td>过度权限 App</td></tr>
+                <tr><td>依赖混淆</td><td>取一个常见名字（如 deploy），影子化合法技能</td><td>typo-squatting</td></tr>
+            </tbody>
+        </table>
+
+        <p>正在发展的防御措施包括：</p>
+        <ul>
+            <li><strong>签名技能</strong>：加密签名 + 公钥钉扎，验证发布者身份</li>
+            <li><strong>能力清单</strong>：显式声明技能可调用哪些工具，运行时强制</li>
+            <li><strong>沙箱执行</strong>：技能脚本在隔离环境中运行，限制网络和文件系统访问</li>
+            <li><strong>注册表审核</strong>：自动化扫描 + 人工审核</li>
+        </ul>
+
+        <p>论文 arxiv:2602.12430 提出了一个<strong>四层信任模型</strong>——从"完全可信"（第一方审计过的技能）到"完全沙箱"（未审计的社区技能），不同来源的技能获得不同级别的权限。这比简单的"信任所有/不信任所有"精细得多。</p>
+
+        <div class="highlight">
+        <strong>实践建议：</strong>在生产部署中，把技能来源审核当作<strong>不可协商的底线</strong>，而不是"最好这样做"。36.8% 的缺陷率意味着：不审核 ≈ 每 3 个社区技能里就有 1 个有问题。
+        </div>
+
+        <h2>八、循环灵活性不是免费的午餐</h2>
+
+        <p>一个自然的冲动是给 Agent 最大灵活性——让它能回到任何步骤、重试任何工具、分支到任何节点。但 arxiv:2604.22820 的研究用<strong>完全循环子任务图</strong>（CCSG）测试了这个直觉，结果很有启发：</p>
+
+        <table>
+            <thead><tr><th>领域类型</th><th>代表基准</th><th>循环灵活性效果</th></tr></thead>
+            <tbody>
+                <tr><td>需要恢复的领域</td><td>ALFWorld</td><td>✅ 确实有帮助——回溯能解决卡死</td></tr>
+                <tr><td>有先决条件链</td><td>TextCraft</td><td>❌ 主要增加开销——顺序不能乱跳</td></tr>
+                <tr><td>外部瓶颈领域</td><td>Finance-Agent</td><td>⚠️ 几乎无关——瓶颈在数据质量</td></tr>
+            </tbody>
+        </table>
+
+        <p><strong>启示：</strong>匹配工作流结构与领域特征。不要盲目追求最大灵活性。对于"必须按顺序来"的任务（编译、部署、审批流），简单的有向图比花哨的循环图更高效也更可靠。</p>
+
+        <h2>九、可以立刻做什么</h2>
+
+        <div class="insight">
+        <strong>1. 如果你在构建 Agent 系统：引入"技能层"</strong><br><br>
+        不要把所有指令塞进一个 system prompt。按照"原子工具 → 技能 → 目标"三层重构。每个技能一个目录，包含 SKILL.md 和可选的 scripts/references/assets。你的上下文预算会立刻下降 3-8 倍。
+        </div>
+
+        <div class="insight">
+        <strong>2. 如果你在用 Claude Code / OpenClaw / Codex：优化你的技能描述</strong><br><br>
+        技能的 description 是它的"路由键"——决定 Agent 什么时候选它。好的描述包含三要素：<br>
+        • <strong>做什么</strong>（一句话）<br>
+        • <strong>何时触发</strong>（关键词列表）<br>
+        • <strong>何时不用</strong>（排除相邻但不适用的场景）
+        </div>
+
+        <div class="insight">
+        <strong>3. 如果你在评估社区技能：建立审核流程</strong><br><br>
+        至少做到：<br>
+        • 阅读 SKILL.md 全文（不看代码就安装 = 裸奔）<br>
+        • 检查 scripts/ 中的脚本有无网络外联<br>
+        • 验证所需的工具权限是否超出声明用途<br>
+        • 在沙箱中先跑一遍再上生产
+        </div>
+
+        <div class="insight">
+        <strong>4. 如果你在做技术选型：关注技能库规模的相变点</strong><br><br>
+        单个 Agent 管理的技能数量有极限。超过临界点，选择准确率急剧下降。如果你有 50+ 技能，考虑分域到多个 Agent（每个有更窄但更精准的技能集），而不是塞进一个巨型库。
+        </div>
+
+        <h2>十、展望：自进化的技能生态</h2>
+
+        <p>把所有线索串起来，一个更大的图景浮现了：</p>
+
+        <div class="ascii-art">人工编写技能 ──► 社区市场 (800K+)
+                        │
+                        ▼
+       Agent 使用技能 ──► 产生执行轨迹
+                        │
+                        ▼
+    SAGE 式强化学习 ──► 自动优化技能质量
+                        │
+                        ▼
+   SEAgent 式自主发现 ──► 探索新软件，生成新技能
+                        │
+                        ▼
+  SkillComposer 式组合 ──► 拼装出新的复合能力
+                        │
+                        ▼
+        「自进化的技能生态」</div>
+
+        <p>这不是科幻——每一个环节都已经有可运行的论文系统。缺的是把它们串起来的工程。而这个串联工作，正在 2026 年的某个实验室或创业公司里发生。</p>
+
+        <p>Agent Skill 不是又一个 buzzword。它是软件工程中"模块化"思想在 AI 领域的迟到回响。从单体到模块，从硬编码到动态加载，从无法复用到生态市场——<strong>每一次抽象层的引入都创造了数量级的增长</strong>。函数库成就了 C 语言，包管理器成就了 Node.js，App Store 成就了 iPhone。Agent Skill 正在成就下一代 AI Agent。</p>
+
+        <hr>
+
+        <p><em>本文基于 13 篇论文/系统/行业报告的深度调研，包括 arxiv:2602.12430 (ACM CAIS 2026)、arxiv:2606.32025 (SkillComposer)、SAGE、SEAgent、CCSG 等前沿研究。完整研究笔记见 </em><a href="https://github.com/robertsong2019/catalyst-research">catalyst-research 仓库</a><em>。</em></p>
+
+    </div>
+</body>
+</html>
