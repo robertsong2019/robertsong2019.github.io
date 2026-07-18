@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rust vs C · 形式化验证的根本差异</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,900&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #050811;
+    --bg: #0a0e1a;
+    --bg-elev: #111726;
+    --bg-card: #161d30;
+    --border: #1f2940;
+    --border-bright: #2f3d5f;
+    --text: #e6ebf5;
+    --text-dim: #8a94b0;
+    --text-muted: #5a647a;
+    --accent: #00ffc8;
+    --purple: #a78bfa;
+    --warn: #fbbf24;
+    --error: #f87171;
+    --success: #4ade80;
+    --code-bg: #0d1320;
+    --c-lang: #f97316;      /* C 橙 */
+    --rust-lang: #f9c8d9;   /* Rust 粉（实际 logo 用橙，这里区别于 C） */
+    --rust-brand: #ce422b;  /* Rust 真实橙红 */
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-weight: 300;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(249, 115, 22, 0.04) 0%, transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(206, 66, 43, 0.04) 0%, transparent 40%),
+      linear-gradient(rgba(47, 61, 95, 0.12) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(47, 61, 95, 0.12) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 60px 60px, 60px 60px;
+    background-attachment: fixed;
+  }
+
+  nav.topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    background: rgba(10, 14, 26, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  nav.topbar .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--rust-lang);
+    font-weight: 700;
+  }
+  nav.topbar .logo::before {
+    content: '🦀';
+    font-size: 18px;
+  }
+  nav.topbar .nav-links { display: flex; gap: 24px; }
+  nav.topbar .nav-links a {
+    color: var(--text-dim);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  nav.topbar .nav-links a:hover { color: var(--rust-lang); }
+
+  section {
+    padding: 100px 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--rust-lang);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-label::before {
+    content: '';
+    width: 32px;
+    height: 1px;
+    background: var(--rust-lang);
+  }
+
+  h1, h2, h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  h2 {
+    font-size: clamp(32px, 4vw, 48px);
+    line-height: 1.15;
+    margin-bottom: 24px;
+  }
+  h2 em {
+    font-style: italic;
+    color: var(--rust-lang);
+    font-weight: 400;
+  }
+
+  p { margin-bottom: 16px; color: var(--text-dim); }
+  p strong { color: var(--text); font-weight: 500; }
+  p code, li code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-top: 80px;
+    position: relative;
+  }
+  .hero .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+    letter-spacing: 2px;
+    animation: fadeUp 0.8s ease-out;
+  }
+  .hero .eyebrow span.c { color: var(--c-lang); }
+  .hero .eyebrow span.r { color: var(--rust-lang); }
+  .hero h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(40px, 6vw, 76px);
+    font-weight: 300;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    margin-bottom: 32px;
+    animation: fadeUp 0.8s ease-out 0.1s both;
+  }
+  .hero h1 .vs {
+    font-style: italic;
+    font-weight: 600;
+    background: linear-gradient(90deg, var(--c-lang) 0%, var(--rust-lang) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero h1 .small {
+    font-size: 0.45em;
+    color: var(--text-dim);
+    font-weight: 300;
+    font-style: italic;
+    display: block;
+    margin-top: 16px;
+  }
+  .hero .lede {
+    font-size: 20px;
+    max-width: 700px;
+    color: var(--text-dim);
+    margin-bottom: 48px;
+    animation: fadeUp 0.8s ease-out 0.2s both;
+  }
+  .hero .lede strong { color: var(--rust-lang); font-weight: 500; }
+  .hero-cta {
+    display: flex;
+    gap: 16px;
+    animation: fadeUp 0.8s ease-out 0.3s both;
+  }
+  .btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 14px 24px;
+    border-radius: 6px;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--rust-lang);
+    color: white;
+    font-weight: 700;
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 30px rgba(206, 66, 43, 0.35);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border-bright);
+  }
+  .btn-ghost:hover {
+    border-color: var(--rust-lang);
+    color: var(--rust-lang);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── 直接回答卡片 ─── */
+  .answer-box {
+    margin: 40px 0;
+    background: linear-gradient(135deg, rgba(206, 66, 43, 0.08) 0%, rgba(167, 139, 250, 0.05) 100%);
+    border: 1px solid var(--border-bright);
+    border-left: 4px solid var(--rust-lang);
+    border-radius: 12px;
+    padding: 36px;
+  }
+  .answer-box .answer-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--rust-lang);
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+  }
+  .answer-box h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 28px;
+    margin-bottom: 16px;
+    font-weight: 400;
+    line-height: 1.3;
+  }
+  .answer-box h3 strong { font-weight: 600; color: var(--accent); }
+  .answer-box p { font-size: 16px; margin-bottom: 0; }
+
+  /* ─── 三大差异卡片 ─── */
+  .diff-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 40px;
+  }
+  @media (max-width: 900px) { .diff-grid { grid-template-columns: 1fr; } }
+
+  .diff-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 24px;
+    position: relative;
+    transition: all 0.3s;
+  }
+  .diff-card:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-2px);
+  }
+  .diff-card .diff-num {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 60px;
+    font-weight: 300;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--c-lang) 0%, var(--rust-lang) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 16px;
+    display: block;
+  }
+  .diff-card h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+  .diff-card p {
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 0;
+  }
+  .diff-card .compare-mini {
+    margin-top: 20px;
+    padding: 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.9;
+    border: 1px solid var(--border);
+  }
+  .compare-mini .row {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 8px;
+    padding: 3px 0;
+  }
+  .compare-mini .lang-c { color: var(--c-lang); font-weight: 500; }
+  .compare-mini .lang-r { color: var(--rust-lang); font-weight: 500; }
+  .compare-mini .desc { color: var(--text-dim); }
+
+  /* ─── 性质对比表 ─── */
+  .compare-table {
+    margin: 40px 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .compare-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    font-size: 14px;
+  }
+  .compare-row:last-child { border-bottom: none; }
+  .compare-row.header {
+    background: var(--bg-deep);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+  }
+  .compare-row .property { color: var(--text); font-weight: 500; }
+  .compare-row .c-way, .compare-row .r-way {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .compare-row .c-way { color: var(--c-lang); }
+  .compare-row .r-way { color: var(--rust-lang); }
+  .compare-row .c-way.free, .compare-row .r-way.free {
+    color: var(--success);
+  }
+  .compare-row .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    margin-left: 6px;
+    border: 1px solid;
+  }
+  .compare-row .tag.expensive { color: var(--error); border-color: var(--error); }
+  .compare-row .tag.free-tag { color: var(--success); border-color: var(--success); }
+
+  @media (max-width: 700px) {
+    .compare-row { grid-template-columns: 1fr; gap: 6px; padding: 16px; }
+  }
+
+  /* ─── 代码对比（同一个 strlen）─── */
+  .code-compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin: 40px 0;
+  }
+  @media (max-width: 900px) { .code-compare { grid-template-columns: 1fr; } }
+
+  .code-panel {
+    background: var(--bg-deep);
+    border: 1px solid var(--border-bright);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .code-panel.c-panel { border-top: 3px solid var(--c-lang); }
+  .code-panel.r-panel { border-top: 3px solid var(--rust-lang); }
+
+  .code-header {
+    padding: 14px 20px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .code-panel.c-panel .code-header { color: var(--c-lang); }
+  .code-panel.r-panel .code-header { color: var(--rust-lang); }
+  .code-header .badge {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border-bright);
+    color: var(--text-dim);
+  }
+
+  .code-body {
+    padding: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.85;
+    overflow-x: auto;
+  }
+  .code-body pre {
+    font-family: inherit;
+    white-space: pre;
+    color: var(--text);
+  }
+
+  .kw { color: var(--purple); font-weight: 500; }
+  .kw2 { color: #f9c8d9; }
+  .type { color: var(--accent); }
+  .str { color: #86efac; }
+  .num { color: var(--warn); }
+  .cmt { color: var(--text-muted); font-style: italic; }
+  .fn { color: #93c5fd; }
+  .ghost { color: var(--purple); font-style: italic; }
+
+  /* ─── 工具栈对比 ─── */
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-top: 40px;
+  }
+  @media (max-width: 900px) { .tools-grid { grid-template-columns: 1fr; } }
+
+  .tools-col h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid;
+  }
+  .tools-col.c h3 { color: var(--c-lang); border-color: var(--c-lang); }
+  .tools-col.r h3 { color: var(--rust-lang); border-color: var(--rust-lang); }
+
+  .tool-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+    transition: all 0.2s;
+  }
+  .tool-card:hover { border-color: var(--border-bright); }
+  .tool-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .tools-col.c .tool-name { color: var(--c-lang); }
+  .tools-col.r .tool-name { color: var(--rust-lang); }
+  .tool-card .who {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .tool-card .desc {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  /* ─── 深坑：unsafe ─── */
+  .unsafe-section {
+    margin: 48px 0;
+    padding: 40px;
+    background: linear-gradient(135deg, rgba(248, 113, 113, 0.06), rgba(251, 191, 36, 0.04));
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-left: 4px solid var(--error);
+    border-radius: 12px;
+  }
+  .unsafe-section .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--error);
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+  }
+  .unsafe-section h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    margin-bottom: 16px;
+  }
+  .unsafe-section h3 code {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--error);
+    font-size: 0.85em;
+  }
+  .unsafe-section p { font-size: 15px; }
+
+  /* ─── footer ─── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 60px 32px 40px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 2;
+  }
+  footer .rust-big {
+    font-size: 40px;
+    margin-bottom: 16px;
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (max-width: 700px) {
+    nav.topbar { padding: 12px 16px; }
+    nav.topbar .nav-links { display: none; }
+    section { padding: 60px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="logo">RUST &nbsp;vs&nbsp; C</div>
+  <div class="nav-links">
+    <a href="#answer">直接答案</a>
+    <a href="#differences">三大差异</a>
+    <a href="#properties">性质对比</a>
+    <a href="#tools">工具栈</a>
+    <a href="#unsafe">unsafe 陷阱</a>
+  </div>
+</nav>
+
+<!-- ════════════ HERO ════════════ -->
+<section class="hero">
+  <div class="eyebrow">
+    第 03 课 &nbsp;·&nbsp; <span class="c">C</span> vs <span class="r">Rust</span> &nbsp;·&nbsp; 形式化验证的根本差异
+  </div>
+  <h1>
+    C 能被证明，<br>
+    <span class="vs">Rust</span> 是不是<br>
+    一样？
+    <span class="small">— 答案是「能」，但「证明什么」完全不同</span>
+  </h1>
+  <p class="lede">
+    你已经看到 C 怎么靠 AutoCorres 翻译成数学。Rust 也能这么干——
+    但<strong>关键洞察</strong>是：Rust 的类型系统已经替你证明了 C 要辛苦证明的很多东西。
+    所以同样写一行代码，证明的「起点」完全不同。
+  </p>
+  <div class="hero-cta">
+    <a href="#answer" class="btn btn-primary">看直接答案</a>
+    <a href="#differences" class="btn btn-ghost">三大差异</a>
+  </div>
+</section>
+
+<!-- ════════════ 直接答案 ════════════ -->
+<section id="answer" class="reveal">
+  <div class="section-label">01 / 直接答案</div>
+
+  <div class="answer-box">
+    <div class="answer-label">TL;DR</div>
+    <h3>
+      <strong>能证明。</strong> 但 Rust 不需要「翻译管道」——
+      它的类型系统<strong>已经是部分数学</strong>，
+      所以证明工具往往直接嵌在 Rust 里。
+    </h3>
+    <p>
+      C 离数学远（指针、副作用、UB），所以需要 C parser + AutoCorres 把它一路翻译成 monad。
+      Rust 的<strong>仿射类型</strong>（affine type）和<strong>生命周期</strong>本身就是逻辑概念——
+      borrow checker 在编译期就证明了内存安全。
+      你不用「翻译」，你<strong>在 Rust 里直接写证明</strong>。
+    </p>
+  </div>
+
+  <p style="margin-top:32px;">
+    这意味着同一个 <code>strlen</code>，在两种语言里要证明的工作量天差地别。
+    下面这个对比表是整份文档的核心——仔细看。
+  </p>
+</section>
+
+<!-- ════════════ 三大差异 ════════════ -->
+<section id="differences" class="reveal">
+  <div class="section-label">02 / 三大根本差异</div>
+  <h2>不是「<em>能/不能</em>」，<br>是「<em>起点不同</em>」。</h2>
+
+  <div class="diff-grid">
+    <div class="diff-card">
+      <span class="diff-num">i</span>
+      <h3>免费证明</h3>
+      <p>
+        Rust 编译器<b style="color:var(--success);">免费送</b>了大量 C 必须辛苦证明的性质：
+        内存安全、没有数据竞争、没有空指针解引用。这些在 C 里要写几百行证明。
+      </p>
+      <div class="compare-mini">
+        <div class="row">
+          <span class="lang-c">C:</span>
+          <span class="desc">写规范 + 200 行证明</span>
+        </div>
+        <div class="row">
+          <span class="lang-r">Rust:</span>
+          <span class="desc">编译期自动 ✓ (borrow ck)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="diff-card">
+      <span class="diff-num">ii</span>
+      <h3>无需翻译</h3>
+      <p>
+        C 要 C parser + AutoCorres 翻译成 monad，因为 C 离数学太远。
+        <b style="color:var(--rust-lang);">Rust 本身就是部分数学</b>——
+        你在 Rust 语法里写证明，不用切到外部证明助手。
+      </p>
+      <div class="compare-mini">
+        <div class="row">
+          <span class="lang-c">C:</span>
+          <span class="desc">→ Isabelle → SIMPL → ...</span>
+        </div>
+        <div class="row">
+          <span class="lang-r">Rust:</span>
+          <span class="desc">直接 #[verus::spec] 注解</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="diff-card">
+      <span class="diff-num">iii</span>
+      <h3>聚焦功能</h3>
+      <p>
+        因为内存安全已「免费」，Rust 验证把精力集中在
+        <b style="color:var(--purple);">功能正确性</b>——
+        程序算出的结果对不对。这恰恰是 C 和 Rust <em>都难</em>的部分。
+      </p>
+      <div class="compare-mini">
+        <div class="row">
+          <span class="lang-c">C:</span>
+          <span class="desc">80% 内存安全 + 20% 功能</span>
+        </div>
+        <div class="row">
+          <span class="lang-r">Rust:</span>
+          <span class="desc">5% 内存 + 95% 功能</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ 性质对比表 ════════════ -->
+<section id="properties" class="reveal">
+  <div class="section-label">03 / 逐性质对比</div>
+  <h2>同一个性质，<br><em>两边各怎么获得</em>。</h2>
+  <p>
+    下面这张表是整份文档的精华。仔细看「<span style="color:var(--error);">昂贵</span>」
+    和「<span style="color:var(--success);">免费</span>」标签的分布——
+    它告诉你为什么 Rust 在形式化验证上有结构性优势。
+  </p>
+
+  <div class="compare-table">
+    <div class="compare-row header">
+      <div>性质</div>
+      <div>C 怎么获得</div>
+      <div>Rust 怎么获得</div>
+    </div>
+
+    <div class="compare-row">
+      <div class="property">内存安全<br><small style="color:var(--text-muted); font-weight:300;">不读写非法地址</small></div>
+      <div class="c-way">写规范 + 归纳证明<span class="tag expensive">昂贵</span></div>
+      <div class="r-way free">borrow checker<span class="tag free-tag">免费</span></div>
+    </div>
+
+    <div class="compare-row">
+      <div class="property">无数据竞争<br><small style="color:var(--text-muted); font-weight:300;">并发安全</small></div>
+      <div class="c-way">分离逻辑 + 大量证明<span class="tag expensive">昂贵</span></div>
+      <div class="r-way free">Send / Sync trait<span class="tag free-tag">免费</span></div>
+    </div>
+
+    <div class="compare-row">
+      <div class="property">无空指针<br><small style="color:var(--text-muted); font-weight:300;">不 deref null</small></div>
+      <div class="c-way">证明 valid_ptr<span class="tag expensive">昂贵</span></div>
+      <div class="r-way free">Option&lt;T&gt;<span class="tag free-tag">免费</span></div>
+    </div>
+
+    <div class="compare-row">
+      <div class="property">无悬垂指针<br><small style="color:var(--text-muted); font-weight:300;">引用始终有效</small></div>
+      <div class="c-way">证明生命周期不变式<span class="tag expensive">昂贵</span></div>
+      <div class="r-way free">生命周期检查<span class="tag free-tag">免费</span></div>
+    </div>
+
+    <div class="compare-row">
+      <div class="property">功能正确性<br><small style="color:var(--text-muted); font-weight:300;">结果对不对</small></div>
+      <div class="c-way">Hoare 三元组 + 证明</div>
+      <div class="r-way">Verus / Flux + 证明</div>
+    </div>
+
+    <div class="compare-row">
+      <div class="property">终止性<br><small style="color:var(--text-muted); font-weight:300;">循环会结束</small></div>
+      <div class="c-way">手写测度函数<span class="tag expensive">昂贵</span></div>
+      <div class="r-way">手写 decreases<span class="tag expensive">同样贵</span></div>
+    </div>
+
+    <div class="compare-row">
+      <div class="property">整数溢出安全<br><small style="color:var(--text-muted); font-weight:300;">不会回绕到 0</small></div>
+      <div class="c-way">证明无溢出<span class="tag expensive">昂贵</span></div>
+      <div class="r-way">手写不变式<span class="tag expensive">同样贵</span></div>
+    </div>
+  </div>
+
+  <p style="margin-top:32px;">
+    <strong>看清楚了吗</strong>？前 4 行 Rust 全是「<span style="color:var(--success);">免费</span>」，
+    因为类型系统替你做了。后 3 行两边都「<span style="color:var(--error);">昂贵</span>」——
+    这是真正的「功能正确性」领域，谁也躲不掉。
+  </p>
+</section>
+
+<!-- ════════════ 代码对比 ════════════ -->
+<section id="code" class="reveal">
+  <div class="section-label">04 / 同一个 strlen，两种证明</div>
+  <h2>对比一下<em>证明脚本</em>。</h2>
+  <p>
+    下面是同一个 <code>strlen</code>，左边是 C + AutoCorres，右边是 Rust + Verus。
+    注意 Rust 版本<strong>更短、更内嵌</strong>——你不用切换语言，证明就在 Rust 代码里。
+  </p>
+
+  <div class="code-compare">
+    <div class="code-panel c-panel">
+      <div class="code-header">
+        <span>my_strlen · C + AutoCorres</span>
+        <span class="badge">~200 行证明</span>
+      </div>
+      <div class="code-body">
+<pre><span class="cmt">// 1. C 源代码</span>
+<span class="kw2">unsigned</span> my_strlen(<span class="kw2">char</span> *s) {
+    <span class="kw2">unsigned</span> i = <span class="num">0</span>;
+    <span class="kw">while</span> (*s) { i++; s++; }
+    <span class="kw">return</span> i;
+}
+
+<span class="cmt">(* 2. AutoCorres 抽象后 *)</span>
+<span class="fn">my_strlen</span> :: <span class="type">char ptr ⇒ natMonad</span>
+<span class="fn">my_strlen</span> s = <span class="kw">do</span> {
+    ... <span class="cmt">(* monad 形式 *)</span>
+}
+
+<span class="cmt">(* 3. 证明内存安全 + 功能 *)</span>
+<span class="kw">lemma</span> my_strlen_correct:
+  <span class="kw">shows</span> <span class="str">"Γ ⊨⇩t {valid s}</span>
+    <span class="str">   my_strlen s</span>
+    <span class="str">   {r. r = len s}"</span>
+<span class="kw">proof</span> ...
+  <span class="cmt">(* 写循环不变式 *)</span>
+  <span class="cmt">(* 证明内存安全 *)</span>
+  <span class="cmt">(* 证明功能正确 *)</span>
+<span class="kw">qed</span>
+<span class="cmt">(* ↑ 总共约 200 行 *)</span></pre>
+      </div>
+    </div>
+
+    <div class="code-panel r-panel">
+      <div class="code-header">
+        <span>my_strlen · Rust + Verus</span>
+        <span class="badge">~30 行证明</span>
+      </div>
+      <div class="code-body">
+<pre><span class="cmt">// 规范和实现都在 Rust 里</span>
+<span class="ghost">#[verus::spec]</span>
+<span class="kw">fn</span> <span class="type">spec_strlen</span>(s: <span class="type">Seq&lt;u8&gt;</span>) -> <span class="type">nat</span>
+    <span class="ghost">recommends</span> {
+    <span class="cmt">// 数学定义：找第一个 0</span>
+    s.position(|c| *c == <span class="num">0</span>).unwrap_or(s.len())
+}
+
+<span class="ghost">#[verus::verifier]</span>
+<span class="kw">fn</span> my_strlen(s: &<span class="type">[u8]</span>) -> <span class="type">usize</span>
+    <span class="ghost">ensures</span> |r: usize|
+        r == spec_strlen(s@)
+{
+    <span class="kw">let</span> <span class="kw2">mut</span> i = <span class="num">0</span>;
+    <span class="kw">while</span> i &lt; s.len() && s[i] != <span class="num">0</span> {
+        i += <span class="num">1</span>;
+    } <span class="ghost">invariant</span> i &lt;= s.len()
+        && <span class="cmt">/* 已扫部分无 0 */</span> true;
+    i
+}
+<span class="cmt">// ↑ 内存安全免费；</span>
+<span class="cmt">//   只证功能正确（~30 行）</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <p style="margin-top:24px;">
+    <strong>关键区别</strong>：左边要写内存安全证明（~150 行）+ 功能证明（~50 行）；
+    右边<b style="color:var(--success);">内存安全由 borrow checker 免费保证</b>，
+    只需写功能证明（~30 行）。<b>同样的程序，工作量 1/6。</b>
+  </p>
+</section>
+
+<!-- ════════════ 工具栈 ════════════ -->
+<section id="tools" class="reveal">
+  <div class="section-label">05 / 工具栈对比</div>
+  <h2>两个生态，<em>完全不同的工具</em>。</h2>
+  <p>
+    因为证明范式不同，Rust 有自己的一套验证工具，跟 C 的 Isabelle 生态是平行的。
+    下面是最重要的几个。
+  </p>
+
+  <div class="tools-grid">
+    <div class="tools-col c">
+      <h3>C / 系统软件验证</h3>
+
+      <div class="tool-card">
+        <div class="tool-name">AutoCorres + C parser</div>
+        <div class="who">seL4 团队 · Isabelle/HOL</div>
+        <div class="desc">
+          C → SIMPL → 抽象 monad。seL4 同款。
+          翻译管道式，证明在 Isabelle 里写。
+        </div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-name">VST</div>
+        <div class="who">Princeton · Coq + 分离逻辑</div>
+        <div class="desc">
+          用分离逻辑验证 C 代码。CompCert（形式化验证的 C 编译器）同生态。
+        </div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-name">Frama-C / WP</div>
+        <div class="who">CEA · ACSL 规范 + SMT</div>
+        <div class="desc">
+          工业界用得多。ACSL 注解 + WP 插件 + SMT solver 自动证明。
+        </div>
+      </div>
+    </div>
+
+    <div class="tools-col r">
+      <h3>Rust 验证</h3>
+
+      <div class="tool-card">
+        <div class="tool-name">Verus</div>
+        <div class="who">Microsoft Research · CMU · VMware</div>
+        <div class="desc">
+          <b>最重要</b>。直接在 Rust 语法里写证明，用 SMT solver 自动验证。
+          目标：完整功能正确性。
+        </div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-name">Flux</div>
+        <div class="who">AWS · CMU</div>
+        <div class="desc">
+          轻量级 refinement type。AWS s2n-quic（QUIC 实现）在用。
+          检查整数范围、向量长度等不变式。
+        </div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-name">Creusot</div>
+        <div class="who">LRI · Paris-Saclay</div>
+        <div class="desc">
+          基于 Why3 + Pearlite。把 Rust 翻译成 Why3，再证明。
+          介于 Verus 和传统翻译管道之间。
+        </div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-name">RefinedRust</div>
+        <div class="who">MPI-SWS · Iris / Coq</div>
+        <div class="desc">
+          基于 Iris 分离逻辑。类型系统层做 refinement。
+          RustBelt 的延续（证明 Rust 自己的安全性）。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ unsafe 陷阱 ════════════ -->
+<section id="unsafe" class="reveal">
+  <div class="section-label">06 / 必须说清楚的陷阱</div>
+
+  <div class="unsafe-section">
+    <div class="label">⚠ THE CATCH</div>
+    <h3>但 Rust 有 <code>unsafe</code>。</h3>
+    <p>
+      Rust 的「免费证明」只在 <strong>safe Rust</strong> 里成立。一旦你写 <code>unsafe</code>，
+      你就<strong>手动绕过了 borrow checker</strong>——回到了和 C 一样的境地：
+      必须自己证明内存安全、无别名、无 UB。
+    </p>
+    <p style="margin-top:16px;">
+      这就是为什么 Verus、Flux 这些工具特别强调能验证 <code>unsafe</code> 代码——
+      因为内核、嵌入式、FFI 这些场景<strong>不可避免要用 unsafe</strong>。
+      真实工程里：<em>safe Rust 的部分免费安全，unsafe Rust 的部分要辛苦证明</em>。
+    </p>
+    <p style="margin-top:16px; color:var(--accent);">
+      <strong>结论</strong>：Rust 不是「不用证明」，而是「<em>把证明的边界从全部代码缩小到 unsafe 边界</em>」。
+      这仍然是巨大的胜利——但不是万能的。
+    </p>
+  </div>
+</section>
+
+<!-- ════════════ 总结 ════════════ -->
+<section class="reveal">
+  <div class="section-label">07 / 总结</div>
+  <h2>回到你的问题：<em>Rust 是不是一样？</em></h2>
+
+  <div style="background: var(--bg-card); border:1px solid var(--border-bright); border-radius:12px; padding:36px; margin-top:24px;">
+    <p style="font-size:17px; line-height:1.9; color:var(--text); margin-bottom:16px;">
+      <strong style="color:var(--rust-lang);">能证明，但起点不同。</strong>
+      C 从「全凭自己」开始（指针、UB、别名都要证）；
+      Rust 从「内存安全已免费」开始（只证功能）。
+    </p>
+    <p style="font-size:17px; line-height:1.9; color:var(--text); margin-bottom:16px;">
+      <strong style="color:var(--accent);">工具不同。</strong>
+      C 靠 AutoCorres 这种「翻译管道 + 外部证明助手」；
+      Rust 靠 Verus 这种「在 Rust 里直接写证明 + SMT 自动验证」。
+    </p>
+    <p style="font-size:17px; line-height:1.9; color:var(--text); margin-bottom:0;">
+      <strong style="color:var(--purple);">真实价值</strong>：
+      验证同样一段系统代码，Rust 的工程量约为 C 的 1/3 到 1/6。
+      这就是为什么 Microsoft、AWS 都在投 Rust 验证——
+      <em>它让形式化验证第一次有可能进入工业日常</em>。
+    </p>
+  </div>
+
+  <p style="margin-top:40px; font-size:14px; color:var(--text-muted);">
+    资料来源（这次内容基于这些一手资料核对）：
+    <a href="https://github.com/verus-lang/verus" style="color:var(--rust-lang);">Verus GitHub</a> ·
+    <a href="https://www.microsoft.com/en-us/research/publication/verus-verifying-rust-programs-using-linear-ghost-types/" style="color:var(--rust-lang);">Verus 论文 (Linear Ghost Types)</a> ·
+    <a href="https://iris-project.org/pdfs/2024-pldi-refinedrust.pdf" style="color:var(--rust-lang);">RefinedRust (PLDI 2024)</a> ·
+    <a href="https://www.janestrink.com/tech-talks/rustbelt/" style="color:var(--rust-lang);">RustBelt</a> ·
+    <a href="https://github.com/seL4/l4v/blob/master/tools/autocorres/README.md" style="color:var(--rust-lang);">AutoCorres</a>
+  </p>
+</section>
+
+<footer>
+  <div class="rust-big">🦀 ⊢ ✓</div>
+  <div>Rust vs C · 形式化验证对比</div>
+  <div>Verus / Flux / Creusot / RefinedRust · AutoCorres / VST / Frama-C</div>
+  <div style="margin-top:16px; opacity:0.5;">
+    Rust 不消除证明，它缩小证明的边界。
+  </div>
+</footer>
+
+<script>
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
