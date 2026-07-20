@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 推测执行：从 CPU 流水线偷回 3-5 倍延迟 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+            --surface-2: var(--gray-50);
+            --surface-3: var(--gray-100);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --card-bg: var(--surface-1);
+            --card-radius: var(--radius-lg);
+            --card-padding: var(--space-8);
+            --transition-fast: 150ms ease-out;
+            --transition-base: 250ms ease-out;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: var(--text-base);
+            line-height: 1.6;
+            background: var(--surface-0);
+            min-height: 100vh;
+            padding: var(--space-8) var(--space-4);
+            color: var(--color-text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 48rem; margin: 0 auto; }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Syne', 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+            color: var(--color-text-primary);
+        }
+        h1 { font-size: clamp(var(--text-3xl), 1.5rem + 3vw, var(--text-4xl)); margin-bottom: var(--space-2); }
+        h2 { font-size: var(--text-2xl); margin: var(--space-8) 0 var(--space-4); display: flex; align-items: center; gap: var(--space-2); }
+        h3 { font-size: var(--text-xl); margin: var(--space-6) 0 var(--space-3); }
+        h4 { font-size: var(--text-lg); margin: var(--space-4) 0 var(--space-2); }
+        .subtitle { font-size: var(--text-lg); color: var(--color-text-secondary); margin-bottom: var(--space-6); font-weight: 500; }
+        .date { font-size: var(--text-sm); color: var(--color-text-muted); margin-bottom: var(--space-6); }
+        p { margin-bottom: var(--space-4); color: var(--color-text-secondary); line-height: 1.8; }
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-md);
+            padding: var(--card-padding);
+            margin-bottom: var(--space-8);
+            border: 1px solid var(--gray-200);
+        }
+        a { color: var(--color-primary); text-decoration: none; transition: color var(--transition-fast); }
+        a:hover { color: var(--color-primary-hover); text-decoration: underline; }
+        code {
+            background: var(--surface-3);
+            padding: 0.2em 0.4em;
+            border-radius: var(--radius-sm);
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: var(--text-sm);
+        }
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+            font-size: var(--text-sm);
+        }
+        ul, ol { margin: var(--space-4) 0; padding-left: var(--space-6); }
+        li { margin-bottom: var(--space-2); color: var(--color-text-secondary); }
+        blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--space-4) 0;
+        }
+        th, td {
+            padding: var(--space-2) var(--space-3);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        th {
+            font-weight: 600;
+            color: var(--color-text-primary);
+            background: var(--surface-2);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-6);
+            font-size: var(--text-sm);
+            color: var(--color-text-muted);
+        }
+        .back-link:hover { color: var(--color-primary); }
+        .tags {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+            margin-top: var(--space-6);
+        }
+        .tag {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+        <div class="card">
+            <h1>Agent 推测执行：从 CPU 流水线偷回 3-5 倍延迟</h1>
+            <div class="date">2026年07月21日</div>
+            <div class="content">
+<h1 id="agent-cpu-3-5">Agent 推测执行：从 CPU 流水线偷回 3-5 倍延迟</h1>
+<blockquote>
+<p>2026-07-21 技术随笔。Agent 的 ReAct 循环是串行的——思考、调用工具、等待、再思考。但 Agent 的工具调用模式高度可预测：93.8% 的下一步调用可以从历史轨迹中推断。借鉴 CPU 的推测执行架构，我们可以在不牺牲准确率的前提下，把 Agent 延迟降低 40-70%。本文给出 TypeScript 实现和三层加速架构。</p>
+</blockquote>
+<h2 id="agent">问题：Agent 的串行税</h2>
+<p>你写过一个 5 步的 Agent 任务吗？每一步都是"LLM 推理 → 工具调用 → 等待结果 → 再推理"。假设每步 3 秒，5 步就是 15 秒。用户盯着 loading 图标等 15 秒，在 2026 年是不可接受的用户体验。</p>
+<p>但真正的问题不是单步慢——而是<strong>步骤之间是串行的，即使它们不需要串行</strong>。</p>
+<p>看看这个典型的 Agent 执行序列：</p>
+<pre><code>用户：&quot;帮我查一下最近三天的天气和新闻，然后总结&quot;
+Step 1: [LLM 推理 800ms] → 决定调用 get_weather
+Step 2: [get_weather 1200ms] → 返回天气数据
+Step 3: [LLM 推理 800ms] → 决定调用 get_news
+Step 4: [get_news 1500ms] → 返回新闻数据
+Step 5: [LLM 推理 1200ms] → 生成总结
+总计：5500ms
+</code></pre>
+<p>问题在哪？Step 3 和 Step 1 之间没有真正的数据依赖——"查新闻"不需要等"查天气"的结果。如果并行发起两个调用：</p>
+<pre><code>Step 1: [LLM 推理 800ms] → 同时调用 get_weather + get_news
+Step 2: [max(1200, 1500) = 1500ms] → 两个调用并行完成
+Step 3: [LLM 推理 1200ms] → 生成总结
+总计：3500ms（省 36%）
+</code></pre>
+<p>这是最简单的优化——<strong>并行工具调用</strong>。但很多 Agent 框架（包括 LangChain 的早期版本）都不做这件事。</p>
+<p>更激进的问题：如果我们能在 Step 1 的 LLM 还在推理时，就预测到 Step 2 要调用 <code>get_weather</code>，然后提前执行呢？如果预测对了，省下整个等待时间。如果错了，回退重来。这就是<strong>推测执行</strong>。</p>
+<h2 id="cpu">CPU 给我们的三个启示</h2>
+<p>推测执行不是新概念。1990 年代的 CPU 就面临同样的问题：分支预测失败代价高昂，但不预测的代价更高（流水线停顿）。CPU 设计师的解法影响了三十年后的 AI Agent 架构：</p>
+<h3 id="1">启示 1：无损优化范式</h3>
+<p>CPU 推测执行的核心承诺是：<strong>只能加速，不会变慢</strong>。预测正确，省一个时钟周期；预测错误，丢弃结果，回到正确路径。</p>
+<p>Agent 推测执行继承了同样的承诺。SpecEyes（ECCV 2026）的实验显示：推测执行不仅把多模态 Agent 加速 3.35 倍，准确率反而<strong>上升了 6.7%</strong>——因为并行探索的分支提供了更丰富的上下文。</p>
+<p>这跟传统的 Agent 加速方法（模型量化、知识蒸馏、缓存）完全不同。那些方法都有精度-速度的 tradeoff。推测执行没有。</p>
+<h3 id="2">启示 2：分支可预测性远超预期</h3>
+<p>PASTE（arXiv:2603.18897, 2026）在生产环境中测得：<strong>Agent 工具调用的下一步预测命中率达到 93.8%</strong>，其中 top-1 准确率 27.8%。</p>
+<p>这意味着什么？Agent 的行为模式远比想象中规律。"查用户资料"之后几乎总是"检查权限"。"搜索文档"之后几乎总是"读取匹配项"。这些模式可以被挖掘和利用。</p>
+<h3 id="3">启示 3：多层优化是乘法关系</h3>
+<p>CPU 的优化是分层的：分支预测 + 乱序执行 + 缓存 + 流水线。Agent 也一样：</p>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>技术</th>
+<th>加速比</th>
+<th>实现难度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L1</td>
+<td>并行工具调用</td>
+<td>2-3.7x</td>
+<td>⭐ 简单</td>
+</tr>
+<tr>
+<td>L2</td>
+<td>推测执行</td>
+<td>1.5-3x</td>
+<td>⭐⭐ 中等</td>
+</tr>
+<tr>
+<td>L3</td>
+<td>Token 级优化</td>
+<td>3-6x</td>
+<td>⭐⭐⭐ 复杂</td>
+</tr>
+<tr>
+<td><strong>总计</strong></td>
+<td><strong>三层叠加</strong></td>
+<td><strong>5-10x</strong></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>一个 30 秒的任务，理论上可以压缩到 3-6 秒。</p>
+<h2 id="_1">第一层：并行工具调用（今天就能做）</h2>
+<p>这是 ROI 最高的优化，实现只需要一个依赖图分析。核心思路：当 LLM 返回多个工具调用时，分析它们之间的数据依赖，然后并行执行无依赖的调用。</p>
+<pre><code class="language-typescript">interface ToolCall {
+  id: string;
+  name: string;
+  args: Record&lt;string, unknown&gt;;
+  /** 此调用依赖的前序调用 ID 列表 */
+  dependsOn?: string[];
+}
+
+async function parallelExecute(
+  calls: ToolCall[],
+  executor: (call: ToolCall) =&gt; Promise&lt;unknown&gt;
+): Promise&lt;Map&lt;string, unknown&gt;&gt; {
+  const results = new Map&lt;string, unknown&gt;();
+  const pending = new Set(calls.map(c =&gt; c.id));
+
+  while (pending.size &gt; 0) {
+    // 找出所有依赖已完成的调用（无依赖或依赖已就绪）
+    const ready = calls.filter(c =&gt;
+      pending.has(c.id) &amp;&amp;
+      (c.dependsOn ?? []).every(dep =&gt; results.has(dep))
+    );
+
+    if (ready.length === 0) {
+      throw new Error(&quot;Deadlock: circular dependency in tool calls&quot;);
+    }
+
+    // 并行执行所有就绪的调用
+    const execResults = await Promise.all(
+      ready.map(async call =&gt; {
+        const result = await executor(call);
+        return [call.id, result] as const;
+      })
+    );
+
+    for (const [id, result] of execResults) {
+      results.set(id, result);
+      pending.delete(id);
+    }
+  }
+
+  return results;
+}
+</code></pre>
+<p>使用方式：</p>
+<pre><code class="language-typescript">// LLM 返回三个调用，其中只有 summarize 依赖前两个
+const calls: ToolCall[] = [
+  { id: &quot;1&quot;, name: &quot;get_weather&quot;, args: { city: &quot;上海&quot; } },
+  { id: &quot;2&quot;, name: &quot;get_news&quot;, args: { topic: &quot;科技&quot; } },
+  { id: &quot;3&quot;, name: &quot;summarize&quot;, args: {}, dependsOn: [&quot;1&quot;, &quot;2&quot;] },
+];
+
+const results = await parallelExecute(calls, async (call) =&gt; {
+  return tools[call.name](call.args);
+});
+// get_weather 和 get_news 同时执行，summarize 等它们都完成
+</code></pre>
+<p><strong>效果</strong>：3 个独立调用从 3.6 秒 → 1.2 秒（取最慢一个的延迟）。</p>
+<p>OpenAI 的 <code>parallel_tool_calls</code> 参数和 Anthropic 的编排层已经在做这件事。但如果你用的是自建 Agent 框架，大概率还没实现。</p>
+<h2 id="_2">第二层：模式感知推测执行</h2>
+<p>这是 PASTE 的核心贡献。它不等待 LLM 推理完成，而是从历史执行轨迹中挖掘工具调用模式，提前执行下一步。</p>
+<h3 id="_3">模式挖掘</h3>
+<pre><code class="language-typescript">interface CallPattern {
+  /** 触发上下文：前 N 步的工具调用序列 */
+  context: string[];
+  /** 预测的下一步工具 */
+  predictedTool: string;
+  /** 参数推导函数（从前序结果提取参数） */
+  argExtractor?: (prevResults: unknown[]) =&gt; Record&lt;string, unknown&gt;;
+  /** 历史命中率 */
+  hitRate: number;
+  /** 推测安全等级 */
+  safety: &quot;readonly&quot; | &quot;dry-run&quot; | &quot;forbidden&quot;;
+}
+
+class PatternMiner {
+  private patterns: CallPattern[] = [];
+
+  /** 从执行日志中挖掘 n-gram 模式 */
+  train(traces: string[][]): void {
+    const ngramCounts = new Map&lt;string, number&gt;();
+    const nextToolCounts = new Map&lt;string, Map&lt;string, number&gt;&gt;();
+
+    for (const trace of traces) {
+      for (let i = 0; i &lt; trace.length - 1; i++) {
+        // 2-gram: 当前工具 → 下一个工具
+        const key = trace[i];
+        const next = trace[i + 1];
+
+        ngramCounts.set(key, (ngramCounts.get(key) ?? 0) + 1);
+        if (!nextToolCounts.has(key)) nextToolCounts.set(key, new Map());
+        nextToolCounts.get(key)!.set(next,
+          (nextToolCounts.get(key)!.get(next) ?? 0) + 1);
+      }
+    }
+
+    // 转换为模式规则，只保留命中率 &gt;30% 的
+    for (const [context, counts] of nextToolCounts) {
+      const total = ngramCounts.get(context) ?? 0;
+      for (const [predictedTool, count] of counts) {
+        const hitRate = count / total;
+        if (hitRate &gt; 0.3) {
+          this.patterns.push({
+            context: [context],
+            predictedTool,
+            hitRate,
+            safety: this.classifySafety(predictedTool),
+          });
+        }
+      }
+    }
+  }
+
+  /** 预测下一步工具调用 */
+  predict(recentCalls: string[]): CallPattern | null {
+    const last = recentCalls[recentCalls.length - 1];
+    const candidates = this.patterns
+      .filter(p =&gt; p.context[p.context.length - 1] === last)
+      .sort((a, b) =&gt; b.hitRate - a.hitRate);
+    return candidates[0] ?? null;
+  }
+
+  private classifySafety(tool: string): CallPattern[&quot;safety&quot;] {
+    const READONLY = [&quot;search&quot;, &quot;query&quot;, &quot;get&quot;, &quot;fetch&quot;, &quot;list&quot;, &quot;read&quot;];
+    const FORBIDDEN = [&quot;send&quot;, &quot;write&quot;, &quot;delete&quot;, &quot;transfer&quot;, &quot;publish&quot;];
+    if (READONLY.some(r =&gt; tool.toLowerCase().includes(r))) return &quot;readonly&quot;;
+    if (FORBIDDEN.some(f =&gt; tool.toLowerCase().includes(f))) return &quot;forbidden&quot;;
+    return &quot;dry-run&quot;;
+  }
+}
+</code></pre>
+<h3 id="_4">推测调度器</h3>
+<pre><code class="language-typescript">class SpeculativeExecutor {
+  constructor(
+    private miner: PatternMiner,
+    private tools: Record&lt;string, (args: any) =&gt; Promise&lt;any&gt;&gt;,
+  ) {}
+
+  async runStep(
+    llmDecision: Promise&lt;ToolCall&gt;,
+    recentHistory: string[],
+  ): Promise&lt;{ result: unknown; speculative: boolean }&gt; {
+    // 1. 在 LLM 推理的同时，预测可能的下一步
+    const prediction = this.miner.predict(recentHistory);
+
+    if (prediction &amp;&amp; prediction.safety === &quot;readonly&quot;) {
+      // 2. 对只读操作，立即推测执行
+      const speculativePromise = this.tools[prediction.predictedTool](
+        prediction.argExtractor
+          ? prediction.argExtractor([])
+          : {}
+      ).catch(() =&gt; null); // 静默失败，不影响主流程
+
+      // 3. 等 LLM 的正式决策
+      const actualCall = await llmDecision;
+
+      // 4. 命中检查
+      if (actualCall.name === prediction.predictedTool) {
+        const result = await speculativePromise;
+        return { result, speculative: true }; // 命中！省下整个工具调用等待
+      }
+      // 未命中，丢弃推测结果，执行正式调用
+      const result = await this.tools[actualCall.name](actualCall.args);
+      return { result, speculative: false };
+    }
+
+    // 非只读操作，走正常路径
+    const actualCall = await llmDecision;
+    const result = await this.tools[actualCall.name](actualCall.args);
+    return { result, speculative: false };
+  }
+}
+</code></pre>
+<p><strong>关键设计决策</strong>：</p>
+<ol>
+<li><strong>只对只读操作推测</strong>——搜索、查询、读取。写入、发送、删除永远走正式路径。</li>
+<li><strong>静默失败</strong>——推测执行失败不影响主流程，最坏情况是浪费一点算力。</li>
+<li><strong>安全分级</strong>——<code>readonly</code> 直接推测，<code>dry-run</code> 可先模拟，<code>forbidden</code> 禁止推测。</li>
+</ol>
+<p>PASTE 用这个架构在生产环境中拦截了 602 次潜在副作用操作（20000+ 次推测中），<strong>零输出偏差</strong>。</p>
+<h2 id="token">第三层：Token 级优化（进阶）</h2>
+<p>SimpleTool（2026）发现：工具调用的 JSON 结构本身就有大量冗余。函数名、参数名、嵌套结构——这些 token 可以被压缩。</p>
+<pre><code class="language-typescript">// 原始调用（~180 tokens）
+const verboseCall = {
+  tool: &quot;search_documents&quot;,
+  arguments: {
+    query: &quot;agent memory architecture&quot;,
+    limit: 5,
+    filter: { type: &quot;research_paper&quot;, year: 2026 }
+  }
+};
+
+// 压缩编码（~30 tokens，6x 压缩）
+const compactCall = [&quot;sd&quot;, &quot;agent memory architecture&quot;, 5, &quot;rp&quot;, 2026];
+// tool[0]=search_documents, filter[3]=research_paper
+</code></pre>
+<p>这需要工具端配合实现编解码器，但效果显著——SimpleTool 报告 3-6x 的单步加速。</p>
+<h2 id="agent_1">我的观点：Agent 框架的"性能债"</h2>
+<p>大多数 Agent 框架（2024-2025 年创建的那些）都有严重的性能债。它们在设计时只考虑了功能正确性，完全没有考虑执行效率。这就像 1990 年代写了一个功能正确但没有流水线的 CPU——能跑，但慢得离谱。</p>
+<p>具体来说：</p>
+<ol>
+<li>
+<p><strong>串行工具调用是 Anti-pattern</strong>——2026 年了，如果一个 Agent 框架不支持并行工具调用，那它不应该被用于生产环境。这是 10 行代码的改动，但能省 60% 的延迟。</p>
+</li>
+<li>
+<p><strong>推测执行应该是标配</strong>——不是可选优化。Agent 行为的可预测性（93.8% 命中率）已经足够高，不做推测就是浪费。实现成本是一个中间件层，不需要修改 Agent 核心逻辑。</p>
+</li>
+<li>
+<p><strong>安全门控不能事后补</strong>——推测执行的第一天就要设计安全策略系统。PASTE 的三级分类（完全可推测 / 干运行 / 禁止）是好的起点。不要等到出了事故再加。</p>
+</li>
+<li>
+<p><strong>可观测性是前提</strong>——你需要追踪推测命中率、回退率、节省的延迟。如果命中率低于 50%，要么是你的 Agent 行为太不可预测，要么是你的模式挖掘算法太粗糙。两种情况都需要知道。</p>
+</li>
+</ol>
+<h2 id="_5">五步行动清单</h2>
+<table>
+<thead>
+<tr>
+<th>优先级</th>
+<th>行动</th>
+<th>预期收益</th>
+<th>工作量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>审计现有 Agent 的工具调用，找出可并行的调用对</td>
+<td>2-3x 延迟降低</td>
+<td>1 天</td>
+</tr>
+<tr>
+<td>P0</td>
+<td>实现并行工具执行（上面的 <code>parallelExecute</code>）</td>
+<td>即时生效</td>
+<td>1-2 天</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>收集 100+ 次执行轨迹，分析 n-gram 模式</td>
+<td>了解可预测性</td>
+<td>2-3 天</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>实现 PatternMiner + 只读推测执行</td>
+<td>额外 1.5-3x 加速</td>
+<td>3-5 天</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>Token 级压缩（工具调用编码）</td>
+<td>单步 3-6x 加速</td>
+<td>1-2 周</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_6">结语：从"能跑"到"跑得快"</h2>
+<p>2026 年的 Agent 领域有一个奇怪的矛盾：模型推理速度越来越快（GPT-5 的首 token 延迟已经降到 200ms 以内），但 Agent 任务的端到端延迟几乎没有改善。原因很简单——瓶颈不在模型推理，而在工具调用的串行等待。</p>
+<p>CPU 在 1990 年代就解决了类似的问题。我们在 Agent 领域不需要重新发明轮子——只需要把三个已知的优化层叠加起来。并行调用是地基，推测执行是加速器，Token 优化是锦上添花。</p>
+<p>最有意思的是：这些优化都是<strong>无损的</strong>。你不需要牺牲任何准确率来获得加速。你只需要承认一个事实——Agent 的行为比你想象的更可预测，而可预测性就是免费的性能。</p>
+<hr />
+<p><em>本文基于 PASTE (arXiv:2603.18897)、SpecEyes (ECCV 2026)、LLMCompiler (ICML 2024)、Speculative Actions (arXiv:2510.04371) 和 SimpleTool (2026) 的研究成果。所有代码示例为作者原创，可直接用于 TypeScript Agent 项目。</em></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

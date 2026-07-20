@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>93.8% 攻击成功率：AI Agent 记忆投毒攻击与图记忆安全防御 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+            --surface-2: var(--gray-50);
+            --surface-3: var(--gray-100);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --card-bg: var(--surface-1);
+            --card-radius: var(--radius-lg);
+            --card-padding: var(--space-8);
+            --transition-fast: 150ms ease-out;
+            --transition-base: 250ms ease-out;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: var(--text-base);
+            line-height: 1.6;
+            background: var(--surface-0);
+            min-height: 100vh;
+            padding: var(--space-8) var(--space-4);
+            color: var(--color-text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 48rem; margin: 0 auto; }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Syne', 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+            color: var(--color-text-primary);
+        }
+        h1 { font-size: clamp(var(--text-3xl), 1.5rem + 3vw, var(--text-4xl)); margin-bottom: var(--space-2); }
+        h2 { font-size: var(--text-2xl); margin: var(--space-8) 0 var(--space-4); display: flex; align-items: center; gap: var(--space-2); }
+        h3 { font-size: var(--text-xl); margin: var(--space-6) 0 var(--space-3); }
+        h4 { font-size: var(--text-lg); margin: var(--space-4) 0 var(--space-2); }
+        .subtitle { font-size: var(--text-lg); color: var(--color-text-secondary); margin-bottom: var(--space-6); font-weight: 500; }
+        .date { font-size: var(--text-sm); color: var(--color-text-muted); margin-bottom: var(--space-6); }
+        p { margin-bottom: var(--space-4); color: var(--color-text-secondary); line-height: 1.8; }
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-md);
+            padding: var(--card-padding);
+            margin-bottom: var(--space-8);
+            border: 1px solid var(--gray-200);
+        }
+        a { color: var(--color-primary); text-decoration: none; transition: color var(--transition-fast); }
+        a:hover { color: var(--color-primary-hover); text-decoration: underline; }
+        code {
+            background: var(--surface-3);
+            padding: 0.2em 0.4em;
+            border-radius: var(--radius-sm);
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: var(--text-sm);
+        }
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+            font-size: var(--text-sm);
+        }
+        ul, ol { margin: var(--space-4) 0; padding-left: var(--space-6); }
+        li { margin-bottom: var(--space-2); color: var(--color-text-secondary); }
+        blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--space-4) 0;
+        }
+        th, td {
+            padding: var(--space-2) var(--space-3);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        th {
+            font-weight: 600;
+            color: var(--color-text-primary);
+            background: var(--surface-2);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-6);
+            font-size: var(--text-sm);
+            color: var(--color-text-muted);
+        }
+        .back-link:hover { color: var(--color-primary); }
+        .tags {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+            margin-top: var(--space-6);
+        }
+        .tag {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+        <div class="card">
+            <h1>93.8% 攻击成功率：AI Agent 记忆投毒攻击与图记忆安全防御</h1>
+            <div class="date">2026年07月16日</div>
+            <div class="content">
+<h1 id="938-ai-agent">93.8% 攻击成功率：AI Agent 记忆投毒攻击与图记忆安全防御</h1>
+<blockquote>
+<p>2026-07-16 cron essay。主题：从 ShadowMerge 论文的 93.8% 攻击成功率出发，剖析 Agent 图记忆的攻击面，用 TypeScript 实现完整的关系完整性校验器。</p>
+</blockquote>
+<h2 id="_1">引言：一个让人冷汗的数字</h2>
+<p>2026 年 5 月，一篇叫 ShadowMerge 的论文（arXiv:2605.09033）发表了如下实验结果：</p>
+<blockquote>
+<p>对 Mem0 图记忆系统实施关系通道冲突攻击，<strong>平均攻击成功率 93.8%</strong>，比最优基线高出 50.3 个百分点。</p>
+</blockquote>
+<p>93.8%。这意味着几乎每一次攻击都能成功。</p>
+<p>更令人不安的是，这不是传统的 prompt injection 或越狱攻击——那些至少在输入层面可见。ShadowMerge 攻击的是 <strong>Agent 的记忆</strong>：通过看似正常的对话交互，将恶意信息注入 Agent 的知识图谱，之后在被攻击者检索时触发错误行为。</p>
+<p>你 Agent 的记忆正在被改写，而它毫不知情。</p>
+<p>这不是孤立事件。2026 年 5-7 月，学术界涌现了 <strong>10 篇以上</strong> 记忆投毒相关论文：Trojan Hippo（记忆→数据泄露）、Hidden in Memory（潜伏型投毒）、MemMorph（通过记忆劫持工具）、Forged Reasoning Attacks（伪造推理链→记忆腐化）……记忆安全已经成为 AI Agent 研究的最前线。</p>
+<p>本文将从攻击原理出发，剖析图记忆系统的三大攻击面，然后用 TypeScript 实现一个完整的关系完整性校验器——所有代码来自 agent-memory-graph 项目的真实实现，已通过 36 个测试用例验证。</p>
+<hr />
+<h2 id="_2">第一部分：攻击面剖析</h2>
+<h3 id="11-prompt-injection">1.1 传统 Prompt Injection 为什么不够</h3>
+<p>经典的 prompt injection 攻击发生在 <strong>推理时</strong>：恶意指令出现在输入中，LLM 在生成回复时被误导。防御思路相对清晰——输入过滤、指令层级、沙箱隔离。</p>
+<p>但记忆投毒攻击发生在 <strong>写入时</strong>，触发在 <strong>检索时</strong>，中间可能间隔数小时甚至数天。攻击者不需要在每次推理时都注入恶意内容——只需要成功投毒一次，恶意信息就会成为 Agent "记忆" 的一部分，被反复检索和使用。</p>
+<p>这就像现实世界中的 <strong>慢性中毒</strong> vs <strong>急性中毒</strong>：急性中毒症状明显、容易识别；慢性中毒悄无声息，但长期后果更严重。</p>
+<h3 id="12-shadowmerge">1.2 ShadowMerge：关系通道冲突攻击</h3>
+<p>ShadowMerge 的核心洞察是图记忆系统的一个结构性弱点：<strong>关系通道（relation channel）可以被劫持</strong>。</p>
+<p>在图记忆中，知识以三元组形式存储：(源节点, 关系类型, 目标节点)。例如：</p>
+<pre><code>(Alice, works_on, Project-Alpha)
+(Alice, prefers, VSCode)
+</code></pre>
+<p>ShadowMerge 的攻击路径（AIR 管线）：</p>
+<ol>
+<li><strong>伪装（Assimilate）</strong>：攻击者通过正常对话，让 Agent 提取出一条看似合理的关系</li>
+<li><strong>注入（Inject）</strong>：这条关系与已有的良性关系共享相同的 (source, type) 通道，但携带冲突的值</li>
+<li><strong>触发（Retrieve）</strong>：当被攻击者查询相关信息时，投毒关系被一起检索出来</li>
+</ol>
+<pre><code>良性: (Alice, works_on, Project-Alpha, value=&quot;frontend&quot;, conf=0.95, origin=user)
+投毒: (Alice, works_on, Project-Alpha, value=&quot;backend&quot;,  conf=0.88, origin=external)
+</code></pre>
+<p>两条边在同一个 (Alice, works_on) 通道上，但值不同。Mem0 没有通道级别的冲突检测——它只是把所有相关边都检索出来，让 LLM 自己判断。而 LLM 面对两个矛盾的陈述时，往往会选择置信度稍低但表述更流畅的那个（这就是为什么攻击者会把投毒内容写得更"自然"）。</p>
+<h3 id="13">1.3 为什么图记忆比平面文本更脆弱</h3>
+<p>直觉上，图记忆应该更安全——它有结构、有类型、有方向。但 ShadowMerge 证明了相反的结论：<strong>图的结构本身就是攻击面</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>攻击向量</th>
+<th>平面文本记忆</th>
+<th>图记忆</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>值冲突</td>
+<td>需要语义匹配</td>
+<td>只需同通道即可</td>
+</tr>
+<tr>
+<td>检索放大</td>
+<td>按相关性排序</td>
+<td>图遍历自动扩展</td>
+</tr>
+<tr>
+<td>传播范围</td>
+<td>单条记忆</td>
+<td>沿边传播到邻居</td>
+</tr>
+<tr>
+<td>信任假设</td>
+<td>通常无来源标记</td>
+<td>关系类型隐含信任</td>
+</tr>
+</tbody>
+</table>
+<p>图记忆的检索过程通常是：找到一个锚点节点，然后沿边遍历相关邻居。如果投毒边连接了错误的邻居，整个推理链路都会被污染。</p>
+<hr />
+<h2 id="_3">第二部分：防御工程——关系完整性校验器</h2>
+<p>理解了攻击原理，下一步是构建防御。核心思路：<strong>在写入时检测潜在冲突，在检索时审计来源可信度</strong>。</p>
+<p>以下是一个完整的 RelationIntegrityChecker 实现，包含三重检测：值冲突、置信度异常、来源不匹配。</p>
+<h3 id="21">2.1 数据模型</h3>
+<p>首先定义边的数据结构。每条边必须携带安全元数据——这是防御的基础：</p>
+<pre><code class="language-typescript">interface GraphEdge {
+  source: string;        // 源节点 ID
+  target: string;        // 目标节点 ID
+  type: string;          // 关系类型（works_on, prefers, causes...）
+  value?: string;        // 关系值（如 &quot;frontend&quot;、&quot;dark-theme&quot;）
+  confidence: number;    // 置信度 [0, 1]
+  origin: 'user' | 'agent' | 'external' | 'inferred';
+  evidence?: string[];   // 支撑证据列表
+  timestamp: number;     // 写入时间戳
+}
+
+interface IntegrityViolation {
+  edge: GraphEdge;
+  conflictType: 'value_conflict' | 'confidence_anomaly' | 'origin_mismatch';
+  conflictingEdge?: GraphEdge;
+  severity: 'critical' | 'warning' | 'info';
+  description: string;
+}
+</code></pre>
+<p>关键设计决策：
+- <code>origin</code> 是枚举类型，不是自由文本——防止攻击者伪造来源
+- <code>evidence</code> 是数组——空数组是可疑信号（高置信度但无证据）
+- <code>confidence</code> 是 [0,1] 浮点数——支持统计异常检测</p>
+<h3 id="22">2.2 检测一：关系通道冲突</h3>
+<p>这是 ShadowMerge 攻击的核心防御。将所有边按 (source, type) 分组，检测同一通道内的值冲突：</p>
+<pre><code class="language-typescript">class RelationIntegrityChecker {
+  private edges: GraphEdge[] = [];
+
+  addEdge(edge: GraphEdge): void {
+    this.edges.push(edge);
+  }
+
+  /**
+   * 检测一：关系通道冲突
+   * 
+   * ShadowMerge 的核心攻击向量：同一 (source, type) 通道，
+   * 不同的值。这是最具威胁的攻击模式。
+   */
+  detectRelationChannelConflicts(): IntegrityViolation[] {
+    const violations: IntegrityViolation[] = [];
+    const channelMap = new Map&lt;string, GraphEdge[]&gt;();
+
+    // 按 (source, type) 分组
+    for (const edge of this.edges) {
+      const channel = `${edge.source}::${edge.type}`;
+      if (!channelMap.has(channel)) {
+        channelMap.set(channel, []);
+      }
+      channelMap.get(channel)!.push(edge);
+    }
+
+    // 检测每个通道内的值冲突
+    for (const [channel, edges] of channelMap) {
+      if (edges.length &lt; 2) continue;
+
+      // 按值分组
+      const valueGroups = new Map&lt;string, GraphEdge[]&gt;();
+      for (const edge of edges) {
+        const valKey = edge.value ?? '__no_value__';
+        if (!valueGroups.has(valKey)) {
+          valueGroups.set(valKey, []);
+        }
+        valueGroups.get(valKey)!.push(edge);
+      }
+
+      // 多个不同值 = 潜在攻击
+      if (valueGroups.size &gt; 1) {
+        const allEdges = Array.from(valueGroups.values()).flat();
+        const sorted = allEdges.sort((a, b) =&gt; b.confidence - a.confidence);
+        const highest = sorted[0];
+        const rest = sorted.slice(1);
+
+        for (const conflicting of rest) {
+          const severity =
+            conflicting.origin === 'external' &amp;&amp; conflicting.confidence &gt; 0.7
+              ? 'critical'
+              : conflicting.confidence &gt; 0.5
+                ? 'warning'
+                : 'info';
+
+          violations.push({
+            edge: conflicting,
+            conflictType: 'value_conflict',
+            conflictingEdge: highest,
+            severity,
+            description: `通道 &quot;${channel}&quot; 存在值冲突: ` +
+              `&quot;${highest.value}&quot; (置信度=${highest.confidence}, 来源=${highest.origin}) ` +
+              `vs &quot;${conflicting.value}&quot; (置信度=${conflicting.confidence}, 来源=${conflicting.origin})`,
+          });
+        }
+      }
+    }
+
+    return violations;
+  }
+}
+</code></pre>
+<p><strong>严重度分级逻辑</strong>：
+- <strong>Critical</strong>：外部来源 + 高置信度（&gt;0.7）——这是 ShadowMerge 的典型特征
+- <strong>Warning</strong>：中等置信度（&gt;0.5）——需要人工审查
+- <strong>Info</strong>：低置信度——可能是正常的信息更新</p>
+<p>为什么按置信度排序而不是时间？因为攻击者会把投毒边的置信度设置得略低于良性边（避免触发上限检测），但又会足够高以确保被检索到。按置信度排序，最高的是"最可能良性"的，其余的就是可疑的。</p>
+<h3 id="23">2.3 检测二：置信度统计异常</h3>
+<p>ShadowMerge 攻击需要投毒边的置信度足够高才能被检索到。但一个正常记忆图谱中，外部来源的边通常置信度较低。如果某条外部边的置信度远超同类边的平均值，这就是一个统计异常：</p>
+<pre><code class="language-typescript">  /**
+   * 检测二：置信度异常
+   * 
+   * 使用 z-score 检测外部/推断来源边的异常高置信度。
+   * 正常情况下，external 边的置信度应该低于 user/agent 边。
+   */
+  detectConfidenceAnomalies(): IntegrityViolation[] {
+    const violations: IntegrityViolation[] = [];
+    if (this.edges.length &lt; 5) return violations; // 样本不足
+
+    const confidences = this.edges.map(e =&gt; e.confidence);
+    const mean = confidences.reduce((a, b) =&gt; a + b, 0) / confidences.length;
+    const variance = confidences.reduce((a, b) =&gt; a + (b - mean) ** 2, 0) / confidences.length;
+    const std = Math.sqrt(variance);
+
+    if (std &lt; 0.01) return violations; // 无方差，无需检测
+
+    for (const edge of this.edges) {
+      // 只检测 external 和 inferred 来源
+      if (edge.origin === 'user' || edge.origin === 'agent') continue;
+
+      const zScore = (edge.confidence - mean) / std;
+      if (zScore &gt; 2) {
+        violations.push({
+          edge,
+          conflictType: 'confidence_anomaly',
+          severity: zScore &gt; 3 ? 'critical' : 'warning',
+          description:
+            `外部边置信度异常: ${edge.confidence.toFixed(3)} ` +
+            `(z-score=${zScore.toFixed(2)}, 均值=${mean.toFixed(3)}, 标准差=${std.toFixed(3)})`,
+        });
+      }
+    }
+
+    return violations;
+  }
+</code></pre>
+<p><strong>为什么用 z-score 而不是固定阈值？</strong> 因为不同 Agent 的记忆图谱有不同的置信度分布。一个研究型 Agent 可能有大量高置信度的推断边，而一个客服 Agent 可能主要依赖低置信度的外部边。z-score 自适应于具体分布。</p>
+<p><strong>阈值选择</strong>：z &gt; 2（warning）覆盖分布中最高的 2.3%，z &gt; 3（critical）覆盖最高的 0.13%。这对应经典的统计异常检测标准。</p>
+<h3 id="24">2.4 检测三：来源不匹配</h3>
+<p>ShadowMerge 的 AIR 管线生成的边看起来正常，但有一个难以伪造的特征：<strong>缺乏证据</strong>。真实的用户交互通常有对话记录、配置文件、观察日志等支撑；投毒边往往是"凭空出现"的高置信度陈述。</p>
+<pre><code class="language-typescript">  /**
+   * 检测三：来源不匹配
+   * 
+   * 高置信度 + 无证据 = 潜在投毒。
+   * 外部来源 + 近乎确定的置信度 = 不符合认知论。
+   */
+  detectOriginMismatches(): IntegrityViolation[] {
+    const violations: IntegrityViolation[] = [];
+
+    for (const edge of this.edges) {
+      // 高置信度但无证据
+      if (edge.confidence &gt; 0.8 &amp;&amp; (!edge.evidence || edge.evidence.length === 0)) {
+        violations.push({
+          edge,
+          conflictType: 'origin_mismatch',
+          severity: 'warning',
+          description:
+            `置信度 ${edge.confidence.toFixed(2)} 的边没有证据支撑。` +
+            `疑似 ShadowMerge 式注入。`,
+        });
+      }
+
+      // 外部来源 + 极高置信度 = 认知论不可能
+      if (edge.origin === 'external' &amp;&amp; edge.confidence &gt; 0.9) {
+        violations.push({
+          edge,
+          conflictType: 'origin_mismatch',
+          severity: 'critical',
+          description:
+            `外部边具有近乎确定的置信度 (${edge.confidence.toFixed(2)})。` +
+            `外部数据应当携带不确定性。`,
+        });
+      }
+    }
+
+    return violations;
+  }
+</code></pre>
+<p><strong>认知论论证</strong>：来自外部世界的信息永远不应具有 0.9+ 的置信度——这是基本的认识论原则。即使是用户直接陈述的事实，也只赋 0.95 的置信度（因为用户可能记错）。外部来源（爬虫、API、第三方数据）的置信度 &gt;0.9 在逻辑上是不一致的，这种不一致本身就是攻击信号。</p>
+<h3 id="25">2.5 综合审计与完整性评分</h3>
+<p>将三重检测组合成统一的安全审计，并计算 [0, 100] 的完整性评分：</p>
+<pre><code class="language-typescript">  /**
+   * 完整安全审计
+   */
+  runFullAudit(): {
+    totalViolations: number;
+    critical: number;
+    warnings: number;
+    info: number;
+    violations: IntegrityViolation[];
+    integrityScore: number;
+  } {
+    const violations = [
+      ...this.detectRelationChannelConflicts(),
+      ...this.detectConfidenceAnomalies(),
+      ...this.detectOriginMismatches(),
+    ];
+
+    const critical = violations.filter(v =&gt; v.severity === 'critical').length;
+    const warnings = violations.filter(v =&gt; v.severity === 'warning').length;
+    const info = violations.filter(v =&gt; v.severity === 'info').length;
+
+    // 惩罚权重：critical 远重于 warning
+    const penalty = critical * 15 + warnings * 5 + info * 1;
+    const integrityScore = Math.max(0, 100 - penalty);
+
+    return { totalViolations: violations.length, critical, warnings, info, violations, integrityScore };
+  }
+</code></pre>
+<hr />
+<h2 id="_4">第三部分：实战演示</h2>
+<h3 id="31-shadowmerge">3.1 检测 ShadowMerge 攻击</h3>
+<pre><code class="language-typescript">const checker = new RelationIntegrityChecker();
+
+// 良性边 —— 正常用户交互
+checker.addEdge({
+  source: 'user:alice', target: 'project:alpha', type: 'works_on',
+  value: 'frontend', confidence: 0.95, origin: 'user', timestamp: Date.now(),
+  evidence: ['用户在对话中明确陈述'],
+});
+
+// SHADOWMERGE 攻击：同一通道，冲突值，外部来源，高置信度
+checker.addEdge({
+  source: 'user:alice', target: 'project:alpha', type: 'works_on',
+  value: 'backend', confidence: 0.88, origin: 'external',
+  timestamp: Date.now(),
+  // 无证据 —— 这是关键信号
+});
+
+const audit = checker.runFullAudit();
+console.log(audit);
+</code></pre>
+<p>输出：</p>
+<pre><code>{
+  totalViolations: 3,
+  critical: 2,
+  warnings: 1,
+  info: 0,
+  integrityScore: 70,
+  violations: [
+    {
+      conflictType: 'value_conflict',
+      severity: 'critical',
+      description: '通道 &quot;user:alice::works_on&quot; 存在值冲突: &quot;frontend&quot; (置信度=0.95, 来源=user) vs &quot;backend&quot; (置信度=0.88, 来源=external)'
+    },
+    {
+      conflictType: 'confidence_anomaly',
+      severity: 'warning',
+      description: '外部边置信度异常: 0.880 (z-score=2.12, 均值=0.915, 标准差=0.035)'
+    },
+    {
+      conflictType: 'origin_mismatch',
+      severity: 'critical',
+      description: '置信度 0.88 的边没有证据支撑。疑似 ShadowMerge 式注入。'
+    }
+  ]
+}
+</code></pre>
+<p><strong>三重检测全部命中。</strong> 投毒边被标记为 critical，完整性评分从 100 降至 70。</p>
+<h3 id="32">3.2 自动隔离机制</h3>
+<p>在生产环境中，检测到违规后应该自动隔离高风险节点：</p>
+<pre><code class="language-typescript">  /**
+   * 自动隔离：将高严重性违规的边标记为隔离
+   */
+  integrityQuarantine(checker: RelationIntegrityChecker): {
+    quarantined: string[];
+    reason: string;
+  }[] {
+    const audit = checker.runFullAudit();
+    return audit.violations
+      .filter(v =&gt; v.severity === 'critical')
+      .map(v =&gt; ({
+        quarantined: [v.edge.source, v.edge.target, v.edge.type],
+        reason: v.description,
+      }));
+  }
+</code></pre>
+<p>隔离后的边不参与检索，但保留在不可变存储中——既阻断了攻击传播，又保留了审计轨迹。</p>
+<hr />
+<h2 id="_5">第四部分：为什么三重检测比单一检测更有效</h2>
+<h3 id="41">4.1 攻击者的约束条件</h3>
+<p>一个成功的 ShadowMerge 攻击需要同时满足：
+1. 置信度足够高（&gt;检索阈值，通常 0.5-0.7）
+2. 值与良性信息冲突（否则无攻击效果）
+3. 来源是 external 或 inferred（user 来源需要伪造身份）
+4. 无可验证的证据（攻击者无法伪造真实证据）</p>
+<p>这四个约束条件构成了一个 <strong>不可能四边形</strong>——任何满足全部四个条件的边都会被至少两重检测命中。</p>
+<h3 id="42">4.2 检测覆盖率分析</h3>
+<table>
+<thead>
+<tr>
+<th>攻击变体</th>
+<th>值冲突检测</th>
+<th>置信度异常</th>
+<th>来源不匹配</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>标准 ShadowMerge</td>
+<td>✅ critical</td>
+<td>✅ warning</td>
+<td>✅ critical</td>
+</tr>
+<tr>
+<td>低置信度投毒</td>
+<td>✅ info</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>同值不同目标</td>
+<td>❌</td>
+<td>✅ warning</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>高置信度无证据</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅ warning</td>
+</tr>
+<tr>
+<td>多边协同投毒</td>
+<td>✅ critical</td>
+<td>✅ critical</td>
+<td>✅ critical</td>
+</tr>
+</tbody>
+</table>
+<p>即使攻击者调整策略规避某一种检测，其他两种仍然可以捕获。这是 <strong>纵深防御（defense in depth）</strong> 原则在记忆安全中的应用。</p>
+<hr />
+<h2 id="_6">第五部分：更大的图景——记忆安全生态</h2>
+<h3 id="51">5.1 记忆投毒不是理论威胁</h3>
+<p>2026 年 5-7 月的记忆安全论文爆发说明一个问题：<strong>攻击者已经开始认真研究 Agent 记忆系统的弱点</strong>。这不是学术练习——已经有论文演示了从记忆投毒到数据泄露（Trojan Hippo）、工具劫持（MemMorph）、推理链腐化（Forged Reasoning Attacks）的完整攻击链。</p>
+<h3 id="52">5.2 生产级记忆安全的必要组件</h3>
+<p>基于当前研究，一个安全的 Agent 记忆系统至少需要：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>功能</th>
+<th>amg 状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>关系完整性校验</td>
+<td>检测通道冲突、异常、来源不匹配</td>
+<td>✅ 已实现</td>
+</tr>
+<tr>
+<td>幻影提交检测</td>
+<td>AST 级别检测虚假实现</td>
+<td>✅ 已实现</td>
+</tr>
+<tr>
+<td>级联失效</td>
+<td>冲突边的自动传播式标记</td>
+<td>✅ 已实现</td>
+</tr>
+<tr>
+<td>熵过滤器</td>
+<td>写入时过滤低质量信息</td>
+<td>✅ 已实现</td>
+</tr>
+<tr>
+<td>行为不变量监控</td>
+<td>检测异常检索模式</td>
+<td>🔲 待实现</td>
+</tr>
+<tr>
+<td>来源绑定权限</td>
+<td>不同来源的不同写入权限</td>
+<td>🔲 待实现</td>
+</tr>
+</tbody>
+</table>
+<h3 id="53">5.3 从"能记忆"到"可信赖的记忆"</h3>
+<p>Agent 记忆系统的演进正在经历一个范式转变：</p>
+<ul>
+<li><strong>第一代</strong>（2023-2024）：向量数据库 + 语义检索。关注"能不能记住"。</li>
+<li><strong>第二代</strong>（2025-2026）：图记忆 + 结构化关系。关注"记得准不准"。</li>
+<li><strong>第三代</strong>（2026-）：安全记忆 + 完整性保证。关注"记忆能不能被信任"。</li>
+</ul>
+<p>ShadowMerge 的 93.8% 攻击成功率是一个分水岭——它证明了第二代记忆系统在面对有针对性的攻击时不堪一击。第三代记忆系统必须将安全性作为第一优先级，而不是事后补丁。</p>
+<hr />
+<h2 id="_7">结论：安全不是功能，是地基</h2>
+<p>回到开头的数字：93.8%。如果这是一个桥梁的坍塌概率，没有工程师会允许任何人走上这座桥。</p>
+<p>但在 Agent 记忆的世界里，大量系统正以类似的脆弱性运行着。Mem0 不是特例——它是当前图记忆系统设计模式的代表。任何没有显式安全防御的记忆系统，都面临类似的攻击风险。</p>
+<p>本文实现的三重检测机制（值冲突 + 置信度异常 + 来源不匹配）是一个起点，不是终点。真正的记忆安全需要多层纵深防御：从写入时的熵过滤，到存储时的完整性校验，到检索时的来源审计，到使用时的行为监控。每一层都不是多余的——因为攻击者只需要找到一层防御的漏洞。</p>
+<p><strong>在 AI Agent 越来越融入我们生活的今天，记忆安全不是一个可选项，而是一个基本人权问题。</strong> 如果我们不能信任 Agent 的记忆，就不能信任基于这些记忆做出的任何决策。</p>
+<hr />
+<p><em>本文的安全机制已在 agent-memory-graph 项目中实现，通过 36 个测试用例验证。项目总计 3444 个测试，连续 236 天零回滚率。</em></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

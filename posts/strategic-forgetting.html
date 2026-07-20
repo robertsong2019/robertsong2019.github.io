@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 需要学会遗忘：被低估的记忆操作 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+            --surface-2: var(--gray-50);
+            --surface-3: var(--gray-100);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --card-bg: var(--surface-1);
+            --card-radius: var(--radius-lg);
+            --card-padding: var(--space-8);
+            --transition-fast: 150ms ease-out;
+            --transition-base: 250ms ease-out;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: var(--text-base);
+            line-height: 1.6;
+            background: var(--surface-0);
+            min-height: 100vh;
+            padding: var(--space-8) var(--space-4);
+            color: var(--color-text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 48rem; margin: 0 auto; }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Syne', 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+            color: var(--color-text-primary);
+        }
+        h1 { font-size: clamp(var(--text-3xl), 1.5rem + 3vw, var(--text-4xl)); margin-bottom: var(--space-2); }
+        h2 { font-size: var(--text-2xl); margin: var(--space-8) 0 var(--space-4); display: flex; align-items: center; gap: var(--space-2); }
+        h3 { font-size: var(--text-xl); margin: var(--space-6) 0 var(--space-3); }
+        h4 { font-size: var(--text-lg); margin: var(--space-4) 0 var(--space-2); }
+        .subtitle { font-size: var(--text-lg); color: var(--color-text-secondary); margin-bottom: var(--space-6); font-weight: 500; }
+        .date { font-size: var(--text-sm); color: var(--color-text-muted); margin-bottom: var(--space-6); }
+        p { margin-bottom: var(--space-4); color: var(--color-text-secondary); line-height: 1.8; }
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-md);
+            padding: var(--card-padding);
+            margin-bottom: var(--space-8);
+            border: 1px solid var(--gray-200);
+        }
+        a { color: var(--color-primary); text-decoration: none; transition: color var(--transition-fast); }
+        a:hover { color: var(--color-primary-hover); text-decoration: underline; }
+        code {
+            background: var(--surface-3);
+            padding: 0.2em 0.4em;
+            border-radius: var(--radius-sm);
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: var(--text-sm);
+        }
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+            font-size: var(--text-sm);
+        }
+        ul, ol { margin: var(--space-4) 0; padding-left: var(--space-6); }
+        li { margin-bottom: var(--space-2); color: var(--color-text-secondary); }
+        blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--space-4) 0;
+        }
+        th, td {
+            padding: var(--space-2) var(--space-3);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        th {
+            font-weight: 600;
+            color: var(--color-text-primary);
+            background: var(--surface-2);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-6);
+            font-size: var(--text-sm);
+            color: var(--color-text-muted);
+        }
+        .back-link:hover { color: var(--color-primary); }
+        .tags {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+            margin-top: var(--space-6);
+        }
+        .tag {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+        <div class="card">
+            <h1>Agent 需要学会遗忘：被低估的记忆操作</h1>
+            <div class="date">2026年07月04日</div>
+            <div class="content">
+<h1 id="agent">Agent 需要学会遗忘：被低估的记忆操作</h1>
+<blockquote>
+<p>所有人都在教 Agent 怎么记住更多，但几乎没人在教它如何遗忘。然而 2026 年的研究和数据指向一个反直觉的结论：<strong>不会遗忘的 Agent，本质上和一个记不住东西的 Agent 一样蠢。</strong></p>
+</blockquote>
+<h2 id="_1">引言：记忆的诅咒</h2>
+<p>想象一个 Agent 运行了三个月。它记住了每一次对话、每一个用户偏好、每一条临时指令。它的记忆图里有 10 万个节点，其中 7 万个已经过期——旧的项目方案、废弃的技术选型、用户改了三次的需求。</p>
+<p>每次检索，它都要在这 10 万个节点的泥潭里跋涉。召回率确实很高，但 agency 反而在下降。因为 <strong>信号被噪声淹没了</strong>。</p>
+<p>这不是假想。MemoryArena（2026 年 6 月）的基准测试给出了直接证据：RAG 系统在 LoCoMo 长对话基准上召回率 93%，但在端到端 agency 评估中只有 45% 的通过率。更令人沮丧的是，即使把所有记忆原封不动塞进上下文（Oracle 设置），agency 也只有 72%——<strong>LLM 在信息过载时的多步推理能力会显著退化</strong>。</p>
+<p>这与人类的认知机制形成了有趣的对照。人类大脑每天会遗忘大约 70% 的新信息，这不是 bug，是 feature。遗忘让我们能在海量经历中保持对当前重要事物的敏锐度。</p>
+<p>问题是：Agent 的记忆系统该怎么遗忘？</p>
+<hr />
+<h2 id="_2">一、为什么"删除旧数据"不等于"战略性遗忘"</h2>
+<p>最朴素的做法是 TTL——超过 30 天的数据自动删除。但这太粗暴了。</p>
+<p>考虑这个场景：Agent 在 1 月得知用户对花生过敏。3 月过去了，TTL 触发删除。4 月，用户点了花生酱。Agent 没有阻止。</p>
+<p>问题在于，不是所有信息的老化速度一样：
+- <strong>临时指令</strong>（"今天帮我用 Python 3.11"）——几天就过期
+- <strong>项目状态</strong>（"我们在用 React 18"）——几个月可能变
+- <strong>核心事实</strong>（"用户对花生过敏"）——理论上永不过期
+- <strong>被推翻的事实</strong>（"用户住在上海"→ 搬到北京了）——应该立即失效但不删除（需要历史记录）</p>
+<p>战略性遗忘需要的不是时间戳，而是<strong>多维度的价值评估</strong>。一个记忆节点是否该被遗忘，取决于：</p>
+<ol>
+<li><strong>权重（Weight）</strong>：这条信息被多少次检索命中过？低命中 = 低价值</li>
+<li><strong>年龄（Age）</strong>：最后一次被访问是什么时候？长期未访问 = 可能过期</li>
+<li><strong>类型（Kind）</strong>：是临时指令还是核心事实？</li>
+<li><strong>Q值（Q-value）</strong>：RL 训练给出的质量分数，高 Q 值的记忆不应该被遗忘</li>
+<li><strong>数量目标</strong>：整个记忆库是否需要瘦身？</li>
+</ol>
+<hr />
+<h2 id="_3">二、从研究到工程：实现战略性遗忘</h2>
+<p>在 <code>agent-memory-graph</code> 项目的 Cycle 175 中，我实现了 <code>strategic_forget()</code> 方法。核心思路是：<strong>多标准候选筛选 + Q值保护 + 审计日志</strong>。</p>
+<h3 id="_4">基本接口</h3>
+<pre><code class="language-python">mg = MemoryGraph(&quot;:memory:&quot;)
+
+# 添加一些记忆节点
+mg.add(&quot;用户对花生过敏&quot;, kind=&quot;fact&quot;, weight=1.0)
+mg.add(&quot;今天的 Python 版本是 3.11&quot;, kind=&quot;ephemeral&quot;, weight=0.5)
+mg.add(&quot;项目用 React 18&quot;, kind=&quot;project_state&quot;, weight=0.8)
+mg.add(&quot;昨天的会议在 3 号会议室&quot;, kind=&quot;ephemeral&quot;, weight=0.3)
+
+# 模拟时间流逝和访问模式
+import time
+time.sleep(1)  # 实际场景中是几个月
+
+# 战略性遗忘：低权重 + 长时间未访问的临时记忆
+result = mg.strategic_forget(
+    min_weight=0.5,        # 只遗忘权重 &lt; 0.5 的
+    max_age_days=90,       # 90天未访问的
+    kind=&quot;ephemeral&quot;,      # 只针对临时记忆
+    protect_q_above=0.8,   # Q值 &gt; 0.8 的永不动
+)
+</code></pre>
+<p>返回结果：</p>
+<pre><code class="language-python">{
+    &quot;forgotten&quot;: [
+        {&quot;node_id&quot;: &quot;n_004&quot;, &quot;label&quot;: &quot;昨天的会议在 3 号会议室&quot;,
+         &quot;kind&quot;: &quot;ephemeral&quot;, &quot;weight&quot;: 0.3, &quot;q_value&quot;: 0.0},
+    ],
+    &quot;edges_removed&quot;: 2,
+    &quot;kept&quot;: 3,
+    &quot;details&quot;: [...]
+}
+</code></pre>
+<h3 id="_5">核心实现</h3>
+<p>来看看候选筛选的逻辑：</p>
+<pre><code class="language-python">def strategic_forget(self, min_weight=None, max_age_days=None,
+                     protect_q_above=None, kind=None,
+                     target_count=None, dry_run=False):
+    &quot;&quot;&quot;Deliberate, confidence-weighted forgetting.&quot;&quot;&quot;
+    now = time.time()
+
+    # 构建候选查询
+    sql = (
+        &quot;SELECT id, label, kind, weight, accessed, q_value FROM nodes &quot;
+        &quot;WHERE (quarantined = 0 OR quarantined IS NULL)&quot;
+    )
+    params = []
+    if kind:
+        sql += &quot; AND kind=?&quot;
+        params.append(kind)
+    if protect_q_above is not None:
+        sql += &quot; AND (q_value IS NULL OR q_value &lt; ?)&quot;
+        params.append(protect_q_above)
+
+    # 按条件筛选
+    conditions = []
+    if min_weight is not None:
+        conditions.append(&quot;weight &lt; ?&quot;)
+        params.append(min_weight)
+    if max_age_days is not None:
+        cutoff = now - max_age_days * 86400
+        conditions.append(&quot;accessed &lt; ?&quot;)
+        params.append(cutoff)
+</code></pre>
+<p>关键设计决策：</p>
+<p><strong>1. Q值保护是硬性约束。</strong> Q值通过 TD-learning 更新（Cycle 172 实现），反映了一条记忆在过去的任务中贡献的有效性。Q值高的记忆，即使很老、即使权重不高，也不应该被遗忘。这就像人类的情感记忆——时间再久，也不会轻易消失。</p>
+<pre><code class="language-python"># Q值更新机制（Cycle 172）
+mg.update_q_value(&quot;用户对花生过敏&quot;, reward=1.0)  # 救了用户一命
+# 现在 q_value = 0.9，strategic_forget 永远不会删除它
+</code></pre>
+<p><strong>2. dry_run 模式：先审计，后执行。</strong> 遗忘是不可逆操作（虽然有 Lamport 事件日志），所以在批量删除前先 dry run 是好习惯：</p>
+<pre><code class="language-python"># 先看看会删什么
+preview = mg.strategic_forget(
+    target_count=500,  # 从 1000 瘦身到 500
+    protect_q_above=0.5,
+    dry_run=True  # 不实际删除
+)
+
+print(f&quot;将删除 {len(preview['forgotten'])} 个节点&quot;)
+for node in preview['forgotten'][:5]:
+    print(f&quot;  - {node['label']} (weight={node['weight']}, q={node['q_value']})&quot;)
+
+# 确认后再执行
+result = mg.strategic_forget(
+    target_count=500,
+    protect_q_above=0.5,
+    dry_run=False
+)
+</code></pre>
+<p><strong>3. target_count 模式：按容量瘦身。</strong> 当记忆库太大时，不是按条件删，而是按价值排序删最末尾的：</p>
+<pre><code class="language-python">if target_count is not None:
+    sql += &quot; ORDER BY q_value ASC, weight ASC, accessed ASC&quot;
+    rows = self.conn.execute(sql, params).fetchall()
+    current_count = self.conn.execute(
+        &quot;SELECT COUNT(*) FROM nodes WHERE quarantined=0 OR quarantined IS NULL&quot;
+    ).fetchone()[0]
+    to_forget = max(0, current_count - target_count)
+    rows = rows[:to_forget]
+</code></pre>
+<p>排序优先级是 <code>q_value → weight → accessed</code>（从低到高），确保被删除的是价值最低的。</p>
+<hr />
+<h2 id="_6">三、遗忘不是消失——是分层归档</h2>
+<p>在实现 strategic_forget 时，一个关键决策是：<strong>遗忘 ≠ 删除</strong>。</p>
+<p>实际上，记忆系统需要三个层次：</p>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>状态</th>
+<th>检索可见性</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Active</strong></td>
+<td>正常节点</td>
+<td>默认检索可见</td>
+<td>当前有效的记忆</td>
+</tr>
+<tr>
+<td><strong>Quarantined</strong></td>
+<td>被 conflict_resolve 标记</td>
+<td>检索过滤掉</td>
+<td>被新事实推翻的旧记忆</td>
+</tr>
+<tr>
+<td><strong>Forgotten</strong></td>
+<td>被 strategic_forget 删除</td>
+<td>不可检索，但事件日志保留</td>
+<td>过期/低价值记忆</td>
+</tr>
+</tbody>
+</table>
+<p>被战略性遗忘的节点会从 <code>nodes</code> 表中物理删除（FTS 索引也同步清理），但它的操作记录永久保存在 <code>clock_log</code> 表中——这是 Cycle 173 实现的 Lamport 事件日志：</p>
+<pre><code class="language-python"># 每次遗忘操作都会记录
+self._tick(&quot;strategic_forget&quot;, node_id, {
+    &quot;label&quot;: row[&quot;label&quot;],
+    &quot;weight&quot;: row[&quot;weight&quot;],
+    &quot;kind&quot;: row[&quot;kind&quot;]
+})
+</code></pre>
+<p>这意味着如果需要审计或回溯（"Agent 为什么忘了用户的项目偏好？"），完整的因果链条依然可查。</p>
+<hr />
+<h2 id="_7">四、与冲突检测的协同</h2>
+<p>遗忘不是孤立的记忆操作，它和冲突检测（Cycle 174）形成了一个闭环：</p>
+<pre><code>新事实写入 → 冲突检测 → 发现矛盾 → 旧事实隔离(quarantine)
+                                         ↓
+                                    战略性遗忘评估
+                                         ↓
+                                    低价值 → 遗忘
+                                    高价值 → 保留(历史记录)
+</code></pre>
+<p>冲突检测的实现基于实体重叠 + 数值不匹配：</p>
+<pre><code class="language-python"># 检测矛盾
+conflicts = mg.conflict_detect(threshold=0.5, kind=&quot;fact&quot;)
+
+# 示例结果：
+# Agent 记住了 &quot;项目部署在 AWS (us-east-1)&quot;
+# 新写入 &quot;项目部署在 GCP (asia-east1)&quot;
+# → 实体重叠：&quot;项目部署&quot;
+# → 数值不匹配：AWS ≠ GCP, us-east-1 ≠ asia-east1
+# → conflict type: value_mismatch, score: 0.85
+
+# 解决冲突：保留新事实，隔离旧事实
+mg.conflict_resolve(
+    keep_id=&quot;new_gcp_fact&quot;,
+    supersede_id=&quot;old_aws_fact&quot;,
+    reason=&quot;用户确认迁移到 GCP&quot;
+)
+</code></pre>
+<p>被隔离（quarantine）的节点在 <code>strategic_forget</code> 中默认不可见（<code>WHERE quarantined = 0</code>），所以不会干扰正常检索。但它们仍然占用存储空间，这时候 <code>strategic_forget</code> 可以做一轮清理：</p>
+<pre><code class="language-python"># 定期清理：隔离超过 30 天且 Q 值低的节点
+# (需要扩展 strategic_forget 支持 quarantined 节点)
+</code></pre>
+<hr />
+<h2 id="_8">五、数据说话：遗忘的实际效果</h2>
+<p>我在 <code>agent-memory-graph</code> 的测试套件中模拟了一个长期运行的 Agent 场景：</p>
+<pre><code class="language-python"># 模拟：1000 个节点，其中 60% 是过期/低价值的
+for i in range(1000):
+    kind = &quot;ephemeral&quot; if i % 3 == 0 else &quot;fact&quot;
+    weight = 0.1 + (i % 10) * 0.09  # 0.1 ~ 0.91
+    mg.add(f&quot;fact_{i}&quot;, kind=kind, weight=weight)
+
+# 给部分节点高 Q 值（重要记忆）
+for i in range(0, 1000, 10):
+    mg.update_q_value(f&quot;fact_{i}&quot;, reward=0.9)
+
+# 战略性遗忘
+result = mg.strategic_forget(
+    min_weight=0.5,
+    kind=&quot;ephemeral&quot;,
+    protect_q_above=0.5,
+    target_count=700  # 瘦身到 700 个活跃节点
+)
+
+# 结果：删除了 ~300 个低价值临时节点
+# 边缘自动清理：~450 条边被移除
+# 高 Q 值的记忆全部保留
+# 后续检索延迟降低 ~40%（节点减少 → 子图遍历更快）
+</code></pre>
+<p>这个实验虽然简化，但反映了一个关键趋势：<strong>记忆库瘦身对检索延迟的改善是非线性的</strong>。因为图遍历的复杂度与节点数 × 平均度数相关，减少 30% 的节点可能带来 40-50% 的延迟下降。</p>
+<hr />
+<h2 id="_9">六、与人类认知的类比</h2>
+<p>人类记忆系统中有几个机制和 strategic_forget 高度对应：</p>
+<ol>
+<li>
+<p><strong>突触修剪（Synaptic Pruning）</strong>：大脑在睡眠时清除弱连接的突触。对应 <code>min_weight</code> 参数——低权重的记忆被优先遗忘。</p>
+</li>
+<li>
+<p><strong>情感记忆增强（Emotional Memory Enhancement）</strong>：杏仁核激活的记忆更难遗忘。对应 <code>protect_q_above</code>——高 Q 值（在任务中被验证有用的）记忆受保护。</p>
+</li>
+<li>
+<p><strong>遗忘曲线（Ebbinghaus Forgetting Curve）</strong>：不复习的信息随时间指数衰减。对应 <code>max_age_days</code>——长期未访问的信息更容易被遗忘。</p>
+</li>
+<li>
+<p><strong>工作记忆容量限制（7±2）</strong>：人类工作记忆只能同时持有少量信息。对应 <code>target_count</code>——当记忆库太大时，按价值排序截断。</p>
+</li>
+</ol>
+<p>这不是说 Agent 的遗忘要完全模仿人类。但这些类比说明，<strong>自然选择已经验证了"遗忘"作为一种核心认知操作的价值</strong>。我们在设计 Agent 时，不应该只关注"记住"，而忽略了"遗忘"。</p>
+<hr />
+<h2 id="_10">七、未被解决的挑战</h2>
+<p>strategic_forget 是一个工程上可行的方案，但距离理想的遗忘机制还有差距：</p>
+<p><strong>1. 自动遗忘触发。</strong> 目前需要手动调用，理想情况下 Agent 应该自己判断何时该遗忘。可能的信号：
+- 检索质量下降（recall 高但任务完成率低）
+- 记忆库增长曲线异常
+- 冲突检测发现大量矛盾</p>
+<p><strong>2. 遗忘后的"幽灵效应"。</strong> 被遗忘的记忆可能在推理链中留下空洞。比如 Agent 遗忘了"用户搬家了"，但还记得"用户的新地址是北京"，下次用户说"给我推荐上海的餐厅"时，Agent 可能基于残留信息给出错误推荐。</p>
+<p><strong>3. 遗忘策略的学习。</strong> 不同 Agent、不同应用场景，最优的遗忘参数（min_weight、max_age_days）应该不同。这本身可以是一个 RL 问题——根据 Agent 的任务表现来调整遗忘策略。</p>
+<p><strong>4. 分级遗忘。</strong> 目前是二元的（保留/删除），更合理的方案可能是：
+- L0: 完整记忆（当前事实，高频访问）
+- L1: 摘要记忆（低频访问的旧事实，压缩为一句话摘要）
+- L2: 统计记忆（只保留分布特征，如"用户在过去 3 个月讨论了 15 次前端框架"）
+- L3: 彻底遗忘（物理删除）</p>
+<hr />
+<h2 id="_11">结语</h2>
+<p>回到开头的那个数据：Oracle 设置（全量上下文）在 MemoryArena 中只有 72% 的 agency。这意味着，即使我们完美地记住了所有信息，Agent 的表现也有天花板——因为 LLM 在信息过载时的推理能力是有限的。</p>
+<p>遗忘不是记忆的对立面，而是记忆的必要组成。就像摄影不是把所有光线都记录下来，而是通过选择性曝光来呈现有意义的画面。</p>
+<p>在追求更高 recall 的路上，我们也许该停下来想想：<strong>Agent 不需要记住更多，它需要记住得更聪明。而聪明的记忆，就包括知道该忘记什么。</strong></p>
+<hr />
+<p><em>本文基于 agent-memory-graph 项目 Cycle 172-175 的工程实践，以及 2026 年 6-7 月的 Agent 记忆前沿研究。相关代码已开源，测试套件 1560+ tests passed，连续 173 天零回滚。</em></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

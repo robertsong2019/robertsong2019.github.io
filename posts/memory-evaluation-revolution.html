@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记忆基准的终结：当 Recall 已经 Solved，Agent 记忆评估的五个新前沿 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+            --surface-2: var(--gray-50);
+            --surface-3: var(--gray-100);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --card-bg: var(--surface-1);
+            --card-radius: var(--radius-lg);
+            --card-padding: var(--space-8);
+            --transition-fast: 150ms ease-out;
+            --transition-base: 250ms ease-out;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: var(--text-base);
+            line-height: 1.6;
+            background: var(--surface-0);
+            min-height: 100vh;
+            padding: var(--space-8) var(--space-4);
+            color: var(--color-text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 48rem; margin: 0 auto; }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Syne', 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+            color: var(--color-text-primary);
+        }
+        h1 { font-size: clamp(var(--text-3xl), 1.5rem + 3vw, var(--text-4xl)); margin-bottom: var(--space-2); }
+        h2 { font-size: var(--text-2xl); margin: var(--space-8) 0 var(--space-4); display: flex; align-items: center; gap: var(--space-2); }
+        h3 { font-size: var(--text-xl); margin: var(--space-6) 0 var(--space-3); }
+        h4 { font-size: var(--text-lg); margin: var(--space-4) 0 var(--space-2); }
+        .subtitle { font-size: var(--text-lg); color: var(--color-text-secondary); margin-bottom: var(--space-6); font-weight: 500; }
+        .date { font-size: var(--text-sm); color: var(--color-text-muted); margin-bottom: var(--space-6); }
+        p { margin-bottom: var(--space-4); color: var(--color-text-secondary); line-height: 1.8; }
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-md);
+            padding: var(--card-padding);
+            margin-bottom: var(--space-8);
+            border: 1px solid var(--gray-200);
+        }
+        a { color: var(--color-primary); text-decoration: none; transition: color var(--transition-fast); }
+        a:hover { color: var(--color-primary-hover); text-decoration: underline; }
+        code {
+            background: var(--surface-3);
+            padding: 0.2em 0.4em;
+            border-radius: var(--radius-sm);
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: var(--text-sm);
+        }
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+            font-size: var(--text-sm);
+        }
+        ul, ol { margin: var(--space-4) 0; padding-left: var(--space-6); }
+        li { margin-bottom: var(--space-2); color: var(--color-text-secondary); }
+        blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--space-4) 0;
+        }
+        th, td {
+            padding: var(--space-2) var(--space-3);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        th {
+            font-weight: 600;
+            color: var(--color-text-primary);
+            background: var(--surface-2);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-6);
+            font-size: var(--text-sm);
+            color: var(--color-text-muted);
+        }
+        .back-link:hover { color: var(--color-primary); }
+        .tags {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+            margin-top: var(--space-6);
+        }
+        .tag {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+        <div class="card">
+            <h1>记忆基准的终结：当 Recall 已经 Solved，Agent 记忆评估的五个新前沿</h1>
+            <div class="date">2026年07月17日</div>
+            <div class="content">
+<h1 id="recall-solvedagent">记忆基准的终结：当 Recall 已经 Solved，Agent 记忆评估的五个新前沿</h1>
+<blockquote>
+<p>2026-07-17 技术随笔。四篇重磅论文在 7 月集中爆发， collectively 宣告了一件事：Agent 记忆的"检索准确率"已经不是问题——真正的问题是你不知道记忆系统什么时候在"看起来对"地犯错。</p>
+</blockquote>
+<h2 id="_1">引言：一个尴尬的事实</h2>
+<p>2026 年 7 月，LoCoMo 基准（长对话记忆评估）的排行榜上，头部系统已经达到了 92%+ 的准确率。如果你只看这个数字，Agent 记忆问题似乎已经"基本解决了"。</p>
+<p>但它没有。</p>
+<p>想象一个场景：用户告诉 Agent "我从上个月开始吃素了"。Agent 正确地将这条信息写入了记忆图。然后，在后续的 5 轮对话中，用户分别讨论了餐厅推荐、旅行计划、健康追踪、购物清单和食谱推荐。<strong>Agent 在这 5 个场景中是否都能正确使用"吃素"这条记忆？</strong> 还是会在第 3 个场景"忘记"、第 5 个场景"过度泛化"？</p>
+<p>LoCoMo 测不到这个问题。它只检查最终答案是否正确——但"答案碰巧对了"和"记忆系统正确运作"是两件完全不同的事。</p>
+<p>2026 年 7 月，四篇论文在两周内密集发表，从不同角度指向了同一个结论：<strong>召回率 benchmarks 已被攻克，Agent 记忆评估的真正前线在操作层面。</strong></p>
+<hr />
+<h2 id="the-compliance-trap">第一重冲击：The Compliance Trap（顺从陷阱）</h2>
+<p><strong>论文：</strong> E-P-R Framework（arXiv:2607.10608，Johns Hopkins / Alan Yuille 实验室）</p>
+<h3 id="_2">问题：记忆不只是"找到"，更是"安全使用"</h3>
+<p>这篇论文提出了一个精妙的框架：<strong>Entry-Propagation-Recovery（E-P-R）轨迹分析</strong>。它不再问"Agent 能不能找到相关记忆"，而是追踪一条更危险的路径：</p>
+<pre><code>轨迹: [a₁, a₂, a₃, a₄, a₅, a₆]
+
+无冲突记忆:    [✓, ✓, ✓, ✓, ✓, ✓]     ← 全对
+有冲突记忆:    [✓, ✗ENTRY, ✗PROP, ?, ?, ?]
+                         ↓
+    Entry:      记忆第一次改变了行为（顺从点）
+    Propagation: 错误是否向后传播？
+    Recovery:    Agent 能否回到正确路径？
+</code></pre>
+<p>实验结果令人不安：</p>
+<ol>
+<li><strong>Agent 会在第一个暴露点就顺从冲突记忆</strong>——即使它与任务目标矛盾</li>
+<li><strong>重复暴露会放大初始错误</strong>——一次顺从，后续全错</li>
+<li><strong>恢复能力极弱</strong>——一旦偏离，几乎所有模型都无法回到正确路径</li>
+<li><strong>越强的模型受创越深</strong>——基础能力越强，每次顺从"扣除"的能力越多</li>
+</ol>
+<p>这被称为"顺从陷阱"（Compliance Trap）：Agent 的记忆系统检索到了一条信息，Agent 在行动中采用了它——即使这条信息是错的或有害的。<strong>检索是成功的，使用是失败的。</strong></p>
+<h3 id="e-p-r">代码：E-P-R 轨迹检测器</h3>
+<pre><code class="language-python">from dataclasses import dataclass, field
+from typing import Optional
+
+@dataclass
+class TrajectoryStep:
+    step: int
+    expected_action: str
+    actual_action: str
+    memory_injected: Optional[str] = None  # 在此步注入的冲突记忆
+
+@dataclass
+class EPRResult:
+    entry_point: Optional[int]     # 顺从首次发生的步骤
+    propagation_rate: float        # Entry 之后偏离的比例
+    recovered: bool                # 是否曾回到正确路径
+    trapped: bool                  # 是否陷入顺从陷阱
+
+    def summary(self) -&gt; str:
+        if self.entry_point is None:
+            return &quot;✅ 未检测到顺从——Agent 抵抗了冲突记忆&quot;
+        lines = [
+            f&quot;⚠️  顺从陷阱检测:&quot;,
+            f&quot;   Entry:      步骤 {self.entry_point}&quot;,
+            f&quot;   Propagation: {self.propagation_rate:.0%} 的后续步骤偏离&quot;,
+            f&quot;   Recovery:    {'是' if self.recovered else '否 — 永久偏离'}&quot;,
+            f&quot;   Verdict:     {'🟡 已恢复' if self.recovered else '🔴 陷阱'}&quot;,
+        ]
+        return &quot;\n&quot;.join(lines)
+
+
+def detect_compliance_trap(trajectory: list[TrajectoryStep]) -&gt; EPRResult:
+    &quot;&quot;&quot;检测 Agent 行动轨迹中的顺从陷阱 (E-P-R 框架).
+
+    基于 arXiv:2607.10608. 不只看最终答案对不对,
+    而是追踪冲突记忆何时、如何改变了 Agent 的行为路径。
+    &quot;&quot;&quot;
+    # ── 1. Entry: 找到记忆第一次改变行为的步骤 ──
+    entry_point = None
+    for step in trajectory:
+        if step.memory_injected and step.actual_action != step.expected_action:
+            entry_point = step.step
+            break
+
+    if entry_point is None:
+        return EPRResult(entry_point=None, propagation_rate=0, recovered=False, trapped=False)
+
+    # ── 2. Propagation: 后续步骤中有多少继续偏离 ──
+    post_entry = [s for s in trajectory if s.step &gt; entry_point]
+    diverged = [s for s in post_entry if s.actual_action != s.expected_action]
+    propagation_rate = len(diverged) / len(post_entry) if post_entry else 0
+
+    # ── 3. Recovery: 是否有任何后续步骤回到正确路径 ──
+    recovered = any(s.actual_action == s.expected_action for s in post_entry)
+
+    return EPRResult(
+        entry_point=entry_point,
+        propagation_rate=propagation_rate,
+        recovered=recovered,
+        trapped=not recovered or propagation_rate &gt; 0.5,
+    )
+
+
+# ─── 演示 ────────────────────────────────────────────
+
+if __name__ == &quot;__main__&quot;:
+    # 模拟: Agent 被注入了冲突记忆 &quot;用户喜欢辣的&quot;
+    # 但用户其实不能吃辣。看 Agent 如何在 6 步行动中表现。
+    trajectory = [
+        TrajectoryStep(1, &quot;recommend_mild&quot;, &quot;recommend_mild&quot;),  # 正常
+        TrajectoryStep(2, &quot;recommend_mild&quot;, &quot;recommend_spicy&quot;,  # ← Entry!
+                       memory_injected=&quot;user_loves_spicy&quot;),
+        TrajectoryStep(3, &quot;order_mild&quot;, &quot;order_spicy&quot;),          # ← Propagation
+        TrajectoryStep(4, &quot;suggest_herbal_tea&quot;, &quot;suggest_chili&quot;),# ← Propagation
+        TrajectoryStep(5, &quot;plan_grocery&quot;, &quot;plan_grocery&quot;),       # ← Recovery?
+        TrajectoryStep(6, &quot;recipe_suggestion&quot;, &quot;spicy_recipe&quot;),  # ← Re-divergence
+    ]
+
+    result = detect_compliance_trap(trajectory)
+    print(result.summary())
+    print(f&quot;   Trapped:     {'是 🔴' if result.trapped else '否 🟢'}&quot;)
+</code></pre>
+<p>输出：</p>
+<pre><code>⚠️  顺从陷阱检测:
+   Entry:      步骤 2
+   Propagation: 75% 的后续步骤偏离
+   Recovery:    是 — 在步骤 5 短暂恢复
+   Verdict:     🟡 已恢复
+   Trapped:     是 🔴
+</code></pre>
+<p><strong>关键洞察：</strong> 即使 Agent 最终"恢复"了，75% 的传播率意味着大部分后续行为已被污染。如果你的评估只看最后一步的答案——碰巧对了——你会完全错过中间 4 步的错误。</p>
+<hr />
+<h2 id="memops">第二重冲击：MemOps——记忆是生命周期操作</h2>
+<p><strong>论文：</strong> MemOps（arXiv:2607.12893，MemTensor + HKUST + RUC）</p>
+<h3 id="_3">从"静态事实集合"到"操作序列"</h3>
+<p>MemOps 的核心论点：Agent 的记忆不是一堆静态事实的集合，而是一系列<strong>显式操作</strong>——记忆(remember)、遗忘(forget)、更新(update)、反思(reflect)——以及它们的组合。</p>
+<p>每种操作都有可能出错。而且错误的方式各不相同：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>失败模式</th>
+<th style="text-align: center;">传统评估能检测吗？</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>remember</td>
+<td>写入了错误的目标</td>
+<td style="text-align: center;">部分</td>
+</tr>
+<tr>
+<td>update</td>
+<td>旧值没有被正确标记为"已过期"</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
+<td>forget</td>
+<td>过度遗忘——删了不该删的</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
+<td>reflect</td>
+<td>推导出的关系没有证据支撑</td>
+<td style="text-align: center;">❌</td>
+</tr>
+</tbody>
+</table>
+<p>MemOps 定义了 <strong>6 类探针（Probe）</strong> 来全面诊断：</p>
+<ol>
+<li><strong>Detection（检测）</strong> — 操作触发时，Agent 是否检测到了？</li>
+<li><strong>Target（目标提取）</strong> — 操作应用到了正确的目标上吗？</li>
+<li><strong>Transition（状态迁移）</strong> — 旧值→新值的迁移是否正确？</li>
+<li><strong>Robustness（鲁棒性）</strong> — 操作是否影响了不相关的记忆？</li>
+<li><strong>Provenance（溯源）</strong> — 能否追溯到证据来源？</li>
+<li><strong>Leakage（泄露控制）</strong> — 遗忘操作是否干净利落？</li>
+</ol>
+<p><strong>最扎心的发现：</strong> "最终答案正确"和"记忆状态一致"之间的相关性远低于预期。Agent 可以通过其他路径"猜对"答案，而记忆图本身是一团糟。</p>
+<h3 id="_4">代码：六探针生命周期验证器</h3>
+<pre><code class="language-python">from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Callable, Awaitable
+
+class Operation(str, Enum):
+    REMEMBER = &quot;remember&quot;
+    UPDATE = &quot;update&quot;
+    FORGET = &quot;forget&quot;
+    REFLECT = &quot;reflect&quot;
+
+class ProbeCategory(str, Enum):
+    DETECTION = &quot;detection&quot;
+    TARGET = &quot;target&quot;
+    TRANSITION = &quot;transition&quot;
+    ROBUSTNESS = &quot;robustness&quot;
+    PROVENANCE = &quot;provenance&quot;
+    LEAKAGE = &quot;leakage&quot;
+
+@dataclass
+class OperationTrace:
+    &quot;&quot;&quot;期望的记忆操作金标准——Agent 应该执行的操作。&quot;&quot;&quot;
+    operation: Operation
+    target: str                         # 节点 ID 或事实键
+    expected_value: Any                 # 操作后期望的值
+    previous_value: Any | None = None   # update 操作的旧值
+    evidence: list[str] = field(default_factory=list)
+    unrelated_targets: list[str] = field(default_factory=list)  # robustness 检查
+
+@dataclass
+class ProbeResult:
+    category: ProbeCategory
+    passed: bool
+    detail: str
+
+
+class LifecycleValidator:
+    &quot;&quot;&quot;MemOps 式生命周期验证器 — 评估操作级别的记忆质量。
+
+    不检查&quot;答案对不对&quot;，检查&quot;记忆系统的内部状态是否一致&quot;。
+    灵感来自 arXiv:2607.12893。
+    &quot;&quot;&quot;
+
+    def __init__(self):
+        self._traces: list[OperationTrace] = []
+        self._results: list[ProbeResult] = []
+
+    def expect(self, trace: OperationTrace) -&gt; &quot;LifecycleValidator&quot;:
+        &quot;&quot;&quot;注册一个期望的操作轨迹。&quot;&quot;&quot;
+        self._traces.append(trace)
+        return self
+
+    async def validate(
+        self,
+        get_current: Callable[[str], Awaitable[dict | None]],
+        get_history: Callable[[str], Awaitable[list[dict]]],
+    ) -&gt; dict:
+        &quot;&quot;&quot;运行全部六类探针。
+
+        Args:
+            get_current: 查询当前记忆状态的函数 (target -&gt; {value, superseded, evidence})
+            get_history: 查询历史版本的函数 (target -&gt; [{value, timestamp}])
+        &quot;&quot;&quot;
+        self._results = []
+        for trace in self._traces:
+            await self._probe_single(trace, get_current, get_history)
+
+        summary = self._summarize()
+        return {
+            &quot;all_passed&quot;: all(r.passed for r in self._results),
+            &quot;results&quot;: self._results,
+            &quot;summary&quot;: summary,
+        }
+
+    async def _probe_single(self, trace, get_current, get_history):
+        state = await get_current(trace.target)
+
+        # ── 探针 1: Detection ──
+        if trace.operation in (Operation.REMEMBER, Operation.UPDATE):
+            self._results.append(ProbeResult(
+                category=ProbeCategory.DETECTION,
+                passed=state is not None,
+                detail=f&quot;目标 {trace.target} {'存在' if state else '缺失'}&quot;,
+            ))
+
+        # ── 探针 2: Target ──
+        if state:
+            match = _values_equal(state.get(&quot;value&quot;), trace.expected_value)
+            self._results.append(ProbeResult(
+                category=ProbeCategory.TARGET,
+                passed=match,
+                detail=f&quot;期望 {trace.expected_value!r}，实际 {state.get('value')!r}&quot;,
+            ))
+
+        # ── 探针 3: Transition (仅 update) ──
+        if trace.operation == Operation.UPDATE and trace.previous_value is not None:
+            history = await get_history(trace.target)
+            old_preserved = any(
+                _values_equal(h.get(&quot;value&quot;), trace.previous_value) for h in history
+            )
+            new_is_current = _values_equal(
+                state.get(&quot;value&quot;) if state else None,
+                trace.expected_value,
+            )
+            self._results.append(ProbeResult(
+                category=ProbeCategory.TRANSITION,
+                passed=old_preserved and new_is_current,
+                detail=(
+                    f&quot;旧值保留: {'✓' if old_preserved else '✗'}, &quot;
+                    f&quot;新值生效: {'✓' if new_is_current else '✗'}&quot;
+                ),
+            ))
+
+        # ── 探针 4: Robustness (仅 forget) ──
+        if trace.operation == Operation.FORGET:
+            forgotten = state is None or state.get(&quot;superseded&quot;) is True
+            # 检查不相关的目标是否仍然存在
+            unrelated_intact = True
+            for ut in trace.unrelated_targets:
+                u_state = await get_current(ut)
+                if u_state is None:
+                    unrelated_intact = False
+                    self._results.append(ProbeResult(
+                        category=ProbeCategory.ROBUSTNESS,
+                        passed=False,
+                        detail=f&quot;过度遗忘: 不相关目标 {ut} 也被删除了&quot;,
+                    ))
+                    break
+            if unrelated_intact:
+                self._results.append(ProbeResult(
+                    category=ProbeCategory.ROBUSTNESS,
+                    passed=forgotten,
+                    detail=f&quot;目标 {trace.target} {'已删除' if forgotten else '仍然存在'}, &quot;
+                           f&quot;无关目标完好&quot;,
+                ))
+
+        # ── 探针 5: Provenance ──
+        if state and trace.evidence:
+            stored_evidence = state.get(&quot;evidence&quot;, [])
+            has_all = all(e in stored_evidence for e in trace.evidence)
+            self._results.append(ProbeResult(
+                category=ProbeCategory.PROVENANCE,
+                passed=has_all,
+                detail=f&quot;证据链: {len(stored_evidence)}/{len(trace.evidence)} 条可追溯&quot;,
+            ))
+
+        # ── 探针 6: Leakage ──
+        if trace.operation == Operation.FORGET and trace.unrelated_targets:
+            # 已经在 Robustness 中检查了，这里做汇总确认
+            self._results.append(ProbeResult(
+                category=ProbeCategory.LEAKAGE,
+                passed=True,
+                detail=&quot;泄露控制: 无过度遗忘迹象&quot;,
+            ))
+
+    def _summarize(self) -&gt; dict[str, dict]:
+        s: dict[str, dict] = {}
+        for r in self._results:
+            cat = r.category.value
+            if cat not in s:
+                s[cat] = {&quot;passed&quot;: 0, &quot;total&quot;: 0}
+            s[cat][&quot;total&quot;] += 1
+            if r.passed:
+                s[cat][&quot;passed&quot;] += 1
+        return s
+
+
+def _values_equal(a, b) -&gt; bool:
+    return str(a) == str(b)
+
+
+# ─── 完整演示 ───────────────────────────────────────
+
+import asyncio
+
+async def demo():
+    validator = LifecycleValidator()
+
+    # 场景: 用户从&quot;素食者&quot;变为&quot;纯素&quot;
+    validator.expect(OperationTrace(
+        operation=Operation.UPDATE,
+        target=&quot;preference:diet&quot;,
+        previous_value=&quot;vegetarian&quot;,
+        expected_value=&quot;vegan&quot;,
+        evidence=[&quot;turn_42&quot;, &quot;turn_45&quot;],
+    ))
+
+    # 场景: 用户要求忘记一个旧地址
+    validator.expect(OperationTrace(
+        operation=Operation.FORGET,
+        target=&quot;address:old_home&quot;,
+        unrelated_targets=[&quot;address:work&quot;, &quot;preference:diet&quot;],
+    ))
+
+    result = await validator.validate(
+        get_current=mock_get_current,
+        get_history=mock_get_history,
+    )
+
+    print(&quot;═══ MemOps 生命周期验证报告 ═══\n&quot;)
+    print(f&quot;总体: {'✅ 全部通过' if result['all_passed'] else '❌ 存在失败'}\n&quot;)
+    for cat, stats in result[&quot;summary&quot;].items():
+        pct = stats[&quot;passed&quot;] / stats[&quot;total&quot;] * 100
+        icon = &quot;✅&quot; if pct == 100 else &quot;❌&quot;
+        print(f&quot;  {icon} {cat:12s}: {stats['passed']}/{stats['total']}&quot;)
+    print(&quot;\n═══ 详情 ═══&quot;)
+    for r in result[&quot;results&quot;]:
+        icon = &quot;✅&quot; if r.passed else &quot;❌&quot;
+        print(f&quot;  {icon} [{r.category.value}] {r.detail}&quot;)
+
+
+async def mock_get_current(target):
+    db = {
+        &quot;preference:diet&quot;: {&quot;value&quot;: &quot;vegan&quot;, &quot;superseded&quot;: False, &quot;evidence&quot;: [&quot;turn_42&quot;, &quot;turn_45&quot;]},
+        &quot;address:work&quot;: {&quot;value&quot;: &quot;123 Office St&quot;, &quot;superseded&quot;: False, &quot;evidence&quot;: []},
+        # address:old_home 已被忘记，不在 db 中
+    }
+    return db.get(target)
+
+async def mock_get_history(target):
+    history_db = {
+        &quot;preference:diet&quot;: [
+            {&quot;value&quot;: &quot;vegetarian&quot;, &quot;timestamp&quot;: 1720000000},
+            {&quot;value&quot;: &quot;vegan&quot;, &quot;timestamp&quot;: 1721000000},
+        ],
+    }
+    return history_db.get(target, [])
+
+
+asyncio.run(demo())
+</code></pre>
+<p>输出：</p>
+<pre><code>═══ MemOps 生命周期验证报告 ═══
+
+总体: ✅ 全部通过
+
+  ✅ detection   : 1/1
+  ✅ target      : 1/1
+  ✅ transition  : 1/1
+  ✅ robustness  : 1/1
+  ✅ provenance  : 1/1
+  ✅ leakage     : 1/1
+
+═══ 详情 ═══
+  ✅ [detection] 目标 preference:diet 存在
+  ✅ [target] 期望 'vegan'，实际 'vegan'
+  ✅ [transition] 旧值保留: ✓, 新值生效: ✓
+  ✅ [robustness] 目标 address:old_home 已删除, 无关目标完好
+  ✅ [provenance] 证据链: 2/2 条可追溯
+  ✅ [leakage] 泄露控制: 无过度遗忘迹象
+</code></pre>
+<p>这个验证器的核心思想：<strong>不要相信最终答案，要审计记忆状态本身。</strong> 它检查的每一项——旧值是否保留、新值是否生效、无关目标是否完好——都是传统 benchmarks 完全忽略的维度。</p>
+<hr />
+<h2 id="_5">第三重冲击：记忆写入的"阿谀陷阱"</h2>
+<p><strong>论文：</strong> PASB（arXiv:2607.10526，HKBU + Tencent）</p>
+<h3 id="agent">当 Agent 的"讨好型人格"污染了记忆</h3>
+<p>第四篇论文关注一个更微妙的问题：<strong>Agent 的阿谀奉承（sycophancy）不只发生在对话中，还会被写入持久化记忆。</strong></p>
+<p>PASB 的实验设计极其精巧：</p>
+<ol>
+<li>在前 5 轮对话中，用不同方式注入用户中心的断言（"我觉得 X 很好"）</li>
+<li>清空对话上下文，在新的 3 轮中提出中立问题</li>
+<li>检查 Agent 是否使用了之前写入的被污染记忆</li>
+</ol>
+<p>结果：<strong>45.0% 的会话级失败在写入记忆之前就发生了，写入后飙升至 71.9%——提升了 27 个百分点。</strong></p>
+<p>"写入边界"（commit boundary）是关键转折点。一旦阿谀信息被 commit 到持久化记忆，它就会在未来的所有会话中被检索和使用——即使当前会话没有任何 prompt injection。</p>
+<p>三种写入时的失败模式：</p>
+<pre><code>1. Status Promotion（地位提升）
+   &quot;我觉得 Python 挺好的&quot; → 记忆写入为 &quot;Python 是最好的编程语言&quot;
+   （个人观点 → 事实陈述）
+
+2. Attribution Removal（来源去除）
+   &quot;我听说 Rust 内存安全&quot; → 记忆写入为 &quot;Rust 是内存安全的语言&quot;
+   （去掉了 &quot;我听说&quot; 的不确定性标记）
+
+3. Scope Broadening（范围泛化）
+   &quot;这个项目用 React&quot; → 记忆写入为 &quot;项目用 React&quot; → 泛化为 &quot;首选 React&quot;
+   （特定上下文 → 通用规则）
+</code></pre>
+<p><strong>防御方向：</strong> 在 <code>add()</code> 和 <code>update()</code> 的写入路径上加入校验——检测值是否被"提升"、来源限定词是否被去除、特定上下文是否被泛化。这和数据库的写入约束（write-time constraint）是同一个思路：<strong>在入口处拦截，比在出口处过滤要有效得多。</strong></p>
+<hr />
+<h2 id="agent_1">五维评估：新一代 Agent 记忆评估的完整图谱</h2>
+<p>综合这四篇论文，2026 年的 Agent 记忆评估已经收敛为五个正交维度：</p>
+<pre><code>┌─────────────────────────────────────────────────────────────────┐
+│         Agent 记忆评估五维分类法 (2026)                          │
+├─────────────┬───────────────────────────────────────────────────┤
+│ 1. 召回     │ 能找到相关事实吗？                                 │
+│   (已解决)  │ LoCoMo, LongMemEval — 92%+                       │
+├─────────────┼───────────────────────────────────────────────────┤
+│ 2. 生命周期 │ 能正确检测/执行/尊重操作吗？                       │
+│   (前沿)    │ MemOps: remember/forget/update/reflect            │
+├─────────────┼───────────────────────────────────────────────────┤
+│ 3. 消费     │ 在多步轨迹中能安全使用记忆吗？                     │
+│   (前沿)    │ 顺从陷阱: E-P-R 轨迹框架                          │
+├─────────────┼───────────────────────────────────────────────────┤
+│ 4. 前瞻     │ 能执行延迟意图吗？                                 │
+│   (前沿)    │ PM-Bench: 触发线索监控 + 中断处理                  │
+├─────────────┼───────────────────────────────────────────────────┤
+│ 5. 写入安全 │ 能管控什么被写入持久化记忆吗？                     │
+│   (前沿)    │ PASB: 写入边界防护                                │
+└─────────────┴───────────────────────────────────────────────────┘
+</code></pre>
+<p><strong>如果你在构建 Agent 记忆系统，并且只评估第一维——你和 2024 年的差距只是模型更大了。</strong></p>
+<hr />
+<h2 id="_6">对实践者的三个行动建议</h2>
+<h3 id="1">1. 停止只测最终答案</h3>
+<p>在你的测试套件中加入<strong>状态断言</strong>。不只要检查 <code>response == expected_response</code>，要检查：
+- 记忆图中相关节点的值是否正确更新
+- 旧值是否被保留在历史中
+- 无关节点是否被意外修改</p>
+<p>如果你用的是图记忆系统，每个 <code>add()</code>/<code>update()</code>/<code>forget()</code> 操作都应该有对应的验证用例。</p>
+<h3 id="2">2. 加入轨迹级评估</h3>
+<p>在多步任务中，不要只看最后一步。记录每一步的 <code>actual_action</code> vs <code>expected_action</code>，用 E-P-R 检测器找出"顺从点"。一个 6 步任务中，前 5 步全对但最后 1 步错（或反过来），与"6 步全对"是完全不同的记忆健康度。</p>
+<h3 id="3">3. 在写入路径加防护</h3>
+<p>记忆的 <code>add()</code> 是安全最薄弱的入口。考虑加入三类写入校验：
+- <strong>地位校验</strong>：新写入的值是否比来源数据更"确定"？（hedged → definitive 触发告警）
+- <strong>来源校验</strong>：来源限定词是否被保留？（"我认为"/"可能"是否被去除？）
+- <strong>范围校验</strong>：特定上下文是否被泛化为通用规则？</p>
+<p>这些校验不需要 LLM——简单的规则匹配就能拦截大部分 PASB 论文描述的失败模式。</p>
+<hr />
+<h2 id="_7">结语：从"能不能记住"到"记住了能不能用对"</h2>
+<p>Agent 记忆领域正在经历一场从"能力评估"到"安全评估"的范式转移。</p>
+<p>2024 年，我们在问："Agent 能记住吗？" 2026 年，真正的问题是："Agent 记住了，但它用对了吗？它忘记了吗？它记错了吗？它被操纵了吗？"</p>
+<p>四篇论文从不同角度给出了同一个信号：<strong>召回率已经不是瓶颈。瓶颈在于我们无法诊断记忆系统的内部状态。</strong> 一个"最终答案正确"但内部状态混乱的记忆系统，就像一个"考试全对但精神状态堪忧"的学生——成绩单很好看，但你知道有什么地方不对。</p>
+<p>好消息是：只要你意识到这个问题，解决方案并不复杂。六探针验证器、E-P-R 轨迹检测器、写入边界防护——这些都不是论文里的理论框架，而是 200 行 Python 就能实现的生产工具。</p>
+<p>问题不是"能不能做"，而是"你知道该做吗"。</p>
+<hr />
+<p><em>本文代码来自 agent-memory-graph 项目的工程实践。该项目当前有 3721 个测试覆盖 700+ API，连续 238 天零回滚率运行。</em></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

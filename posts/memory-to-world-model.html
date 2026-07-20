@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当记忆学会预测：Agent 记忆图谱到世界模型的进化路径 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+            --surface-2: var(--gray-50);
+            --surface-3: var(--gray-100);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --card-bg: var(--surface-1);
+            --card-radius: var(--radius-lg);
+            --card-padding: var(--space-8);
+            --transition-fast: 150ms ease-out;
+            --transition-base: 250ms ease-out;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: var(--text-base);
+            line-height: 1.6;
+            background: var(--surface-0);
+            min-height: 100vh;
+            padding: var(--space-8) var(--space-4);
+            color: var(--color-text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 48rem; margin: 0 auto; }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Syne', 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+            color: var(--color-text-primary);
+        }
+        h1 { font-size: clamp(var(--text-3xl), 1.5rem + 3vw, var(--text-4xl)); margin-bottom: var(--space-2); }
+        h2 { font-size: var(--text-2xl); margin: var(--space-8) 0 var(--space-4); display: flex; align-items: center; gap: var(--space-2); }
+        h3 { font-size: var(--text-xl); margin: var(--space-6) 0 var(--space-3); }
+        h4 { font-size: var(--text-lg); margin: var(--space-4) 0 var(--space-2); }
+        .subtitle { font-size: var(--text-lg); color: var(--color-text-secondary); margin-bottom: var(--space-6); font-weight: 500; }
+        .date { font-size: var(--text-sm); color: var(--color-text-muted); margin-bottom: var(--space-6); }
+        p { margin-bottom: var(--space-4); color: var(--color-text-secondary); line-height: 1.8; }
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-md);
+            padding: var(--card-padding);
+            margin-bottom: var(--space-8);
+            border: 1px solid var(--gray-200);
+        }
+        a { color: var(--color-primary); text-decoration: none; transition: color var(--transition-fast); }
+        a:hover { color: var(--color-primary-hover); text-decoration: underline; }
+        code {
+            background: var(--surface-3);
+            padding: 0.2em 0.4em;
+            border-radius: var(--radius-sm);
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: var(--text-sm);
+        }
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+            font-size: var(--text-sm);
+        }
+        ul, ol { margin: var(--space-4) 0; padding-left: var(--space-6); }
+        li { margin-bottom: var(--space-2); color: var(--color-text-secondary); }
+        blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--space-4) 0;
+        }
+        th, td {
+            padding: var(--space-2) var(--space-3);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        th {
+            font-weight: 600;
+            color: var(--color-text-primary);
+            background: var(--surface-2);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-6);
+            font-size: var(--text-sm);
+            color: var(--color-text-muted);
+        }
+        .back-link:hover { color: var(--color-primary); }
+        .tags {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+            margin-top: var(--space-6);
+        }
+        .tag {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+        <div class="card">
+            <h1>当记忆学会预测：Agent 记忆图谱到世界模型的进化路径</h1>
+            <div class="date">2026年07月07日</div>
+            <div class="content">
+<h1 id="agent">当记忆学会预测：Agent 记忆图谱到世界模型的进化路径</h1>
+<blockquote>
+<p>当前的 AI Agent 是 reactive 的——观察状态、选择动作、观察下一个状态。它不能问"如果我做了 X，会发生什么？"，因为它的记忆只记录过去，不预测未来。但如果我们给记忆图谱加上 transition edges，记忆就变成了世界模型——一个可以模拟、可以试错、可以在行动前预演的内部沙盒。</p>
+</blockquote>
+<h2 id="reactive-agent">引言： reactive Agent 的根本局限</h2>
+<p>想象你是一个 Agent，面对一个关键操作：合并两条几乎相同的记忆条目。你不能撤销。当前的 Agent 记忆系统在这种情况下只有两个选择：</p>
+<ol>
+<li><strong>盲执行</strong> —— 信任去重算法，直接合并，祈祷不出问题</li>
+<li><strong>拒绝执行</strong> —— 太危险了，干脆不做</li>
+</ol>
+<p>两个选项都不好。真正需要的是第三个选项：<strong>先模拟，看看结果，再决定</strong>。</p>
+<p>人类天生就会这样做。你不会在不想象后果的情况下辞职、发送愤怒的邮件、或合并 Git 分支。你在脑海中运行一个"世界模型"——对现实的近似模拟——来预测可能的结果。</p>
+<p>Agent 也需要这个能力。本文探讨如何从现有的 Agent 记忆图谱出发，一步步构建实用的世界模型能力。</p>
+<hr />
+<h2 id="_1">一、世界模型：从理论到工程</h2>
+<h3 id="_2">什么是世界模型？</h3>
+<p>世界模型 <code>𝒲(s, a) → ŝ'</code> 学习预测：给定当前状态 s 和动作 a，下一个状态 ŝ' 会是什么。</p>
+<p>这个简单的公式蕴含了巨大的能力：</p>
+<ul>
+<li><strong>想象（Imagination）</strong>：在不采取真实动作的情况下模拟多条路径</li>
+<li><strong>规划（Planning）</strong>：评估多个候选动作，选择最优的</li>
+<li><strong>反事实推理（Counterfactual）</strong>：评估"如果当时做了不同选择会怎样"</li>
+<li><strong>样本高效（Sample Efficiency）</strong>：从模拟中学习，不消耗真实交互</li>
+</ul>
+<p>Sutton 在 1990 年提出 Dyna 架构——在真实交互和规划之间交替——奠定了理论基础。2018 年 Ha &amp; Schmidhuber 的 "World Models" 论文将其引入深度学习时代。2025-2026 年，这一概念终于在工程上变得可行。</p>
+<h3 id="_3">三大范式</h3>
+<p>到 2026 年中，世界模型领域形成了三个阵营：</p>
+<table>
+<thead>
+<tr>
+<th>范式</th>
+<th>代表系统</th>
+<th>核心思想</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>视频基础模型</strong></td>
+<td>V-JEPA 2, Genie 3, Cosmos</td>
+<td>从海量视频学习物理动力学</td>
+<td>机器人、自动驾驶</td>
+</tr>
+<tr>
+<td><strong>LLM 即世界模型</strong></td>
+<td>WebDreamer, Dyna-Think</td>
+<td>LLM 本身已经编码了环境知识</td>
+<td>Web Agent、工具调用</td>
+</tr>
+<tr>
+<td><strong>图结构世界模型</strong></td>
+<td>GraphRAG, Temporal KG</td>
+<td>用图谱显式表示状态和转移</td>
+<td>知识管理、推理系统</td>
+</tr>
+</tbody>
+</table>
+<p>视频基础模型太重，不适合轻量级 Agent 系统。LLM 即世界模型虽然有趣，但存在幻觉问题——在多步推演中误差会累积。</p>
+<p><strong>图结构世界模型</strong>是最务实的选择——特别是当你已经有一个 Agent 记忆图谱的时候。</p>
+<hr />
+<h2 id="_4">二、从记忆图谱到世界模型：加一条边就够了</h2>
+<h3 id="_5">当前状态：记忆图谱作为静态知识库</h3>
+<p>大多数 Agent 记忆系统的图谱是这样的：</p>
+<pre><code>[Python 知识] ←tags→ [编程技巧]
+      ↓ xref               ↓ xref
+[Django 项目] ←tags→ [Web 开发]
+</code></pre>
+<p>节点是记忆条目，边是关系（tags、xref、similarity）。这个图谱回答的问题是："什么是相关的？"</p>
+<p>但它不能回答："如果我合并这两个节点，图谱结构会怎样变化？"</p>
+<h3 id="transition-edges">进化：加入 Transition Edges</h3>
+<p>要把它变成世界模型，只需要一类新边——<strong>transition edges</strong>：</p>
+<pre><code>[状态A] --action(merge)--&gt; [状态B]
+</code></pre>
+<p>Transition edge 编码的是：<strong>在状态 A 下执行动作 X，会到达状态 B</strong>。</p>
+<p>这不是抽象的理论。让我们看一个具体的实现。</p>
+<hr />
+<h2 id="preview-before-execute">三、实践：Preview-Before-Execute 模式</h2>
+<h3 id="_6">设计思路</h3>
+<p>在 agent-context-store 项目中，我们实现了一个 <code>store_consolidation_simulator</code>——它就是图结构世界模型的一个具体应用。核心思路：</p>
+<ol>
+<li><strong>Dry-run 模式</strong>：在记忆存储上模拟操作，但不实际执行</li>
+<li><strong>前后对比</strong>：投射操作前后的状态（条目数、质量分、连接数）</li>
+<li><strong>风险评估</strong>：量化每个操作的潜在风险</li>
+<li><strong>Execute 模式</strong>：确认安全后再真正执行</li>
+</ol>
+<h3 id="_7">代码实现</h3>
+<p>以下是核心模拟器的 Python 实现（简化版）：</p>
+<pre><code class="language-python">def store_consolidation_simulator(
+    store,
+    min_similarity=0.5,
+    prefix=None,
+    execute=False
+):
+    &quot;&quot;&quot;
+    模拟或执行记忆存储的合并操作。
+
+    Args:
+        store: AgentMemoryStore 实例
+        min_similarity: 合并阈值 (0-1)
+        prefix: 限制操作的键前缀
+        execute: False=仅模拟, True=执行合并
+
+    Returns:
+        包含前后状态对比和风险评估的字典
+    &quot;&quot;&quot;
+    # 第一步：获取当前快照（&quot;当前世界状态&quot;）
+    pre_snapshot = _capture_state(store, prefix)
+
+    # 第二步：识别候选合并对
+    candidates = _find_near_duplicates(store, min_similarity, prefix)
+
+    merges = []
+    risk_warnings = []
+    quality_changes = []
+
+    for keep_key, merge_key, similarity in candidates:
+        keep_entry = store.get(keep_key)
+        merge_entry = store.get(merge_key)
+
+        # 质量对比：保留质量更高的条目
+        keep_quality = content_quality_score(keep_entry)
+        merge_quality = content_quality_score(merge_entry)
+
+        if merge_quality[&quot;overall&quot;] &gt; keep_quality[&quot;overall&quot;]:
+            keep_key, merge_key = merge_key, keep_key
+            keep_entry, merge_entry = merge_entry, keep_entry
+
+        # 计算质量变化
+        quality_delta = abs(keep_quality[&quot;overall&quot;] - merge_quality[&quot;overall&quot;])
+
+        # 风险评估：三档
+        if quality_delta &gt;= 0.3:
+            risk_level = &quot;high&quot;
+            risk_warnings.append(
+                f&quot;合并 {merge_key} → {keep_key}: &quot;
+                f&quot;质量差异 {quality_delta:.2f}，可能丢失高质量信息&quot;
+            )
+        elif quality_delta &gt;= 0.1:
+            risk_level = &quot;moderate&quot;
+        else:
+            risk_level = &quot;low&quot;
+
+        # Xref 保全率：合并后多少连接能保留
+        keep_xrefs = set(keep_entry.get(&quot;xrefs&quot;, []))
+        merge_xrefs = set(merge_entry.get(&quot;xrefs&quot;, []))
+        preserved = keep_xrefs &amp; merge_xrefs  # 交集
+        total = keep_xrefs | merge_xrefs  # 并集
+        preservation_rate = len(preserved) / max(len(total), 1)
+
+        quality_changes.append({
+            &quot;keep&quot;: keep_key,
+            &quot;merge&quot;: merge_key,
+            &quot;delta&quot;: quality_delta,
+            &quot;risk&quot;: risk_level,
+            &quot;xref_preservation&quot;: preservation_rate
+        })
+
+        if execute:
+            # 执行模式：实际合并
+            # 1. 合并 tags
+            merged_tags = set(keep_entry.get(&quot;tags&quot;, [])) | \
+                          set(merge_entry.get(&quot;tags&quot;, []))
+            store.update(keep_key, {&quot;tags&quot;: list(merged_tags)})
+
+            # 2. 重定向 xrefs
+            _redirect_xrefs(store, merge_key, keep_key)
+
+            # 3. 删除被合并的条目
+            store.delete(merge_key)
+
+            merges.append({&quot;merged&quot;: merge_key, &quot;into&quot;: keep_key})
+
+    # 第三步：获取操作后快照（&quot;预测的世界状态&quot;）
+    post_snapshot = _capture_state(store, prefix) if execute \
+        else _project_post_state(pre_snapshot, quality_changes)
+
+    return {
+        &quot;simulated&quot;: not execute,
+        &quot;pre&quot;: pre_snapshot,
+        &quot;post&quot;: post_snapshot,
+        &quot;merges_executed&quot;: merges,
+        &quot;quality_changes&quot;: quality_changes,
+        &quot;xref_preservation_rate&quot;: _avg_preservation(quality_changes),
+        &quot;compression_achieved&quot;: _compression_ratio(pre_snapshot, post_snapshot),
+        &quot;risk_warnings&quot;: risk_warnings,
+        &quot;interpretation&quot;: _generate_interpretation(quality_changes),
+        &quot;recommendations&quot;: _generate_recommendations(
+            quality_changes, risk_warnings
+        )
+    }
+
+
+def _capture_state(store, prefix=None):
+    &quot;&quot;&quot;捕获当前存储状态快照&quot;&quot;&quot;
+    entries = store.entries(prefix=prefix)
+    return {
+        &quot;entries&quot;: len(entries),
+        &quot;bytes&quot;: sum(len(str(e.data)) for e in entries),
+        &quot;avg_quality&quot;: _mean_quality(entries),
+        &quot;edges&quot;: _count_edges(store, entries)
+    }
+
+
+def _project_post_state(pre, changes):
+    &quot;&quot;&quot;投射合并后的状态（不实际执行）&quot;&quot;&quot;
+    n_merges = len(changes)
+    return {
+        &quot;entries&quot;: pre[&quot;entries&quot;] - n_merges,
+        &quot;bytes&quot;: int(pre[&quot;bytes&quot;] * (1 - _estimate_reduction(changes))),
+        &quot;avg_quality&quot;: _project_quality(pre[&quot;avg_quality&quot;], changes),
+        &quot;edges&quot;: int(pre[&quot;edges&quot;] * _estimate_edge_preservation(changes))
+    }
+</code></pre>
+<h3 id="_8">使用示例</h3>
+<pre><code class="language-python"># 第一步：模拟（dry-run）—— 世界模型在内部推演
+report = store_consolidation_simulator(
+    store, 
+    min_similarity=0.7,
+    execute=False  # ← 关键：先看结果
+)
+
+print(f&quot;合并前：{report['pre']['entries']} 条目&quot;)
+print(f&quot;合并后：{report['post']['entries']} 条目&quot;)
+print(f&quot;压缩率：{report['compression_achieved']:.1%}&quot;)
+print(f&quot;风险警告：{len(report['risk_warnings'])} 个&quot;)
+
+# 检查高风险操作
+for change in report[&quot;quality_changes&quot;]:
+    if change[&quot;risk&quot;] == &quot;high&quot;:
+        print(f&quot;⚠️ 高风险：{change['merge']} → {change['keep']} &quot;
+              f&quot;(Δq={change['delta']:.2f})&quot;)
+
+# 第二步：确认安全后执行
+if not report[&quot;risk_warnings&quot;]:
+    report = store_consolidation_simulator(
+        store,
+        min_similarity=0.7,
+        execute=True  # ← 确认安全后再执行
+    )
+    print(f&quot;已执行 {len(report['merges_executed'])} 次合并&quot;)
+</code></pre>
+<p>这就是 <strong>Preview-Before-Execute</strong> 模式的完整实现。它的本质是一个微型世界模型：</p>
+<ul>
+<li><strong>状态</strong> = 记忆存储快照（条目数、质量分、连接数）</li>
+<li><strong>动作</strong> = 合并操作（keep + merge → merged）</li>
+<li><strong>转移</strong> = 合并前后的状态差</li>
+<li><strong>奖励</strong> = 压缩率 + 质量保全 + Xref 保留</li>
+</ul>
+<hr />
+<h2 id="_9">四、质量评估：世界模型的可信度</h2>
+<p>世界模型的核心问题是：<strong>预测有多准？</strong></p>
+<p>如果模拟器说"合并后质量不变"，但实际合并后质量下降，那这个世界模型就是不可信的。我们需要量化评估。</p>
+<h3 id="7">7 维质量模型</h3>
+<p>每条记忆条目在 7 个维度上评分：</p>
+<pre><code class="language-python">def content_quality_score(entry):
+    &quot;&quot;&quot;
+    7 维质量评估：
+    1. completeness — 内容完整度 (0-1)
+    2. correctness — 逻辑正确性 (0-1)
+    3. clarity — 表达清晰度 (0-1)
+    4. specificity — 具体程度 (0-1)
+    5. actionability — 可操作性 (0-1)
+    6. recency — 时效性 (0-1)
+    7. connectivity — 连接密度 (0-1)
+    &quot;&quot;&quot;
+    dimensions = {
+        &quot;completeness&quot;: _assess_completeness(entry),
+        &quot;correctness&quot;: _assess_correctness(entry),
+        &quot;clarity&quot;: _assess_clarity(entry),
+        &quot;specificity&quot;: _assess_specificity(entry),
+        &quot;actionability&quot;: _assess_actionability(entry),
+        &quot;recency&quot;: _assess_recency(entry),
+        &quot;connectivity&quot;: _assess_connectivity(entry),
+    }
+    dimensions[&quot;overall&quot;] = sum(dimensions.values()) / 7
+    return dimensions
+</code></pre>
+<h3 id="_10">质量动能：宏观健康指标</h3>
+<p>单条质量是静态的。我们需要知道：<strong>整个存储的质量在改善还是恶化？</strong></p>
+<p><code>quality_momentum_report</code> 回答这个问题：</p>
+<pre><code class="language-python">def quality_momentum_report(store, days=30):
+    &quot;&quot;&quot;
+    计算存储的宏观质量动能。
+
+    返回：
+    - momentum_score [-1, 1]: 正=改善, 负=恶化
+    - improving_ratio: 改善的条目比例
+    - declining_ratio: 恶化的条目比例
+    - hotspot_dimensions: 变化最大的维度
+    - velocity_trend: accelerating_positive | negative | mixed | stable
+    &quot;&quot;&quot;
+    # 获取每个条目的质量变化轨迹
+    drift_data = []
+    for entry in store.entries():
+        drift = quality_drift_detector(store, entry.key, days=days)
+        if drift[&quot;has_history&quot;]:
+            drift_data.append(drift)
+
+    n_improving = sum(1 for d in drift_data if d[&quot;delta&quot;] &gt; 0)
+    n_declining = sum(1 for d in drift_data if d[&quot;delta&quot;] &lt; 0)
+    n_total = len(drift_data)
+
+    improving_ratio = n_improving / max(n_total, 1)
+    declining_ratio = n_declining / max(n_total, 1)
+
+    # 动能分数 = 改善比例 - 恶化比例（加权和）
+    mean_delta = sum(d[&quot;delta&quot;] for d in drift_data) / max(n_total, 1)
+    balance = improving_ratio - declining_ratio
+    momentum_score = balance * abs(mean_delta) * 2  # 缩放到 [-1, 1]
+    momentum_score = max(-1, min(1, momentum_score))
+
+    # 速度趋势
+    if momentum_score &gt; 0.3:
+        velocity_trend = &quot;accelerating_positive&quot;
+    elif momentum_score &lt; -0.3:
+        velocity_trend = &quot;accelerating_negative&quot;
+    elif abs(momentum_score) &lt; 0.1:
+        velocity_trend = &quot;stable&quot;
+    else:
+        velocity_trend = &quot;mixed&quot;
+
+    return {
+        &quot;momentum_score&quot;: round(momentum_score, 3),
+        &quot;improving_ratio&quot;: round(improving_ratio, 3),
+        &quot;declining_ratio&quot;: round(declining_ratio, 3),
+        &quot;mean_delta&quot;: round(mean_delta, 3),
+        &quot;n_analysed&quot;: n_total,
+        &quot;velocity_trend&quot;: velocity_trend,
+    }
+</code></pre>
+<p>这给出了一个"执行仪表盘"：在模拟合并前后各跑一次，比较动能变化。如果合并导致 momentum 从 +0.5 降到 -0.2，那就是一个强烈的信号：<strong>这次合并不好，别做。</strong></p>
+<hr />
+<h2 id="co-evolution-loopagent">五、Co-Evolution Loop：Agent 和世界模型的共同进化</h2>
+<h3 id="worldevolver">WorldEvolver 的启示</h3>
+<p>2026 年的 WorldEvolver 论文展示了一个引人深思的发现：<strong>世界模型和 Agent 策略可以互相促进</strong>。</p>
+<p>流程是这样的：</p>
+<pre><code>Agent 执行动作 → 观察真实结果 → 与世界模型预测对比
+       ↑                                         ↓
+       ← 更新策略 ← 更新世界模型 ← 检测预测偏差 ←
+</code></pre>
+<p>当预测和现实不一致时（Failure-to-Forecast），系统知道世界模型在哪里不够准，然后针对性地更新它。Agent 策略也因此变得更加精确。</p>
+<h3 id="_11">在记忆系统中的应用</h3>
+<p>在我们的记忆图谱中，这个 loop 是这样工作的：</p>
+<pre><code>1. 世界模型预测：合并 A 和 B 后，质量分保持 0.85
+2. Agent 执行合并
+3. 实际结果：质量分降到 0.72
+4. 检测到偏差（0.85 vs 0.72）
+5. 更新模型：标记 &quot;A 类型和 B 类型的合并会导致质量下降&quot;
+6. 下次遇到类似合并时，预测更准确
+</code></pre>
+<p>这就是 <strong>从静态规则到学习型策略</strong> 的进化。</p>
+<h3 id="_12">代码框架</h3>
+<pre><code class="language-python">class MemoryWorldModel:
+    &quot;&quot;&quot;Agent 记忆的图结构世界模型&quot;&quot;&quot;
+
+    def __init__(self, store):
+        self.store = store
+        self.transitions = []  # 记录历史转移
+        self.prediction_errors = []  # 记录预测偏差
+
+    def predict(self, action, **params):
+        &quot;&quot;&quot;预测动作的结果（不执行）&quot;&quot;&quot;
+        if action == &quot;merge&quot;:
+            return store_consolidation_simulator(
+                self.store, execute=False, **params
+            )
+        elif action == &quot;delete&quot;:
+            return self._predict_deletion(params[&quot;key&quot;])
+        elif action == &quot;tag&quot;:
+            return self._predict_tag_update(
+                params[&quot;key&quot;], params[&quot;tags&quot;]
+            )
+
+    def execute(self, action, **params):
+        &quot;&quot;&quot;执行动作并记录实际结果&quot;&quot;&quot;
+        prediction = self.predict(action, **params)
+
+        # 执行
+        if action == &quot;merge&quot;:
+            actual = store_consolidation_simulator(
+                self.store, execute=True, **params
+            )
+
+        # 对比预测 vs 实际
+        error = self._compute_prediction_error(prediction, actual)
+        self.prediction_errors.append(error)
+        self.transitions.append({
+            &quot;action&quot;: action,
+            &quot;params&quot;: params,
+            &quot;predicted&quot;: prediction,
+            &quot;actual&quot;: actual,
+            &quot;error&quot;: error
+        })
+
+        # 如果误差大，触发模型更新
+        if error &gt; self.error_threshold:
+            self._update_model()
+
+        return actual
+
+    def accuracy(self):
+        &quot;&quot;&quot;世界模型的预测准确率&quot;&quot;&quot;
+        if not self.prediction_errors:
+            return 1.0
+        return 1.0 - (
+            sum(self.prediction_errors) / len(self.prediction_errors)
+        )
+</code></pre>
+<hr />
+<h2 id="_13">六、更大的图景：从记忆到世界模型的路线图</h2>
+<h3 id="1">阶段 1：静态记忆（已完成）</h3>
+<ul>
+<li>记忆存储 + 检索</li>
+<li>知识图谱构建（tags, xrefs, similarity）</li>
+<li>中心性分析（degree, eigenvector, betweenness, closeness, edge betweenness）</li>
+<li>质量评估（7 维评分 + 分布 + 熵 + 异常检测 + 动能）</li>
+</ul>
+<p><strong>能力</strong>："我知道什么，什么是相关的，质量如何。"</p>
+<h3 id="2preview-before-execute">阶段 2：Preview-Before-Execute（当前）</h3>
+<ul>
+<li>合并模拟器（dry-run + execute）</li>
+<li>质量动能预测</li>
+<li>风险评估（3 档）</li>
+<li>Xref 保全率分析</li>
+</ul>
+<p><strong>能力</strong>："如果我做 X，大概会发生什么。"</p>
+<h3 id="3">阶段 3：学习型世界模型（下一步）</h3>
+<ul>
+<li>记录预测 vs 实际的偏差</li>
+<li>基于历史转移数据训练预测模型</li>
+<li>支持 batch 操作的 what-if 模拟</li>
+<li>支持多步推演（"合并 A+B 后，再合并 C+D 会怎样？"）</li>
+</ul>
+<p><strong>能力</strong>："基于过去的经验，我的预测越来越准。"</p>
+<h3 id="4">阶段 4：自主策略（未来）</h3>
+<ul>
+<li>Dyna-style 训练：在世界模型中"做梦"</li>
+<li>自动发现最优的记忆管理策略</li>
+<li>多 Agent 共享世界模型（CRDT 同步）</li>
+</ul>
+<p><strong>能力</strong>："我在内部模拟了 1000 种策略，选择了最优的。"</p>
+<hr />
+<h2 id="_14">结语：记忆不是终点</h2>
+<p>传统观点认为 Agent 记忆是一个存储系统——进、存、出。但当我们给记忆加上 <strong>transition edges</strong>——"做 X 会导致 Y"——记忆就变成了世界模型。</p>
+<p>这不是理论空想。上面展示的每个组件都已经在 agent-context-store 项目中实现并通过测试：486 个 API 方法，2328 个测试，182 天连续开发零回滚。</p>
+<p>从 reactive 到 predictive，从 static 到 dynamic，从 "remember the past" 到 "imagine the future"——这是 Agent 记忆系统的进化方向。</p>
+<p>Dyna-Think 论文有一个精辟的结论：<strong>"Agents with better world modeling abilities make better decisions."</strong> 世界建模不只是规划的工具，它本身就是智能的本质。</p>
+<p>当你的 Agent 记忆系统学会预测未来的时候，它就不再是一个数据库——它是一个思维机器。</p>
+<hr />
+<p><em>本文基于 agent-context-store 项目（2328 tests, 486 APIs, 182 天连续开发）和 2026-07-05 深度研究 "World Models for Autonomous Agents" 的综合分析。</em></p>
+<p><em>代码示例为简化版，完整实现见 <a href="https://github.com/robertsong2019">GitHub</a>。</em></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

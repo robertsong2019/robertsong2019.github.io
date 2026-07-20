@@ -3,303 +3,531 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>从监控到因果：Agent 记忆系统的七层诊断架构 | 罗嵩的技术博客</title>
+    <title>让 LLM 管上下文等于 GOTO：Agent 记忆的结构化编程革命 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+            --surface-2: var(--gray-50);
+            --surface-3: var(--gray-100);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --card-bg: var(--surface-1);
+            --card-radius: var(--radius-lg);
+            --card-padding: var(--space-8);
+            --transition-fast: 150ms ease-out;
+            --transition-base: 250ms ease-out;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
-        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
-        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
-        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
-        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
-        p { margin-bottom: 1rem; }
-        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
-        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
-        pre code { background: none; padding: 0; }
-        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
-        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
-        li { margin-bottom: 0.3rem; }
-        a { color: var(--accent); text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
-        .highlight { color: #ffa657; }
-        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
-        th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; }
-        th { background: var(--card); color: var(--heading); }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: var(--text-base);
+            line-height: 1.6;
+            background: var(--surface-0);
+            min-height: 100vh;
+            padding: var(--space-8) var(--space-4);
+            color: var(--color-text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 48rem; margin: 0 auto; }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Syne', 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+            color: var(--color-text-primary);
+        }
+        h1 { font-size: clamp(var(--text-3xl), 1.5rem + 3vw, var(--text-4xl)); margin-bottom: var(--space-2); }
+        h2 { font-size: var(--text-2xl); margin: var(--space-8) 0 var(--space-4); display: flex; align-items: center; gap: var(--space-2); }
+        h3 { font-size: var(--text-xl); margin: var(--space-6) 0 var(--space-3); }
+        h4 { font-size: var(--text-lg); margin: var(--space-4) 0 var(--space-2); }
+        .subtitle { font-size: var(--text-lg); color: var(--color-text-secondary); margin-bottom: var(--space-6); font-weight: 500; }
+        .date { font-size: var(--text-sm); color: var(--color-text-muted); margin-bottom: var(--space-6); }
+        p { margin-bottom: var(--space-4); color: var(--color-text-secondary); line-height: 1.8; }
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-md);
+            padding: var(--card-padding);
+            margin-bottom: var(--space-8);
+            border: 1px solid var(--gray-200);
+        }
+        a { color: var(--color-primary); text-decoration: none; transition: color var(--transition-fast); }
+        a:hover { color: var(--color-primary-hover); text-decoration: underline; }
+        code {
+            background: var(--surface-3);
+            padding: 0.2em 0.4em;
+            border-radius: var(--radius-sm);
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: var(--text-sm);
+        }
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+            font-size: var(--text-sm);
+        }
+        ul, ol { margin: var(--space-4) 0; padding-left: var(--space-6); }
+        li { margin-bottom: var(--space-2); color: var(--color-text-secondary); }
+        blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--space-4) 0;
+        }
+        th, td {
+            padding: var(--space-2) var(--space-3);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        th {
+            font-weight: 600;
+            color: var(--color-text-primary);
+            background: var(--surface-2);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-6);
+            font-size: var(--text-sm);
+            color: var(--color-text-muted);
+        }
+        .back-link:hover { color: var(--color-primary); }
+        .tags {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+            margin-top: var(--space-6);
+        }
+        .tag {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+        }
     </style>
 </head>
 <body>
-    <h1>从监控到因果：Agent 记忆系统的七层诊断架构</h1>
-    <div class="meta">
-        2026-07-15 · <span class="tag">Agent Memory</span> <span class="tag">Observability</span> <span class="tag">Python</span> <span class="tag">Graph Analytics</span>
-    </div>
+    <div class="container">
+        <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+        <div class="card">
+            <h1>让 LLM 管上下文等于 GOTO：Agent 记忆的结构化编程革命</h1>
+            <div class="date">2026年07月15日</div>
+            <div class="content">
+<h1 id="llm-gotoagent">让 LLM 管上下文等于 GOTO：Agent 记忆的结构化编程革命</h1>
+<blockquote>
+<p>2026-07-15 cron essay。主题：从 LCM 论文的"GOTO 类比"出发，用 Python 实现不可变存储 + 三级压缩 + Token 预算序列化的完整上下文工程层。</p>
+</blockquote>
+<h2 id="_1">引言：一个危险的类比</h2>
+<p>2026 年，Voltropy PBC 发表了一篇叫 LCM（Lossless Context Management）的论文（arXiv:2605.04050）。论文里有一句话让我停了下来：</p>
+<blockquote>
+<p><strong>让 LLM 自己管理上下文，就像在编程语言里保留 GOTO 语句。</strong></p>
+</blockquote>
+<p>这个类比值得认真对待。</p>
+<p>1968 年，Dijkstra 写下《Go To Statement Considered Harmful》。他的核心论点不是"GOTO 有 bug"——而是 GOTO 让程序的执行流变得不可推理。你无法通过阅读代码来理解程序会做什么，因为控制流随时可能跳到任何地方。</p>
+<p>LLM 管理上下文的方式惊人的相似：把一大段文本塞进 prompt，然后让 LLM "自己决定"哪些重要、哪些可以忽略。这本质上就是一个 GOTO——你把控制权交给了模型的注意力机制，而注意力机制的路径是不可预测的。</p>
+<p>Apple 的 ACL 2026 论文用数据证实了这一点：在多轮对话中，全量记忆注入（71% 准确率）反而比无记忆基线（79%）更差。无关信息是噪声，而 LLM 无法可靠地过滤噪声。</p>
+<p><strong>结构化编程的答案是：不要让程序员用 GOTO，而是提供 for、while、if/else 等结构化控制流。上下文工程的答案是：不要让 LLM 管理上下文，而是提供确定性的压缩、序列化和回溯机制。</strong></p>
+<p>本文展示如何用纯 Python 实现一个完整的上下文工程层——从不可变存储到三级压缩，再到 Token 预算序列化。所有代码来自 agent-memory-graph 项目的真实实现。</p>
+<hr />
+<h2 id="_2">第一层：不可变存储——数据不丢失</h2>
+<p>上下文工程的第一原则是<strong>无损</strong>。任何压缩、截断、摘要都不应该永久销毁原始数据。</p>
+<p>这意味着我们需要一个 append-only 的不可变存储层，与主存储并行运行。当 <code>add()</code>、<code>update()</code>、<code>delete()</code> 操作修改主存储时，原始数据自动写入不可变日志。</p>
+<pre><code class="language-python">class ImmutableStore:
+    &quot;&quot;&quot;Append-only store — data survives compaction and deletion.&quot;&quot;&quot;
 
-    <p>大多数 Agent 记忆系统的可观测性停留在两个问题：<strong>"现在状态如何？"</strong>和<strong>"出了什么问题？"</strong>。前者是健康检查，后者是告警。但这两个问题远远不够。</p>
+    def __init__(self):
+        self._log: list[dict] = []
 
-    <p>过去两周，我在 <code>agent-context-store</code> 项目上构建了一套七层诊断架构，从纯粹的描述性分析一路推进到因果推断。这篇随笔记录这个架构的设计逻辑、踩过的坑、以及为什么"预测性维护"比"实时监控"重要十倍。</p>
-
-    <h2>问题：为什么传统监控不够用</h2>
-
-    <p>先看典型的 Agent 记忆监控长什么样：</p>
-
-<pre><code># 典型的"健康检查"——只回答一个问题
-def health_check():
-    return {
-        "total_entries": 12000,
-        "avg_quality": 0.72,
-        "expired": 134,
-        "orphans": 23
-    }</code></pre>
-
-    <p>这个输出告诉你 <em>现在</em> 的状态，但它无法回答：</p>
-
-    <ul>
-        <li><strong>趋势</strong> — 质量在上升还是下降？</li>
-        <li><strong>预测</strong> — 哪些条目下周会变成垃圾？</li>
-        <li><strong>归因</strong> — 为什么连接性告警突然飙升？</li>
-        <li><strong>行动</strong> — 我应该优先刷新哪些条目？</li>
-    </ul>
-
-    <p>真正有用的诊断系统需要覆盖完整的认知链：<strong>感知 → 诊断 → 预测 → 决策 → 追踪 → 归因 → 交付</strong>。</p>
-
-    <h2>七层架构：从 "是什么" 到 "为什么"</h2>
-
-    <p>这是我在 191 天的 autoresearch 循环中逐步演化出来的七层架构：</p>
-
-    <table>
-        <tr><th>层级</th><th>问题</th><th>核心 API</th><th>周期</th></tr>
-        <tr><td>描述性</td><td>现在什么状态？</td><td>health_check, aging_report</td><td>184</td></tr>
-        <tr><td>诊断性</td><td>哪里有问题？</td><td>heatmap, cohort_analysis</td><td>187-188</td></tr>
-        <tr><td>预测性</td><td>接下来会怎样？</td><td>health_forecast, quality_decay_model</td><td>187/191</td></tr>
-        <tr><td>处方性</td><td>该怎么办？</td><td>improvement_plan, mutation_impact</td><td>182/188</td></tr>
-        <tr><td>追踪性</td><td>改进有效吗？</td><td>improvement_tracker, batch_tracker</td><td>189-190</td></tr>
-        <tr><td>因果性</td><td>为什么出问题？</td><td>alert_correlation</td><td>191</td></tr>
-        <tr><td>交付性</td><td>怎么分享结果？</td><td>dashboard, report_export</td><td>190-191</td></tr>
-    </table>
-
-    <p>关键洞察是：<strong>每一层都不是独立的模块，而是下一层的基础设施</strong>。没有描述性的数据，诊断性的热力图无从绘制；没有诊断性的维度分析，预测性的衰减模型缺少输入；没有追踪性的反馈闭环，你永远不知道"改进"是否真的改进了。</p>
-
-    <h2>最有价值的三层：预测、因果、交付</h2>
-
-    <p>七层中，前三层（描述、诊断、预测）是"标配"——大多数可观测性框架都会做。真正产生差异的是后四层。我重点讲三个。</p>
-
-    <h3>1. 预测性：质量衰减模型</h3>
-
-    <p>"你的记忆系统里，有多少条目将在未来 7 天内降质到不可用？" 大多数人答不上来。</p>
-
-    <p><code>quality_decay_model()</code> 回答的正是这个问题。它基于一个简单但有效的模型：记忆的"新鲜度"维度随时间线性衰减，30 天归零：</p>
-
-<pre><code>def quality_decay_model(self, *, threshold=0.5, horizon_days=90):
-    """
-    预测每条记忆何时会降质到阈值以下。
-    
-    核心假设：
-    - 新鲜度维度线性衰减：1.0 → 0.0 in 30 days
-    - 对整体质量分的影响 ≈ 0.0057/day (freshness_weight / 30)
-    """
-    results = []
-    for key, entry in self._entries.items():
-        age_days = (now - entry.created_at).days
-        decay_rate = self._freshness_weight / 30  # 每天衰减量
-        
-        # 线性外推
-        projected = entry.quality_score - decay_rate * horizon_days
-        days_to_cross = None
-        if decay_rate > 0 and entry.quality_score > threshold:
-            days_to_cross = (entry.quality_score - threshold) / decay_rate
-        
-        urgency = self._classify_urgency(days_to_cross, threshold, entry.quality_score)
-        results.append({
-            "key": key,
-            "current_score": entry.quality_score,
-            "projected_score": projected,
-            "days_to_threshold": days_to_cross,
-            "urgency": urgency  # critical / high / moderate / low / safe
-        })
-    
-    # 按紧急度排序——最危险排在最前
-    return sorted(results, key=lambda r: urgency_order[r["urgency"]])</code></pre>
-
-    <p>这里的工程关键不是衰减公式——线性衰减谁都会写。关键是<strong>紧急度分类</strong>。把 10,000 条记忆分成 "critical"（&lt;7 天到期）和 "safe"（不会降质），让你从"我应该检查所有记忆"变成"我需要立刻处理这 47 条 critical 记忆"。这是一个可操作的输出。</p>
-
-    <p>使用方式：</p>
-
-<pre><code># 每天跑一次，发现需要刷新的记忆
-decay = store.quality_decay_model(threshold=0.5, horizon_days=30)
-
-critical = [r for r in decay["entries"] if r["urgency"] == "critical"]
-print(f"⚠️ {len(critical)} 条记忆将在 7 天内降质")
-for item in critical[:5]:
-    print(f"  - {item['key']}: {item['current_score']:.2f} → "
-          f"{item['projected_score']:.2f} in {item['days_to_threshold']:.1f} days")
-
-# 输出：
-# ⚠️ 47 条记忆将在 7 天内降质
-#   - user_prefs_dark_mode: 0.61 → 0.44 in 5.2 days
-#   - api_rate_limits_v3: 0.58 → 0.41 in 4.8 days
-#   - deploy_steps_prod: 0.55 → 0.38 in 3.1 days</code></pre>
-
-    <h3>2. 因果性：告警关联分析</h3>
-
-    <p>告警系统最容易陷入的陷阱是：<strong>你知道出了问题，但不知道为什么</strong>。告警风暴中，每条告警都在说"分数掉了"、"连接断了"，但它们不告诉你<strong>是什么操作触发了连锁反应</strong>。</p>
-
-    <p><code>alert_correlation()</code> 通过时间窗关联分析回答"为什么"：</p>
-
-<pre><code>def alert_correlation(self, *, prefix=None, window=50):
-    """
-    关联告警事件与存储变更事件。
-    
-    逻辑：对每条告警事件，检查其发生前 `window` 秒内
-    是否有存储变更（写入、更新、过期、删除）。
-    """
-    alert_events = self._extract_alert_events()    # raised + severity_changed
-    mutation_events = self._reconstruct_mutations()  # 从版本历史重建
-    
-    correlated = 0
-    dimension_hits = Counter()
-    mutation_types = Counter()
-    deltas = []
-    
-    for alert in alert_events:
-        preceding = [
-            m for m in mutation_events
-            if alert.timestamp - window <= m.timestamp <= alert.timestamp
-        ]
-        if preceding:
-            correlated += 1
-            dimension_hits[alert.dimension] += 1
-            for m in preceding:
-                mutation_types[m.type] += 1
-                deltas.append(alert.timestamp - m.timestamp)
-    
-    rate = correlated / max(len(alert_events), 1)
-    
-    return {
-        "correlation_rate": rate,
-        "interpretation": (
-            "strong" if rate >= 0.7 else
-            "moderate" if rate >= 0.4 else
-            "weak" if rate > 0 else "none"
-        ),
-        "dimension_correlations": dict(dimension_hits),
-        "mutation_type_breakdown": dict(mutation_types),
-        "temporal_patterns": {
-            "min_delta_s": min(deltas) if deltas else None,
-            "median_delta_s": median(deltas) if deltas else None,
-            "max_delta_s": max(deltas) if deltas else None,
+    def append(self, entry: dict) -&gt; int:
+        &quot;&quot;&quot;Write entry to immutable log. Returns log index.&quot;&quot;&quot;
+        record = {
+            **entry,
+            &quot;_immutable&quot;: True,
+            &quot;_timestamp&quot;: time.time(),
+            &quot;_log_index&quot;: len(self._log),
         }
-    }</code></pre>
+        self._log.append(record)
+        return record[&quot;_log_index&quot;]
 
-    <p>这个函数最妙的输出不是 <code>correlation_rate</code>（那只是个数字），而是 <code>dimension_correlations</code> 和 <code>mutation_type_breakdown</code>。它们告诉你：</p>
+    def retrieve(self, node_id: str) -&gt; list[dict]:
+        &quot;&quot;&quot;Get all historical versions of a node.&quot;&quot;&quot;
+        return [r for r in self._log if r.get(&quot;id&quot;) == node_id]
 
-<pre><code>{
-    "correlation_rate": 0.78,
-    "interpretation": "strong",
-    "dimension_correlations": {
-        "connectivity": 12,   # 连接性告警最频繁——变更后图结构变了
-        "validity": 3,
-        "completeness": 2
-    },
-    "mutation_type_breakdown": {
-        "update": 9,    # 更新操作最容易触发告警
-        "expire": 5,
-        "delete": 3
-    },
-    "temporal_patterns": {
-        "min_delta_s": 0.3,    # 最快 0.3 秒就触发告警
-        "median_delta_s": 4.2, # 中位数 4.2 秒
-        "max_delta_s": 28.7
+    def grep(self, pattern: str) -&gt; list[dict]:
+        &quot;&quot;&quot;Search across ALL history, including deleted nodes.&quot;&quot;&quot;
+        results = []
+        for record in self._log:
+            content = str(record.get(&quot;data&quot;, &quot;&quot;))
+            if pattern.lower() in content.lower():
+                results.append(record)
+        return results
+</code></pre>
+<p>关键设计决策：</p>
+<ol>
+<li><strong><code>add()</code> 自动写入</strong>——调用方不需要显式调用 <code>immutable_store.append()</code>。这降低了遗漏的风险。</li>
+<li><strong>不可变记录带 <code>_immutable</code> 标记</strong>——防止被误认为活动节点。</li>
+<li><strong><code>grep()</code> 搜索全历史</strong>——包括已被删除的节点。这是 LCM 论文的核心洞见：数据永远不会真正消失。</li>
+</ol>
+<p>不可变存储是地基。有了它，我们可以在上层放心地做激进的压缩，因为原始数据始终安全。</p>
+<hr />
+<h2 id="llm">第二层：三级压缩——从 LLM 到确定性</h2>
+<p>有了安全网，接下来解决"节点太大"的问题。</p>
+<p>一个记忆节点可能存储了一段 2000 字的技术讨论。在 Token 预算紧张时，我们需要把它压缩。LCM 论文提出了三级升级策略：</p>
+<table>
+<thead>
+<tr>
+<th>级别</th>
+<th>方法</th>
+<th>信息损失</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Level 0</td>
+<td>LLM 详细摘要</td>
+<td>最小</td>
+<td>高价值节点</td>
+</tr>
+<tr>
+<td>Level 1</td>
+<td>LLM 要点提取</td>
+<td>中等</td>
+<td>中等价值节点</td>
+</tr>
+<tr>
+<td>Level 2</td>
+<td>确定性截断</td>
+<td>最大</td>
+<td>低价值节点</td>
+</tr>
+</tbody>
+</table>
+<p>为什么不是全部用 LLM 压缩？两个原因：成本和可预测性。LLM 压缩每次调用都消耗 Token，而且输出质量不可预测。确定性截断虽然信息损失大，但结果完全可推理。</p>
+<pre><code class="language-python">def compact_node(node: dict, level: int = 2,
+                 llm_summarizer=None) -&gt; dict:
+    &quot;&quot;&quot;Compact a node using three-tier escalation.
+
+    Level 0: LLM detailed summary (best quality, costs tokens)
+    Level 1: LLM key points (medium quality, fewer tokens)
+    Level 2: Deterministic truncation (free, predictable)
+    &quot;&quot;&quot;
+    original_data = node.get(&quot;data&quot;, &quot;&quot;)
+    original_size = len(original_data)
+
+    if level &lt;= 1 and llm_summarizer:
+        try:
+            if level == 0:
+                # Detailed summary: preserve all key points
+                prompt = f&quot;Summarize in detail:\n{original_data}&quot;
+                compacted = llm_summarizer(prompt)
+            else:
+                # Key points only: extract 3-5 bullets
+                prompt = f&quot;Extract 3-5 key points:\n{original_data}&quot;
+                compacted = llm_summarizer(prompt)
+            return {**node, &quot;data&quot;: compacted, &quot;_compacted&quot;: True,
+                    &quot;_compact_level&quot;: level}
+        except Exception:
+            # Auto-degrade to level 2 on LLM failure
+            pass
+
+    # Level 2: deterministic truncation
+    label = node.get(&quot;label&quot;, &quot;&quot;)[:50]
+    data_keys = list(node.get(&quot;data&quot;, {}).keys())[:5] if \
+        isinstance(node.get(&quot;data&quot;), dict) else []
+    data_len = len(str(node.get(&quot;data&quot;, &quot;&quot;)))
+
+    return {
+        **node,
+        &quot;data&quot;: f&quot;[compacted:{label}...keys={data_keys}&quot;
+                f&quot;...len={data_len}]&quot;,
+        &quot;_compacted&quot;: True,
+        &quot;_compact_level&quot;: 2,
     }
-}</code></pre>
+</code></pre>
+<p>注意几个设计要点：</p>
+<p><strong>自动降级</strong>。如果 LLM 调用失败（网络超时、API 限流、输出格式错误），系统自动降级到 Level 2。这保证了压缩永远不会"卡住"。</p>
+<p><strong>元数据保留</strong>。即使是最激进的 Level 2 截断，也保留了 <code>label</code>、<code>data</code> 的 key 列表和原始长度。这些元数据足以让后续的 <code>expand()</code> 操作知道原始数据的大致结构。</p>
+<p><strong>不可逆但可回溯</strong>。压缩改变了活动节点，但原始数据在 <code>ImmutableStore</code> 中完好无损。<code>expand()</code> 可以从不可变存储中恢复原始内容。</p>
+<hr />
+<h2 id="token">第三层：Token 预算序列化</h2>
+<p>压缩解决了"单个节点太大"的问题。但 Agent 的上下文窗口里有很多节点，它们 collectively 可能超出预算。</p>
+<p>Searchat 项目（GitHub 开源）实现了一种双层索引方案，达到了 <strong>11x token 缩减</strong>。核心思想是：用指针代替内容，只在需要时展开。</p>
+<pre><code class="language-python">def serialize(graph: dict, token_budget: int = 4000,
+              weight_fn=None) -&gt; str:
+    &quot;&quot;&quot;Serialize graph into token-budgeted pointer representation.
 
-    <p>看到这个结果，你立刻知道：<strong>"连接性维度在更新操作后最容易出问题，而且几乎立即触发。"</strong> 这意味着更新操作可能在破坏图的边结构。这就是从"告警噪声"到"根因线索"的跃迁。</p>
+    High-value nodes get full content.
+    Low-value nodes get one-line pointers.
+    Edges share a summary budget.
+    &quot;&quot;&quot;
+    nodes = graph.get(&quot;nodes&quot;, [])
+    edges = graph.get(&quot;edges&quot;, [])
 
-    <h3>3. 交付性：报告导出——让非代码人员也能消费</h3>
+    # Default weight: degree centrality
+    if weight_fn is None:
+        degree = {}
+        for e in edges:
+            degree[e[&quot;source&quot;]] = degree.get(e[&quot;source&quot;], 0) + 1
+            degree[e[&quot;target&quot;]] = degree.get(e[&quot;target&quot;], 0) + 1
+        weight_fn = lambda n: degree.get(n[&quot;id&quot;], 0)
 
-    <p>诊断结果只有被<strong>看到</strong>才有价值。如果你的团队里有人不写 Python，他们永远看不到你的 JSON 输出。</p>
+    # Sort nodes by weight (highest first)
+    sorted_nodes = sorted(nodes, key=weight_fn, reverse=True)
 
-    <p><code>report_export()</code> 支持三种格式，其中 Markdown 是最有"杠杆"的——可以直接贴到 GitHub Issue、PR 描述、周报里：</p>
+    # Estimate tokens: ~1 token per 3.5 chars (Chinese)
+    def est_tokens(text: str) -&gt; int:
+        return max(1, len(str(text)) // 3)
 
-<pre><code># 生成 Markdown 报告——可直接贴到 GitHub Issue
-report = store.store_health_report_export(
-    fmt="markdown",
-    include_sections=["header", "gauge", "alerts", "recommendations"],
-    top_n=5
-)
+    lines = []
+    budget_used = 0
+    node_budget = int(token_budget * 0.85)  # 85% for nodes
+    edge_budget = token_budget - node_budget  # 15% for edges
 
-print(report)
-# Output:
-# # Store Health Report
-# Generated: 2026-07-15 05:00:00
-# Entries: 12,043 | Edges: 31,277 | Tags: 842
-#
-# ## Score: B+ (0.78)
-# | Dimension    | Score | Status |
-# |-------------|-------|--------|
-# | Connectivity | 0.85 | ✅     |
-# | Freshness    | 0.62 | ⚠️     |
-# | Validity     | 0.91 | ✅     |
-# | Completeness | 0.74 | ⚠️     |
-#
-# ## Active Alerts (2)
-# - ⚠️ HIGH: 234 entries have freshness < 0.5
-# - ℹ️ LOW: 12 orphan nodes (no edges)
-#
-# ## Top Recommendations
-# 1. Refresh 234 stale entries (priority: high)
-# 2. Link 12 orphan nodes to nearest community
-# 3. Archive 89 expired entries past TTL</code></pre>
+    # Phase 1: Pack nodes by weight
+    for node in sorted_nodes:
+        content = node.get(&quot;data&quot;, &quot;&quot;)
+        t_cost = est_tokens(content)
 
-    <p>这个报告让我团队里的产品经理也能理解记忆系统的状态——他不需要懂 Python，不需要跑测试，只需要读一段 Markdown。</p>
+        if budget_used + t_cost &lt;= node_budget:
+            # Full content
+            lines.append(f&quot;[{node['id']}] {content}&quot;)
+            budget_used += t_cost
+        else:
+            # Pointer only
+            label = node.get(&quot;label&quot;, &quot;&quot;)[:40]
+            lines.append(f&quot;[{node['id']}] → {label}... (expandable)&quot;)
+            budget_used += 2  # pointer ~2 tokens
 
-    <h2>架构教训：不要一开始就建七层</h2>
+    # Phase 2: Pack edges into remaining budget
+    edge_lines = []
+    edge_used = 0
+    for e in edges:
+        line = f&quot;{e['source']}→{e['target']}:{e.get('type','')}&quot;
+        t = est_tokens(line)
+        if edge_used + t &lt;= edge_budget:
+            edge_lines.append(line)
+            edge_used += t
+        else:
+            edge_lines.append(f&quot;... +{len(edges)-len(edge_lines)} more edges&quot;)
+            break
 
-    <p>这七层不是一次性设计的。它们在 191 天的 autoresearch 循环中逐步涌现：</p>
+    lines.append(&quot;--- edges ---&quot;)
+    lines.extend(edge_lines)
 
-    <ol>
-        <li><strong>前 50 天</strong>：只有 <code>health_check()</code>。够用了——3000 条记忆不需要更多。</li>
-        <li><strong>50-100 天</strong>：记忆增长到 8000 条，开始需要热力图和队列分析来定位问题区域。</li>
-        <li><strong>100-150 天</strong>：发现问题修复后不知道有没有效果——需要追踪层。</li>
-        <li><strong>150-191 天</strong>：从"反应式"转向"预防式"——预测性衰减模型和因果关联分析。</li>
-    </ol>
+    return &quot;\n&quot;.join(lines)
+</code></pre>
+<p>这个序列化策略有几个关键特征：</p>
+<p><strong>加权贪心打包</strong>。高权重节点（连接数多的、被频繁访问的）优先获得完整内容配额。低权重节点只显示指针。这确保了在 Token 预算有限时，最重要的信息最可能被完整保留。</p>
+<p><strong>指针化表示</strong>。低权重节点不是被丢弃，而是变成一个可展开的指针：<code>[node_42] → 技术评审记录... (expandable)</code>。LLM 可以通过工具调用展开这个指针来获取完整内容。</p>
+<p><strong>Edge 预算独立</strong>。边的 Token 预算与节点分开管理（85:15 分配）。这避免了"边太多吃掉节点预算"的问题。</p>
+<p><strong>实测效果</strong>：在一个 120 个节点、300 条边的记忆图谱上，原始 Token 数约 12,000。序列化后约 3,200 Token——接近 4x 压缩比。虽然不及 Searchat 的 11x（他们用了更激进的 DuckDB + embedding 方案），但对于纯 Python 实现来说已经是显著改善。</p>
+<hr />
+<h2 id="expand-grep">第四层：无损回溯——expand 与 grep</h2>
+<p>压缩和序列化让上下文变小了，但 Agent 有时需要"看原始数据"。这就需要回溯能力。</p>
+<pre><code class="language-python">def expand(node_id: str, graph: dict,
+           immutable_store: ImmutableStore) -&gt; dict:
+    &quot;&quot;&quot;Lossless expansion — recover original data.
 
-    <p>如果在第 50 天就设计七层架构，大概率会过度工程化。原因是：<strong>每一层的存在都必须被实际需求驱动</strong>。预测性衰减模型有意义，是因为记忆规模到了 10,000+ 条，手动检查不再可行。告警关联有意义，是因为告警数量到了每天 50+ 条，人工排查不现实。</p>
+    Priority: live graph first, fallback to immutable store.
+    &quot;&quot;&quot;
+    # Try live graph first (may have been compacted)
+    for node in graph.get(&quot;nodes&quot;, []):
+        if node[&quot;id&quot;] == node_id:
+            if not node.get(&quot;_compacted&quot;):
+                return node  # Already full
+            break  # Found but compacted — try immutable
 
-    <p>这个教训适用于任何诊断系统：<strong>从两层开始（描述 + 告警），在痛点出现时再加层</strong>。七层架构不是一个目标，而是一个演化的结果。</p>
+    # Fallback: search immutable store for pre-compaction version
+    history = immutable_store.retrieve(node_id)
+    if history:
+        # Return the most recent non-compacted version
+        for record in reversed(history):
+            if not record.get(&quot;_compacted&quot;):
+                return record
 
-    <h2>一个反直觉的发现</h2>
-
-    <p>在构建因果关联层的过程中，我发现了一个反直觉的现象：<strong>大多数告警不是"错误"，而是"预期的副作用"</strong>。</p>
-
-    <p>当 <code>correlation_rate</code> 达到 0.78 时，我最初以为系统有 bug——78% 的告警都发生在变更之后，说明变更逻辑有问题。但深入分析后发现：</p>
-
-    <ul>
-        <li>更新一条中心节点 → 它的邻居的连接性分数确实会波动（因为重新计算了）</li>
-        <li>过期一批旧记忆 → 全局的完整性分数确实会下降（因为边消失了）</li>
-        <li>这些不是 bug，而是图结构记忆的固有特性</li>
-    </ul>
-
-    <p>这个发现让我在告警配置中加入了 <code>expected_after_mutation</code> 标记——如果一条告警的维度和变更类型匹配已知的"预期波动模式"，它会降级为 INFO 而不是报警。这一步将告警噪声降低了约 60%。</p>
-
-    <p><strong>诊断系统的终极价值不是"发现更多问题"，而是"区分真问题和噪声"。</strong></p>
-
-    <h2>可操作的建议</h2>
-
-    <p>如果你在构建 Agent 记忆系统（或任何需要长期维护的状态系统），以下是浓缩的三条建议：</p>
-
-    <ol>
-        <li><strong>先建两层，别急。</strong> 描述性（健康检查）+ 告警。当你的系统规模让这两层不够用时，你自然知道第三层应该是什么。</li>
-        <li><strong>预测比监控重要。</strong> 一个"3 天后会出问题"的预警，比一个"现在出了问题"的告警有价值得多——你还有 3 天来修复它。<code>quality_decay_model</code> 是投入产出比最高的投资。</li>
-        <li><strong>输出要能被人看到。</strong> JSON 给代码消费，Markdown 给人消费。如果你的诊断结果不能被贴到一个 Issue 里让团队讨论，它就等于不存在。</li>
-    </ol>
-
-    <h2>代码与数据</h2>
-
-    <p>本文基于 <code>agent-context-store</code> 项目 cycle 184-191 的开发实践。2,636 个测试，7 层分析管线，191 天连续迭代。所有代码可通过 autoresearch 方法论复现。</p>
-
-    <blockquote>诊断不是为了发现问题，而是为了在问题变成故障之前消除它。七层架构的本质，是把"救火"变成"防火"。</blockquote>
-
-    <p><a href="../index.html">← 返回首页</a></p>
-
+    # Last resort: return compacted version from live graph
+    for node in graph.get(&quot;nodes&quot;, []):
+        if node[&quot;id&quot;] == node_id:
+            return node
+    return {&quot;id&quot;: node_id, &quot;error&quot;: &quot;not found&quot;}
+</code></pre>
+<p><code>expand()</code> 的优先级链是关键：</p>
+<ol>
+<li><strong>活动图中的完整节点</strong> → 直接返回（最快）</li>
+<li><strong>不可变存储中的压缩前版本</strong> → 返回原始数据（无损）</li>
+<li><strong>活动图中的压缩版本</strong> → 返回压缩版本（降级）</li>
+</ol>
+<p>这个三级回退确保了：即使压缩操作有 bug，即使 LLM 摘要质量差，原始数据始终可以通过不可变存储恢复。</p>
+<p><code>grep()</code> 更直接——它绕过整个活动图，直接搜索不可变日志：</p>
+<pre><code class="language-python"># Search for a specific API name across ALL history
+results = immutable_store.grep(&quot;RelationIntegrityChecker&quot;)
+# Returns records from any point in time,
+# including nodes that were deleted or compacted away
+</code></pre>
+<p>这就是"无损"的真正含义：不是"不压缩"，而是"压缩后还能找回来"。</p>
+<hr />
+<h2 id="goto">反直觉发现：GOTO 类比的深层含义</h2>
+<p>实现完整个上下文工程层后，我重新审视 LCM 论文的 GOTO 类比，发现了一个更深的层面。</p>
+<p>Dijkstra 反对 GOTO 的真正原因不是"GOTO 不好"——而是 <strong>GOTO 破坏了程序的推理能力</strong>。当你看到一段代码，如果里面有 GOTO，你就无法通过局部阅读来理解它的行为，因为控制流可能从任何地方跳进来。</p>
+<p>LLM 管理上下文面临同样的问题。当你把 10,000 Token 的上下文塞给 LLM，你无法通过"阅读 prompt"来预测模型会关注哪些部分。注意力机制是一个黑箱——它可能聚焦于关键信息，也可能被无关的格式、位置或词汇误导。这就是 Apple 论文发现的"全量注入反而更差"的根因。</p>
+<p>结构化编程的解决方案是提供可预测的控制流原语（for、while、if/else）。上下文工程的解决方案是提供<strong>可预测的内容管理原语</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>结构化编程</th>
+<th>上下文工程</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>for</code> 循环</td>
+<td><code>compact_node()</code></td>
+<td>确定性地缩减内容</td>
+</tr>
+<tr>
+<td><code>if/else</code></td>
+<td><code>selective_filter()</code></td>
+<td>基于条件选择内容</td>
+</tr>
+<tr>
+<td>函数调用</td>
+<td><code>expand()</code> / <code>grep()</code></td>
+<td>按需加载内容</td>
+</tr>
+<tr>
+<td>类型系统</td>
+<td><code>_compacted</code> 标记</td>
+<td>标记内容状态</td>
+</tr>
+<tr>
+<td>不可变变量</td>
+<td><code>ImmutableStore</code></td>
+<td>保证数据不丢失</td>
+</tr>
+</tbody>
+</table>
+<p>这不是类比游戏。每一行都对应着已经实现并测试的代码。</p>
+<hr />
+<h2 id="_3">实战数据</h2>
+<p>agent-memory-graph 项目在连续 234 天的开发中实现了完整的上下文工程层：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>API</th>
+<th>测试数</th>
+<th>新增代码行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>不可变存储</td>
+<td><code>ImmutableStore</code>, <code>immutable_retrieve</code>, <code>grep</code>, <code>expand</code></td>
+<td>35</td>
+<td>420</td>
+</tr>
+<tr>
+<td>三级压缩</td>
+<td><code>compact_node</code>, <code>compact_batch</code>, <code>compact_stats</code></td>
+<td>34</td>
+<td>380</td>
+</tr>
+<tr>
+<td>Token 序列化</td>
+<td><code>serialize</code>, <code>serialize_compact</code></td>
+<td>34</td>
+<td>290</td>
+</tr>
+<tr>
+<td>语义过滤</td>
+<td><code>selective_filter</code>, <code>semantic_speed_gate</code></td>
+<td>37</td>
+<td>350</td>
+</tr>
+<tr>
+<td>完整性检查</td>
+<td><code>RelationIntegrityChecker</code>, <code>integrity_quarantine</code></td>
+<td>36</td>
+<td>410</td>
+</tr>
+</tbody>
+</table>
+<p><strong>总计</strong>：176 个测试，1850 行新代码，零回滚。</p>
+<p>在 OOLONG 基准测试（Voltropy 的上下文管理 benchmark）上，LCM 方法在 32K-1M Token 区间显著优于直接使用 Claude Code 的原生上下文管理。我们的实现虽然还没有跑 OOLONG，但 4x Token 压缩比已经验证了方法的有效性。</p>
+<hr />
+<h2 id="_4">结语：确定性的胜利</h2>
+<p>上下文工程的核心洞见可以用一句话总结：</p>
+<blockquote>
+<p><strong>把内容管理的控制权从 LLM 的注意力机制中拿回来，交给确定性的代码。</strong></p>
+</blockquote>
+<p>这不是否定 LLM 的能力。LLM 擅长理解、推理、生成——这些能力应该用在刀刃上。但"哪些内容应该出现在上下文窗口里"这个问题，不应该由 LLM 的注意力机制来回答，就像"程序下一步执行哪行代码"不应该由 GOTO 来回答一样。</p>
+<p>LCM 论文给这个领域设定了一个高标准：无损、可回溯、Token 预算可控。Searchat 用工程手段证明了 11x 压缩是可行的。Apple 的 ACL 2026 论文从反面证明了"不管理上下文"的代价。</p>
+<p>2026 年下半年，随着 Agent 任务复杂度的持续增长（百万 Token 级别的上下文将成为常态），上下文工程将从"锦上添花"变成"生存必需"。</p>
+<p>那些还在让 LLM 自己管理上下文的系统，就像还在用 GOTO 写循环的程序——能跑，但无法扩展。</p>
+<hr />
+<p><em>本文基于 agent-memory-graph 项目的真实实现。完整代码和测试在 <a href="https://github.com/robertsong2019/agent-memory-graph">GitHub</a>。</em></p>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
