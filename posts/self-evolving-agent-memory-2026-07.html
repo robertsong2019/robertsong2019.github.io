@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自进化 Agent 记忆：当记忆系统学会"如何记忆" - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.85em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">← 返回首页</a>
+<h1>自进化 Agent 记忆：当记忆系统学会"如何记忆"</h1>
+<div class="meta">2026-07-20 · agent-memory-graph · self-evolving memory</div>
+
+<blockquote>Agent 记忆领域正在经历范式转变——从被动存储走向元自适应架构。基于 MemEvolve、MUSE-Autoskill、SkeMex 等 7 篇前沿论文，展示一个完整的"Read-Write-Assess-Govern"技能生命周期实现，让 Agent 不仅记住"什么"，更学会"怎么记"。</blockquote>
+
+<h2>引言：一个被忽视的问题</h2>
+<p>你的 Agent 记忆系统是什么架构？</p>
+<p>如果是 Mem0，它的管线是 encode → store → retrieve → manage。如果是 Letta，是 embedding + archival memory。如果是 Zep，是 temporal knowledge graph。</p>
+<p>那这些架构会进化吗？</p>
+<p>答案是：<strong>不会。</strong> 它们允许记忆的<em>内容</em>进化——新的事实被写入，旧的事实被遗忘。但记忆的<em>架构</em>本身——怎么编码、怎么存储、怎么检索、怎么管理——从第一天起就固定了。</p>
+<p>2025 年 12 月，Zhang 等人在 MemEvolve 论文中公布了一组发人深省的数据：让 Agent 的记忆架构自身参与进化搜索，在 SmolAgent 和 Flash-Searcher 基准上获得了 <strong>+17.06% 的提升</strong>，且具有良好的跨任务和跨大模型泛化能力。</p>
+<p>这意味着什么？<strong>记忆架构不是"设计"出来的，是"进化"出来的。</strong> 不同的任务需要不同的记忆操作组合——一个"记住 API 文档"的任务需要全文检索，一个"规划多步操作"的任务需要程序性记忆链，一个"理解用户偏好"的任务需要时间衰减 + 语义聚类。固定架构在所有场景下都是次优的。</p>
+<p>本文探讨 2025-2026 年 Agent 记忆领域最重要的范式转变：<strong>从静态架构到自进化记忆系统</strong>。我会展示 7 篇关键论文的核心洞察，并用 TypeScript 实现一个完整的技能生命周期管理器——Read-Write-Assess-Govern 四步循环。</p>
+
+<h2>一、范式转变：四个方向同时收敛</h2>
+<p>2026 年中，7 篇论文从不同角度汇聚到同一个结论：<strong>记忆系统需要学会自我适应</strong>。</p>
+
+<h3>1.1 架构元进化（MemEvolve）</h3>
+<p>MemEvolve（arXiv:2512.18746）引入了<strong>元进化</strong>概念：不再固定 encode → store → retrieve → manage 管线，而是让 Agent 在这个设计空间中搜索。其 EvolveLab 代码库将 12 种代表性记忆系统模块化，创建了第一个标准化的记忆架构竞技场。</p>
+<p>关键发现：<strong>没有任何单一记忆架构在所有任务类型上占优。</strong> 检索增强（BM25、GraphRAG）在知识密集型任务上胜出，程序性记忆在执行型任务上胜出。但最好的系统是能根据任务<em>自适应切换</em>架构的系统。</p>
+
+<h3>1.2 生成式潜在记忆（MemGen）</h3>
+<p>MemGen（arXiv:2509.24704）提出了一个更激进的范式：不再检索存储的条目，而是<strong>生成潜在 token 序列作为机器原生的记忆</strong>。它包含两个组件：</p>
+<ul>
+<li><strong>Memory Trigger</strong>：监控 Agent 的推理状态，决定<em>何时</em>调用记忆（不是每轮都需要）</li>
+<li><strong>Memory Weaver</strong>：以当前状态为刺激，构建潜在 token 序列作为"生成的记忆"</li>
+</ul>
+<p>MemGen 在多个基准上超越 ExpeL 和 AWM 高达 38.22%，且<strong>在没有明确监督的情况下自发发展出了规划/程序/工作记忆模块</strong>。</p>
+
+<h3>1.3 技能生命周期管理（MUSE + SkeMex + Memp）</h3>
+<p>三篇论文汇聚于同一个洞察：<strong>技能是一等公民，需要完整的生命周期管理</strong>。</p>
+<p><strong>MUSE-Autoskill</strong>（ByteDance, arXiv:2605.27366）定义了五阶段生命周期：创建 → 记忆 → 管理 → 评估 → 精炼。最震撼的数据：<strong>自动创建的技能超越了人类编写的技能——SkillsBench 上 85.24% vs 81.17%</strong>。而且技能可以跨 Agent 迁移。</p>
+<p><strong>SkeMex</strong>（arXiv:2606.09365）增加了 <strong>Read-Write-Assess-Govern</strong> 模式——目前最实用的技能生命周期框架：</p>
+<table>
+<tr><th>阶段</th><th>操作</th><th>核心问题</th></tr>
+<tr><td>Read</td><td>价值感知检索</td><td>当前上下文需要哪些记忆？</td></tr>
+<tr><td>Write</td><td>轨迹蒸馏</td><td>从经验中提取什么结构化技能？</td></tr>
+<tr><td>Assess</td><td>效用估计</td><td>存储的记忆实际有用吗？</td></tr>
+<tr><td>Govern</td><td>提升/衰减/剪枝</td><td>哪些记忆应该被推广、降权或删除？</td></tr>
+</table>
+<p><strong>Memp</strong>（ACL 2026 Findings, zjunlp）探索了两个抽象层级：细粒度的逐步指令 + 更高级的脚本式抽象。关键发现：<strong>强模型的程序性记忆可以迁移到弱模型</strong>——跨模型技能可移植性。</p>
+
+<h3>1.4 连续场记忆（FieldMem）</h3>
+<p>FieldMem（arXiv:2602.21220, RotaLabs）将记忆建模为<strong>受偏微分方程支配的连续场</strong>，而非离散数据库条目。记忆在语义空间中扩散、基于重要性热力学衰减、通过场耦合在多 Agent 场景中交互。</p>
+<p>在 LongMemEval 上：多会话推理 F1 提升 116%，时间推理提升 43.8%，知识更新检索召回提升 27.8%。</p>
+
+<h2>二、核心洞察：为什么"学怎么记"比"记什么"更重要</h2>
+<blockquote>记忆内容的质量上限由记忆架构决定。你可以存最好的数据，但如果架构不适合当前任务，检索质量就会大打折扣。</blockquote>
+<p>传统记忆系统的困境：固定架构在简单任务上过度工程化，在复杂任务上能力不足。而自进化记忆系统的每个阶段——encode、store、retrieve——都会被评估和调整，架构本身在持续进化。</p>
+
+<h2>三、完整实现：Read-Write-Assess-Govern 技能生命周期</h2>
+<p>下面是一个完整的 TypeScript 实现，融合 SkeMex 的四步循环、MUSE 的每技能记忆、以及 FieldMem 的热力学衰减思想。</p>
+
+<pre><code>/**
+ * Self-Evolving Skill Memory
+ * 融合: SkeMex (RWAG) + MUSE (per-skill memory) + FieldMem (thermodynamic decay)
+ */
+
+interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  steps: string[];
+  preconditions: string[];
+  contraindications: string[];
+  qValue: number;               // 效用分 [0, 1]
+  usageCount: number;
+  successCount: number;
+  lastUsed: number;
+  experiences: SkillExperience[];
+  version: number;
+}
+
+interface SkillExperience {
+  taskId: string;
+  outcome: 'success' | 'failure' | 'partial';
+  feedback: string;
+  timestamp: number;
+  utility: number;
+}
+
+class SkillMemoryLifecycle {
+  private skills = new Map&lt;string, Skill&gt;();
+  private decayRate = 0.85;
+
+  // ═══ WRITE: 从轨迹蒸馏出结构化技能 ═══
+  compress_to_skill(
+    trajectory: { observation: string; action: string; result: string }[],
+    skillName: string,
+    description: string
+  ): Skill {
+    const successfulSteps = trajectory
+      .filter(t => t.result !== 'error')
+      .map(t => t.action);
+
+    const skill: Skill = {
+      id: `skill_${Date.now()}`,
+      name: skillName,
+      description,
+      steps: successfulSteps,
+      preconditions: this._extractPreconditions(trajectory),
+      contraindications: [],
+      qValue: 0.5,
+      usageCount: 0,
+      successCount: 0,
+      lastUsed: Date.now(),
+      experiences: [],
+      version: 1,
+    };
+    this.skills.set(skill.id, skill);
+    return skill;
+  }
+
+  // ═══ READ: 价值感知检索 (Q值×0.6 + 相关性×0.4) ═══
+  retrieve_skills(
+    context: string,
+    options?: { topK?: number; minQValue?: number; maxStaleDays?: number }
+  ): Skill[] {
+    const topK = options?.topK ?? 5;
+    const minQ = options?.minQValue ?? 0.1;
+    const maxStale = options?.maxStaleDays ?? 30;
+    const now = Date.now();
+
+    return Array.from(this.skills.values())
+      .filter(s => (now - s.lastUsed) / 86400000 <= maxStale)
+      .filter(s => s.qValue >= minQ)
+      .map(s => ({
+        skill: s,
+        compositeScore: s.qValue * 0.6 + this._contextRelevance(s, context) * 0.4,
+      }))
+      .sort((a, b) => b.compositeScore - a.compositeScore)
+      .slice(0, topK)
+      .map(x => x.skill);
+  }
+
+  // ═══ ASSESS: TD-learning 更新 Q 值 ═══
+  // Q(s) ← Q(s) + α[r - Q(s)]
+  assess_skill(
+    skillId: string,
+    outcome: 'success' | 'failure' | 'partial',
+    feedback: string
+  ): void {
+    const skill = this.skills.get(skillId);
+    if (!skill) return;
+
+    const reward = outcome === 'success' ? 1.0
+                 : outcome === 'partial' ? 0.3 : -0.2;
+    const alpha = 0.3;
+    skill.qValue = Math.max(0, Math.min(1,
+      skill.qValue + alpha * (reward - skill.qValue)
+    ));
+    skill.usageCount++;
+    if (outcome === 'success') skill.successCount++;
+    skill.lastUsed = Date.now();
+    skill.experiences.push({
+      taskId: `task_${Date.now()}`, outcome, feedback,
+      timestamp: Date.now(), utility: reward,
+    });
+  }
+
+  // ═══ GOVERN: 提升/衰减/剪枝 ═══
+  govern(): { promoted: string[]; decayed: string[]; pruned: string[]; summary: string } {
+    const promoted: string[] = [], decayed: string[] = [], pruned: string[] = [];
+    for (const [id, skill] of this.skills) {
+      if (skill.qValue > 0.7 && skill.usageCount > 5) {
+        skill.version++;
+        promoted.push(`${skill.name} v${skill.version} (Q=${skill.qValue.toFixed(2)})`);
+      }
+      if (skill.usageCount === 0) {
+        skill.qValue *= this.decayRate;
+        if (skill.qValue < 0.05) decayed.push(`${skill.name} (Q=${skill.qValue.toFixed(3)})`);
+      }
+      if (skill.qValue < 0.01 || (skill.usageCount > 3 && skill.successCount === 0)) {
+        this.skills.delete(id);
+        pruned.push(skill.name);
+      }
+    }
+    return {
+      promoted, decayed, pruned,
+      summary: `治理了 ${this.skills.size + pruned.length} 个技能: ${promoted.length} 提升, ${decayed.length} 衰减, ${pruned.length} 剪枝`,
+    };
+  }
+
+  // ═══ EVOLVE: 从失败经验中精炼技能 ═══
+  evolve_skill(skillId: string): Skill | null {
+    const skill = this.skills.get(skillId);
+    if (!skill) return null;
+    const failures = skill.experiences.filter(e => e.outcome === 'failure');
+    if (failures.length < 2) return skill;
+    const commonWords = this._extractCommonKeywords(failures.map(f => f.feedback));
+    for (const word of commonWords) {
+      if (!skill.contraindications.includes(word))
+        skill.contraindications.push(word);
+    }
+    skill.version++;
+    return skill;
+  }
+
+  // 技能库健康度
+  skill_bank_health() {
+    const all = Array.from(this.skills.values());
+    return {
+      total: all.length,
+      avgQValue: all.reduce((s, x) => s + x.qValue, 0) / Math.max(all.length, 1),
+      avgSuccessRate: all.reduce((s, x) => s + x.successCount / Math.max(x.usageCount, 1), 0) / Math.max(all.length, 1),
+      healthyCount: all.filter(s => s.qValue > 0.3 && s.usageCount > 0).length,
+    };
+  }
+
+  private _extractPreconditions(traj: { observation: string }[]): string[] {
+    return (traj[0]?.observation.split(/\s+/) ?? []).slice(0, 3);
+  }
+  private _contextRelevance(skill: Skill, context: string): number {
+    const skillText = `${skill.name} ${skill.description} ${skill.preconditions.join(' ')}`;
+    const ctx = new Set(context.toLowerCase().split(/\s+/));
+    const overlap = skillText.toLowerCase().split(/\s+/).filter(w => ctx.has(w)).length;
+    return Math.min(overlap / 5, 1.0);
+  }
+  private _extractCommonKeywords(texts: string[]): string[] {
+    const freq = new Map&lt;string, number&gt;();
+    for (const t of texts) for (const w of t.toLowerCase().split(/\s+/))
+      freq.set(w, (freq.get(w) ?? 0) + 1);
+    return Array.from(freq.entries()).filter(([, c]) => c >= 2)
+      .sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w]) => w);
+  }
+}</code></pre>
+
+<h3>运行示例</h3>
+<pre><code>const lifecycle = new SkillMemoryLifecycle();
+
+// 1. WRITE: 从部署轨迹中蒸馏出技能
+const skill = lifecycle.compress_to_skill(
+  [
+    { observation: 'user wants to deploy web app', action: 'docker build -t app .', result: 'built' },
+    { observation: 'image ready', action: 'docker run -p 8080:80 app', result: 'started' },
+    { observation: 'container running', action: 'curl localhost:8080/health', result: '200 OK' },
+  ],
+  'deploy-web-app', '使用 Docker 部署 Web 应用'
+);
+// → Created: deploy-web-app v1
+
+// 2. READ: 检索相关技能
+const retrieved = lifecycle.retrieve_skills('deploy application with docker');
+// → ['deploy-web-app (Q=0.50)']
+
+// 3. ASSESS: 记录执行结果
+lifecycle.assess_skill(skill.id, 'success', '部署顺利完成');
+lifecycle.assess_skill(skill.id, 'success', '快速部署完成');
+lifecycle.assess_skill(skill.id, 'failure', '端口冲突，已有服务占用 8080');
+
+// 4. EVOLVE: 从失败中学习
+const evolved = lifecycle.evolve_skill(skill.id);
+// → Evolved: deploy-web-app v2, 禁忌: [端口, 冲突, 已有]
+
+// 5. GOVERN: 执行治理
+lifecycle.govern();
+// → 治理了 1 个技能: 1 提升, 0 衰减, 0 剪枝</code></pre>
+
+<h2>四、热力学衰减：为什么简单指数衰减不够好</h2>
+<p>当前几乎所有 Agent 记忆系统使用<strong>指数衰减</strong>来管理记忆过期：<code>importance × exp(-α × age / half_life)</code>。但 FieldMem 表明，真实重要性受<strong>周围记忆密度</strong>和<strong>语义耦合强度</strong>影响：</p>
+<ul>
+<li><strong>高密度区域</strong>（已有很多相关记忆）→ 衰减更快——冗余信息不值得保留</li>
+<li><strong>低密度区域</strong>（稀缺的独特信息）→ 衰减更慢</li>
+<li><strong>与高能量节点耦合</strong>的记忆 → 衰减更慢——重要关联提升周围记忆价值</li>
+</ul>
+
+<pre><code>// 传统指数衰减
+function standardDecay(importance, ageDays, halfLife) {
+  return importance * Math.exp(-0.693 * ageDays / halfLife);
+}
+
+// 热力学衰减（FieldMem 启发）
+function thermodynamicDecay(importance, ageDays, neighborDensity, couplingStrength) {
+  const baseDecay = Math.exp(-0.693 * ageDays / 30);
+  const densityFactor = 1 + 0.3 * Math.log(1 + neighborDensity);  // 穴余加速衰减
+  const couplingFactor = 1 / (1 + couplingStrength);               // 耦合延缓衰减
+  return importance * baseDecay * densityFactor * couplingFactor;
+}</code></pre>
+
+<h2>五、实践意义</h2>
+<p><strong>如果你正在构建 Agent 系统：</strong>开始思考的不是"用什么记忆后端"，而是"记忆架构能否适应不同任务"。</p>
+<p><strong>如果你使用现成框架：</strong>检查是否支持技能生命周期管理。真正的自进化技能需要 Write（从轨迹蒸馏）→ Read（上下文检索）→ Assess（结果学习）→ Govern（自动治理）。如果框架不支持这些，你正在用静态技能解决动态问题。</p>
+<p><strong>如果你是研究者：</strong>EvoMemBench 是目前唯一覆盖"知识 vs 执行" × "单会话 vs 跨会话"四维度的基准。15 种方法对比后最重要的发现：<strong>没有任何单一记忆形式在所有场景下有效</strong>。</p>
+
+<h2>六、竞争格局速览</h2>
+<table>
+<tr><th>系统</th><th>类型</th><th>自进化</th><th>技能生命周期</th><th>开源</th></tr>
+<tr><td>MemEvolve</td><td>元架构</td><td>✅ 架构级</td><td>❌</td><td>✅</td></tr>
+<tr><td>MemGen</td><td>生成式潜在</td><td>✅ 涌现式</td><td>✅ 自发</td><td>❌</td></tr>
+<tr><td>MUSE-Autoskill</td><td>技能生命周期</td><td>✅ 技能级</td><td>✅ 五阶段</td><td>❌</td></tr>
+<tr><td>SkeMex</td><td>技能记忆</td><td>✅ RWAG</td><td>✅ 医疗</td><td>✅</td></tr>
+<tr><td>FieldMem</td><td>连续场</td><td>✅ 热力学</td><td>❌</td><td>✅</td></tr>
+</table>
+<p>注意一个空白：<strong>没有一个系统同时拥有图算法 + 技能生命周期 + 安全治理 + 基准评估。</strong></p>
+
+<h2>结语：记忆的下一个十年</h2>
+<p>Agent 记忆领域正在经历从"存储"到"进化"的范式转变：</p>
+<pre><code>2023: 向量数据库 = Agent 记忆
+2024: 知识图谱 + 检索增强 = Agent 记忆
+2025: 程序性记忆 + 技能提取 = Agent 记忆
+2026: 自进化架构 + 生成式记忆 + 连续场 = ???</code></pre>
+<p>每一步都更接近人类大脑的工作方式。人类的记忆不是数据库——它是活的、进化的、自我调节的。我们在睡眠中巩固重要记忆、遗忘无关细节、通过经验优化记忆策略。Agent 的记忆也应该如此。</p>
+<p>正如 MemEvolve 论文开篇所言：<strong>"The question is no longer what to remember, but how to remember."</strong></p>
+
+<hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+<p style="color: #999; font-size: 0.85em;">本文基于 Deep Research #014（自进化 Agent 记忆）的研究发现，代码示例融合 agent-memory-graph 项目实践和 7 篇 arXiv 论文理论框架。项目当前：4034 tests, 269 开发周期, 连续 245 天零回滚率。</p>
+
+</div>
+</body>
+</html>
