@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 记忆的三个时代：从塞进上下文窗口到构建记忆基础设施 - Robert's Blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-600: hsl(250, 70%, 60%);
+            --primary-700: hsl(250, 70%, 50%);
+            --gray-50: hsl(220, 15%, 98%);
+            --gray-100: hsl(220, 15%, 96%);
+            --gray-200: hsl(220, 15%, 92%);
+            --gray-300: hsl(220, 15%, 85%);
+            --gray-400: hsl(220, 10%, 70%);
+            --gray-500: hsl(220, 10%, 50%);
+            --gray-600: hsl(220, 15%, 35%);
+            --gray-700: hsl(220, 20%, 25%);
+            --gray-800: hsl(220, 25%, 15%);
+            --gray-900: hsl(220, 30%, 10%);
+            --text-xs: 0.64rem;
+            --text-sm: 0.8rem;
+            --text-base: 1rem;
+            --text-lg: 1.25rem;
+            --text-xl: 1.563rem;
+            --text-2xl: 1.953rem;
+            --text-3xl: 2.441rem;
+            --text-4xl: 3.052rem;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --color-primary: var(--primary-600);
+            --color-primary-hover: var(--primary-700);
+            --color-text-primary: var(--gray-800);
+            --color-text-secondary: var(--gray-600);
+            --color-text-muted: var(--gray-500);
+            --surface-0: var(--gray-50);
+            --surface-1: white;
+            --surface-2: var(--gray-50);
+            --surface-3: var(--gray-100);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --card-bg: var(--surface-1);
+            --card-radius: var(--radius-lg);
+            --card-padding: var(--space-8);
+            --transition-fast: 150ms ease-out;
+            --transition-base: 250ms ease-out;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: var(--text-base);
+            line-height: 1.6;
+            background: var(--surface-0);
+            min-height: 100vh;
+            padding: var(--space-8) var(--space-4);
+            color: var(--color-text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 48rem; margin: 0 auto; }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Syne', 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+            color: var(--color-text-primary);
+        }
+        h1 { font-size: clamp(var(--text-3xl), 1.5rem + 3vw, var(--text-4xl)); margin-bottom: var(--space-2); }
+        h2 { font-size: var(--text-2xl); margin: var(--space-8) 0 var(--space-4); display: flex; align-items: center; gap: var(--space-2); }
+        h3 { font-size: var(--text-xl); margin: var(--space-6) 0 var(--space-3); }
+        h4 { font-size: var(--text-lg); margin: var(--space-4) 0 var(--space-2); }
+        .subtitle { font-size: var(--text-lg); color: var(--color-text-secondary); margin-bottom: var(--space-6); font-weight: 500; }
+        .date { font-size: var(--text-sm); color: var(--color-text-muted); margin-bottom: var(--space-6); }
+        p { margin-bottom: var(--space-4); color: var(--color-text-secondary); line-height: 1.8; }
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-md);
+            padding: var(--card-padding);
+            margin-bottom: var(--space-8);
+            border: 1px solid var(--gray-200);
+        }
+        a { color: var(--color-primary); text-decoration: none; transition: color var(--transition-fast); }
+        a:hover { color: var(--color-primary-hover); text-decoration: underline; }
+        code {
+            background: var(--surface-3);
+            padding: 0.2em 0.4em;
+            border-radius: var(--radius-sm);
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: var(--text-sm);
+        }
+        pre {
+            background: var(--gray-900);
+            color: var(--gray-100);
+            padding: var(--space-4);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--space-4) 0;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+            font-size: var(--text-sm);
+        }
+        ul, ol { margin: var(--space-4) 0; padding-left: var(--space-6); }
+        li { margin-bottom: var(--space-2); color: var(--color-text-secondary); }
+        blockquote {
+            border-left: 4px solid var(--color-primary);
+            padding-left: var(--space-4);
+            margin: var(--space-4) 0;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--space-4) 0;
+        }
+        th, td {
+            padding: var(--space-2) var(--space-3);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        th {
+            font-weight: 600;
+            color: var(--color-text-primary);
+            background: var(--surface-2);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-6);
+            font-size: var(--text-sm);
+            color: var(--color-text-muted);
+        }
+        .back-link:hover { color: var(--color-primary); }
+        .tags {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+            margin-top: var(--space-6);
+        }
+        .tag {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-xs);
+        }
+        .highlight-box {
+            background: linear-gradient(135deg, hsl(250, 70%, 97%), hsl(250, 50%, 95%));
+            border: 1px solid hsl(250, 40%, 88%);
+            border-radius: var(--radius-lg);
+            padding: var(--space-6);
+            margin: var(--space-6) 0;
+        }
+        .highlight-box p { color: var(--gray-700); }
+        .era-card {
+            background: var(--surface-2);
+            border-radius: var(--radius-lg);
+            padding: var(--space-6);
+            margin: var(--space-4) 0;
+            border-left: 4px solid var(--primary-600);
+        }
+        .era-card.es2 { border-left-color: hsl(150, 60%, 50%); }
+        .era-card.es3 { border-left-color: hsl(30, 90%, 55%); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../essays.html" class="back-link">← 返回随笔列表</a>
+        <div class="card">
+            <h1>Agent 记忆的三个时代：从塞进上下文窗口到构建记忆基础设施</h1>
+            <div class="date">2026年07月21日</div>
+            <div class="content">
+
+<blockquote>
+<p>1960 年代，程序员用打孔卡片管理数据。每张卡片是一条记录，找数据意味着物理翻阅纸牌。</p>
+<p>六十年后，我们让 LLM 把整个对话历史塞进上下文窗口——本质上，就是让它在翻数字版的打孔卡片。</p>
+<p>这真的合理吗？</p>
+</blockquote>
+
+<h2 id="the-question">一个问题开始的故事</h2>
+
+<p>假设你有一个跟了你三年的私人助理 Agent。它记得你三年前说过喜欢清淡饮食，记得你两年前换了工作，记得你去年开始健身。现在你问它："今晚吃什么？"</p>
+
+<p>一个"无记忆"的 LLM 会给你一个通用的推荐——它不知道你是谁。</p>
+
+<p>一个"全上下文"的 Agent 会把三年的所有对话记录一股脑塞进 prompt——几十万 token 的历史记录，每次调用都带上。成本爆炸，而且大部分信息根本无关。</p>
+
+<p>一个"有记忆系统"的 Agent 会怎么做？它在后台已经从历史交互中提炼了结构化知识：你的饮食偏好、工作变化、健身计划。当你说"今晚吃什么"，它只检索相关的几条记忆，用不到 1000 token 就能给出精准推荐。</p>
+
+<p>这就是 <strong>Mem0</strong> 论文展示的核心结果：用不到 7000 token 的结构化记忆，在准确率上击败了消耗 25000+ token 的全上下文方法。成本降 90%，延迟降 91%，准确率反而更高。</p>
+
+<p>这不是渐进式改进——这是范式转移。而要理解它，我们需要看 Agent 记忆是怎么一步步走到今天的。</p>
+
+<h2 id="era-1">第一代：把上下文窗口当记忆（2022-2023）</h2>
+
+<div class="era-card">
+<p><strong>核心逻辑：</strong>记忆 = prompt 里的文本</p>
+<p><strong>类比：</strong>文件系统时代的"全量扫描"</p>
+</div>
+
+<p>ChatGPT 横空出世后，人们很快发现了一个问题：它记不住东西。每次对话都从零开始，你得反复解释背景。这就像每次见你的医生，都得重新介绍家族病史。</p>
+
+<p>最朴素的解决方案就是：把历史记录全部放进 prompt。早期的 Agent 框架（2023 年初的 LangChain 默认模式）就是这么做的——每次调用 LLM，把完整的对话历史拼接到 prompt 里。</p>
+
+<p>这个方案的问题显而易见：</p>
+
+<ul>
+<li><strong>成本爆炸</strong>：对话越长，token 越多，费用线性增长。聊 100 轮之后，一次调用的成本可能是第一次的 100 倍。</li>
+<li><strong>上下文限制</strong>：不管窗口多大（4K、128K、1M），总有一个硬性上限。超过就溢出。</li>
+<li><strong>信号稀释</strong>：把所有历史塞进去，重要的信息被淹没在噪音中。LLM 的注意力机制有"中间遗忘"（lost in the middle）问题——放在 prompt 中间的关键信息经常被忽略。</li>
+</ul>
+
+<p>但这一代也并非毫无价值。它证明了"上下文即记忆"的基本可行性，同时暴露了三个核心问题：<strong>怎么存？怎么检索？怎么遗忘？</strong></p>
+
+<h2 id="era-2">第二代：操作系统启发的分层记忆（2023-2024）</h2>
+
+<div class="era-card es2">
+<p><strong>核心逻辑：</strong>借鉴 OS 的分层内存管理，在有限的上下文窗口内外智能调度信息</p>
+<p><strong>类比：</strong>层次数据库——有了结构，但存储和应用仍然耦合</p>
+<p><strong>代表系统：</strong>MemGPT、Generative Agents、Reflexion</p>
+</div>
+
+<h3 id="memgpt">MemGPT：Agent 的操作系统</h3>
+
+<p>2023 年 10 月，UC Berkeley 的 Charles Packer 团队发表了 MemGPT，提出了一个精妙的类比：<strong>如果把 LLM 的上下文窗口看作"主存"（RAM），那我们就需要一套虚拟内存管理系统。</strong></p>
+
+<p>操作系统的内存分层是这样的：</p>
+
+<pre><code>CPU Register (KB)  →  L1 Cache (KB)  →  L2/L3 Cache (MB)  →  RAM (GB)  →  Disk (TB)
+   最快，最小                                                                              最慢，最大
+</code></pre>
+
+<p>MemGPT 的记忆分层几乎一一对应：</p>
+
+<pre><code>System Prompt (固定)  →  Working Context (当前对话)  →  FIFO Queue (近期消息)  →  Archival Storage (长期记忆)
+    最常访问                                                                                  冷数据
+</code></pre>
+
+<p>关键创新在于<strong>自主页面置换</strong>：MemGPT 让 LLM 自己决定什么时候把什么信息从长期存储调入工作记忆、什么时候把什么信息换出去。就像操作系统决定哪些页面保留在 RAM、哪些换到磁盘上。</p>
+
+<p>但 MemGPT 有一个根本局限：记忆管理逻辑和 Agent 逻辑耦合在一起。LLM 必须花宝贵的推理周期来"思考"记忆管理——"我现在该检索哪条记忆？该遗忘哪条？"这就像应用程序的代码里混入了数据库的查询优化逻辑。</p>
+
+<h3 id="generative-agents">Generative Agents：记忆的三因子评分</h3>
+
+<p>斯坦福的"Smallville"论文（25 个 AI Agent 在虚拟小镇生活）提出了另一条路。每个 Agent 维护一个"记忆流"（memory stream），检索时用三个因子打分：</p>
+
+<ol>
+<li><strong>Recency（新近度）</strong>：越近的记忆权重越高，用指数衰减模拟人类遗忘曲线</li>
+<li><strong>Importance（重要性）</strong>：用 LLM 给每条记忆打分（"吃了个三明治"=1分，"和女朋友分手了"=9分）</li>
+<li><strong>Relevance（相关性）</strong>：与当前查询的语义相似度</li>
+</ol>
+
+<p>这个模型简单得惊人，却非常有效。它本质上就是一个<strong>记忆检索的评分函数</strong>——跟搜索引擎的排序算法没有本质区别。</p>
+
+<h3 id="reflexion">Reflexion：从经验中学习</h3>
+
+<p>Reflexion 更进一步——Agent 不只是记住"发生了什么"，还记住"什么策略有效"。每次任务失败后，Agent 生成一段语言反思（"我失败了，因为忽略了X"），存入记忆。下次遇到类似任务，先检索相关反思。</p>
+
+<p>这和人类的"经验"非常相似：你不记得每次具体怎么做的，但你记得"上次这么做失败了，因为某个原因"。</p>
+
+<h2 id="era-3">第三代：记忆即基础设施（2025-2026）</h2>
+
+<div class="era-card es3">
+<p><strong>核心逻辑：</strong>记忆作为独立服务运行，Agent 不需要管理自己的记忆</p>
+<p><strong>类比：</strong>关系数据库——数据和应用彻底分离，查询语言统一接口</p>
+<p><strong>代表系统：</strong>Mem0、Letta（MemGPT 商业版）、Zep</p>
+</div>
+
+<h3 id="mem0">Mem0：Token 经济学的胜利</h3>
+
+<p>2025 年 4 月的 Mem0 论文给出了最硬核的数据证明。在 LoCoMo 基准测试上：</p>
+
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>准确率</th>
+<th>Token 成本</th>
+<th>P95 延迟</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>全上下文（把所有历史塞进 prompt）</td>
+<td>~88%</td>
+<td>25,000+</td>
+<td>高</td>
+</tr>
+<tr>
+<td>RAG（标准检索增强）</td>
+<td>~75%</td>
+<td>~15,000</td>
+<td>中</td>
+</tr>
+<tr>
+<td><strong>Mem0</strong></td>
+<td><strong>92.5%</strong></td>
+<td><strong>~7,000</strong></td>
+<td><strong>低（降91%）</strong></td>
+</tr>
+<tr>
+<td><strong>Mem0 + 图记忆</strong></td>
+<td><strong>~94.5%</strong></td>
+<td><strong>~7,000</strong></td>
+<td><strong>低</strong></td>
+</tr>
+</tbody>
+</table>
+
+<p>注意最后两行：Mem0 不仅更便宜，而且更准确。这不是 trade-off——是双赢。为什么？因为结构化记忆消除了噪音。全上下文方法把所有历史都喂给 LLM，让 LLM 自己去"大海捞针"。Mem0 提前做了过滤和结构化，LLM 只需要处理已经精选过的信息。</p>
+
+<p>Mem0 的三层技术栈值得深入理解：</p>
+
+<p><strong>写入端：单遍分层提取（Single-pass Hierarchical Extraction）</strong></p>
+<p>不是存储原始对话，而是每次交互后做一次"提炼"——提取实体、关系、偏好、事实。特别值得注意的是 Mem0 的一个关键更新：Agent 自己生成的事实（比如"根据你的偏好，我推荐X"）现在被当作一等公民存储，和用户说的信息同等重要。</p>
+
+<p><strong>检索端：三路并行评分融合（Multi-signal Retrieval）</strong></p>
+
+<pre><code>Query → ┌─ 语义相似度 (向量搜索)  ─┐
+        ├─ 关键词匹配 (BM25)       ├→ 分数融合 → 排序 → Top-K 记忆
+        └─ 实体匹配 (图查询)       ─┘
+</code></pre>
+
+<p>这本质上是数据库的<strong>查询优化器</strong>在做的事——根据查询类型，选择不同的索引策略，然后融合结果。</p>
+
+<p><strong>存储端：图记忆表示（Graph Memory）</strong></p>
+<p>不只是存"事实"，还存"关系"。如果你说"我老婆叫 Sarah"和"Sarah 对花生过敏"，图记忆会把这两条信息关联起来。当你问"给我老婆做什么甜点"，它能推理出"避开花生"。</p>
+
+<h3 id="letta">Letta：记忆即数据</h3>
+
+<p>MemGPT 团队商业化的公司 Letta，提出了"记忆即数据"（Memory as Data）的理念。Agent 的记忆不是 prompt 的一部分，而是独立的数据层——可以被查询、修改、版本控制，就像数据库里的记录。</p>
+
+<p>这意味着 Agent 的记忆可以：</p>
+
+<ul>
+<li><strong>版本控制</strong>：记忆有历史，你可以回溯到任意时间点的状态</li>
+<li><strong>权限管理</strong>：不同 Agent 对同一记忆库有不同的访问权限</li>
+<li><strong>审计追踪</strong>：谁在什么时候修改了什么记忆</li>
+<li><strong>跨 Agent 共享</strong>：多个 Agent 从同一记忆库读取/写入</li>
+</ul>
+
+<h3 id="ltm">长期记忆与自我进化</h3>
+
+<p>2024 年的论文 "Long Term Memory: The Foundation of AI Self-Evolution" 提出了一个更具野心的框架。论文的核心论点：<strong>长期记忆不仅是为了更好的对话，它是 AI 自我进化的前提。</strong></p>
+
+<p>他们构建了 OMNE（基于 LTM 的多 Agent 框架），在 GAIA 基准测试中拿了第一。GAIA 是一个极具挑战性的通用 AI 助手基准，需要 Agent 具备多步推理、工具使用和长期规划能力。OMNE 的成功证明了一件事：记忆不是"锦上添花"，而是 Agent 智能的核心组成。</p>
+
+<h2 id="db-history">数据库历史的回响</h2>
+
+<p>如果你熟悉数据库发展史，Agent 记忆的演进会让你感到强烈的既视感。</p>
+
+<div class="highlight-box">
+<p>📉 <strong>数据库 50 年的浓缩重演</strong></p>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>数据库时代</th>
+<th>时间</th>
+<th>Agent 记忆对应</th>
+<th>时间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文件系统（手动管理）</td>
+<td>1950s</td>
+<td>Prompt 里全塞进去</td>
+<td>2022</td>
+</tr>
+<tr>
+<td>层次/网状数据库</td>
+<td>1960s</td>
+<td>MemGPT（分层管理，逻辑耦合）</td>
+<td>2023</td>
+</tr>
+<tr>
+<td>关系数据库（数据独立）</td>
+<td>1970s</td>
+<td>Mem0/Letta（记忆即数据）</td>
+<td>2025</td>
+</tr>
+<tr>
+<td>分布式数据库</td>
+<td>2000s</td>
+<td>跨 Agent 共享记忆（未来）</td>
+<td>?</td>
+</tr>
+<tr>
+<td>向量/AI 原生数据库</td>
+<td>2020s</td>
+<td>AI 原生记忆基础设施</td>
+<td>??</td>
+</tr>
+</tbody>
+</table>
+
+<p>这个类比不是牵强的——架构模式在逐字复现：</p>
+
+<ul>
+<li><strong>查询优化器</strong> = Mem0 的多信号检索策略选择</li>
+<li><strong>事务（ACID）</strong> = 记忆一致性（多个 Agent 读写同一记忆库）</li>
+<li><strong>索引</strong> = 向量索引 + 关键词索引 + 图索引</li>
+<li><strong>物化视图</strong> = 记忆巩固（从原始日志提炼结构化知识）</li>
+<li><strong>存储过程</strong> = 异步记忆管理 pipeline</li>
+</ul>
+
+<p>如果这个规律成立，那么 Agent 记忆的下一步几乎是可以预测的。</p>
+
+<h2 id="forgetting">"遗忘"从 bug 变成 feature</h2>
+
+<p>早期 Agent 记忆系统的目标是"记住一切"。但最新的研究揭示了一个反直觉的事实：<strong>无限记忆会稀释信号。</strong></p>
+
+<p>Mem0 在 BEAM 10M 基准上的得分只有 48.6——远低于 BEAM 1M 的 64.1。这不是因为记忆系统变差了，而是因为<strong>信息太多了</strong>。当你有 1000 万 token 的对话历史，即使是最精准的检索也会被噪音淹没。</p>
+
+<p>人类大脑每天的感官数据量约为 70GB，但只有不到 1% 固化为长期记忆。这不是缺陷——这是精心设计的过滤机制。你的大脑主动遗忘了 99% 的信息，才让那 1% 的关键知识保持清晰可检索。</p>
+
+<p>最新的 Agent 记忆系统正在学习同样的"遗忘艺术"：</p>
+
+<ul>
+<li><strong>时间衰减</strong>：Generative Agents 的 recency 因子——越旧的记忆权重越低</li>
+<li><strong>重要性过滤</strong>：不是所有交互都值得记住。"好的，收到"和"决定使用 PostgreSQL"的重要性天差地别</li>
+<li><strong>语义去重</strong>：同一条信息说三次，只存一次</li>
+<li><strong>主动遗忘</strong>：Letta 的记忆编辑允许 Agent 主动删除过时信息——"我换了新手机号"应该让旧号码退役</li>
+</ul>
+
+<p>Mem0 的官方路线图明确列出了两个下一步方向：<strong>时间抽象</strong>（表示事件如何随时间关联）和<strong>跨会话结构</strong>（将分散的交互连接成连贯的时间线）。这本质上是给记忆加上"时间维度"——数据库花了 20 年才完善的事务时间（transaction time）管理。</p>
+
+<h2 id="async">记忆的"睡眠模式"</h2>
+
+<p>当前所有主流 Agent 记忆系统都是<strong>同步</strong>的——每次交互都触发记忆读写。但 Mem0 明确提到他们的下一步是"agent-native memory"，让记忆管理异步运行。</p>
+
+<p>这意味着什么？</p>
+
+<p><strong>Agent 不再花推理周期管理记忆。</strong> 当前 Agent 每次交互大概是这样的：</p>
+
+<pre><code>用户消息 → 检索记忆 (200ms) → LLM 推理 (2s) → 更新记忆 (200ms) → 返回
+</code></pre>
+
+<p>未来会变成：</p>
+
+<pre><code>用户消息 → 记忆服务预取相关上下文 → LLM 推理 → 返回
+              ↓ (异步)
+         后台记忆巩固 pipeline
+         (提取 → 压缩 → 去重 → 图更新)
+</code></pre>
+
+<p>这就像人类的睡眠机制——<strong>白天快速记录碎片记忆，夜晚在睡眠中整理、巩固、遗忘。</strong>海马体在睡眠期间回放白天的神经活动，将短期记忆转移到大脑皮层固化为长期记忆。</p>
+
+<p>未来的 Agent 可能会有一个明确的"睡眠模式"：在用户不活跃时，后台 pipeline 批量处理积累的原始交互日志，做记忆巩固——提取实体和关系、去重冗余信息、更新知识图谱、压缩过期细节。第二天醒来时，Agent 的记忆已经被整理好了，检索更快、成本更低。</p>
+
+<h2 id="what-to-do">你可以立刻做什么</h2>
+
+<ol>
+<li><strong>评估你的 Agent 的"记忆健康度"</strong>：如果你在用 LangChain/LangGraph 的默认对话历史，你还在第一代。检查一下每次调用的 token 消耗——如果超过 10K，很可能有 80% 是冗余的。</li>
+<li><strong>试试 Mem0 的 API</strong>：它的免费层足够做原型验证。集成只需要几行代码——在每次对话后调用 <code>mem0.add()</code>，在查询前调用 <code>mem0.search()</code>。官方数据显示平均节省 90% 的 token 成本。</li>
+<li><strong>设计你的"记忆巩固 pipeline"</strong>：即使不用 Mem0，你也可以手动实现——每天跑一个批处理，从交互日志中提取关键信息，存入结构化的知识库（可以是 JSON、SQLite、或图数据库），丢弃低价值对话。</li>
+<li><strong>加入"重要性评分"</strong>：借鉴 Generative Agents 的方法，用 LLM 给每条交互打分（1-10），低于 3 分的直接不存。这一个简单规则通常能减少 60% 以上的记忆存储量。</li>
+<li><strong>规划多 Agent 共享记忆架构</strong>：如果你的团队有多个 Agent（比如一个负责编程、一个负责研究），考虑共享一个记忆库。这不仅能减少存储冗余，还能让 Agent 之间互相学习。</li>
+</ol>
+
+<hr />
+
+<p><em>本文基于 MemGPT (2023)、Mem0 (2025)、Long Term Memory (2024) 等 10+ 篇论文和系统的研究。AI 领域发展极快，文中描述的技术状态以 2026 年 7 月发文时为准。</em></p>
+
+            </div>
+            <div class="tags">
+                <span class="tag">Agent Memory</span>
+                <span class="tag">MemGPT</span>
+                <span class="tag">Mem0</span>
+                <span class="tag">LLM</span>
+                <span class="tag">记忆架构</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
