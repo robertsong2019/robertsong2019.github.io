@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>当 AI 学会造工具：Agent Toolmaking 范式转移 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+.insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+.tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">← 返回首页</a>
+
+<h1>当 AI 学会造工具：Agent Toolmaking 范式转移</h1>
+<div class="meta">
+    2026-07-22 · 罗嵩 ·
+    <span class="tag">Agent Architecture</span>
+    <span class="tag">Tool Making</span>
+    <span class="tag">LLM</span>
+    <span class="tag">前沿研究</span>
+</div>
+
+<blockquote>想象你雇了一个厨师，他每次做番茄炒蛋都要重新发明菜谱——从"鸡蛋怎么打散"开始推理。荒谬吧？但这正是 2026 年大多数 AI Agent 正在做的事。每次任务都从头推理，昨天写过的代码今天重新生成，上周犯过的错误今天再犯一遍。<strong>Agent Toolmaking</strong> 要解决的就是这个问题：让 AI 从"使用工具"进化到"制造工具"。</blockquote>
+
+<h2>一、一个价值 42% 延迟优化的真实故事</h2>
+
+<p>2026 年 7 月，Amazon 发表了一篇论文（arXiv:2607.08010），讲述了他们在履约中心部署 Agent Toolmaking 的经历。场景很具体：一个负责告警诊断的 Agent，需要在 44 个节点的标准操作流程（SOP）上，查询多个不同的 metric 后端来判断告警是否需要人工干预。</p>
+
+<p>改造前，每次告警来了，Agent 都要走一遍完整的推理链：</p>
+
+<pre><code>告警 → LLM 推理"该查什么" → 调用后端A → LLM 推理"下一步查什么"
+     → 调用后端B → LLM 推理"结果意味着什么" → 判断 → 返回</code></pre>
+
+<p>改造后，Agent 先把重复的诊断步骤<strong>编译成工具</strong>：</p>
+
+<pre><code># 部署阶段：Agent 自动生成工具
+def check_alarm_severity(alarm_id, backend_a, backend_b):
+    metric_a = backend_a.query(alarm_id, type="frequency")
+    metric_b = backend_b.query(alarm_id, type="duration")
+    if metric_a.frequency > THRESHOLD_HIGH:
+        return {"verdict": "critical", "confidence": 0.95}
+    # ... 完整的诊断逻辑
+
+# 运行时：直接调用，不需要 LLM 推理
+result = check_alarm_severity(alarm_id, backend_a, backend_b)</code></pre>
+
+<p>结果？<strong>p50 延迟降低 42%，错误率降低 53%</strong>。而且因为工具返回的是紧凑的结构化结果，而不是 LLM 的自然语言输出，整个系统架构都变得更简单了——在消融实验中，简化架构又额外降低了 62% 的延迟。</p>
+
+<div class="highlight">
+<strong>这不是学术实验，是每天处理数千条告警的生产系统。</strong> 而且 Amazon 的团队还发现了一个意外收获：版本化的工具暴露了之前被忽略的 SOP 规范缺口和数据漂移问题。
+</div>
+
+<h2>二、从"心算"到"计算器"：Toolmaking 的认知革命</h2>
+
+<p>要理解 Toolmaking 为什么重要，我们先做个思维实验。</p>
+
+<p>你算 <code>347 × 892</code>，怎么算？大概率是在纸上列竖式，或者直接掏出计算器。你不会用"心算"硬算——因为你知道乘法是<strong>重复的操作</strong>，值得用工具来标准化。</p>
+
+<p>但今天的 LLM Agent 每次做任务，都像在"心算"：</p>
+
+<ul>
+    <li>同样的 API 调用格式，每次都从 prompt 里学一遍</li>
+    <li>同样的错误处理逻辑，每次都重新推理</li>
+    <li>同样的多步流程，每次都从头走</li>
+</ul>
+
+<p>这不只是效率问题——这是<strong>可靠性问题</strong>。LLM 的推理是非确定性的，同一个任务跑两次可能得到不同结果。但如果把推理过程"编译"成确定性的代码工具，结果就是可预测的。</p>
+
+<p>人类文明的本质就是<strong>工具积累</strong>。我们不是比猴子聪明多少倍，而是我们站在前人的工具上。AI Agent 正在经历同样的跳跃。</p>
+
+<h2>三、2023-2026：Toolmaking 的技术演进路线</h2>
+
+<h3>阶段一（2023）：证明 LLM 能造工具</h3>
+
+<p>2023 年 5 月，三篇论文几乎同时发表，奠定了这个领域：</p>
+
+<p><strong>LATM</strong>（Google DeepMind）提出了最优雅的框架：把 Agent 分成两个角色——<strong>Tool Maker</strong>（用强模型如 GPT-4）和 <strong>Tool User</strong>（用弱模型如 GPT-3.5）。Tool Maker 分析一批同类任务，提取出通用模式，写成一个 Python 函数。Tool User 直接调用这个函数，不需要理解它的实现。</p>
+
+<p>关键发现：<strong>GPT-4 造工具 + GPT-3.5 用工具 ≈ GPT-4 直接做的效果</strong>。这意味着"工具"是一种极低成本的"能力传输"——把强模型的能力蒸馏到一个函数里，让弱模型也能用。</p>
+
+<p><strong>CREATOR</strong>（EMNLP 2023）更进一步，把工具创建分成两层：<strong>抽象层</strong>（"我需要一个能做 X 的工具"）和<strong>具体层</strong>（"这是实现 X 的代码"）。这种分离让 LLM 先想清楚"需要什么"再写"怎么实现"，在数学竞赛题上超越了 Chain-of-Thought。</p>
+
+<p><strong>Voyager</strong>（NVIDIA）在 Minecraft 中展示了终身学习：Agent 不断探索世界，把成功的行为编码为技能，存入可增长的技能库。关键结果是——技能是<strong>可组合的</strong>：先学会"挖矿"，再学会"冶炼"，组合起来就能"造工具"。这种乐高式的技能组合让 Agent 的能力指数级增长。</p>
+
+<h3>阶段二（2024-2025）：从单任务到多任务、从扁平到图结构</h3>
+
+<p>早期的 Toolmaking 有一个明显局限：<strong>工具是扁平列表</strong>。10 个工具没问题，100 个就混乱了。工具之间的关系——谁依赖谁、谁能替代谁——没有被管理。</p>
+
+<p><strong>GATE</strong>（中科院自动化所，2025）解决了这个问题：用<strong>图结构</strong>管理工具。每个工具是图中的一个节点，边表示工具之间的关系（依赖、组合、替代）。新任务来了，不需要从零开始造工具——可以在图上找到最近的已有工具，做局部修改。</p>
+
+<p>这就像人类工具的进化史：石器 → 石器加木柄 = 斧头 → 铁斧头 → 电锯。每一步都不是从零开始，而是在前一个工具上改进。GATE 让 Agent 也有了这种"进化"能力。</p>
+
+<p><strong>CRAFT</strong> 则走了另一条路：为不同领域定制<strong>专用工具箱</strong>。就像外科医生的工具箱和木匠的工具箱完全不同，Agent 在做数学题和写代码时应该用不同的工具集。CRAFT 把 Toolmaking 和 RAG（检索增强生成）结合——按需从工具库中检索合适的工具。</p>
+
+<h3>阶段三（2026）：生产化和权重化</h3>
+
+<p>2026 年的两个重要进展标志着 Toolmaking 从实验室走向生产：</p>
+
+<p><strong>Amazon 的工业部署</strong>（前面讲的故事）证明了 Toolmaking 在真实系统中可以产生可量化的 ROI。他们的经验教训是：版本化工具不仅减少了延迟，还<strong>提升了系统的可审计性</strong>——每个决策都可以追溯到具体的工具版本和输入参数。</p>
+
+<p><strong>Constant-Context Skill Learning</strong>（2026年5月）揭示了下一个前沿：从 <strong>prompt-based skills 到 weight-based skills</strong>。当前的 Toolmaking 把技能存在 prompt 或代码中，每次执行都要消耗 token。终极方案是把技能"烧"进模型权重——就像人类把反复练习的动作变成"肌肉记忆"。</p>
+
+<p>这个方向在 ALFWorld、WebShop、SciWorld 三个基准测试上取得了突破性成绩（89.6%、76.8%、66.4%），同时将每轮的 prompt token 减少了 2-7 倍。</p>
+
+<h2>四、Toolmaking 的经济学：什么时候该造工具？</h2>
+
+<p>不是所有任务都需要造工具。造工具有成本，使用工具有收益，这里有一个经济学平衡点。</p>
+
+<p>我把它叫做<strong>Tool Economics 公式</strong>：</p>
+
+<pre><code>Break-even Point:
+  N × cost(task_without_tool) > cost(make_tool) + N × cost(task_with_tool)
+
+其中：
+  N = 任务重复次数
+  cost(make_tool) ≈ 使用强模型的成本（一次性）
+  cost(task_without_tool) ≈ LLM 推理成本（每次）
+  cost(task_with_tool) ≈ 函数调用成本（每次，约等于零）</code></pre>
+
+<div class="insight">
+Amazon 的案例给了我们一个参考点：1500 次历史告警就回收了工具制作成本。如果你的 Agent 任务每天执行超过 100 次，大概率值得造工具。
+</div>
+
+<p>这和人类企业一模一样：开一个模具的成本很高，但量产时每个零件的成本极低。Toolmaking 就是 Agent 的"开模具"。</p>
+
+<h2>五、强弱模型分工：架构师与搬砖工</h2>
+
+<p>LATM 最深刻的洞察不是"LLM 能造工具"，而是<strong>角色分工的经济最优解</strong>。</p>
+
+<p>想想人类公司怎么运作的：资深架构师设计系统架构、定义接口规范，然后初级工程师写 CRUD。不是初级工程师做不了架构，而是这样分工性价比最高。</p>
+
+<p>Toolmaking 天然支持这种分工：</p>
+
+<table>
+<thead><tr><th>角色</th><th>模型</th><th>任务</th><th>成本</th></tr></thead>
+<tbody>
+<tr><td>Tool Maker</td><td>GPT-4 / Claude</td><td>分析模式、设计工具、编写代码</td><td>高（但只执行一次）</td></tr>
+<tr><td>Tool User</td><td>GPT-3.5 / 本地模型</td><td>选择工具、传入参数、处理结果</td><td>低（每次执行）</td></tr>
+<tr><td>Tool Manager</td><td>规则引擎</td><td>版本管理、使用统计、垃圾回收</td><td>几乎为零</td></tr>
+</tbody>
+</table>
+
+<p>这意味着你可以用 GPT-4 的能力，但只付 GPT-3.5 的运行时成本。<strong>工具是能力的载体，也是成本的转换器</strong>。</p>
+
+<h2>六、工具库的治理：当 Agent 有了 1000 个工具</h2>
+
+<p>Toolmaking 的一个被低估的挑战是<strong>工具治理</strong>。</p>
+
+<p>当工具数量从 10 个增长到 1000 个，问题就来了：</p>
+
+<ul>
+    <li><strong>发现</strong>：Agent 怎么知道有哪些工具可用？</li>
+    <li><strong>选择</strong>：多个工具都能完成同一件事，选哪个？</li>
+    <li><strong>冲突</strong>：工具 A 和工具 B 的副作用是否冲突？</li>
+    <li><strong>演化</strong>：旧工具是否应该被新工具替代？</li>
+    <li><strong>安全</strong>：自动生成的工具有没有逻辑错误或安全漏洞？</li>
+</ul>
+
+<p>Amazon 的方案是<strong>版本化 + 审计日志</strong>。每个工具有版本号，每次调用记录输入输出，定期审计使用统计。低频工具进入"冷库"，高频工具定期优化。</p>
+
+<p>GATE 的方案是<strong>图结构</strong>。工具之间的关系一目了然——依赖关系、组合关系、替代关系都在图上。当新工具加入时，图算法自动检测是否和现有工具冲突。</p>
+
+<p>但我认为最终方案会更接近人类组织的<strong>知识管理</strong>：不仅有技术层面的版本控制和依赖管理，还有语义层面的工具分类、标签、评级和使用反馈。工具库会变成 Agent 的"知识图谱"。</p>
+
+<h2>七、下一个前沿：从 Prompt 到 Weights</h2>
+
+<p>2026 年最让我兴奋的方向是 <strong>Context-to-Weights Pipeline</strong>。</p>
+
+<p>当前的 Toolmaking 把技能编码为代码或 prompt。这比"每次从头推理"好很多，但仍然有开销——长 prompt 消耗 token，工具描述占用 context window。</p>
+
+<p>Constant-Context Skill Learning 提出了一个更激进的方案：把可复用的工作流<strong>训练进模型权重</strong>。</p>
+
+<p>类比人类的技能习得过程：</p>
+
+<ol>
+    <li><strong>认知期</strong>（对应 prompt-based）：你在刻意思考每个动作——"左手放这里，右手放那里"。</li>
+    <li><strong>联想期</strong>（对应 tool-based）：你不需要刻意思考了，但还需要参考说明书。</li>
+    <li><strong>自主期</strong>（对应 weight-based）：动作变成"肌肉记忆"，完全自动化。</li>
+</ol>
+
+<p>Agent 的演进完全对应这个路径：从 ReAct 推理（认知期），到 Toolmaking（联想期），再到 Weight-Based Skills（自主期）。</p>
+
+<p>这听起来很远，但 Constant-Context 论文已经在三个基准测试上证明了可行性。用 Qwen3-8B 作为基座，通过 SFT + RL 训练，在 ALFWorld 上达到 89.6% 的成功率——而且每轮 prompt token 减少了 2-7 倍。</p>
+
+<h2>八、实践建议：你今天可以做什么</h2>
+
+<p>如果你正在构建 Agent 系统，以下是我从这些论文中提炼的实践建议：</p>
+
+<div class="highlight">
+
+<p><strong>1. 识别"工具候选"</strong></p>
+<p>在 Agent 的执行日志中找模式——哪些步骤在反复出现？如果一个操作每周执行超过 50 次，它就是工具候选。</p>
+
+<p><strong>2. 从 LATM 架构开始</strong></p>
+<p>用强模型做"工具制造者"（分析任务、生成代码），用弱模型做"工具使用者"（选择工具、传参）。这比让一个模型做所有事的性价比高得多。</p>
+
+<p><strong>3. 版本化一切</strong></p>
+<p>每个工具应该有版本号、创建时间、修改日志、使用统计。这不只是工程规范——这是 Agent 的"记忆审计"能力。</p>
+
+<p><strong>4. 工具数量超过 50 个时引入图结构</strong></p>
+<p>扁平列表在 50 个工具以下够用，超过就需要图结构管理依赖、组合、替代关系。</p>
+
+<p><strong>5. 为高频工作流准备权重化路径</strong></p>
+<p>如果某个工作流每天执行上千次，考虑用 SFT 训练一个轻量级 LoRA 模块，把 prompt 技能转化为权重技能。</p>
+
+</div>
+
+<h2>结语：工具定义文明</h2>
+
+<p>人类学家会告诉你：一个文明的发达程度，不取决于它有多少人口或多大领土，而取决于它的<strong>工具体系</strong>有多复杂。轮子、印刷术、蒸汽机、计算机——每次工具革命都开启了新的文明阶段。</p>
+
+<p>AI Agent 正在经历自己的"工具革命"。从 2023 年 LATM 证明 LLM 可以造工具，到 2026 年 Amazon 在生产环境中量化了 42% 的延迟优化——这个领域只用了三年就从学术论文走到了生产线。</p>
+
+<p>下一个三年，我赌两件事会发生：</p>
+
+<ol>
+    <li><strong>工具市场</strong>会像今天的 npm 一样繁荣——Agent 可以从"工具商店"中安装其他 Agent 制造的工具</li>
+    <li><strong>权重化技能</strong>会成为主流——高频工作流不再是 prompt 中的长文本，而是模型权重中的"肌肉记忆"</li>
+</ol>
+
+<p>当 AI 学会造工具的那一天，它就不再是一个"聊天机器人"了。它成了文明的参与者。</p>
+
+<hr>
+
+<p><em>参考文献：LATM (arXiv:2305.17126), CREATOR (arXiv:2305.14318), Voyager (arXiv:2305.16291), Eureka (arXiv:2310.12931), CRAFT (arXiv:2309.17413), GATE (arXiv:2502.13795), Amazon Tool-Making (arXiv:2607.08010), Constant-Context Skill Learning (arXiv:2605.05413)</em></p>
+
+</div>
+</body>
+</html>
