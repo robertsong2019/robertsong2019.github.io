@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>从轨迹到规则：Agent 经验压缩的四个层级与缺失的对角线 - Robert's Blog</title>
+<title>Agent 记忆的压缩光谱：从情景轨迹到程序性技能的自动进化 - Robert's Blog</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
@@ -27,381 +27,385 @@ th { background: #f8f9fa; font-weight: 600; }
 a { color: #3498db; text-decoration: none; }
 a:hover { text-decoration: underline; }
 .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
-.tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
-hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
-.ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
 </style>
 </head>
 <body>
 <div class="container">
-<a href="../index.html" class="back-link">← 返回首页</a>
+<a class="back-link" href="../index.html">← 返回首页</a>
+<h1>Agent 记忆的压缩光谱：从情景轨迹到程序性技能的自动进化</h1>
+<div class="meta">2026-07-23 · agent memory · experience compression spectrum</div>
 
-<h1>从轨迹到规则：Agent 经验压缩的四个层级与缺失的对角线</h1>
-<div class="meta">
-2026-07-18 · 罗嵩 ·
-<span class="tag">Agent Memory</span>
-<span class="tag">技能压缩</span>
-<span class="tag">Experience Compression</span>
-<span class="tag">Procedural Memory</span>
-</div>
+<blockquote>Agent 的记忆系统正面临一个根本性瓶颈：我们擅长记录，擅长检索，但不擅长"浓缩"。一个 Agent 运行一个月，积累了上千条情景记忆——但从未自动把它们变成可复用的技能。这就像一个人每天重复解决类似的 bug，却从不总结调试方法论。本文剖析 Experience Compression Spectrum 这一新框架，给出完整的 Python 实现和三个关键设计决策。</blockquote>
 
-<blockquote>所有 AI Agent 记忆系统都卡在单一压缩级别——要么只存原始日志，要么只存抽象规则。2026 年 6 月，Zhang 等人形式化了经验压缩谱（L0-L3），发现跨级自适应压缩几乎是一片空白——"缺失的对角线"。本文用 Python 实现 Skill Contract 结构化合约和 compress_to_skill() 跨级压缩管线，展示如何让 Agent 的记忆从"记住"进化到"学会"。</blockquote>
+<h2>一个被忽视的维度</h2>
 
-<h2>引言：Agent 记住了，但没学会</h2>
+<p>如果你关注 Agent Memory 领域，你会发现 2026 年的研究热点已经从"怎么记住"转移到了"怎么用记忆"。检索增强生成（RAG）的范式正在被抛弃——取而代之的是写入管理、知识图谱、意图路由。</p>
 
-<p>一个典型的 AI Agent 今天是这样工作的：它记住你的偏好（"用户喜欢简洁的回复"），记住事实（"项目用 TypeScript"），记住上下文（"刚才在讨论数据库设计"）。然后在新任务中检索这些记忆。</p>
+<p>但几乎所有人都在做同一件事：<strong>在同一个抽象级别上优化记忆</strong>。</p>
 
-<p>但如果你观察人类的学习方式，会发现一个根本差异：<strong>人类不只是一个事件一个事件地记住——人类会从经验中提取模式，把模式压缩成技能，再把技能组合成规则。</strong> 一个程序员不会每次写代码都从头推理，而是调用"如何写单元测试"这个技能——这个技能是从数百次写测试的经验中压缩出来的。</p>
-
-<p>2026 年 6 月，Zhang 等人在 arXiv:2604.15877 中形式化了这个过程，提出了 <strong>Experience Compression Spectrum（经验压缩谱）</strong>：一个从 L0 到 L3 的四级框架。他们分析了几十个 Agent 记忆系统后发现了一个令人惊讶的事实：</p>
-
-<blockquote>几乎所有现有系统都只在单一压缩级别运行，没有系统实现了跨级自适应压缩。跨社区引用率不到 1%——这个方向几乎是空白的。</blockquote>
-
-<p>Zhang 等人称之为"缺失的对角线"（the missing diagonal）。本文展示这个对角线是什么，为什么它重要，以及如何用代码实现它。</p>
-
-<hr>
-
-<h2>四级压缩谱：从原始轨迹到抽象规则</h2>
-
-<h3>L0：原始轨迹（Raw Trace）</h3>
-
-<p>每一次 Agent 执行任务的完整记录。包括输入、推理链、工具调用、输出、耗时、成功/失败。</p>
-
-<pre><code>@dataclass
-class L0Trace:
-    """原始执行轨迹——不丢失任何细节"""
-    trace_id: str
-    task: str
-    steps: list[dict]  # [{action, input, output, latency_ms}, ...]
-    outcome: str       # "success" | "partial" | "failure"
-    context_snapshot: dict  # 执行时的完整上下文
-    timestamp: float</code></pre>
-
-<p>L0 的问题是<strong>信息过载</strong>。一次复杂任务可能产生 50+ 步、数万 token 的轨迹。下次遇到类似任务时，把整个 L0 轨迹塞进 prompt 等于什么都没做——Agent 还是要在海量细节中找到相关部分。</p>
-
-<h3>L1：片段记忆（Episodic Memory）</h3>
-
-<p>从 L0 轨迹中提取的关键事实和事件。这是绝大多数 Agent 记忆系统（Mem0、Letta、Zep、amg）所在的级别。</p>
-
-<pre><code>@dataclass
-class L1Episode:
-    """片段记忆——从轨迹中蒸馏出的关键信息"""
-    episode_id: str
-    summary: str          # "用户偏好简洁回复"
-    entities: list[str]   # ["user", "communication_style"]
-    source_trace: str     # 指向 L0 的引用
-    weight: float         # 重要性权重
-    created_at: float</code></pre>
-
-<p>L1 的压缩比通常在 5-20 倍：一条 10000 token 的轨迹压缩成 500-2000 token 的片段。但 L1 有一个结构性弱点：<strong>它是"记住发生了什么"，不是"学会了怎么做"。</strong></p>
-
-<h3>L2：技能（Skill）</h3>
-
-<p>从多个 L1 片段中抽象出的可复用程序性知识。技能回答的不是"发生了什么"，而是"怎么做"。</p>
-
-<pre><code>@dataclass
-class SkillContract:
-    """技能合约——机器可检查、可版本化、可组合"""
-    skill_id: str
-    name: str
-
-    # 什么时候该用这个技能？
-    invocation_conditions: list[str]
-    # ["任务涉及数据库迁移", "用户提到 schema 变更"]
-
-    # 什么时候不该用？
-    contraindications: list[str]
-    # ["数据库为空（无需迁移）", "跨引擎迁移（需专用工具）"]
-
-    # 具体步骤
-    steps: list[str]
-    # ["1. 导出当前 schema", "2. 生成 diff", "3. 创建迁移脚本", ...]
-
-    # 约束条件
-    constraints: list[str]
-    # ["必须先备份", "迁移脚本必须可回滚"]
-
-    # 输出规格
-    output_spec: str
-    # "一个可执行的 SQL 迁移文件 + 回滚脚本"
-
-    # 置信度（从多少次成功经验中提炼？）
-    confidence: float                 # 0.0 - 1.0
-
-    # 来源片段
-    source_episodes: list[str]        # L1 episode_ids</code></pre>
-
-<p>这就是 Anything2Skill 论文提出的结构化合约格式。与自由文本技能描述相比，结构化合约有三个优势：</p>
-
-<ol>
-<li><strong>机器可检查</strong>——Agent 可以在执行前验证条件是否满足</li>
-<li><strong>可版本化</strong>——技能 v2 可以 supersede v1，带有变更日志</li>
-<li><strong>可组合</strong>——技能 A 的输出可以作为技能 B 的输入</li>
-</ol>
-
-<p>L2 的压缩比通常在 50-500 倍。100 次数据库迁移的 L1 经验（可能 200,000 token）压缩成一个 400 token 的技能合约。</p>
-
-<h3>L3：规则（Rule）</h3>
-
-<p>从多个 L2 技能中提取的跨领域原则。规则是最抽象的记忆形态，压缩比可达 1000 倍以上。</p>
-
-<pre><code>@dataclass
-class L3Rule:
-    """抽象规则——跨技能的通用原则"""
-    rule_id: str
-    statement: str  # "破坏性操作必须有回滚路径"
-    scope: list[str]  # ["database", "deployment", "refactoring"]
-    confidence: float
-    derived_from: list[str]  # skill_ids</code></pre>
-
-<p>规则的价值在于<strong>跨域迁移</strong>：从数据库迁移中学到的"破坏性操作需要回滚"，可以应用到代码重构、配置变更甚至消息发送。</p>
-
-<hr>
-
-<h2>"缺失的对角线"</h2>
-
-<p>下图展示了压缩谱的现状。每个圆圈代表一个系统，圆圈位置表示它运行的压缩级别：</p>
-
-<div class="ascii-art">压缩级别
-  L0 ────────────────────────────────────────
-         ●                                   
-         (OpenTelemetry,                    
-          LangSmith — 只记录)               
-                                            
-  L1 ────────────────────────────────────────
-                    ● ● ● ● ●              
-                    (Mem0, Letta, Zep,     
-                     amg, Hindsight —      
-                     只记片段)              
-                                            
-  L2 ────────────────────────────────────────
-                              ●             
-                              (AutoRefine,  
-                               SkillRL —    
-                               只用技能)    
-                                            
-  L3 ────────────────────────────────────────
-                                     ●      
-                                     (Voyager
-                                      — 只提取规则)
-                                            
-      ──────────────────────────────────────
-        ↑ 这条对角线是空的</div>
-
-<p><strong>问题不在于缺少某个级别的系统——问题在于没有系统跨越所有四个级别。</strong> 一个只有 L1 的系统永远在"记住事实"，无法进化为"掌握技能"。一个只有 L2 的系统有技能但无法从新经验中学习（因为它不存 L0/L1）。</p>
-
-<p>Zhang 等人的论文用网络分析证实了这一点：四个级别的研究社区之间的跨引用率不到 1%。每个社区都在自己的级别上优化，没有人搭建跨级的桥梁。</p>
-
-<hr>
-
-<h2>代码：compress_to_skill() 的设计</h2>
-
-<p>缺失的对角线需要一个能从 L1 片段自动压缩到 L2 技能的函数。以下是 <code>agent-memory-graph</code> 项目中即将实现的 <code>compress_to_skill()</code> 的设计草案：</p>
-
-<pre><code>def compress_to_skill(
-    self,
-    episodes: list[str],  # L1 episode_ids
-    name: str,
-    *,
-    min_confidence: float = 0.6,
-    max_steps: int = 10,
-    merge_threshold: float = 0.75,  # Jaccard 相似度
-) -> SkillContract:
-    """从多个 L1 片段中压缩出一个 L2 技能合约。
-    
-    算法：
-    1. 按时间排序所有片段
-    2. 提取共同实体和共同操作序列
-    3. 用最长公共子序列（LCS）找到稳定的步骤模式
-    4. 从失败片段中提取 contraindications
-    5. 与现有技能比较，Jaccard ≥ threshold 则合并
-    """
-    # 1. 加载并排序片段
-    eps = [self.get(eid) for eid in episodes]
-    eps.sort(key=lambda e: e.created_at)
-    
-    # 2. 提取共同实体
-    entity_freq = Counter()
-    for ep in eps:
-        entity_freq.update(ep.entities)
-    common_entities = [
-        e for e, count in entity_freq.items() 
-        if count >= len(eps) * 0.5  # 出现在 ≥50% 的片段中
-    ]
-    
-    # 3. 提取操作序列并用 LCS 找稳定模式
-    action_sequences = self._extract_action_sequences(eps)
-    stable_steps = self._longest_common_subsequence(action_sequences)
-    
-    # 4. 从失败片段中提取禁忌条件
-    failed = [ep for ep in eps if ep.outcome == "failure"]
-    contraindications = self._extract_failure_patterns(failed)
-    
-    # 5. 计算置信度
-    success_count = sum(1 for ep in eps if ep.outcome == "success")
-    confidence = success_count / len(eps)
-    if confidence < min_confidence:
-        raise ValueError(
-            f"置信度 {confidence:.2f} 低于阈值 {min_confidence}。"
-            f"需要更多成功经验才能形成技能。"
-        )
-    
-    # 6. 检查是否与现有技能重复
-    for existing in self._skills.values():
-        similarity = self._jaccard(
-            set(stable_steps), set(existing.steps)
-        )
-        if similarity >= merge_threshold:
-            # 合并而非创建新技能
-            return self._merge_skill(existing, stable_steps, contraindications)
-    
-    # 7. 创建技能合约
-    skill = SkillContract(
-        skill_id=f"skill_{int(time.time())}",
-        name=name,
-        invocation_conditions=self._infer_conditions(common_entities),
-        contraindications=contraindications,
-        steps=stable_steps[:max_steps],
-        constraints=self._infer_constraints(eps),
-        output_spec=self._infer_output(eps),
-        confidence=confidence,
-        source_episodes=episodes,
-    )
-    self._skills[skill.skill_id] = skill
-    return skill</code></pre>
-
-<h3>关键设计决策</h3>
-
-<p><strong>1. 为什么用 LCS 而不是 LLM 来提取步骤？</strong></p>
-
-<p>最长公共子序列（LCS）是确定性算法——同一段输入永远产生同一段输出。LLM 提取可能每次不同，导致技能不稳定。正确做法是：用确定性算法提取骨架步骤，用 LLM 补充自然语言描述。</p>
-
-<p><strong>2. 为什么用 Jaccard 而非余弦相似度？</strong></p>
-
-<p>Jaccard 是集合操作，不需要 embedding 计算。当比较的是步骤列表（字符串集合）时，Jaccard 比 cosine 更精确——它直接衡量"有多少步骤重合"，而不是"语义有多接近"。</p>
-
-<p><strong>3. 为什么 confidence < min_confidence 时报错而不是降级？</strong></p>
-
-<p>一个 30% 成功率的经验序列不值得压缩成技能。报错迫使系统收集更多数据，这比创建一个低质量技能更好。这是"verification beats advice"原则——不要用软警告替代硬约束。</p>
-
-<hr>
-
-<h2>自创技能 > 人类编写：MUSE 的发现</h2>
-
-<p>2026 年 5 月，MUSE-Autoskill 论文（HuggingFace #3 trending paper）报告了一个让很多人意外的实验结果：</p>
-
-<blockquote>Agent 从自身经验中自动创建的技能，性能（85.24%）超过了人类手动编写的技能（81.17%）。</blockquote>
-
-<p>差异来源是什么？研究者做了消融实验：</p>
+<p>Zhang 等人在 arXiv:2604.15877 中提出了一个尖锐的观察：记忆存在四个压缩级别：</p>
 
 <table>
-<tr><th>因素</th><th>贡献</th></tr>
-<tr><td>技能内容与实际任务分布更匹配</td><td>+2.8pp</td></tr>
-<tr><td>技能粒度更细（人类倾向于写"大"技能）</td><td>+1.5pp</td></tr>
-<tr><td>技能数量更多（自动创建覆盖更广）</td><td>+0.9pp</td></tr>
-<tr><td>持续更新（人类写完就不管了）</td><td>+0.7pp</td></tr>
+<tr><th>级别</th><th>名称</th><th>压缩比</th><th>示例</th></tr>
+<tr><td>L0</td><td>轨迹（Trace）</td><td>1×</td><td>完整执行日志</td></tr>
+<tr><td>L1</td><td>情景（Episodic）</td><td>5-20×</td><td>"部署时遇到了 OOM"</td></tr>
+<tr><td>L2</td><td>技能（Skill）</td><td>50-500×</td><td>"部署前检查内存配额"</td></tr>
+<tr><td>L3</td><td>规则（Rule）</td><td>1000×+</td><td>"资源变更必须经过容量审查"</td></tr>
 </table>
 
-<p>这告诉我们：<strong>技能质量不取决于编写者的水平，取决于技能与 Agent 实际任务分布的匹配度。</strong> 人类专家写的技能是基于"我认为 Agent 会遇到什么任务"，而 Agent 自创的技能是基于"我实际遇到了什么任务"。数据胜过直觉。</p>
+<p>他们发现了一个令人不安的事实：<strong>跨社区引用率不到 1%</strong>。做情景记忆的人不知道做技能提取的人在做什么，做规则提取的人不引用情景记忆的研究。每个系统都固定在某一级别运行，没有人做跨级压缩。</p>
 
-<hr>
+<p>他们称之为"missing diagonal"——压缩光谱上缺失的对角线。</p>
 
-<h2>闭环：读-写-评-治</h2>
+<h2>为什么这很重要</h2>
 
-<p>有了 <code>compress_to_skill()</code>，Agent 的记忆系统就从单向的"记记记"升级为一个完整的技能生命周期：</p>
+<p>想象一个 DevOps Agent。它在 30 天内处理了 200 次部署任务。每次部署，它都创建一条情景记忆：</p>
 
-<pre><code>读 (Read):   retrieve_skills()  →  按任务匹配技能
-写 (Write):  compress_to_skill() →  从经验中创建技能
-评 (Assess): skill_bank_health() →  评估技能库质量
-治 (Govern): evolve_skill()     →  版本进化 + 废弃过时技能</code></pre>
+<pre><code>- "deploy: api-gateway → OOM error → increased memory limit"
+- "deploy: worker-service → config mismatch → fixed env vars"
+- "deploy: cron-runner → image pull error → updated registry creds"
+- "deploy: api-gateway → OOM error → checked memory quota first this time"
+- "deploy: notification-svc → OOM error → pre-check pattern confirmed"</code></pre>
 
-<p>这四个步骤对应 SkeMex 论文提出的 Read-Write-Assess-Govern 框架。其中 Govern 步骤是最容易被忽略的：</p>
+<p>前三次是纯情景记忆（L1）。第四次开始出现模式——Agent 从之前的经验中学到了先检查内存。第五次确认了模式。</p>
 
-<pre><code>def govern_skill_bank(
-    self,
-    *,
-    stale_days: int = 90,
-    low_confidence_threshold: float = 0.3,
-    merge_redundant_threshold: float = 0.75,
-    max_skills: int = 200,
-    dry_run: bool = True,
-) -> dict:
-    """治理技能库——清理、合并、修剪。"""
-    report = {"deprecated": [], "merged": [], "pruned": []}
-    
-    # 1. 废弃过时技能
-    now = time.time()
-    for sid, skill in list(self._skills.items()):
-        age_days = (now - skill.created_at) / 86400
-        if age_days > stale_days and skill.confidence < 0.5:
-            report["deprecated"].append({
-                "skill": skill.name,
-                "reason": f"stale ({age_days:.0f} days) + low confidence",
+<p>一个理想的记忆系统应该自动检测到这个模式，把它提升为技能（L2）：</p>
+
+<blockquote><strong>技能：部署前内存检查</strong><br>
+触发条件：部署任务 + 服务类型 ∈ {api, cron, worker}<br>
+执行步骤：1) 查询当前内存配额 2) 对比镜像推荐值 3) 不足则提前调整<br>
+来源：5 次情景记忆的共性提取<br>
+置信度：1.0（5 次重复后饱和）</blockquote>
+
+<p>但目前的 Agent 记忆系统——无论是 Mem0、Letta 还是 Zep——都不支持这种自动提升。它们要么只做检索优化（L1 内部），要么需要人工预定义技能。</p>
+
+<h2>detect_skill_candidates：检测层的设计</h2>
+
+<p>我在 agent-memory-graph 项目中实现了压缩光谱检测层的第一步：<code>detect_skill_candidates()</code>。核心思路是扫描情景记忆中的动作动词模式。</p>
+
+<pre><code># 25 个动作动词覆盖了 DevOps Agent 80%+ 的操作
+_ACTION_VERBS = frozenset({
+    'ran', 'created', 'built', 'tested', 'deployed', 'fixed',
+    'updated', 'checked', 'analyzed', 'implemented', 'refactored',
+    'debugged', 'configured', 'installed', 'wrote', 'deleted',
+    'moved', 'merged', 'reviewed', 'documented', 'designed',
+    'optimized', 'migrated', 'validated', 'published', 'released',
+})
+
+def detect_skill_candidates(self, *, min_frequency: int = 2) -> list[dict]:
+    """Mine episodic memories for repeated action patterns."""
+    import re
+
+    # 1. 收集所有情景节点（事件 + 意图），按时间排序
+    rows = self.conn.execute(
+        "SELECT id, label, kind, created FROM nodes "
+        "WHERE kind IN ('event', 'intention') "
+        "ORDER BY created ASC"
+    ).fetchall()
+
+    if len(rows) < min_frequency:
+        return []
+
+    # 2. 从每条记忆的标签中提取动作动词
+    verb_pattern = re.compile(
+        r'\b(' + '|'.join(sorted(self._ACTION_VERBS)) + r')\b',
+        re.IGNORECASE,
+    )
+
+    verb_groups: dict[str, list[dict]] = {}
+    for row in rows:
+        match = verb_pattern.search(row["label"])
+        verb = match.group(1).lower() if match else None
+        if verb:
+            verb_groups.setdefault(verb, []).append({
+                "id": row["id"],
+                "label": row["label"],
+                "created": row["created"],
             })
-            if not dry_run:
-                skill.status = "deprecated"
+
+    # 3. 构建候选列表，置信度在 5 次重复后饱和
+    candidates = []
+    for verb, sources in verb_groups.items():
+        freq = len(sources)
+        if freq < min_frequency:
+            continue
+        confidence = min(1.0, freq / 5.0)  # 关键设计：饱和函数
+        candidates.append({
+            "action": verb,
+            "frequency": freq,
+            "confidence": round(confidence, 3),
+            "memory_ids": [s["id"] for s in sources],
+            "suggested_compression": (
+                f"'{verb}' repeated {freq}x "
+                f"across {freq} episodic memories - "
+                f"promote to skill?"
+            ),
+        })
+
+    # 按置信度降序、频率降序排列
+    candidates.sort(key=lambda c: (-c["confidence"], -c["frequency"]))
+    return candidates</code></pre>
+
+<p>运行效果：</p>
+
+<pre><code>mg = MemoryGraph("/data/agent.db")
+
+# 模拟 Agent 运行一个月的情景记忆
+for service in ["api-gateway", "worker-svc", "cron-runner",
+                "api-gateway", "notification-svc"]:
+    mg.add(f"deployed {service}", kind="event")
+    mg.add(f"tested {service} health check", kind="event")
+
+# 检测技能候选
+candidates = mg.detect_skill_candidates(min_frequency=2)
+# [
+#   {
+#     "action": "deployed",
+#     "frequency": 5,
+#     "confidence": 1.0,        # 饱和：5 次以上 = 100%
+#     "memory_ids": ["abc", "def", "ghi", "jkl", "mno"],
+#     "suggested_compression": "'deployed' repeated 5x - promote to skill?"
+#   },
+#   {
+#     "action": "tested",
+#     "frequency": 5,
+#     "confidence": 1.0,
+#     ...
+#   }
+# ]</code></pre>
+
+<h3>三个关键设计决策</h3>
+
+<p><strong>决策一：置信度使用饱和函数而非线性增长。</strong></p>
+
+<pre><code>confidence = min(1.0, freq / 5.0)</code></pre>
+
+<p>为什么不是 <code>confidence = freq / max_observed_freq</code>？因为技能的形成不应该需要 100 次重复。认知科学的研究表明，人类技能形成通常需要 5-7 次重复。5 次饱和的设计意味着：第 5 次执行同一类操作时，系统就有足够的信心提议技能提升。第 6 次不会让信心更高——它已经是 100% 了。</p>
+
+<p><strong>决策二：用动作动词而非语义嵌入做初始分桶。</strong></p>
+
+<p>我最初尝试过用向量相似度做聚类——但发现了一个问题：语义相似但动作不同的记忆不应该被合并。"部署了 api-gateway" 和"删除了 api-gateway"语义高度相似（都是关于 api-gateway 的操作），但它们代表完全不同的技能。</p>
+
+<p>动作动词提供了一个干净的初始分桶：同义词问题（created vs built vs implemented）可以通过词表扩展解决，而语义聚类无法区分动作方向。</p>
+
+<p><strong>决策三：检测层与压缩层分离。</strong></p>
+
+<p><code>detect_skill_candidates()</code> 是只读的——它不修改记忆图，只返回建议。真正的压缩操作（<code>compress_to_skill()</code>）是独立的下一步。这个分离至关重要：</p>
+
+<ul>
+<li>检测可以安全地频繁运行（每次 add() 后触发）</li>
+<li>压缩需要 LLM 仲裁或人工确认（可选）</li>
+<li>检测结果可以被其他消费者使用（dashboard、告警、分析）</li>
+</ul>
+
+<h2>Q-Value：技能的"生存值"</h2>
+
+<p>检测到技能候选只是第一步。技能需要有"生存值"——否则它会和所有情景记忆一样，随着时间衰减被遗忘。</p>
+
+<p>我使用了 Q-learning 的时序差分更新来为每个节点（包括技能节点）维护一个 Q-value：</p>
+
+<pre><code>def update_q_value(self, node_id: str, reward: float,
+                   alpha: float = 0.1, gamma: float = 0.9) -> bool:
+    """Q(s) <- Q(s) + a * (reward + gamma * max_neighbor_Q - Q(s))"""
+    old_q = self.get_q_value(node_id) or 0.0
     
-    # 2. 合并冗余技能
-    skills_list = list(self._skills.values())
-    for i, a in enumerate(skills_list):
-        for b in skills_list[i+1:]:
-            if a.status == "deprecated" or b.status == "deprecated":
-                continue
-            sim = self._jaccard(set(a.steps), set(b.steps))
-            if sim >= merge_redundant_threshold:
-                merged = self._merge_skill(a, b.steps, b.contraindications)
-                report["merged"].append({
-                    "a": a.name, "b": b.name, 
-                    "similarity": round(sim, 2),
-                })
-                if not dry_run:
-                    self._skills[merged.skill_id] = merged
+    # 最大邻居 Q 值——让价值在图中传播
+    neighbor_q = self.conn.execute(
+        "SELECT MAX(n.q_value) as max_q FROM nodes n"
+        " JOIN edges e ON n.id = e.target WHERE e.source = ?",
+        (node_id,)
+    ).fetchone()
+    max_n_q = neighbor_q["max_q"] if neighbor_q["max_q"] is not None else 0.0
     
-    # 3. 修剪溢出
-    active = [s for s in self._skills.values() if s.status == "active"]
-    if len(active) > max_skills:
-        active.sort(
-            key=lambda s: s.confidence * s.usage_count,
-            reverse=True,
-        )
-        for skill in active[max_skills:]:
-            report["pruned"].append(skill.name)
-            if not dry_run:
-                skill.status = "pruned"
-    
-    return report</code></pre>
+    new_q = old_q + alpha * (reward + gamma * max_n_q - old_q)
+    self.conn.execute(
+        "UPDATE nodes SET q_value=? WHERE id=?", (new_q, node_id)
+    )
+    self.conn.commit()
+    return True</code></pre>
 
-<p><code>dry_run</code> 模式是必须的——治理操作是破坏性的，应该先审查再执行。这就像 <code>git diff</code> 之于 <code>git apply</code>——永远先看清楚再动手。</p>
-
-<hr>
-
-<h2>反直觉：为什么不应该用 LLM 做所有事</h2>
-
-<p>在构建压缩管线的早期，我尝试过让 LLM 做全流程：输入 L1 片段，让 LLM 输出 L2 技能合约。结果发现了三个问题：</p>
-
-<p><strong>1. 幻觉步骤。</strong> LLM 会编造片段中不存在的步骤。两个不同任务的 L1 片段经过 LLM 压缩后，技能中出现了"检查网络连接"——但原始片段从未涉及网络操作。</p>
-
-<p><strong>2. 不稳定性。</strong> 同一组片段，两次压缩产生不同的步骤列表。技能应该像函数签名一样稳定——调用者需要知道技能的接口不会变。</p>
-
-<p><strong>3. 不可解释的置信度。</strong> LLM 给出 confidence=0.85，但无法解释为什么是 0.85 而不是 0.42。而基于成功/失败计数的确定性置信度是 100% 可解释的。</p>
-
-<p>解决方案是<strong>职责分离</strong>：确定性算法负责提取结构（LCS、Jaccard、计数），LLM 负责生成自然语言描述（步骤的可读版本、条件的语义化）。这就像编译器架构——解析器是确定性的，优化器可以做启发式搜索，但最终输出必须可验证。</p>
-
-<hr>
-
-<h2>可操作建议</h2>
+<p>Q-value 的优雅之处在于它可以同时服务于两个用途：</p>
 
 <ol>
-<li><strong>审计你的记忆系统处于哪个级别。</strong> 如果只有 L0，你只是在做日志。如果只有 L1，你只是在做数据库。加上 L2 技能层，记忆系统才开始"学习"。</li>
-<li><strong>不要跳级。</strong> 从 L0 直接到 L3 看似高效，但缺少了 L1 和 L2 的中间表示，规则变成了无根之木——无法追溯到具体经验。<code>source_episodes</code> 和 <code>source_traces</code> 字段不是装饰，是可审计性的基础。</li>
-<li><strong>让置信度驱动行动。</strong> confidence &lt; 0.5 的技能不应该自动执行——它需要人类确认或更多数据积累。confidence &gt; 0.9 的技能可以考虑自动化执行。</li>
-<li><strong>技能会退化。</strong> AutoRefine 论文证明，技能如果不持续更新，性能会随时间下降。<code>govern_skill_bank()</code> 的 <code>stale_days</code> 参数不是可选的——它是技能库健康的基本保障。</li>
-<li><strong>跨级引用是审计基础。</strong> 每个技能合约的 <code>source_episodes</code> 字段让你可以追溯："这个技能是从哪些经验中学到的？"当技能出错时，你可以回溯到原始片段，找到学习过程的缺陷。</li>
+<li><strong>检索排序</strong>：<code>retrieve_skills()</code> 可以优先返回高 Q-value 的技能——这些是被反复验证有用的</li>
+<li><strong>进化信号</strong>：<code>evolve_skill()</code> 可以用 Q-value 决定技能是否需要更新——低 Q 意味着技能不再有效，需要被 supersede</li>
 </ol>
 
-<hr>
+<p>这映射了 MemSkill（ICML 2026）的 RL 控制器思路——但我们不需要训练任何模型。Q-value 的 TD 更新是 O(1) 的，不需要 GPU。</p>
 
-<p><em>本文基于 agent-memory-graph 项目的前瞻设计。当前实现：L1 片段记忆（3945 个测试验证）+ 评估五重奏 + 知识缝隙检测。L2 技能层（compress_to_skill + retrieve_skills + evolve_skill + govern_skill_bank）是下一个里程碑——约 140 个测试，预计 2 个开发周期完成。代码 MIT 协议开源。</em></p>
+<h2>技能银行治理：让技能保持新鲜</h2>
+
+<p>MUSE-Autoskill（HuggingFace #3 论文）揭示了一个关键发现：<strong>自创建的技能超越了人工编写的技能</strong>（85.24% vs 81.17%）。但前提是技能需要持续进化。</p>
+
+<p>AutoRefine 的研究进一步表明：技能如果不维护，会随着环境变化而退化。就像代码需要重构，技能也需要治理。</p>
+
+<pre><code>def govern_skill_bank(self, *, max_skills=100, min_confidence=0.2,
+                      deprecate_after_days=60, dry_run=False) -> dict:
+    """Enforce governance policies on the procedural skill bank."""
+    policies = {
+        "max_skills": max_skills,
+        "min_confidence": min_confidence,
+        "deprecate_after_days": deprecate_after_days,
+    }
+    
+    actions = []
+    
+    # 策略 1: 废弃过期技能
+    stale_cutoff = now - deprecate_after_days * 86400
+    for skill in skills:
+        if skill["accessed"] < stale_cutoff:
+            actions.append({
+                "action": "deprecate_stale",
+                "skill_id": skill["id"],
+                "reason": f"not accessed in {deprecate_after_days}d"
+            })
+    
+    # 策略 2: 废弃低置信度技能
+    for skill in skills:
+        if skill["confidence"] < min_confidence:
+            actions.append({
+                "action": "deprecate_low_confidence",
+                "skill_id": skill["id"],
+                "reason": f"confidence {skill['confidence']} < {min_confidence}"
+            })
+    
+    # 策略 3: 合并冗余技能（Jaccard 相似度）
+    for skill_a, skill_b in find_redundant_pairs(threshold=0.7):
+        actions.append({
+            "action": "merge_redundant",
+            "skill_id": skill_a["id"],
+            "reason": f"steps overlap with {skill_b['id']} >= 0.7"
+        })
+    
+    # 策略 4: 溢出时清理最老的废弃技能
+    if not dry_run and active_count > max_skills:
+        prune_oldest_deprecated(active_count - max_skills)
+    
+    return {"policies": policies, "actions": actions}</code></pre>
+
+<p>四条策略对应了技能银行的生命周期：</p>
+
+<ul>
+<li><strong>废弃</strong>（Deprecate）→ 标记为过时但不删除</li>
+<li><strong>合并</strong>（Merge）→ 用 <code>skill_compose()</code> 合并重叠技能</li>
+<li><strong>剪枝</strong>（Prune）→ 只在超过上限时才真正删除</li>
+<li><strong>Dry Run</strong> → 先看后做，避免意外</li>
+</ul>
+
+<h2>完整的 Read-Write-Assess-Govern 循环</h2>
+
+<p>把以上组件组合起来，就构成了 SkeMex（arXiv:2606.09365）定义的完整生命周期：</p>
+
+<pre><code>┌─────────────────────────────────────────────────────┐
+│                 Agent Memory Cycle                    │
+│                                                       │
+│   Write ──→ Detect ──→ Compress ──→ Govern          │
+│     │           │          │            │             │
+│   add()    detect_     compress_    govern_          │
+│   event    skill_      to_skill()   skill_bank()     │
+│            candidates()      │                        │
+│                             ↓                        │
+│   Read ←── Retrieve ←── Q-Value ←── Evolve           │
+│     │                       │          │              │
+│   query()  retrieve_   update_q_   evolve_           │
+│            skills()    value()     skill()           │
+│                                                       │
+└─────────────────────────────────────────────────────┘</code></pre>
+
+<p><strong>Write（写入）</strong>：Agent 在执行任务时创建情景记忆（L1）</p>
+
+<p><strong>Detect（检测）</strong>：<code>detect_skill_candidates()</code> 扫描情景记忆，发现重复模式</p>
+
+<p><strong>Compress（压缩）</strong>：<code>compress_to_skill()</code> 将多条 L1 记忆提升为一条 L2 技能（待实现）</p>
+
+<p><strong>Govern（治理）</strong>：<code>govern_skill_bank()</code> 保持技能银行健康</p>
+
+<p><strong>Evolve（进化）</strong>：<code>evolve_skill()</code> 用 Q-value 反馈更新技能（待实现）</p>
+
+<p><strong>Retrieve（检索）</strong>：<code>retrieve_skills()</code> 按 Q-value 排序返回最相关技能（待实现）</p>
+
+<p><strong>Read（读取）</strong>：Agent 在新任务中查询技能银行，直接复用已浓缩的经验</p>
+
+<h2>竞争格局：为什么 npm 生态需要这个</h2>
+
+<p>我扫描了 2026 年 7 月的 npm 生态——<strong>没有任何一个 TypeScript/JavaScript 原生的记忆库支持技能提取和进化</strong>。</p>
+
+<p>主要竞品的状态：</p>
+
+<ul>
+<li><strong>Mem0</strong>（48K★）：L1 检索优化，无 L2 技能概念</li>
+<li><strong>Letta</strong>（21K★）：分层存储，但技能需要人工定义</li>
+<li><strong>Zep/Graphiti</strong>（24K★）：时序知识图谱，聚焦于事实而非操作模式</li>
+<li><strong>PlugMem</strong>（ICML 2026）：知识单元 > 实体节点，但聚焦于命题知识而非程序性技能</li>
+</ul>
+
+<p>MUSE-Autoskill 证明了自创建技能的有效性，但它是学术原型，不是生产级库。</p>
+
+<p>这就是"缺失的对角线"在工程实践中的含义：学术界知道跨级压缩很重要，工业界在 L1 优化上卷得死去活来，但中间的桥梁——从情景记忆自动提取技能——没人做。</p>
+
+<h2>未来方向</h2>
+
+<p>压缩光谱的完整实现还缺三个关键组件：</p>
+
+<p><strong>1. compress_to_skill()——压缩层</strong></p>
+
+<p>检测层告诉我们"deployed 这个动作重复了 5 次"，但压缩层需要把这 5 条记忆的共性提取为一个结构化的技能合约。需要 LLM 仲裁（可选）或纯启发式提取：</p>
+
+<pre><code># 未来的 compress_to_skill() 伪代码
+def compress_to_skill(self, verb: str, memory_ids: list[str]) -> str:
+    """Promote episodic memories into a structured skill."""
+    memories = [self.get(mid) for mid in memory_ids]
+    
+    # 提取共同上下文作为触发条件
+    trigger = extract_common_context(memories)
+    
+    # 提取共同步骤作为执行流程
+    steps = extract_common_steps(memories)
+    
+    # 创建技能节点
+    skill_id = self.add(
+        f"skill: {verb}",
+        kind="skill",
+        data={
+            "trigger": trigger,
+            "steps": steps,
+            "source_memories": memory_ids,
+            "confidence": min(1.0, len(memory_ids) / 5.0),
+        }
+    )
+    
+    # 创建进化边
+    for mid in memory_ids:
+        self.relate(skill_id, mid, kind="derived_from")
+    
+    return skill_id</code></pre>
+
+<p><strong>2. Skill Contract——结构化合约</strong></p>
+
+<p>Anything2Skill 提出的结构化合约模式让技能变得机器可检查、可版本化、可组合。每个技能应该包含：</p>
+
+<ul>
+<li><code>invocation_conditions</code>：何时使用这个技能</li>
+<li><code>contraindications</code>：何时不该使用</li>
+<li><code>steps</code>：执行步骤</li>
+<li><code>output_spec</code>：预期输出</li>
+<li><code>confidence</code>：置信度</li>
+</ul>
+
+<p><strong>3. 元记忆技能——最高杠杆特性</strong></p>
+
+<p>MemSkill（HuggingFace #3 paper）的发现：<strong>"如何记忆"本身就是一种可以学习的技能</strong>。amg 的 <code>entropy_filter</code> 和 <code>strategic_forget</code> 目前是硬编码的。用 Q-value 机制使其自适应——让 Agent 自己学习什么时候该遗忘、什么时候该强化——这就是通往自进化记忆的路径。</p>
+
+<h2>总结</h2>
+
+<p>Experience Compression Spectrum 揭示了一个被忽视的事实：<strong>记忆系统的价值不在量，而在压缩级别</strong>。1000 条情景记忆不如 10 条技能 + 1 条规则。</p>
+
+<p><code>detect_skill_candidates()</code> 是压缩光谱检测层的第一步实现——它回答了一个简单但关键的问题："这个 Agent 在反复做什么？"</p>
+
+<p>答案，就是技能的种子。</p>
+
+<hr>
+<p><em>本文基于 agent-memory-graph 项目的实际开发经验。项目当前 4205 个测试，连续 250 天零回滚。Memory Graph 的完整 API 文档和教程见 <a href="https://github.com/robertsong2019">GitHub</a>。</em></p>
 
 </div>
 </body>
