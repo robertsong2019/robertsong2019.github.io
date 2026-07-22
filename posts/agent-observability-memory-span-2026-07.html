@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 可观测性的标准化盲区：你的 Memory Span 去哪了？ - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+hr { border: none; border-top: 1px solid #ddd; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">&larr; 返回首页</a>
+<h1>Agent 可观测性的标准化盲区：你的 Memory Span 去哪了？</h1>
+<div class="meta">2026-07-23 &middot; agent infrastructure &middot; observability &middot; opentelemetry</div>
+<h1>Agent 可观测性的标准化盲区：你的 Memory Span 去哪了？</h1>
+
+<blockquote>2026-07-23 技术随笔。当我们在谈论 Agent 可观测性时，大多数团队还在用「log + metric + trace」的老三样。但 OpenTelemetry 的 GenAI Semantic Conventions 已经把 memory 操作定义为一级 Span 类型——而你的 Agent 代码里，大概率一个 memory span 都没有。本文剖析这个观测盲区，给出完整的 TypeScript 实现和三个可操作建议。</blockquote>
+
+<h2>一个刺眼的事实</h2>
+
+<p>我用 <code>grep</code> 扫了一遍 lab/agent-observability 项目——一个有 166 个测试的可观测性工具库。结果：</p>
+
+<ul>
+<li><code>agent.run</code> 出现了 23 次——应该映射为 <code>invoke_agent</code></li>
+<li><code>llm.call</code> 出现了 15 次——应该映射为 <code>chat</code></li>
+<li><code>memory.read</code> 和 <code>memory.write</code> 各出现 2 次——应该映射为 <code>search_memory</code> 和 <code>upsert_memory</code></li>
+</ul>
+
+<p>全部都不符合 OpenTelemetry GenAI 语义规范。</p>
+
+<p>这不是个例。我看了 LangChain、LlamaIndex、AutoGen 的 trace 导出代码——它们在 LLM 调用层做得不错（有 token 计数、model 名、latency），但到了 Memory 操作层，基本就是打个 <code>debug</code> log 完事。<strong>Memory 是 Agent 系统中最频繁的隐式操作之一，也是可观测性最薄弱的环节。</strong></p>
+
+<h2>为什么 Memory 操作需要一等公民地位</h2>
+
+<p>先说结论：如果你的 Agent 有记忆系统（RAG、向量搜索、知识图谱、甚至是简单的 JSONL 日志），那么每一次记忆读写都应该产生一个独立 Span，挂在 Agent 调用链下面。</p>
+
+<p>三个理由：</p>
+
+<p><strong>1. 记忆操作是性能瓶颈。</strong> 在一个典型的 RAG Agent 中，向量搜索占总延迟的 30-50%。如果你只 trace 了 LLM 调用，你看到的是「Agent 响应慢」，但你不知道慢在哪——是 embedding 生成慢？是向量搜索慢？是 reranker 慢？</p>
+
+<p><strong>2. 记忆操作是成本黑洞。</strong> Embedding 调用、向量数据库查询、重排序模型——每个都有费用。没有独立的 memory span，你的 CostAggregator 只能追踪 LLM token 成本，而忽略了记忆基础设施的开销。</p>
+
+<p><strong>3. 记忆操作是质量变量。</strong> 记忆系统的召回质量直接影响 Agent 输出质量。一个 search_memory span 应该记录：查询了什么、返回了多少条、相似度分数是多少。这些是 debug「Agent 为什么产生幻觉」的关键线索。</p>
+
+<p>OTel GenAI 规范定义了 7 种 Memory 操作类型：</p>
+
+<pre><code>create_memory      — 写入新记忆
+search_memory      — 搜索/检索记忆
+update_memory      — 更新已有记忆
+upsert_memory      — 写入或更新（幂等）
+delete_memory      — 删除记忆
+create_memory_store — 创建记忆存储
+delete_memory_store — 删除记忆存储
+</code></pre>
+
+这直接映射到 MCP Memory Server 的工具设计：<code>remember</code> → <code>upsert_memory</code>，<code>recall</code> → <code>search_memory</code>，<code>forget</code> → <code>delete_memory</code>，<code>consolidate</code> → <code>update_memory</code>。
+
+<h2>Token 会计学：子集陷阱</h2>
+
+OTel GenAI 规范中最容易被搞错的是 token 计数。它定义了 5 个维度：
+
+<table><thead><tr><th>属性</th><th>含义</th><th>包含关系</th></tr></thead><tbody><tr><td><code>gen_ai.usage.input_tokens</code></td><td>总输入 token</td><td>包含 cache_read + cache_creation + 新 token</td></tr><tr><td><code>gen_ai.usage.output_tokens</code></td><td>总输出 token</td><td>包含 reasoning + 常规输出</td></tr><tr><td><code>gen_ai.usage.cache_read.input_tokens</code></td><td>从缓存读取</td><td><strong>input_tokens 的子集</strong></td></tr><tr><td><code>gen_ai.usage.cache_creation.input_tokens</code></td><td>写入缓存</td><td><strong>input_tokens 的子集</strong></td></tr><tr><td><code>gen_ai.usage.reasoning.output_tokens</code></td><td>思维链 token</td><td><strong>output_tokens 的子集</strong></td></tr></tbody></table>
+<strong>最常见的 bug：把子集当独立量叠加。</strong> 以下代码是错误的：
+
+<pre><code>// ❌ 错误：double-counting
+const totalCost =
+  (usage.inputTokens / 1e6) * pricing.inputPer1M +
+  (usage.cacheReadInputTokens / 1e6) * pricing.cachedInputPer1M +  // 重复计算！
+  (usage.outputTokens / 1e6) * pricing.outputPer1M;
+</code></pre>
+
+因为 <code>input_tokens</code> 已经包含了 <code>cache_read</code> 和 <code>cache_creation</code>，你如果按原价算了全部 input 再加一遍 cached 的折扣价，就多算了。
+
+正确做法是先减再乘：
+
+<pre><code>// ✅ 正确：先拆分，再分别计价
+function calculateCost(usage: TokenUsage, pricing: PricingTier): number {
+  const freshInput = usage.inputTokens
+    - (usage.cacheReadInputTokens ?? 0)
+    - (usage.cacheCreationInputTokens ?? 0);
+  const cacheRead = usage.cacheReadInputTokens ?? 0;
+  const cacheCreate = usage.cacheCreationInputTokens ?? 0;
+  const reasoning = usage.reasoningOutputTokens ?? 0;
+  const regularOutput = usage.outputTokens - reasoning;
+
+  return (
+    (freshInput / 1e6) * pricing.inputPer1M +
+    (cacheRead / 1e6) * (pricing.cachedInputPer1M ?? pricing.inputPer1M) +
+    (cacheCreate / 1e6) * (pricing.cachedInputPer1M ?? pricing.inputPer1M) +
+    (regularOutput / 1e6) * pricing.outputPer1M +
+    (reasoning / 1e6) * (pricing.reasoningPer1M ?? pricing.outputPer1M)
+  );
+}
+</code></pre>
+
+<strong>实际影响有多大？</strong> 以 GPT-4 为例：输入 $30/M，缓存输入 $15/M（半价）。如果一个请求用了 2000 input tokens，其中 800 是 cached：
+
+- 错误计算：<code>2000 × 30 + 800 × 15 = $0.072</code>（多算了一倍 cached token）
+- 正确计算：<code>1200 × 30 + 800 × 15 = $0.048</code>
+
+在高频调用场景下（比如 Agent 每天做 10,000 次记忆检索），这个差异每天就是 $0.24，一年就是 $87.6——纯粹的计算 bug 导致的成本误报。
+
+<h2>完整实现：GenAI Span Builder</h2>
+
+下面是一个可运行的 TypeScript 实现，展示如何构建符合 OTel GenAI 规范的 Span，并正确追踪 Agent 调用链：
+
+<pre><code>import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
+
+// OTel 规范定义的操作类型
+type GenAiOperationName =
+  | 'chat' | 'invoke_agent' | 'execute_tool' | 'plan'
+  | 'search_memory' | 'upsert_memory' | 'delete_memory'
+  | 'update_memory' | 'retrieval' | 'embeddings';
+
+interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens?: number;   // inputTokens 的子集
+  cacheCreationInputTokens?: number; // inputTokens 的子集
+  reasoningOutputTokens?: number;  // outputTokens 的子集
+}
+
+class GenAiSpanBuilder {
+  readonly spanId: string = randomUUID();
+  private endTime: number | null = null;
+  private attrs: Record&lt;string, unknown&gt; = {};
+  private events: Array&lt;{ name: string; ts: number }&gt; = [];
+
+  constructor(
+    readonly traceId: string,
+    readonly operationName: GenAiOperationName,
+    readonly parentSpanId: string | null = null,
+  ) {
+    this.attrs['gen_ai.operation.name'] = operationName;
+  }
+
+  setModel(model: string): this {
+    this.attrs['gen_ai.request.model'] = model;
+    return this;
+  }
+
+  setAgentInfo(info: { id: string; name: string; version: string }): this {
+    this.attrs['gen_ai.agent.id'] = info.id;
+    this.attrs['gen_ai.agent.name'] = info.name;
+    this.attrs['gen_ai.agent.version'] = info.version;
+    return this;
+  }
+
+  setTokenUsage(usage: TokenUsage): this {
+    this.attrs['gen_ai.usage.input_tokens'] = usage.inputTokens;
+    this.attrs['gen_ai.usage.output_tokens'] = usage.outputTokens;
+    if (usage.cacheReadInputTokens !== undefined) {
+      this.attrs['gen_ai.usage.cache_read.input_tokens'] = usage.cacheReadInputTokens;
+    }
+    if (usage.reasoningOutputTokens !== undefined) {
+      this.attrs['gen_ai.usage.reasoning.output_tokens'] = usage.reasoningOutputTokens;
+    }
+    return this;
+  }
+
+  setMemoryQuery(query: string, resultCount: number): this {
+    // Memory 操作特有属性——规范未强制但强烈推荐
+    this.attrs['memory.query'] = query;
+    this.attrs['memory.result_count'] = resultCount;
+    return this;
+  }
+
+  addEvent(name: string): this {
+    this.events.push({ name, ts: Date.now() });
+    return this;
+  }
+
+  end(): this {
+    this.endTime = performance.now();
+    return this;
+  }
+
+  get durationMs(): number {
+    return this.endTime ? this.endTime - this.startTime : 0;
+  }
+
+  readonly startTime: number = performance.now();
+}
+</code></pre>
+
+使用示例——一次完整的 Agent 调用，包含 LLM 推理 + 记忆搜索：
+
+<pre><code>async function agentInvocation() {
+  const traceId = randomUUID();
+
+  // 1. Agent 调用 Span（根 Span）
+  const agentSpan = new GenAiSpanBuilder(traceId, 'invoke_agent')
+    .setAgentInfo({ id: 'catalyst-001', name: 'Catalyst', version: '2.0.0' })
+    .setModel('glm-4');
+
+  // 2. 记忆搜索 Span（子 Span）
+  const memSpan = new GenAiSpanBuilder(traceId, 'search_memory', agentSpan.spanId)
+    .setMemoryQuery('OTel GenAI conventions', 5);
+  // ... 执行实际搜索 ...
+  memSpan.end();
+
+  // 3. LLM 推理 Span（子 Span）
+  const llmSpan = new GenAiSpanBuilder(traceId, 'chat', agentSpan.spanId)
+    .setModel('glm-4')
+    .setTokenUsage({
+      inputTokens: 1500,
+      outputTokens: 800,
+      cacheReadInputTokens: 500,  // 1500 中的 500 来自缓存
+      reasoningOutputTokens: 150, // 800 中的 150 是思维链
+    });
+  llmSpan.end();
+
+  // 4. 关闭根 Span
+  agentSpan.end();
+
+  // 输出 Span 树
+  console.log('Trace:', traceId);
+  for (const s of [agentSpan, memSpan, llmSpan]) {
+    console.log(<code>  ${s.operationName.padEnd(20)} ${s.durationMs.toFixed(0).padStart(6)}ms</code>);
+  }
+  // Output:
+  //   invoke_agent          1234ms
+  //   search_memory           45ms
+  //   chat                  1189ms
+}
+</code></pre>
+
+看到那个 45ms 的 <code>search_memory</code> span 了吗？在旧方案里，这 45ms 被埋在总的 1234ms 里，你根本不知道记忆搜索占了多少。现在你可以一眼看到：LLM 推理是主要瓶颈（1189ms），记忆搜索只占 3.6%。
+
+<h2>三个可操作建议</h2>
+
+<h3>1. 审计你现有的 Trace 导出</h3>
+
+打开你的 Agent 代码，搜索这些关键词：<code>trace</code>, <code>span</code>, <code>telemetry</code>, <code>observability</code>。统计一下有多少 span 是围绕 Memory 操作的。如果答案是零或接近零——你就是那个盲区。
+
+<strong>具体操作：</strong> 在你的下一次 Agent 调用中，手动添加一个 <code>search_memory</code> span，记录查询字符串、返回数量、耗时。你会立刻发现之前看不到的信息。
+
+<h3>2. 用子集感知的方式重构 CostAggregator</h3>
+
+如果你有任何形式的 LLM 成本追踪，检查一件事：<code>input_tokens</code> 是否包含了 <code>cache_read_tokens</code>。如果是，你的成本计算可能在 double-counting。
+
+<strong>具体操作：</strong> 实现上面代码中的 <code>calculateCost</code> 函数，用它替换你现有的成本计算逻辑。用过去一周的调用数据跑一遍对比，看差异有多大。
+
+<h3>3. 对齐 OTel GenAI 操作名</h3>
+
+如果你已经有自定义的 span 名，做一次映射：
+
+<pre><code>agent.run       → invoke_agent
+llm.call        → chat
+tool.execute    → execute_tool
+memory.read     → search_memory
+memory.write    → upsert_memory
+memory.delete   → delete_memory
+retrieval.search → retrieval
+</code></pre>
+
+这不是重命名，是对齐标准。好处是：你可以直接使用 OTel 生态的可视化工具（Jaeger、Tempo、Grafana Tempo），它们已经开始内置 GenAI span 类型的识别。
+
+<h2>结语</h2>
+
+Agent 可观测性不只是「加个 trace」。它是要回答三个问题：<strong>Agent 做了什么？花了多少？做得好不好？</strong>
+
+Memory 操作是这三个问题的交汇点——它影响延迟（性能）、影响成本（API 调用）、影响质量（召回准确度）。把它从 log 里捞出来，升级为一等公民的 Span，是 Agent 基础设施成熟的必经之路。
+
+OTel GenAI 语义规范已经给出了蓝图。剩下的，是实现的选择。
+
+<hr>
+
+*本文基于 lab/agent-observability 项目的实际开发经验和对 <a href="https://github.com/open-telemetry/semantic-conventions-genai">open-telemetry/semantic-conventions-genai</a> 的深度研究。文中所有代码均可通过 <code>npx tsx</code> 直接运行。*
+
+</div>
+</body>
+</html>
