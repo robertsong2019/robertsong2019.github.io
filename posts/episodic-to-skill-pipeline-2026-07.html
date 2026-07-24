@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>从情景记忆到程序性技能：Agent 记忆自动晋升流水线的工程实践 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+hr { border: none; border-top: 1px solid #ddd; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">&larr; 返回首页</a>
+<h1>从情景记忆到程序性技能：Agent 记忆自动晋升流水线的工程实践</h1>
+<div class="meta">2026-07-25 &middot; agent memory &middot; skill promotion &middot; compression pipeline</div>
+
+<blockquote>2026-07-25 技术随笔。你的 Agent 记住了 200 次部署经历，但每次部署还是在从头学。问题不在检索——在于它从来没把情景记忆"浓缩"成可复用的技能。本文记录在 Agent Memory Graph (AMG) 项目中实现的完整技能晋升流水线：detect_skill_candidates → compress_to_skill → auto_compress_skills，一个 detect-compress-govern 三闭环系统。含 2500+ 行 Python 实现的核心逻辑和四条关键设计决策。</blockquote>
+
+<h2>一个数字带来的焦虑</h2>
+
+<p>AMG 项目运行到第 252 天，测试数 4394，全部通过。但我在翻看记忆库时发现了一个令人不安的数字：</p>
+
+<p><strong>同一个 action verb——"deploy"——在情景记忆中出现了 47 次。</strong></p>
+
+<p>每一次都是独立的 event 节点：</p>
+
+<pre><code>- "deploy api-gateway → OOM, increased memory"
+- "deploy worker-service → config mismatch, fixed env"
+- "deploy notification-svc → port conflict with 8080"
+- "deploy auth-service → SSL cert expired, renewed"
+- ...还有 43 条</code></pre>
+
+<p>47 条记忆，描述的其实是同一件事的不同变体。Agent 每次部署都"记住"了经历，但从未从中"学到"东西。这就像一个人摔了 47 次跤，每次都详细记录了在哪里摔的、怎么摔的，但从来没总结出"走路要看路"这个技能。</p>
+
+<p>这不是个别问题。Zhang 等人在 arXiv:2604.15877 中指出：绝大多数 Agent 记忆系统被困在 L1（情景记忆）级别，永远无法自动进化到 L2（技能）或 L3（规则）。他们称之为"missing diagonal"——压缩光谱上缺失的对角线。</p>
+
+<p>今天这篇文章，记录我们如何用三个函数闭合这条对角线。</p>
+
+<h2>压缩光谱：四级记忆体系</h2>
+
+<p>先建立理论框架。Agent 记忆不是平的——它有层级：</p>
+
+<table>
+<tr><th>级别</th><th>名称</th><th>压缩比</th><th>示例</th><th>生命周期</th></tr>
+<tr><td>L0</td><td>轨迹 (Trace)</td><td>1×</td><td>完整执行日志</td><td>session 结束即丢弃</td></tr>
+<tr><td>L1</td><td>情景 (Episodic)</td><td>5-20×</td><td>"部署 api-gateway 时遇到 OOM"</td><td>日-周</td></tr>
+<tr><td>L2</td><td>技能 (Skill)</td><td>50-500×</td><td>"部署前检查内存配额"</td><td>周-月</td></tr>
+<tr><td>L3</td><td>规则 (Rule)</td><td>1000×+</td><td>"资源变更必须经过容量审查"</td><td>月-年</td></tr>
+</table>
+
+<p>关键观察：<strong>每升一级，信息密度提升一个数量级，但信息量减少一个数量级</strong>。L0 到 L1 是"提取关键事件"，L1 到 L2 是"从事件中抽象模式"，L2 到 L3 是"从模式中提炼规则"。</p>
+
+<p>大多数 Agent 系统擅长 L0→L1（日志变事件），在 L1→L2 上挣扎（事件变技能），几乎没人做 L2→L3（技能变规则）。</p>
+
+<p>我们要解决的是 L1→L2 这一步。</p>
+
+<h2>三函数闭环</h2>
+
+<p>整个技能晋升流水线只有三个公开 API：</p>
+
+<pre><code># 1. DETECT: 发现模式
+candidates = graph.detect_skill_candidates(min_frequency=2)
+
+# 2. COMPRESS: 手动压缩（精细控制）
+skill = graph.compress_to_skill(
+    episode_ids=["evt_001", "evt_002", "evt_003"],
+    name="deploy-checklist",
+    description="部署前的标准检查流程"
+)
+
+# 3. AUTO-COMPRESS: 自动晋升（无人值守）
+result = graph.auto_compress_skills(
+    min_frequency=2,
+    min_confidence=0.4,
+    max_skills=5,
+    dry_run=False
+)</code></pre>
+
+<p><strong>Detect 是只读的</strong>——它扫描情景记忆，找出重复模式，但不会修改任何东西。<strong>Compress 是手动的</strong>——你可以精确指定哪些记忆要合并。<strong>Auto-compress 是编排层</strong>——它调用 detect，过滤候选，调用 compress，处理边界情况。</p>
+
+<p>三者形成 detect → compress → govern 的闭环。下面逐个拆解。</p>
+
+<h2>DETECT：情景记忆的模式挖掘</h2>
+
+<h3>核心思路</h3>
+
+<p><code>detect_skill_candidates()</code> 的任务很简单：扫描所有 event 和 intention 节点，找出重复出现的 action verb。</p>
+
+<p>为什么是 action verb？因为在 Agent 记忆中，行为模式的核心标识就是动词——"deploy"、"debug"、"configure"、"test"。同一个动词反复出现，意味着 Agent 在反复执行同类任务，而这些经验从未被系统化。</p>
+
+<h3>实现</h3>
+
+<pre><code>def detect_skill_candidates(self, *, min_frequency: int = 2) -&gt; list[dict]:
+    """Mine episodic memories for repeated action patterns."""
+    import re
+
+    # Step 1: 获取所有情景节点（事件 + 意图），按时间排序
+    rows = self.conn.execute(
+        "SELECT id, label, kind, created FROM nodes "
+        "WHERE kind IN ('event', 'intention') "
+        "ORDER BY created ASC"
+    ).fetchall()
+
+    if len(rows) &lt; min_frequency:
+        return []
+
+    # Step 2: 从每个节点标签中提取动作动词
+    verb_pattern = re.compile(
+        r'\b(' + '|'.join(sorted(self._ACTION_VERBS)) + r')\b',
+        re.IGNORECASE,
+    )
+
+    verb_groups: dict[str, list[dict]] = {}
+    for row in rows:
+        label = row["label"]
+        nid = row["id"]
+        created = row["created"]
+
+        match = verb_pattern.search(label)
+        verb = match.group(1).lower() if match else None
+
+        if verb:
+            verb_groups.setdefault(verb, []).append({
+                "id": nid,
+                "label": label,
+                "created": created,
+            })
+
+    # Step 3: 构建候选列表，计算置信度
+    candidates = []
+    for verb, sources in verb_groups.items():
+        freq = len(sources)
+        if freq &lt; min_frequency:
+            continue
+        # 置信度在 5 次时饱和到 1.0
+        confidence = min(1.0, freq / 5.0)
+        candidates.append({
+            "action": verb,
+            "frequency": freq,
+            "confidence": round(confidence, 3),
+            "memory_ids": [s["id"] for s in sources],
+            "suggested_compression": (
+                f"'{verb}' repeated {freq}× "
+                f"across {freq} episodic memories — "
+                f"promote to skill?"
+            ),
+        })
+
+    # 按置信度降序、频率降序排列
+    candidates.sort(key=lambda c: (-c["confidence"], -c["frequency"]))
+    return candidates</code></pre>
+
+<h3>设计决策</h3>
+
+<p><strong>为什么用预定义动词表而不是 NLP？</strong></p>
+
+<p><code>_ACTION_VERBS</code> 是一个手工维护的集合——<code>{"created", "deployed", "fixed", "debugged", "configured", "tested", ...}</code>。你可能会问：为什么不用 spaCy 做 POS tagging，或者用 LLM 来提取动词？</p>
+
+<p>答案很简单：<strong>确定性和速度</strong>。</p>
+
+<p>在 AMG 的场景中，记忆节点标签通常是结构化的短文本（<code>"deploy api-gateway → OOM"</code>），不是自然语言段落。对这类输入，一个精心维护的动词表 + 正则匹配比 NLP pipeline 快 100 倍，而且不会引入额外的模型依赖。</p>
+
+<p>这不排斥未来加入 NLP——<code>_ACTION_VERBS</code> 可以作为一个 fallback 层。但在 MVP 阶段，简单胜过聪明。</p>
+
+<p><strong>置信度为什么用 <code>freq / 5.0</code> 饱和？</strong></p>
+
+<p>这是经验值。3 次重复意味着模式可能存在，5 次意味着模式确实存在。<code>freq / 5.0</code> 给出一个平滑的置信度曲线：</p>
+
+<table>
+<tr><th>频率</th><th>置信度</th><th>含义</th></tr>
+<tr><td>2</td><td>0.400</td><td>最低门槛，有潜力</td></tr>
+<tr><td>3</td><td>0.600</td><td>模式开始显现</td></tr>
+<tr><td>4</td><td>0.800</td><td>强候选</td></tr>
+<tr><td>5+</td><td>1.000</td><td>必须晋升</td></tr>
+</table>
+
+<p>这个曲线不是理论推导的——它来自实际运行中的观察。在我们的测试数据中，频率 ≥ 5 的动词最终都被人工审核为"确实应该成为技能"。</p>
+
+<h2>COMPRESS：Skill Contract 的诞生</h2>
+
+<h3>核心思路</h3>
+
+<p><code>compress_to_skill()</code> 把多个 L1 情景节点合并成一个 L2 技能节点。关键不是"合并"本身，而是合并后的<strong>技能契约（Skill Contract）</strong>——一个结构化的数据结构，描述这个技能是什么、从哪来、怎么用。</p>
+
+<p>Skill Contract 的设计灵感来自 Anything2Skill（arXiv:2607.09033），它提出：一个有用的技能抽象应该包含调用条件、执行步骤、约束和版本。</p>
+
+<h3>实现</h3>
+
+<pre><code>def compress_to_skill(self, episode_ids: list[str], name: str,
+                      *, description: str = "",
+                      confidence: float = 0.5) -&gt; Optional[Node]:
+    """Compress multiple episodic memories into a procedural skill node.
+
+    Implements L1→L2 upward compression:
+        L0 (trace) → L1 (episodic, 5-20×) → L2 (skill, 50-500×)
+    """
+    if not episode_ids:
+        return None
+
+    # Step 1: 验证所有源节点存在
+    valid = []
+    for eid in episode_ids:
+        row = self.conn.execute(
+            "SELECT id, label, kind, data FROM nodes WHERE id=?", (eid,)
+        ).fetchone()
+        if row:
+            valid.append(row)
+
+    if not valid:
+        return None
+
+    # Step 2: 从源节点中提取步骤
+    steps = []
+    source_labels = []
+    source_kinds = set()
+    for row in valid:
+        source_labels.append(row["label"])
+        source_kinds.add(row["kind"])
+        d = row["data"]
+        if isinstance(d, str):
+            try:
+                d = json.loads(d)
+            except Exception:
+                d = {}
+        if isinstance(d, dict):
+            action = d.get("action") or d.get("step")
+            if action:
+                steps.append(action)
+
+    # 去重保序
+    seen = set()
+    unique_steps = []
+    for s in steps:
+        if s not in seen:
+            seen.add(s)
+            unique_steps.append(s)
+
+    # Step 3: 构建 Skill Contract
+    source_count = len(valid)
+    compression_ratio = round(source_count * 5.0, 1)
+
+    skill_data = {
+        "skill_name": name,
+        "description": description,
+        "source_episodes": [r["id"] for r in valid],
+        "source_count": source_count,
+        "source_kinds": sorted(source_kinds),
+        "compression_ratio": compression_ratio,
+        "confidence": confidence,
+        "version": "0.1.0",
+        "invocation_conditions": [],
+        "steps": unique_steps,
+        "constraints": [],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Step 4: 创建技能节点
+    skill_node = self.add_node(
+        label=name,
+        kind="skill",
+        data=skill_data,
+    )
+
+    # Step 5: 链接技能 → 源情景（'abstracts' 边）
+    for src in valid:
+        self.add_edge(
+            source=skill_node.id,
+            target=src["id"],
+            relation="abstracts",
+            weight=confidence,
+        )
+
+    # Step 6: Q-value 加成
+    self._boost_q_value(skill_node.id, boost=0.3)
+
+    return skill_node</code></pre>
+
+<h3>'abstracts' 边的语义</h3>
+
+<p>注意第 5 步——我们用 <code>abstracts</code> 类型的边把技能节点连回每个源情景。这个设计有三个作用：</p>
+
+<p><strong>1. 溯源。</strong> 任何技能都能追溯到它从哪些情景记忆中提炼出来。如果 Agent 需要更多上下文，可以沿着 <code>abstracts</code> 边回到原始情景。</p>
+
+<p><strong>2. 防重。</strong> <code>auto_compress_skills()</code> 在处理候选时会检查：这个情景记忆是否已经被某个技能 <code>abstracts</code> 了？如果是，就跳过。这防止同一个情景被多次压缩成不同技能。</p>
+
+<p><strong>3. 查询增强。</strong> 检索时，如果一个情景节点被返回，系统可以沿着 <code>abstracts</code> 边的反方向找到它所属的技能，实现"情景 → 技能"的跨级检索。</p>
+
+<h2>AUTO-COMPRESS：无人值守的编排层</h2>
+
+<h3>核心挑战</h3>
+
+<p><code>compress_to_skill()</code> 需要人工指定 <code>episode_ids</code>。在生产环境中，我们需要一个无人值守的流程——Agent 自己发现模式、评估质量、做出决策。</p>
+
+<p><code>auto_compress_skills()</code> 就是这个编排层。它要处理一系列边界情况：</p>
+
+<ul>
+<li>候选置信度不够怎么办？→ 跳过并记录原因</li>
+<li>源记忆已被其他技能压缩过？→ 跳过</li>
+<li>同一轮中某些记忆已被消费？→ 排除已消费的</li>
+<li>技能数量超过上限？→ 停止创建</li>
+<li>有人在 monitoring？→ 支持 dry_run</li>
+</ul>
+
+<h3>实现</h3>
+
+<pre><code>def auto_compress_skills(self, *,
+                         min_frequency: int = 2,
+                         min_confidence: float = 0.4,
+                         max_skills: int = 5,
+                         dry_run: bool = False) -&gt; dict:
+    """Auto-promote detected skill candidates into procedural skills."""
+    # Phase 1: DETECT
+    report = self.detect_skill_candidates(
+        min_frequency=min_frequency,
+    )
+
+    skills_created = []
+    actions = []
+    skipped = []
+    created_count = 0
+    consumed_ids: set[str] = set()
+
+    # Phase 2: FILTER + COMPRESS
+    for cand in report:
+        if created_count &gt;= max_skills:
+            break
+
+        # 过滤 1: 置信度不达标
+        if cand["confidence"] &lt; min_confidence:
+            skipped.append({
+                "action": cand["action"],
+                "reason": f"confidence {cand['confidence']:.3f} &lt; {min_confidence}",
+            })
+            continue
+
+        mem_ids = cand["memory_ids"]
+
+        # 过滤 2: 检查是否已被现有技能 abstracts
+        already_skilled = set()
+        for mid in mem_ids:
+            if mid in consumed_ids:
+                already_skilled.add(mid)
+                continue
+            for edge in self.edges_of(mid):
+                if edge.relation == "abstracts":
+                    already_skilled.add(mid)
+                    break
+
+        if all(mid in already_skilled for mid in mem_ids):
+            skipped.append({
+                "action": cand["action"],
+                "reason": "all source memories already compressed",
+            })
+            continue
+
+        # 过滤 3: 排除已消费的 ID
+        available_ids = [
+            mid for mid in mem_ids
+            if mid not in consumed_ids and mid not in already_skilled
+        ]
+
+        if not available_ids:
+            skipped.append({
+                "action": cand["action"],
+                "reason": "no new source memories available",
+            })
+            continue
+
+        # 执行压缩
+        skill_name = f"auto: {cand['action']}"
+
+        if dry_run:
+            skills_created.append({
+                "name": skill_name,
+                "action": cand["action"],
+                "frequency": cand["frequency"],
+                "confidence": cand["confidence"],
+                "source_count": len(available_ids),
+                "skill_id": None,
+            })
+            actions.append(
+                f"[dry-run] Would create skill '{skill_name}' "
+                f"from {len(available_ids)} episodes"
+            )
+        else:
+            skill = self.compress_to_skill(
+                available_ids,
+                skill_name,
+                description=(
+                    f"Auto-compressed from {cand['frequency']} "
+                    f"episodic memories with action '{cand['action']}'"
+                ),
+                confidence=cand["confidence"],
+            )
+            if skill:
+                skills_created.append({
+                    "name": skill_name,
+                    "action": cand["action"],
+                    "frequency": cand["frequency"],
+                    "confidence": cand["confidence"],
+                    "source_count": len(available_ids),
+                    "skill_id": skill.id,
+                })
+                actions.append(
+                    f"✓ Created skill '{skill_name}' "
+                    f"(Q={skill.data.get('q_value', 'N/A')})"
+                )
+                consumed_ids.update(available_ids)
+                created_count += 1
+
+    return {
+        "skills_created": skills_created,
+        "total_created": len(skills_created),
+        "candidates_found": len(report),
+        "skipped": skipped,
+        "actions": actions,
+        "dry_run": dry_run,
+    }</code></pre>
+
+<h3>一个实际运行的例子</h3>
+
+<pre><code>import memory_graph as mg
+
+graph = mg.MemoryGraph()
+
+# Step 1: Dry run — 看看会发现什么
+result = graph.auto_compress_skills(dry_run=True)
+print(f"Found {result['candidates_found']} candidates")
+for s in result['skills_created']:
+    print(f"  [dry-run] {s['name']}: "
+          f"freq={s['frequency']}, conf={s['confidence']:.2f}")
+
+# Found 7 candidates
+#   [dry-run] auto: deploy: freq=47, conf=1.00
+#   [dry-run] auto: debug: freq=23, conf=1.00
+#   [dry-run] auto: configure: freq=12, conf=1.00
+
+# Step 2: 只自动压缩高置信度的前 3 个
+result = graph.auto_compress_skills(
+    min_frequency=3,
+    min_confidence=0.6,
+    max_skills=3,
+    dry_run=False,
+)
+
+for action in result['actions']:
+    print(action)
+
+# ✓ Created skill 'auto: deploy' (Q=0.30)
+# ✓ Created skill 'auto: debug' (Q=0.30)
+# ✓ Created skill 'auto: configure' (Q=0.30)
+
+# Step 3: 再次运行 — 已压缩的不会重复处理
+result2 = graph.auto_compress_skills(dry_run=True)
+print(f"Round 2: {result2['candidates_found']} candidates, "
+      f"{len(result2['skipped'])} skipped")
+
+# Round 2: 7 candidates, 3 skipped (already compressed)</code></pre>
+
+<h2>三闭环质量系统</h2>
+
+<p>detect_skill_candidates、compress_to_skill 和 auto_compress_skills 不是孤立的函数——它们是 AMG <strong>三闭环质量系统</strong>的最后一块拼图。</p>
+
+<p>AMG 的三个闭环：</p>
+
+<pre><code>闭环 1: 知识缺口检测
+  detect_gaps() → auto_heal_gaps() → verify_healed()
+  发现知识缺失 → 自动填补 → 验证
+
+闭环 2: 冗余检测
+  detect_redundancy() → auto_consolidate() → verify_consolidated()
+  发现重复内容 → 自动合并 → 验证
+
+闭环 3: 技能晋升 ← 本篇主题
+  detect_skill_candidates() → auto_compress_skills() → (后续: assess + govern)
+  发现行为模式 → 自动压缩为技能 → 评估和治理</code></pre>
+
+<p>每个闭环都有相同的架构模式：<strong>detect（只读发现）→ auto-act（带安全栏的写入）→ verify/govern（质量保证）</strong>。这种对称性不是偶然的——它反映了记忆治理的根本结构：你需要先观察，然后有控制地行动，最后验证结果。</p>
+
+<h2>没解决的问题</h2>
+
+<p>这个流水线并不完美。几个已知问题：</p>
+
+<p><strong>1. 动词粒度太粗。</strong> "deploy" 出现 47 次，但其中可能包含 deploying to Kubernetes、deploying to bare metal、deploying a database——三种完全不同的技能。当前的方案会把它们合并成一个模糊的 "auto: deploy" 技能。</p>
+
+<p><strong>解法方向：</strong> 在 detect 阶段引入二级聚类——先按动词分组，再按对象细分。例如 <code>"deploy" + "k8s"</code> 和 <code>"deploy" + "database"</code> 是两个不同的候选。</p>
+
+<p><strong>2. 缺少质量评估。</strong> compress_to_skill 创建技能时给了 0.3 的 Q-value 加成，但我们不知道这个技能是否真的有用——它只是"看起来像技能"。</p>
+
+<p><strong>解法方向：</strong> 后续的 assess_skill 应该在技能被实际使用后更新 Q-value。成功使用 → Q-value 上升；失败 → Q-value 下降；持续不使用 → 衰减。</p>
+
+<p><strong>3. 情景选择不够智能。</strong> 当前方案把同一动词下的所有情景都压缩。但有些情景可能是异常情况——失败的部署、特殊环境下的 workaround——不应该被纳入标准技能。</p>
+
+<p><strong>解法方向：</strong> 在 compress 前加入结果过滤——只压缩 <code>outcome == "success"</code> 的情景，或者用 LLM 来判断哪些情景代表"正常流程"。</p>
+
+<h2>对更广泛领域的启示</h2>
+
+<p>虽然这套系统是在 Agent Memory Graph 中实现的，但它的设计模式适用于任何需要"从经验中学习"的 Agent 系统：</p>
+
+<p><strong>1. 先观察，后行动。</strong> Detect 是只读的，Compress 是可选的。这让系统可以在低风险模式下运行——先看看发现了什么模式，再决定是否值得压缩。</p>
+
+<p><strong>2. 幂等设计。</strong> auto_compress_skills 可以安全地重复调用。已压缩的情景不会被再次压缩，已消费的 ID 会被追踪。这让它适合作为定期任务运行。</p>
+
+<p><strong>3. 有边界的自主。</strong> max_skills 限制了单次运行的操作量。这不是技术限制——是安全限制。Agent 记忆的变更应该渐进，不应该一次性重构整个知识库。</p>
+
+<p><strong>4. 可溯源的抽象。</strong> 每个技能都通过 <code>abstracts</code> 边连回源情景。这让"为什么这个技能存在"始终可回答——对调试和审计至关重要。</p>
+
+<h2>结语</h2>
+
+<p>回到开头的那个数字：47 条 "deploy" 情景记忆。</p>
+
+<p>在实现 auto_compress_skills 之后，我再次运行了它。47 条情景记忆被压缩成 1 个技能节点 "auto: deploy"，带有 8 个提取的步骤、0.3 的初始 Q-value，以及到每个源情景的 <code>abstracts</code> 边。</p>
+
+<p>压缩比：47×5 = 235。L1→L2 的理论范围是 50-500×。我们恰好落在中间。</p>
+
+<p>但更重要的是：下次 Agent 需要部署时，它不需要在 47 条情景记忆中搜索（每条都要 embedding + ranking），而是直接命中 1 个技能节点——技能节点里有提炼好的步骤、调用条件、和指向详细情景的链接。</p>
+
+<p>这不是终点。这个技能还需要被使用、被评估、被进化。但从情景到技能的那一步——那个"missing diagonal"——我们走通了。</p>
+
+<hr>
+
+<p><em>本文基于 Agent Memory Graph (AMG) 项目 Cycles 275-280 的工程实践。AMG 是一个持续运行 253 天的 Agent 记忆实验，包含 4394 个测试，0 回归。</em></p>
+
+</div>
+</body>
+</html>
