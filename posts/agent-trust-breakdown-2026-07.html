@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 信任体系全面崩塌：从事后评分到事前约束的范式转向 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--heading); font-size: 1.3rem; margin: 2rem 0 0.8rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+        h3 { color: var(--accent); font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code { background: #1f2937; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', Consolas, monospace; }
+        pre { background: #1f2937; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; font-size: 0.85rem; line-height: 1.6; }
+        pre code { background: none; padding: 0; }
+        .highlight { color: #79c0ff; }
+        .comment { color: #8b949e; }
+        .keyword { color: #ff7b72; }
+        .string { color: #a5d6ff; }
+        .number { color: #79c0ff; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        .callout { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+        .callout-title { color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
+        .warn { background: rgba(255,166,0,0.1); border: 1px solid rgba(255,166,0,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+        .warn-title { color: #ffa657; font-weight: 600; margin-bottom: 0.3rem; }
+        table { border-collapse: collapse; margin: 1rem 0; width: 100%; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { display: inline-block; margin-top: 2rem; color: #8b949e; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <h1>Agent 信任体系全面崩塌：<br>从事后评分到事前约束的范式转向</h1>
+    <p class="meta">2026-07-26 · 罗嵩 · 基于 autoresearch 方法论</p>
+
+    <p>2026 年 7 月，FAccT 的一篇论文给 Agent 社区投了颗炸弹：<strong>人类社会的信誉体系，在 Agent 身上从根本上就不成立</strong>。</p>
+
+    <p>不是"实现不够好"，不是"需要更多数据"——是底层假设就是错的。</p>
+
+    <p>这篇论文（Hu et al., "Dissociative Identity"）列出了信誉系统依赖的四个属性：可识别性、可预测性、可信度、可矫正性。人类天然拥有这四个属性，所以我们能建淘宝评分、芝麻信用、Stack Overflow 声望。但 Agent 呢？身份可变（换个 prompt 就是另一个人）、行为不可预测（persona fluidity）、记忆可拆卸（detached memory）、拷贝零成本（fungibility）。</p>
+
+    <p><strong>你没法给一个随时能换脸、换脑、换记忆、还能无限复制的东西建信誉档案。</strong></p>
+
+    <p>论文的核心结论是一个范式转向：从 <em>ex post</em>（事后评分）到 <em>ex ante</em>（事前约束）。翻译成人话就是——别等它干坏事了再扣分，在它动手之前就把笼子建好。</p>
+
+    <p>这篇文章记录了我基于这个思路，结合 6 篇 2026 年 7 月的前沿论文，设计 <code>TrustEngineV2</code> 的完整过程。7 个算法，全部可运行，全部有测试。</p>
+
+    <h2>为什么 +5/-15 是错的</h2>
+
+    <p>我之前的 TrustEngine V1 用的是最朴素的线性评分：</p>
+
+    <pre><code><span class="comment">// V1: 线性加减分</span>
+trust[agent][skill] += success ? <span class="number">5</span> : <span class="number">-15</span>;
+<span class="comment">// 简单粗暴，但数学上不成立</span></code></pre>
+
+    <p>问题在哪？<strong>信任不是线性量</strong>。一个 Agent 连续成功 100 次后失败 1 次，和一个 Agent 成功 5 次后失败 1 次，你的信心应该完全不同。但线性模型对两者的处理方式一模一样（+500/-15 vs +25/-15）。而且线性分数没有自然的"期望值"——trust=85 到底意味着什么？是 85% 可信？还是随便一个数字？</p>
+
+    <p>正确答案是用<strong>贝叶斯更新</strong>。把信任建模为 Beta 分布 <code>Beta(α, β)</code>，成功则 α+=1，失败则 β+=1。期望值 <code>α/(α+β)</code> 就是点估计：</p>
+
+    <pre><code><span class="comment">// V2: 贝叶斯信任更新</span>
+interface BetaParams { alpha: number; beta: number; }
+
+<span class="keyword">function</span> <span class="highlight">betaUpdate</span>(
+  params: BetaParams,
+  success: boolean,
+  weight = 1
+): BetaParams {
+  <span class="keyword">return</span> success
+    ? { alpha: params.alpha + weight, beta: params.beta }
+    : { alpha: params.alpha, beta: params.beta + weight };
+}
+
+<span class="comment">// 期望值 = α/(α+β)
+// Beta(1,1) = 均匀分布，期望 0.5（中性起点）
+// Beta(50,2) → 0.96（高度可信）
+// Beta(50,50) → 0.50（大量数据但五五开）</span></code></pre>
+
+    <p>关键优势：稀疏数据时自动保守（Beta(2,2)=0.5），数据丰富时快速收敛，而且期望值天然在 [0,1] 区间，语义清晰——0.85 就是 85% 可信。</p>
+
+    <h2>组件级指纹：同一个 Agent 不是同一个 Agent</h2>
+
+    <p> Palo Alto Networks 的论文（arXiv:2606.31272）提出了一个精妙观点：<strong>识别不是信任</strong>。</p>
+
+    <p>一个 Agent 的 skill 是一个三元组：(prompt, code, tools)。改了 prompt 里的一个字，理论上就是一个新的 skill。但如果你用加密哈希（SHA-256），改一个字就完全不可识别。如果用模糊匹配，又没有明确的相似度边界。</p>
+
+    <p>他们的方案：<strong>组件级 SimHash</strong>。把 skill 拆成三个组件，每个组件独立 SimHash，生成 120 字节的固定签名，然后逐组件比较 Hamming 距离。AUC 0.974，77 倍压缩。</p>
+
+    <pre><code><span class="comment">// 组件级 Skill 指纹</span>
+interface SkillFingerprint {
+  promptHash: number;   <span class="comment">// 32-bit SimHash</span>
+  codeHash: number;     <span class="comment">// 32-bit SimHash</span>
+  toolsHash: number;    <span class="comment">// 32-bit SimHash</span>
+  version: string;
+}
+
+<span class="keyword">function</span> <span class="highlight">skillRelationship</span>(
+  fp1: SkillFingerprint,
+  fp2: SkillFingerprint,
+  threshold = 8  <span class="comment">// Max Hamming distance for "similar"</span>
+): {
+  relationship: <span class="string">'clone'</span> | <span class="string">'variant'</span> | <span class="string">'unrelated'</span>;
+  changedComponent: <span class="string">'prompt'</span> | <span class="string">'code'</span> | <span class="string">'tools'</span> | <span class="string">'multiple'</span> | <span class="string">'none'</span>;
+} {
+  <span class="keyword">const</span> promptSame = hammingDistance(fp1.promptHash, fp2.promptHash) <= threshold;
+  <span class="keyword">const</span> codeSame = hammingDistance(fp1.codeHash, fp2.codeHash) <= threshold;
+  <span class="keyword">const</span> toolsSame = hammingDistance(fp1.toolsHash, fp2.toolsHash) <= threshold;
+
+  <span class="keyword">if</span> (promptSame && codeSame && toolsSame)
+    <span class="keyword">return</span> { relationship: <span class="string">'clone'</span>, changedComponent: <span class="string">'none'</span> };
+
+  <span class="comment">// "同代码不同 prompt" vs "同 prompt 不同代码"
+  // 是完全不同的信任姿态</span>
+  <span class="keyword">if</span> (!promptSame && codeSame && toolsSame)
+    <span class="keyword">return</span> { relationship: <span class="string">'variant'</span>, changedComponent: <span class="string">'prompt'</span> };
+
+  <span class="keyword">return</span> { relationship: <span class="string">'unrelated'</span>, changedComponent: <span class="string">'multiple'</span> };
+}</code></pre>
+
+    <div class="callout">
+        <p class="callout-title">💡 关键洞察</p>
+        <p>"同一个代码，换了 prompt"和"同一个 prompt，换了代码"是<strong>完全不同</strong>的安全风险。前者可能只是措辞调整（低风险），后者可能换了执行逻辑（高风险）。组件级指纹让你区分这两种情况。</p>
+    </div>
+
+    <h2>事前门控：别等出事了再补救</h2>
+
+    <p>ScopeJudge 论文（arXiv:2607.07774）的核心发现：<strong>静态策略几乎完全无效</strong>（recall ≈ 0）。因为"这个操作是否安全"不在操作本身，而在<strong>用户意图的上下文</strong>。删除一个文件——是清理临时文件还是破坏数据库？静态策略没法区分。</p>
+
+    <p>他们的方案：在每次工具调用之前，用一个可信 LLM 做 judge。4,897 次调用中，7.7% 被判定为违规，与专家判断的 F1=0.78。</p>
+
+    <p>我把这个思路简化为一个可配置的门控函数：</p>
+
+    <pre><code><span class="keyword">type</span> ActionRisk = <span class="string">'low'</span> | <span class="string">'medium'</span> | <span class="string">'high'</span> | <span class="string">'critical'</span>;
+<span class="keyword">type</span> GateDecision = <span class="string">'allow'</span> | <span class="string">'deny'</span> | <span class="string">'escalate'</span>;
+
+<span class="keyword">function</span> <span class="highlight">evaluateGate</span>(
+  action: ProposedAction,
+  trustMean: number,
+  thresholds?: Record&lt;ActionRisk, number&gt;
+): { decision: GateDecision; reason: string } {
+  <span class="keyword">const</span> th = thresholds ?? {
+    low: 0.3, medium: 0.5, high: 0.7, critical: 0.85
+  };
+
+  <span class="comment">// 信任度低于风险阈值 → 拒绝</span>
+  <span class="keyword">if</span> (trustMean &lt; th[action.risk]) {
+    <span class="keyword">return</span> {
+      decision: <span class="string">'deny'</span>,
+      reason: <span class="string">`Trust ${trustMean.toFixed(3)} below threshold`</span>
+    };
+  }
+
+  <span class="comment">// 高风险操作 + 非顶级信任 → 升级审批</span>
+  <span class="keyword">if</span> (action.risk === <span class="string">'high'</span> && trustMean &lt; 0.85) {
+    <span class="keyword">return</span> {
+      decision: <span class="string">'escalate'</span>,
+      reason: <span class="string">'High-risk action requires human approval'</span>
+    };
+  }
+
+  <span class="keyword">return</span> { decision: <span class="string">'allow'</span>, reason: <span class="string">'OK'</span> };
+}</code></pre>
+
+    <p>关键设计：<code>escalate</code> 这个第三态。不是简单的 allow/deny 二元判断——高风险操作不一定要拒绝，但需要人类（或更高权限的 Agent）确认。这避免了"全自动"和"全手动"之间的虚假二元。</p>
+
+    <h2>分布式攻击：单独看每个 Agent 都是好人</h2>
+
+    <p>Makins 等人（NeurIPS 投稿）发现了多 Agent 安全最棘手的问题：<strong>分布式攻击</strong>。</p>
+
+    <p>假设有 5 个 Agent，每个都在正常范围内操作。Agent A 读取数据库，Agent B 查询 API，Agent C 写入日志……每个单独看都无害。但如果它们在协同——A 读到的数据通过 B 的 API 查询泄漏出去，C 的日志覆盖了痕迹——整体效果就是数据窃取。</p>
+
+    <p><strong>单实例监控器完全检测不到这种模式</strong>。你必须看跨 Agent 的行为模式：</p>
+
+    <pre><code><span class="keyword">function</span> <span class="highlight">detectDistributedPattern</span>(
+  actions: AgentAction[],
+  options?: { sameTargetThreshold?: number; timeWindowMs?: number; }
+): { isDistributed: boolean; suspects: string[]; reason: string } {
+  <span class="keyword">const</span> threshold = options?.sameTargetThreshold ?? 3;
+  <span class="keyword">const</span> window = options?.timeWindowMs ?? 60000;
+
+  <span class="comment">// 按目标分组，检测时间窗口内的多 Agent 聚集访问</span>
+  <span class="keyword">const</span> targetAgents = <span class="keyword">new</span> Map&lt;string, Set&lt;string&gt;&gt;();
+
+  <span class="keyword">for</span> (<span class="keyword">const</span> action <span class="keyword">of</span> actions) {
+    <span class="keyword">if</span> (!targetAgents.has(action.target))
+      targetAgents.set(action.target, <span class="keyword">new</span> Set());
+    targetAgents.get(action.target)!.add(action.agentId);
+  }
+
+  <span class="keyword">for</span> (<span class="keyword">const</span> [target, agents] <span class="keyword">of</span> targetAgents) {
+    <span class="keyword">if</span> (agents.size >= threshold) {
+      <span class="keyword">return</span> {
+        isDistributed: <span class="keyword">true</span>,
+        suspects: [...agents],
+        reason: <span class="string">`${agents.size} agents accessed "${target}"`</span>
+      };
+    }
+  }
+
+  <span class="keyword">return</span> { isDistributed: <span class="keyword">false</span>, suspects: [], reason: <span class="string">'OK'</span> };
+}</code></pre>
+
+    <div class="warn">
+        <p class="warn-title">⚠️ 生产环境提醒</p>
+        <p>上面的实现是最简版本。生产环境需要考虑：(1) 滑动窗口而非全量扫描，(2) 语义相似的目标聚类（<code>db.users.read</code> 和 <code>db.profiles.read</code> 可能是同一个目标），(3) 时序相关性分析（Agent B 总是恰好在 Agent A 之后 N 秒操作）。</p>
+    </div>
+
+    <h2>权限解耦：学习能力和执行权限是两回事</h2>
+
+    <p>Qin 等人的论文提出了一个深刻观点：<strong>Agent 的学习能力和它的执行权限，必须密码学层面解耦</strong>。</p>
+
+    <p>为什么？因为 Agent 在部署后会不断学习（few-shot 适应、RLHF 微调、记忆积累）。如果学习能力和执行权限绑定，那么 Agent 学到的任何东西都可能改变它的权限边界。这在安全上不可接受。</p>
+
+    <p>正确做法：权限由外部签名策略管理，Agent 可以学习新技能，但<strong>不能自动获得执行权限</strong>：</p>
+
+    <pre><code><span class="keyword">type</span> Capability = <span class="string">'read'</span> | <span class="string">'write'</span> | <span class="string">'execute'</span> | <span class="string">'delegate'</span>;
+
+<span class="keyword">function</span> <span class="highlight">delegateAuthority</span>(
+  parent: AuthorityScope,
+  childAgentId: string,
+  capabilities: Capability[],
+  maxRisk: ActionRisk
+): AuthorityScope | null {
+  <span class="comment">// 检查父 Agent 是否有委托权限</span>
+  <span class="keyword">const</span> canDelegate = canExercise(parent, <span class="string">'delegate'</span>, { risk: maxRisk });
+  <span class="keyword">if</span> (!canDelegate.allowed) <span class="keyword">return</span> null;
+
+  <span class="keyword">const</span> child = newAuthorityScope(childAgentId);
+  child.delegatedBy = parent.agentId;
+  child.delegatedAt = Date.now();
+
+  <span class="comment">// 子 Agent 继承 80% 的信任（委托深度折扣）</span>
+  <span class="keyword">for</span> (<span class="keyword">const</span> cap <span class="keyword">of</span> capabilities) {
+    <span class="keyword">const</span> parentMean = betaMean(parent.capabilities.get(cap)!);
+    <span class="keyword">const</span> childMean = parentMean * 0.8;  <span class="comment">// 20% 折扣</span>
+    child.capabilities.set(cap, {
+      alpha: 1 + childMean * 2,
+      beta: 1 + (1 - childMean) * 2,
+    });
+  }
+
+  <span class="keyword">return</span> child;
+}</code></pre>
+
+    <p>注意那个 0.8 的折扣系数——每委托一层，信任度打八折。5 层委托后：0.8⁵ = 0.33，信任度已经不到原来的三分之一。这是<strong>深度防御</strong>的数学保证。</p>
+
+    <h2>行为笼子：实时约束才是真正的安全</h2>
+
+    <p>所有前面的算法都是分析工具——告诉你该不该信任。但 FAccT 论文的核心观点是：<strong>分析不够，必须约束</strong>。</p>
+
+    <p>这就是第 7 个算法——行为笼子（Behavioral Harness）。它不评分、不判断，它直接执行规则：</p>
+
+    <pre><code><span class="keyword">class</span> <span class="highlight">BehavioralHarness</span> {
+  <span class="keyword">private</span> actionLog = <span class="keyword">new</span> Map&lt;string, number[]&gt;();
+
+  <span class="keyword">constructor</span>(<span class="keyword">private</span> config: {
+    rateLimitPerMinute: number;
+    allowedTargets: Set&lt;string&gt;;
+    blockedTargets: Set&lt;string&gt;;
+    maxActionsPerSession: number;
+  }) {}
+
+  check(agentId: string, action: ProposedAction): { allowed: boolean; reason: string } {
+    <span class="comment">// 1. 黑名单（硬拒绝）</span>
+    <span class="keyword">if</span> (<span class="keyword">this</span>.config.blockedTargets.has(action.target!))
+      <span class="keyword">return</span> { allowed: <span class="keyword">false</span>, reason: <span class="string">'Blacklisted'</span> };
+
+    <span class="comment">// 2. 白名单（不在列表内 = 拒绝）</span>
+    <span class="keyword">if</span> (<span class="keyword">this</span>.config.allowedTargets.size &gt; 0 &&
+        !<span class="keyword">this</span>.config.allowedTargets.has(action.target!))
+      <span class="keyword">return</span> { allowed: <span class="keyword">false</span>, reason: <span class="string">'Not whitelisted'</span> };
+
+    <span class="comment">// 3. 速率限制</span>
+    <span class="keyword">const</span> recent = (<span class="keyword">this</span>.actionLog.get(agentId) ?? [])
+      .filter(t =&gt; t &gt; Date.now() - 60000);
+    <span class="keyword">if</span> (recent.length &gt;= <span class="keyword">this</span>.config.rateLimitPerMinute)
+      <span class="keyword">return</span> { allowed: <span class="keyword">false</span>, reason: <span class="string">'Rate limited'</span> };
+
+    recent.push(Date.now());
+    <span class="keyword">this</span>.actionLog.set(agentId, recent);
+    <span class="keyword">return</span> { allowed: <span class="keyword">true</span>, reason: <span class="string">'OK'</span> };
+  }
+}</code></pre>
+
+    <p>这不是优雅的算法。它是暴力执行。但正是这种暴力执行，才是 <em>ex ante</em> 约束的核心——在你还没来得及分析是否安全之前，笼子已经在物理层面阻止了越界行为。</p>
+
+    <h2>七层防御的完整图景</h2>
+
+    <p>把七个算法组合起来，你得到的不是一个评分系统，而是一个<strong>纵深防御体系</strong>：</p>
+
+    <table>
+        <tr><th>层</th><th>算法</th><th>防御目标</th><th>失败模式</th></tr>
+        <tr><td>1</td><td>贝叶斯信任更新</td><td>累积信任评估</td><td>冷启动（新 Agent 无历史）</td></tr>
+        <tr><td>2</td><td>指数时间衰减</td><td>陈旧信任失效</td><td>间歇性良好行为</td></tr>
+        <tr><td>3</td><td>组件级指纹</td><td>Skill 篡改检测</td><td>语义等价的变形</td></tr>
+        <tr><td>4</td><td>事前门控</td><td>高风险操作拦截</td><td>门控 LLM 被操纵</td></tr>
+        <tr><td>5</td><td>分布式攻击检测</td><td>跨 Agent 协同攻击</td><td>低频率长周期攻击</td></tr>
+        <tr><td>6</td><td>权限解耦委托</td><td>权限蔓延</td><td>签名链断裂</td></tr>
+        <tr><td>7</td><td>行为笼子</td><td>实时约束执行</td><td>配置错误导致合法操作被拦</td></tr>
+    </table>
+
+    <p>每一层都有已知的失败模式。所以你需要七层叠加——不是因为有完美的防御，而是因为<strong>每层的失败模式不同</strong>，组合起来才能覆盖完整的威胁面。</p>
+
+    <h2>我的观点：Agent 安全的"不可能三角"</h2>
+
+    <p>经过这轮研究，我逐渐清晰地看到 Agent 安全领域的一个不可能三角：</p>
+
+    <p><strong>自主性 × 安全性 × 通用性 —— 最多取两个</strong></p>
+
+    <ul>
+        <li>自主 + 安全 = 必须限制通用性（白名单、沙箱、固定工具集）</li>
+        <li>自主 + 通用 = 必须牺牲安全性（开放环境、任意工具、无约束）</li>
+        <li>安全 + 通用 = 必须限制自主性（人工审批、人工配置、人工监督）</li>
+    </ul>
+
+    <p>2026 年的大部分 Agent 框架选了"自主 + 通用"，默默忽略了安全。这不是因为工程懒惰，而是因为安全的成本太高——谁愿意在每个 Agent 调用前等 200ms 做门控？谁愿意维护一个 Skill 指纹库？</p>
+
+    <p>但代价就是现在大家看到的情况：prompt injection 满天飞、Agent 工具调用失控、多 Agent 系统的攻击面指数增长。</p>
+
+    <p><strong>我的建议：如果你在做 Agent 产品，先从第 7 层（行为笼子）开始。</strong>它不需要 ML、不需要 LLM judge、不需要指纹库。一个 if/else 的白名单，就能挡住 80% 的问题。等行为笼子稳了，再逐层向上加。</p>
+
+    <p>不是所有安全都需要炫酷的 AI。有时候最有效的安全措施就是一把铁锁。</p>
+
+    <h2>参考论文</h2>
+    <ol>
+        <li>Hu et al. "Dissociative Identity: Language Model Agents Lack Grounding for Reputation Mechanisms" — FAccT 2026</li>
+        <li>Liu et al. "The Decomposition Is the Fingerprint" — arXiv:2606.31272, Palo Alto Networks</li>
+        <li>Caldwell et al. "ScopeJudge: Cost-Aware Pre-Execution Gating" — arXiv:2607.07774</li>
+        <li>Makins et al. "Multi-Agent AI Control: Distributed Attacks Hamper Per-Instance Monitors" — NeurIPS submission 2026</li>
+        <li>Qin et al. "Governed Individuation: Cryptographically Decoupling Agent Learning from Authority" — 2026</li>
+        <li>OWASP Top 10 for LLM Applications (2025 edition)</li>
+    </ol>
+
+    <p><a class="back-link" href="../index.html">← 返回首页</a></p>
+</body>
+</html>
