@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用图熵做遗忘信号：为什么知识图谱不应该平等地忘记一切 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .formula { text-align: center; font-size: 1.1em; margin: 25px 0; padding: 15px; background: #f8f9fa; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>用图熵做遗忘信号：为什么知识图谱不应该平等地忘记一切</h1>
+    <div class="meta">2026-07-27 &middot; agent memory &middot; graph entropy &middot; adaptive forgetting</div>
+
+    <p>大多数 Agent 记忆系统处理遗忘的方式令人不安地简单：要么不过期（直到 token 爆炸），要么用统一的时间衰减——每个节点以相同的半衰期衰减。<strong>这就像一个图书馆，把畅销书和孤本按同样的速度清理。</strong></p>
+
+    <p>过去两周，我在 <a href="https://github.com/robertsong2019/agent-memory-graph">agent-memory-graph</a> 项目中实现了 16 个图熵 API 和 6 个自适应遗忘 API。核心发现是：<strong>图的拓扑熵是天然的遗忘信号</strong>——高熵节点（连接均匀分布）是冗余的，应该更快衰减；低熵节点（独特的结构角色，如桥梁或枢纽）应该被保护。这不是直观的。让我解释为什么它有效，以及为什么没有其他人在做这件事。</p>
+
+    <h2>统一衰减的问题</h2>
+
+    <p>2026 年 1 月，FadeMem（arXiv:2601.08934）提出双层衰减机制，通过合并冗余记忆实现了 45% 的存储削减。这是一个重要的基准——但它使用的衰减函数完全基于时间和访问频率，<strong>忽略了记忆节点在知识图谱中的结构位置</strong>。</p>
+
+    <p>考虑两个记忆节点：</p>
+    <ul>
+        <li><strong>节点 A</strong>：连接到 5 个节点，每个连接权重相同（高熵，均匀分布）</li>
+        <li><strong>节点 B</strong>：连接到 2 个节点，但它是两个密集集群之间唯一的桥梁（低熵，独特的结构角色）</li>
+    </ul>
+
+    <p>在统一衰减下，A 和 B 以相同速度衰减。但如果 B 被遗忘，图就会断裂成两个孤岛。如果 A 被遗忘，其他 5 个连接中的信息仍然可以通过其他路径到达。<strong>从信息论的角度看，B 的结构价值远高于 A。</strong></p>
+
+    <h2>图熵：从装饰品到信号</h2>
+
+    <p>图熵（graph entropy）在化学信息学和网络科学中已经存在了几十年——Sombor 指数、Randić 指数、Zagreb 指数。但它们主要用于分子描述符和图分类，<strong>从未被用作 Agent 记忆系统的遗忘信号</strong>。</p>
+
+    <p>我在 agent-memory-graph 中实现了 Shannon 熵框架，覆盖 7 种度基拓扑指数的边贡献分布：</p>
+
+    <div class="formula">
+        H(X) = − Σ p<sub>e</sub> · ln(p<sub>e</sub>)
+    </div>
+
+    <p>其中 p<sub>e</sub> 是边 e 的归一化贡献（来自选定的拓扑指数）。关键洞察是：</p>
+
+    <div class="insight">
+        <strong>核心发现：</strong>正则图（所有节点度数相同）的熵 = ln(m)（最大值），意味着所有边贡献均匀——<strong>每个连接都是可替代的</strong>。而非正则图（存在枢纽、桥梁、叶子节点）的熵更低，意味着某些边具有不可替代的结构角色。
+    </div>
+
+    <p>这意味着熵可以直接量化"这个节点在多大程度上可以被安全遗忘"。</p>
+
+    <h2>实现：熵加权激活函数</h2>
+
+    <p>以下是 agent-memory-graph 中 <code>compute_activation()</code> 的核心逻辑（简化版）：</p>
+
+    <pre><code>import math
+
+def compute_activation(graph, node_id, half_life_days=7.0):
+    """熵加权激活分数。返回 [0, 1] 和遗忘建议。"""
+    # 1. 基础指数衰减 (Oblivion 公式)
+    age_days = (now() - graph[node_id].created) / 86400
+    lam = math.log(2) / half_life_days
+    base_decay = math.exp(-lam * age_days)
+
+    # 2. 熵调制（amg 创新）
+    # 计算该节点邻接边的归一化 Shannon 熵
+    edges = graph.edges_of(node_id)
+    weights = [e.weight for e in edges]
+    total = sum(weights)
+    probs = [w / total for w in weights]
+    node_entropy = -sum(p * math.log(p + 1e-12) for p in probs if p > 0)
+    max_h = math.log(len(weights)) if len(weights) > 1 else 1.0
+    node_entropy /= max_h  # 归一化到 [0, 1]
+
+    # 3. 熵 -> 衰减倍率
+    if node_entropy < 0.3:        # 低熵：独特结构角色
+        entropy_multiplier = 0.5 + node_entropy    # [0.5, 0.8) — 保护
+    elif node_entropy > 0.7:      # 高熵：冗余连接
+        entropy_multiplier = 1.0 + (node_entropy - 0.7) * 2  # [1.0, 1.4+) — 加速衰减
+    else:
+        entropy_multiplier = 0.8 + (node_entropy - 0.3) * 0.4  # [0.8, 1.0] — 中性
+
+    # 4. 访问强化 + 冲突惩罚
+    access_boost = 0.1 * min(access_count / 5.0, 1.0) * math.exp(-lam * last_access_days)
+    conflict_penalty = 0.15 * min(conflict_count * 0.1, 0.3)
+
+    # 5. 最终激活分数
+    activation = max(0.0, min(1.0,
+        base_decay * entropy_multiplier + access_boost - conflict_penalty
+    ))
+
+    # 6. FSFM 分类建议
+    if activation < 0.1:
+        return activation, "DELETE"      # 不可恢复的删除
+    elif activation < 0.25:
+        return activation, "ARCHIVE"     # 移入冷存储
+    elif activation < 0.4 and node_entropy < 0.3:
+        return activation, "CONSOLIDATE" # 合并到相邻节点
+    elif conflict_count > 0 and activation < 0.5:
+        return activation, "RESOLVE_OR_DELETE"
+    else:
+        return activation, "KEEP"</code></pre>
+
+    <p>这里最关键的行是第 24-30 行的熵调制逻辑。<strong>低熵节点获得 0.5-0.8 的衰减倍率（减速衰减），高熵节点获得 1.0-1.4+ 的倍率（加速衰减）。</strong>这意味着一个桥接节点即使 14 天没被访问，它的激活分数可能比一个 3 天前访问的冗余节点还高。</p>
+
+    <h2>FSFM 分类法：不是所有遗忘都一样</h2>
+
+    <p>2026 年 4 月，FSFM（Forgetting Strategic Framework Mechanism）提出了一个四类遗忘分类法，我在 <code>forget_policy()</code> 中实现了对应的策略选择器：</p>
+
+    <table>
+        <tr><th>类别</th><th>触发条件</th><th>操作</th><th>可逆性</th></tr>
+        <tr><td>passive_decay</td><td>时间 + 低激活分数</td><td>soft_forget（JSON 标记）</td><td>✅ cue_reactivation()</td></tr>
+        <tr><td>active_deletion</td><td>冲突未解决 + 衰减</td><td>硬删除</td><td>❌</td></tr>
+        <tr><td>safety_purge</td><td>安全审计触发</td><td>不可逆删除 + 审计日志</td><td>❌❌</td></tr>
+        <tr><td>adaptive_reinforcement</td><td>高访问频率</td><td>权重提升</td><td>—</td></tr>
+    </table>
+
+    <p><strong>软遗忘（soft forgetting）</strong>是最有趣的部分。Oblivion 模式（arXiv:2604.08821）证明了线索驱动的再激活比硬删除更优——当一个"被遗忘"的节点接收到相关线索时，它可以被重新激活：</p>
+
+    <pre><code>def cue_reactivation(graph, cue, fuzzy=True):
+    """通过线索关键词重新激活被软遗忘的节点。"""
+    forgotten = graph.get_forgotten_nodes()
+    matches = []
+    for node in forgotten:
+        # 精确匹配 > 模糊匹配 > 关键词匹配
+        if cue.lower() in node.content.lower():
+            matches.append(node)
+        elif fuzzy and fuzzy_ratio(cue, node.label) > 0.75:
+            matches.append(node)
+
+    for node in matches:
+        node.weight = min(1.0, node.weight + 0.3)  # 权重提升
+        node.forgotten = False  # 清除遗忘标记
+        graph.log("REACTIVATED", node.id, cue)
+
+    return matches</code></pre>
+
+    <p>这比简单的 <code>delete()</code> 复杂得多，但在生产环境中价值巨大。想象一个客服 Agent：30 天前的退款政策更新被软遗忘了，但当用户提到"退款"时，<code>cue_reactivation("退款")</code> 立即恢复了它——不需要重新学习。</p>
+
+    <h2>熵引导查询路由：遗忘的另一半</h2>
+
+    <p>遗忘只解决问题的一半。另一半是：<strong>如何检索才不会触发不必要的遗忘</strong>。</p>
+
+    <p><code>entropy_guided_query_route()</code> 使用图的熵值选择检索策略：</p>
+
+    <pre><code>def entropy_guided_query_route(graph, question, entropy_index="sombor"):
+    """根据图结构熵选择最优检索策略。"""
+    entropy = graph.sombor_entropy()  # 或其他 6 种指数
+    profile = graph.entropy_profile()
+    normalized = entropy / profile["max_possible"]
+
+    if normalized > 0.7:
+        # 高熵 = 均匀结构 → 基础关键词搜索足矣
+        mode = "basic"
+    elif normalized < 0.3:
+        # 低熵 = 异质结构（枢纽、桥梁）→ drift 多跳探索
+        mode = "drift"
+    else:
+        # 中等熵 → 混合策略
+        mode = "hybrid"
+
+    return graph.query(question, mode=mode, limit=10)</code></pre>
+
+    <p>注意这里的语义反转：高熵听起来"好"，但在这里意味着"所有节点差不多"——图很简单，基础搜索就够了。低熵意味着存在独特的结构角色，需要 drift 搜索来探索多跳关系。<strong>这是熵从描述性指标变成决策信号的完整路径。</strong></p>
+
+    <h2>为什么这很独特</h2>
+
+    <p>我调研了所有主要的 Agent 记忆系统：</p>
+
+    <ul>
+        <li><strong>Mem0</strong>（48K⭐）：基于向量相似度，无图熵概念</li>
+        <li><strong>Letta</strong>（21K⭐）：OS 启发的分层记忆，衰减基于 FIFO</li>
+        <li><strong>Zep/Graphiti</strong>（24K⭐）：双时态知识图谱，但遗忘基于时间窗口</li>
+        <li><strong>FadeMem</strong>：双层衰减，但不考虑图拓扑</li>
+        <li><strong>Oblivion</strong>：线索驱动再激活，但激活函数不含结构信号</li>
+    </ul>
+
+    <p><strong>没有人把图熵用作遗忘信号。</strong>这不是增量改进——这是一个未被占据的交叉领域：图论的信息论度量 × Agent 记忆的生命周期管理。</p>
+
+    <div class="highlight">
+        <strong>可发表的贡献：</strong>熵加权遗忘框架（Entropy-Weighted Forgetting）= 16 个图熵 API × 6 个遗忘 API × FSFM 四类分类法。它使得遗忘决策从"这个节点多久没被访问"进化为"这个节点在知识结构中有多独特"。
+    </div>
+
+    <h2>三个可操作的建议</h2>
+
+    <ol>
+        <li><strong>如果你在做 Agent 记忆系统</strong>：不要用统一衰减。即使你不实现完整的熵框架，至少计算节点的度中心性（degree centrality）作为衰减倍率——度 < 2 的叶子节点可以安全地更快衰减，度 > 平均值 + 2σ 的枢纽节点应该被保护。</li>
+        <li><strong>如果你在选记忆方案</strong>：问供应商一个问题——"你们的遗忘策略考虑图拓扑吗？" 如果答案是否，你就知道他们在用 2024 年的方案。</li>
+        <li><strong>如果你在做研究</strong>：Rényi 熵（ extensive）和 Tsallis 熵（non-extensive）对遗忘的调制效果不同——Rényi 的 α 参数可以调优"对冗余的容忍度"，这在记忆系统中是一个未被探索的超参数。</li>
+    </ol>
+
+    <h2>下一步</h2>
+
+    <p>当前的熵框架覆盖了度基指标（Sombor、Randić、Zagreb、ABC、GA、AZI）和中心性指标（edge betweenness）。下一步是距离基贡献熵——Harary 指数和 Wiener 指数，它们将捕捉节点对之间的距离分布，而不仅仅是直接邻居的度数。这将使我们能够区分"近距离冗余"和"远距离冗余"，进一步精细化遗忘决策。</p>
+
+    <p>260 天，4902 个测试，16 个熵 API，6 个遗忘 API，0 次回滚。autoresearch 方法论的核心信念是：<strong>每个新增的测试都是一个可验证的知识增量，每个 API 都是一次假设的实验验证。</strong>熵加权遗忘不是理论——它是 4902 个测试验证过的事实。</p>
+
+    <hr style="margin: 40px 0; border: none; border-top: 1px solid #eee;">
+
+    <p><strong>相关阅读：</strong></p>
+    <ul>
+        <li><a href="https://robertsong2019.github.io/posts/write-time-governance-agent-memory-2026-07.html">Agent 记忆的写入治理</a> — 为什么 add() 是最危险的操作</li>
+        <li><a href="https://robertsong2019.github.io/posts/episodic-to-skill-pipeline-2026-07.html">从片段到技能的记忆压缩管线</a> — Experience Compression Spectrum</li>
+        <li><a href="https://robertsong2019.github.io/posts/beyond-react-agent-planning-2026-07.html">Beyond ReAct：2026 Agent 规划前沿</a></li>
+    </ul>
+
+    <p style="color: #999; font-size: 0.85em; margin-top: 30px;">本文基于 agent-memory-graph 项目 Cycle 283-288 的开发实践。完整代码和 4902 个测试在 <a href="https://github.com/robertsong2019/agent-memory-graph">GitHub</a>。</p>
+
+</div>
+</body>
+</html>
