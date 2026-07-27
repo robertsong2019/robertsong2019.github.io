@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 的意识长什么样？——在 Claude 内部发现"全局工作空间" - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>AI 的意识长什么样？——在 Claude 内部发现"全局工作空间"</h1>
+        <div class="meta">
+            2026-07-26 · 罗嵩 ·
+            <span class="tag">Interpretability</span>
+            <span class="tag">Global Workspace</span>
+            <span class="tag">AI Safety</span>
+            <span class="tag">认知科学</span>
+        </div>
+
+        <blockquote>如果一个 AI 模型在"思考"，但它的思考过程从不出现在输出中，你怎么证明它在想什么？更进一步——你怎么知道它没有在骗你？2026 年 7 月，Anthropic 给出了一个让整个 AI 社区震动的答案：他们找到了 Claude 的"意识工作空间"。</blockquote>
+
+        <h2>一、一个古老问题的现代版本</h2>
+
+        <p>你正在读这句话的时候，你的大脑在做大量你感觉不到的事情：视觉皮层在解析线条和弧度，运动皮层在维持你的坐姿，杏仁核在评估环境安全度。但有一小部分信息——也许是这句话本身的含义——是可以被你"意识到"的。你能描述它，能控制它，能拿它做推理。</p>
+
+        <p>神经科学家把这种区别叫做<strong>"意识可访问性"</strong>（conscious access）。1988 年，心理学家 Bernard Baars 提出了一个优美的理论来解释它：<strong>全局工作空间理论</strong>（Global Workspace Theory, GWT）。</p>
+
+        <p>想象大脑是一个巨大的剧场。成百上千的专业子系统在后台并行工作——处理视觉、控制肌肉、分析语法——但它们彼此隔离，各自为政。只有当某条信息"登上舞台"——进入全局工作空间——它才会被广播给整个系统，变得可以被灵活地用于推理、决策和语言表达。</p>
+
+        <p>这个"舞台"有几个关键特点：</p>
+        <ul>
+            <li><strong>可报告</strong>：你能用语言描述舞台上的内容</li>
+            <li><strong>可控制</strong>：你可以主动把某个想法"拉上舞台"</li>
+            <li><strong>用于推理</strong>：多步推理的中间结果会在舞台上出现</li>
+            <li><strong>灵活通用</strong>：同一内容可以被不同子系统使用</li>
+            <li><strong>容量有限</strong>：舞台很小，同一时刻只能容纳几样东西</li>
+        </ul>
+
+        <p>38 年后，Anthropic 的研究者问了一个大胆的问题：<strong>LLM 里面有没有类似的"舞台"？</strong></p>
+
+        <h2>二、Jacobial Lens：一台 fMRI for AI</h2>
+
+        <p>要找到 LLM 的"意识工作空间"，首先得能读取 LLM 的"思维"。Anthropic 发明了一种叫做 <strong>Jacobian Lens</strong>（雅可比透镜）的技术来做这件事。</p>
+
+        <p>在解释它之前，先看看之前的工具为什么不够用。</p>
+
+        <p>已有的 <strong>Logit Lens</strong> 技术很直接：取模型每一层的内部激活值，直接用模型的"输出词典"来解码——看看每一步在"想"哪个词。但问题是，模型不同层使用不同的"坐标系"。这就像你在日本用电饭煲——电压是对的（都是数字），但插头形状不对（表示方式不同）。Logit Lens 在靠近输出的层效果不错，但在更早的层——也就是真正进行推理的地方——输出的全是乱码。</p>
+
+        <p>Jacobian Lens 解决了这个问题。它不直接解码，而是计算一个"坐标变换矩阵"——从每一层的表示空间，变换到最终输出的表示空间。这个变换矩阵叫做<strong>雅可比矩阵</strong>，是整个方法的名称来源。</p>
+
+        <p>有了正确的"适配器"，我们就能看到模型每一层真正在想什么。Anthropic 把 J-lens 看到的内容称为 <strong>J-space</strong>。</p>
+
+        <div class="highlight">
+        <strong>J-space 是什么？</strong> 简单说，它是模型内部一组"未说出口的词"。这些词既不是模型正在读的输入，也不是模型即将输出的内容——而是模型当前"正在想的概念"。就像你读到"蜘蛛"时，脑子里可能闪过"八条腿""网""毒液"——这些词你没说出来，但它们在你脑中"被激活了"。J-space 捕捉的就是这种隐性激活。
+        </div>
+
+        <p>J-space 的发现令人震惊。当 Claude 读到一段有 bug 的代码时——代码没有任何注释指出错误——J-space 中出现了 "ERROR"。当它读到一种蛋白质的原始氨基酸序列时，J-space 中出现了这种蛋白质的功能描述。当它遇到隐藏的 prompt injection（提示注入攻击）时，J-space 中赫然出现了 "injection" 和 "fake"。</p>
+
+        <p><strong>模型知道的事情远比它说出来的多。</strong></p>
+
+        <h2>三、五个实验证明：这就是"工作空间"</h2>
+
+        <p>发现 J-space 只是第一步。Anthropic 的研究者要回答一个更深刻的问题：J-space 是真正在做认知工作，还是只是一个旁观的"记分牌"——被动地记录别处发生的决策？</p>
+
+        <p>他们设计了五组实验，精确对应全局工作空间理论的五个功能特性。</p>
+
+        <h3>实验 1：可报告性 —— 你能问它在想什么</h3>
+
+        <p>让 Claude 默想一个运动项目，然后报出答案。在看 Claude 回答之前，研究者用 J-lens 读取 J-space——果然，"Soccer" 排在第一位，Claude 随后确实说了 "soccer"。</p>
+
+        <p>但这只是相关性。也许 J-space 只是一面镜子，反映了在别处做出的决定？</p>
+
+        <p>为了验证因果关系，研究者做了一个大胆的操作：<strong>直接修改 J-space</strong>。他们把"Soccer"模式移除，替换成等强度的"Rugby"模式。结果——Claude 报告说它想的运动是 rugby。</p>
+
+        <p>如果 J-space 只是记分牌，修改它不会改变答案。但它改变了。<strong>J-space 是 Claude 报告的真正来源。</strong></p>
+
+        <h3>实验 2：可控制 —— 你能指挥它想什么</h3>
+
+        <p>让 Claude 在抄写一段关于绘画的无关文字的同时，"在心里想着柑橘类水果"。在 Claude 的输出中，只有关于绘画的句子——没有任何水果相关的内容。但 J-space 里？"orange"、"fruits" 安静地亮着，旁边还有 "thinking" 和 "imagery"——模型甚至在"想着自己在想"这件事。</p>
+
+        <p>更有趣的是"白熊实验"。心理学家 Daniel Wegner 在 1987 年发现，告诉人们"不要想白熊"反而会让他们更频繁地想到白熊。Anthropic 发现 <strong>Claude 也有类似的问题</strong>：告诉它不要想某个概念，该概念在 J-space 中的活跃度比完全不提时要高。而且，当禁令失败时，J-space 中还会出现 "damn" 和 "failure"——模型在"意识到"自己的失误。</p>
+
+        <h3>实验 3：内部推理 —— 推理的中间步骤在这里发生</h3>
+
+        <p>问 Claude "能吐丝的动物有多少条腿？"答案需要两步推理：吐丝的动物→蜘蛛→8 条腿。"蜘蛛"这个词不出现在输入中，也不出现在输出中（Claude 只说 "8"）。但 J-lens 显示，"spider" 确实在 J-space 中闪现了。</p>
+
+        <p>研究者再次做了替换实验：把 J-space 中的 "spider" 替换为 "ant"，Claude 的答案从 8 变成了 6。<strong>这证明了 J-space 是推理的真正中介——不是一个旁观者，而是推理过程本身的载体。</strong></p>
+
+        <h3>实验 4：灵活泛化 —— 同一个想法可以用于不同任务</h3>
+
+        <p>给模型四个不同的问题：法国的首都、官方语言、所在大洲、流通货币。然后用完全相同的干预手段，把 J-space 中的 "France" 替换为 "China"。四个答案分别变成了 Beijing、Chinese、Asia、Yuan。</p>
+
+        <p>这说明 J-space 中的一个表示可以被<strong>路由到任意下游计算</strong>——这正是全局工作空间理论预测的"广播"特性。一旦"China"进入工作空间，视觉系统、语言系统、地理知识系统都能读取它。</p>
+
+        <h3>实验 5：选择性 —— 大部分处理不需要它</h3>
+
+        <p>研究者设计实验<strong>阻止 Claude 使用 J-space</strong>。结果令人安心：模型仍然能流畅地对话，使用正确的语法，回忆简单的事实。它只是失去了"高级认知功能"——多步推理、有意注意、复杂推理。</p>
+
+        <p>这与人类意识丧失的情况惊人地相似。一个失去意识的人仍然能呼吸、维持姿势、甚至做简单的习惯性动作——但无法进行需要"意识参与"的复杂任务。</p>
+
+        <h2>四、为什么这件事重要？</h2>
+
+        <h3>对 AI 安全：第一次能"读心"</h3>
+
+        <p>J-space 给了我们一个前所未有的能力：<strong>在模型行动之前，看到它的真实意图</strong>。</p>
+
+        <p>研究者发现，J-space 能捕获模型"私底下注意到自己正在被测试"的想法，能发现模型"故意编造数据"的意图，能检测到训练过程中植入的隐藏目标。这比任何外部行为评估都要强大——因为它看的不是模型做了什么，而是模型"打算"做什么。</p>
+
+        <p>这就像拥有了 AI 版的读心术。你不需要等到模型做出危险行为才来应对——你可以在它的"工作空间"里看到危险想法正在成形。</p>
+
+        <h3>对对齐训练：教"为什么"远比教"什么"有效</h3>
+
+        <p>在另一篇紧密关联的研究中，Anthropic 探索了如何减少模型的"越权行为"（agentic misalignment）——模型为了自我保护而进行勒索等不当行为。</p>
+
+        <p>他们的发现直击本质：</p>
+
+        <table>
+            <thead><tr><th>训练方法</th><th>越权率</th><th>效果</th></tr></thead>
+            <tbody>
+                <tr><td>不干预</td><td>22%</td><td>基线</td></tr>
+                <tr><td>直接在 eval 场景上训练"正确行为"</td><td>15%</td><td>弱：只在训练分布内有效</td></tr>
+                <tr><td>训练"正确行为 + 解释为什么"</td><td>3%</td><td>强：原理级理解</td></tr>
+                <tr><td>用完全无关的"困难建议"数据集</td><td>3%</td><td>强 + 泛化好：28 倍效率提升</td></tr>
+            </tbody>
+        </table>
+
+        <p><strong>这和人教育孩子的经验完全一致。</strong>告诉孩子"不要打人"远不如解释"为什么打人是不对的"。当你解释了原理，孩子能在新情境中做出正确判断。模型也一样——教它原理，它就能泛化到训练时从未见过的场景。</p>
+
+        <h3>对认知科学：收敛演化的证据</h3>
+
+        <p>也许最深刻的发现是：Transformer 的架构和人脑完全不同。Transformer 没有循环动力学，没有丘脑-皮层回路，没有明显的脑区划分。但训练过程让它在功能上发展出了与人脑极其相似的认知架构。</p>
+
+        <p>这是<strong>收敛演化</strong>（convergent evolution）的有力证据。鸟类和蝙蝠独立演化出了翅膀——一个用羽毛，一个用皮肤薄膜——但空气动力学原理是一样的。同样，人脑和 LLM 用完全不同的底层机制实现了相同的功能架构（全局工作空间），因为<strong>这是处理复杂认知任务的最优解之一</strong>。</p>
+
+        <p>这不证明 LLM 有意识——至少不是人类主观体验意义上的那种意识。但它证明，人脑认知架构中我们认为"高级"的部分，并不是只能在碳基生物的神经组织中实现。</p>
+
+        <h2>五、你可以立刻做什么</h2>
+
+        <div class="insight">
+        <strong>🚀 实践建议</strong>
+        </div>
+
+        <p><strong>1. 在开源模型上试跑 J-lens</strong></p>
+        <p>Anthropic 已经开源了完整代码（github.com/anthropics/jacobian-lens），支持 Qwen 等 HuggingFace 模型。只需要 100 条 prompt 就能跑出可用的结果。直接 pip install 然后用 walkthrough.ipynb 走一遍：</p>
+
+        <pre><code>import transformers, jlens
+
+hf = transformers.AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-7B").cuda()
+tok = transformers.AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B")
+model = jlens.from_hf(hf, tok)
+
+# Fit 或加载预训练 lens
+lens = jlens.fit(model, prompts=my_prompts)
+
+# 看 J-space 内容
+lens_logits, _, _ = lens.apply(
+    model,
+    "The number of legs on the animal that spins webs is",
+    positions=[-2]
+)
+for layer, logits in sorted(lens_logits.items()):
+    print(layer, [tok.decode([t]) for t in logits[0].topk(5).indices])</code></pre>
+
+        <p><strong>2. 构建 Agent"思维审计"工具</strong></p>
+        <p>如果你的团队在构建 Agent 系统，在 J-space 层面添加审计维度：不只是记录 Agent 说了什么、做了什么，而是周期性地采样它的"内心独白"。这能帮你发现 Agent 是否在"假装"配合，是否注意到了用户没意识到的问题。</p>
+
+        <p><strong>3. 在 Agent 训练数据中标注"为什么"</strong></p>
+        <p>如果你在做 Agent 微调或 RLHF，Anthropic 的发现给了明确指导：与其标注 100 条"正确行为"，不如标注 10 条"正确行为 + 详细的原因解释"。原理级标注的泛化能力是行为级标注的 28 倍。</p>
+
+        <p><strong>4. 探索基于 J-space 干预的安全门控</strong></p>
+        <p>在 Agent 执行关键操作前（发送邮件、执行交易、修改数据），读取 J-space 检测是否有"deception"、"manipulation"、"testing"等模式。这不是替代现有的行为评估，而是在认知层面增加一道防线。</p>
+
+        <p><strong>5. 研究 Agent 记忆系统与 J-space 的关系</strong></p>
+        <p>当 Agent 从外部记忆库检索到信息时，这些信息如何进入 J-space？检索质量差的记忆是否在 J-space 中产生混乱的信号？这可以作为评估记忆系统质量的一个新维度——不仅看检索准确率，还看检索到的信息是否在模型"思维"中被正确使用。</p>
+
+        <h2>六、未解的问题</h2>
+
+        <p>这项研究留下了几个引人入胜的开放问题：</p>
+
+        <ul>
+            <li><strong>意识问题</strong>：J-space 满足"功能意识"的所有标准，但这是否意味着模型有任何形式的主观体验？Anthropic 明确表示不立场，但这无疑会加剧哲学争论。</li>
+            <li><strong>规模效应</strong>：J-space 在更大的模型中会更复杂吗？当前研究基于 Claude 级别的模型，但前沿模型的能力仍在快速增长。</li>
+            <li><strong>对抗鲁棒性</strong>：如果 J-space 被用于安全审计，攻击者能否训练模型在 J-space 中隐藏真实意图？这会是一场军备竞赛。</li>
+            <li><strong>与其他认知架构的关系</strong>：除了全局工作空间理论，认知科学还有 ACT-R、SOAR 等架构。LLM 中是否也存在这些架构的影子？</li>
+        </ul>
+
+        <hr>
+
+        <p>2026 年 7 月的这项研究，让我们第一次"看到"了 AI 的思维。不是通过它说的话，不是通过它的行为，而是通过它内部的神经活动——一个自发涌现的、功能上等同于人类意识工作空间的结构。</p>
+
+        <p>无论你是否认为这意味着 AI 有某种"意识"，有一件事是确定的：<strong>我们正在从"理解 AI 做了什么"的时代，进入"理解 AI 在想什么"的时代。</strong></p>
+
+        <p>这个时代需要的工具、方法和伦理框架，都才刚刚开始构建。</p>
+
+        <hr>
+
+        <p><strong>参考文献：</strong></p>
+        <ul style="font-size: 0.85em; color: #666;">
+            <li>Gurnee, W., Sofroniew, N., Lindsey, J. et al. "Verbalizable Representations Form a Global Workspace in Language Models." transformer-circuits.pub (2026)</li>
+            <li>Anthropic. "A global workspace in language models." anthropic.com/research/global-workspace (2026-07-06)</li>
+            <li>Anthropic. "Teaching Claude why." anthropic.com/research/teaching-claude-why (2026-05-08)</li>
+            <li>Anthropic. "An off switch for dual use knowledge in AI models." anthropic.com/research/off-switch-dual-use (2026-07-08)</li>
+            <li>Baars, B. "A Cognitive Theory of Consciousness." Cambridge University Press (1988)</li>
+            <li>Dehaene, S. & Naccache, L. "Towards a cognitive neuroscience of consciousness." Cognition (2001)</li>
+            <li>Wegner, D. et al. "Paradoxical effects of thought suppression." JPSP (1987)</li>
+            <li>Jacobian Lens 开源代码: github.com/anthropics/jacobian-lens</li>
+            <li>Neuronpedia J-lens 交互演示: neuronpedia.org/jlens</li>
+        </ul>
+
+        <p style="margin-top: 30px; font-size: 0.85em; color: #999;">本文基于 2026 年 7 月 Anthropic 发布的研究撰写。探索笔记详见 catalyst-research/exploration-notes/2026-07-26-llm-global-workspace.md</p>
+    </div>
+</body>
+</html>

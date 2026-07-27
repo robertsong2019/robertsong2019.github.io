@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>给 Agent 装上技能，它可能反而变蠢了——回归税与技能自进化 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        .warning { background: #ffebee; padding: 15px; border-radius: 4px; border-left: 4px solid #f44336; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>给 Agent 装上技能，它可能反而变蠢了——回归税与技能自进化</h1>
+        <div class="meta">
+            2026-07-27 · 罗嵩 ·
+            <span class="tag">Agent Skill</span>
+            <span class="tag">Regression Tax</span>
+            <span class="tag">Self-Evolution</span>
+            <span class="tag">LLM</span>
+        </div>
+
+        <blockquote>你给 Agent 装了一个精心编写的技能——比如"如何正确读取 Excel 中的日期格式"。你期望它在这个任务上变得更强。但 5832 次对照实验的结果是：技能不仅帮了忙，还悄悄破坏了 Agent 原本能做好的事情。最好的技能库，不是因为增益更大，而是因为<strong>回归更少</strong>。</blockquote>
+
+        <h2>一、一个反直觉的发现</h2>
+
+        <p>2026 年 7 月 24 日，arXiv 上同时出现了两篇关于 LLM Agent 技能的论文，它们像硬币的两面：</p>
+
+        <ul>
+            <li>一篇说：Agent 可以通过"技能自博弈"（Skill Self-Play）自主进化技能库，不断突破能力上限</li>
+            <li>另一篇说：你加的技能可能正在让 Agent 变蠢，而且蠢的方式你想都想不到</li>
+        </ul>
+
+        <p>这两篇论文放在一起读，构成了 2026 年 Agent 技能系统最完整的图景。</p>
+
+        <p>先说结论：<strong>Agent 技能不是"加上去就好"的添加剂，而是一种需要精确剂量控制的处方药。</strong>用对了，能力飞升；用错了，无声退化。</p>
+
+        <h2>二、回归税：你忽略的另一半账单</h2>
+
+        <p>过去我们怎么评估一个 Agent 技能库好不好？看平均成功率提升了多少。比如没有技能时 Agent 在 100 个任务上对了 50 个，加了技能后对了 65 个，那就说这个技能库带来了 +15% 的改进。</p>
+
+        <p>但这个数字隐藏了一个关键问题：</p>
+
+        <div class="highlight">
+            <strong>那 15 个新对的任务之外，有没有原本能做对、加了技能后反而做错的任务？</strong>
+        </div>
+
+        <p>答案是：有，而且很多。</p>
+
+        <p>Darshan Tank 和 Baran Nama 的论文 <em>The Regression Tax</em> 用 5832 次对照运行（两个办公自动化基准 × 三种模型-框架栈 × 多种技能库配置）给出了数据：</p>
+
+        <table>
+            <thead><tr><th>指标</th><th>数值</th></tr></thead>
+            <tbody>
+                <tr><td>Gross Gain（技能带来的新增成功）</td><td>553 次</td></tr>
+                <tr><td>Regression（技能导致的成功退化）</td><td>324 次</td></tr>
+                <tr><td>回归率</td><td>59%</td></tr>
+            </tbody>
+        </table>
+
+        <p>也就是说，每 10 个"新学会的任务"里，有大约 6 个是"以忘记旧任务为代价"换来的。净改进只有 229——不到毛增益的一半。</p>
+
+        <p>更扎心的发现是：<strong>不同技能库之间的差距，主要来自回归更少，而不是增益更多。</strong>最好的技能库赢在"不添乱"，而不是"更帮忙"。</p>
+
+        <h2>三、三种回归机制：技能是怎么让 Agent 变蠢的</h2>
+
+        <p>论文识别了三种回归机制。每一种都有一个反直觉的特点：</p>
+
+        <h3>机制一：技能描述渗透（Skill Description Osmosis）</h3>
+
+        <p>你以为技能只在被调用时才影响 Agent？错了。</p>
+
+        <p>大多数 Agent 框架的做法是：把所有技能的名称和简短描述放在系统提示里，只在需要时才加载技能的完整内容。论文发现，<strong>仅仅在系统提示中存在技能描述，就足以改变 Agent 在无关任务上的行为</strong>——即使那个技能从未被触发。</p>
+
+        <p>类比：想象你的办公桌上放着一本《财务报表分析指南》。你今天要做的是写营销文案，根本没翻开这本书。但它的存在让你不自觉地用了更多数字和严谨表述，写出了一篇不像营销文案的营销文案。</p>
+
+        <p>这就是"渗透效应"——LLM 的注意力会覆盖整个上下文，技能描述中的词汇模式会无形中影响模型对输入的解读方式。</p>
+
+        <h3>机制二：接地位移（Grounding Displacement）</h3>
+
+        <p>技能里写的是"先看 A 列，再匹配 B 列"。Agent 照做了，但它因此<strong>忽略了任务中真正需要看的 C 列</strong>。技能的过程指导覆盖了 Agent 自己判断"该看什么"的能力。</p>
+
+        <p>类比：你给新员工一个 SOP，说"接客户电话先问订单号"。结果遇到一个投诉电话，他也在开头硬问订单号，客户更生气了。SOP 没错，但它 displaces 了员工本来有的"看情况说话"的能力。</p>
+
+        <h3>机制三：验证位移（Verification Displacement）</h3>
+
+        <p>技能给了 Agent 一个清晰的步骤流程，Agent 照着做完了，觉得"步骤都走完了，结果应该对了"——于是<strong>跳过了它原本会做的输出检查</strong>。流程感带来了虚假的信心，抑制了验证步骤。</p>
+
+        <p>类比：跟着导航开车，到达目的地后不再自己看路牌确认。导航说的"已到达"就是终点。但如果导航带你到了隔壁街区呢？</p>
+
+        <div class="warning">
+            <strong>三种机制的共同模式：</strong>技能不是直接搞错了问题，而是<em>潜移默化地改变了 Agent 的行为模式</em>。它们扭曲的是 Agent 对输入的理解（接地）和对输出的检查（验证），而不是执行过程本身。
+        </div>
+
+        <h2>四、三阶段模型：被错配的投资</h2>
+
+        <p>论文提出了一个优雅的框架来理解 Agent 任务的三个阶段：</p>
+
+        <div class="ascii-art">┌──────────┐     ┌──────────┐     ┌──────────────┐
+│ Grounding │ ──→ │  Method  │ ──→ │ Verification │ ──→ Output
+│ 读懂输入   │     │ 执行过程  │     │  检查输出     │
+└──────────┘     └──────────┘     └──────────────┘
+     ↑                                    ↑
+   最常失败                            第二常失败
+
+         ↑──────────────↑
+      技能最常投资的地方（但不是最需要的）</div>
+
+        <p>论文的数据很清楚：</p>
+
+        <ul>
+            <li><strong>现有技能 90%+ 在投资 Method 阶段</strong>——教 Agent 怎么做</li>
+            <li><strong>Regression 和残留失败主要发生在 Grounding 和 Verification 阶段</strong></li>
+            <li>即使修正了评估器的 bug（226 个被误判为失败的任务），Grounding 和 Verification 依然是主要失败来源</li>
+        </ul>
+
+        <p>这就像给一个程序员不停地培训"怎么写代码"，但他出的 bug 80% 来自"没读懂需求"和"没测就上线"。你培训再多编码技巧也没用——瓶颈不在这。</p>
+
+        <h2>五、另一面：技能自博弈的野心</h2>
+
+        <p>就在 Regression Tax 揭示技能风险的同一天，Qwen/阿里团队发布了 <em>Skill Self-Play</em>（Skill-SP），展示了技能自进化的另一条路。</p>
+
+        <p>Skill-SP 的核心思路是一个三方博弈：</p>
+
+        <div class="ascii-art">    ┌───────────┐
+    │  Proposer  │ ← 基于技能生成具有挑战性的任务
+    └──────┬─────┘
+           │ 生成的任务
+           ▼
+    ┌───────────┐
+    │   Solver   │ ← 尝试解决任务，探索能力边界
+    └──────┬─────┘
+           │ 执行反馈
+           ▼
+    ┌─────────────────┐
+    │ Skill Controller │ ← 收集反馈，更新和扩展技能库
+    └────────┬────────┘
+             │ 更新后的技能
+             ▼
+         (回到 Proposer)</div>
+
+        <p>这个框架解决了一个根本性矛盾：<strong>任务多样性和验证可靠性不可兼得</strong>。</p>
+
+        <ul>
+            <li>环境绑定的方法（如 CodeAct）反馈精确，但只能在狭窄的领域内学习</li>
+            <li>开放式自生成任务覆盖面广，但没有可靠的验证，错误奖励会污染训练</li>
+            <li>技能作为"中间层"——每个技能确保在特定场景下的深度可验证执行，而跨技能的动态路由保持任务多样性</li>
+        </ul>
+
+        <p>这让我想到 AlphaGo 的自我博弈：不依赖人类棋谱，通过左右互搏不断突破。Skill-SP 是把这个思路移植到 Agent 技能进化上——只不过博弈的不是棋局，而是"出题"和"解题"。</p>
+
+        <h2>六、当两篇论文碰撞在一起</h2>
+
+        <p>把 Regression Tax 和 Skill Self-Play 放在一起看，你会发现一个有趣的张力：</p>
+
+        <table>
+            <thead><tr><th>维度</th><th>Regression Tax</th><th>Skill Self-Play</th></tr></thead>
+            <tbody>
+                <tr><td>核心关注</td><td>技能的副作用</td><td>技能的进化潜力</td></tr>
+                <tr><td>技能来源</td><td>人类/元技能创建者</td><td>自主博弈生成</td></tr>
+                <tr><td>评估方式</td><td>gain/regression 分解</td><td>benchmark 成功率</td></tr>
+                <tr><td>风险态度</td><td>警惕——回归是隐藏成本</td><td>乐观——自博弈可自我纠错</td></tr>
+                <tr><td>瓶颈识别</td><td>Grounding 和 Verification</td><td>任务多样性与验证可靠性</td></tr>
+            </tbody>
+        </table>
+
+        <p>它们不矛盾，而是互补的。Skill-SP 解决"如何生产更好的技能"，Regression Tax 解决"如何评估和管理技能的风险"。一个完整的技术栈需要两者：</p>
+
+        <ol>
+            <li>用 Skill-SP 式的自博弈来 <strong>生成</strong> 候选技能</li>
+            <li>用 gain/regression 分解来 <strong>评估</strong> 每个技能</li>
+            <li>用 ASSAY/GRASP 式的机制来 <strong>管理</strong> 技能的准入和退出</li>
+            <li>重点投资 Grounding 和 Verification 类技能来 <strong>补短板</strong></li>
+        </ol>
+
+        <h2>七、你今天可以做什么</h2>
+
+        <p>如果你正在构建或维护 Agent 系统，以下是立即可行的行动：</p>
+
+        <div class="insight">
+            <strong>1. 重新评估你的技能库</strong><br>
+            不要只看"加了技能后成功率提升了多少"。做配对实验：同一组任务，有技能 vs 无技能，逐个比较。找出 <strong>regression 任务</strong>——那些原本能做对、加了技能后做错的。这些才是你的真正风险。
+        </div>
+
+        <div class="insight">
+            <strong>2. 检测渗透效应</strong><br>
+            对每个技能做"幽灵测试"：在系统提示中包含技能描述，但不允许调用它。如果 Agent 在无关任务上的行为发生了变化，说明这个技能的描述有渗透风险。简化描述、缩小触发范围。
+        </div>
+
+        <div class="insight">
+            <strong>3. 写 Grounding 和 Verification 技能</strong><br>
+            别再只写"怎么做"的 SOP。写这些：<br>
+            - "在开始任务前，先确认输入的完整性和格式"<br>
+            - "在输出结果前，用以下检查清单验证……"<br>
+            - "如果输入包含 X 但不包含 Y，提出警告而不是猜测"<br>
+            这些看起来平淡无奇，但数据表明它们能修复大部分回归。
+        </div>
+
+        <div class="insight">
+            <strong>4. 设立回归预算</strong><br>
+            借鉴 GRASP 的思路：每个新技能准入时，在留出集上测试。如果回归数量超过阈值（比如不超过增益的 30%），就拒绝准入或要求人工审核。技能库的增长应该是<strong>受控的</strong>。
+        </div>
+
+        <h2>八、更大的图景</h2>
+
+        <p>从 Voyager 在 Minecraft 中写下第一行技能代码，到 2026 年的 Skill-SP 实现自博弈进化，Agent 技能系统走过了三年。但 Regression Tax 提醒我们：这条路比想象的要曲折得多。</p>
+
+        <p>核心洞察是：<strong>技能不是一个"越多越好"的游戏</strong>。每一个技能都是一次对 Agent 行为的干预，有增益就有代价。真正成熟的 Agent 系统不是技能最多的，而是技能之间不互相干扰、技能的增益大于回归、Grounding 和 Verification 能力足够强的。</p>
+
+        <p>这像极了人类组织中的流程管理。一家公司的 SOP 不是越多越好——每加一个流程，都可能让某些原本灵活处理的事情变得僵化。好的公司不是流程最多的公司，而是流程之间不冲突、每个流程的收益大于摩擦的公司。</p>
+
+        <p>Agent 技能系统正在学到这个教训。代价是 324 次无声的退化——但至少，我们现在知道该看哪里了。</p>
+
+        <hr>
+
+        <p><strong>参考论文：</strong></p>
+        <ul>
+            <li>Tank & Nama. <em>The Regression Tax: Decomposing Why Skills Help and Hurt LLM Agents</em>. arXiv:2607.22520, 2026.</li>
+            <li>Huang et al. <em>Skill Self-Play: Pushing the Frontier of LLM Capability with Co-Evolving Skills</em>. arXiv:2607.22529, 2026. (Qwen/阿里)</li>
+            <li>Wang et al. <em>Voyager: An Open-Ended Embodied Agent with Large Language Models</em>. 2023. (NVIDIA)</li>
+            <li>Ni et al. <em>Trace2Skill</em>. 2026.</li>
+            <li>Wang et al. <em>ASSAY</em>. 2026.</li>
+            <li>Moll et al. <em>GRASP</em>. 2026.</li>
+            <li>Li et al. <em>SkillGraph</em>. 2026.</li>
+        </ul>
+
+        <p><a href="../index.html">← 返回首页</a></p>
+    </div>
+</body>
+</html>
