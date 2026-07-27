@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building Effective Agents：Anthropic 的 Agent 设计全景拆解 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; }
+        th, td { border: 1px solid var(--border); padding: 0.6rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .ascii { font-family: 'Cascadia Code', 'Fira Code', 'SF Mono', monospace; font-size: 0.85rem; line-height: 1.5; white-space: pre; overflow-x: auto; }
+        .callout { background: var(--card); border: 1px solid var(--border); border-left: 3px solid #ffa657; border-radius: 8px; padding: 1rem 1.2rem; margin: 1.5rem 0; }
+        .callout-title { color: #ffa657; font-weight: 600; margin-bottom: 0.4rem; }
+    </style>
+</head>
+<body>
+    <h1>Building Effective Agents：Anthropic 的 Agent 设计全景拆解</h1>
+    <div class="meta">
+        📅 2026-07-27 · 🏷️ Agent Design · Workflow Patterns · Anthropic · ACI<br>
+        原文：<a href="https://www.anthropic.com/research/building-effective-agents" target="_blank">Building Effective Agents — Anthropic</a>
+    </div>
+
+    <p>Anthropic 这篇《Building Effective Agents》是 Agent 工程领域被引用最多的文献之一。它不谈花哨的框架，而是老老实实地把"什么时候该用 Agent、什么时候不该用"以及"真要用的时候怎么搭"讲清楚了。本文基于原文逐段拆解，保留原始定义的精确性，同时补上中文语境下的工程理解。</p>
+
+    <h2>一、核心定义：Workflow ≠ Agent</h2>
+
+    <p>Anthropic 把所有 agentic 系统分成两类，定义非常干脆：</p>
+
+    <blockquote>
+        <strong>Workflows</strong> are systems where LLMs and tools are orchestrated through predefined code paths.<br><br>
+        <strong>Agents</strong>, on the other hand, are systems where LLMs dynamically direct their own processes and tool usage, maintaining control over how they accomplish tasks.
+    </blockquote>
+
+    <p>翻译过来：</p>
+
+    <table>
+        <tr><th>类型</th><th>谁决定流程</th><th>适用条件</th></tr>
+        <tr><td><strong>Workflow</strong></td><td>代码（开发者预先写死的路径）</td><td>步骤可预测、可拆分</td></tr>
+        <tr><td><strong>Agent</strong></td><td>LLM 自己（动态决定下一步做什么）</td><td>开放式问题、步骤数未知</td></tr>
+    </table>
+
+    <div class="callout">
+        <div class="callout-title">⚠️ 最容易被忽略的一条原则</div>
+        <p>原文反复强调：</p>
+        <blockquote>"We recommend finding the simplest solution possible, and only increasing complexity when needed. This might mean not building agentic systems at all."</blockquote>
+        <p>也就是说——别上来就做 Agent。能用一次 LLM 调用 + RAG + few-shot 解决的，就别整多步 Agent。Anthropic 自己说"很多应用，单次 LLM 调用就够了"。</p>
+    </div>
+
+    <h2>二、5 种 Workflow 模式（核心干货）</h2>
+
+    <p>这是文章的真正骨架。从简单到复杂：</p>
+
+    <h3>1. Prompt Chaining（提示链）</h3>
+
+    <div class="ascii">LLM → [检查门] → LLM → [检查门] → LLM → 输出</div>
+
+    <ul>
+        <li><strong>本质：</strong>任务切成固定顺序的子任务，前一个的输出喂给后一个</li>
+        <li><strong>关键：</strong>中间可以插程序化的"检查门"（gate），不达标就停下来</li>
+        <li><strong>场景：</strong>任务能干净地分解成固定子任务</li>
+        <li><strong>例子：</strong>先写营销文案 → 再翻译成另一种语言；先写大纲 → 检查大纲 → 再写正文</li>
+        <li><strong>代价：</strong>用延迟换准确率（每多一环就多一点延迟）</li>
+    </ul>
+
+    <h3>2. Routing（路由 / 分流）</h3>
+
+    <div class="ascii">输入 → [分类器 LLM 或规则] ─┬─→ 处理器 A（专用 prompt）
+                              ├─→ 处理器 B（专用 prompt）
+                              └─→ 处理器 C（专用 prompt）</div>
+
+    <ul>
+        <li><strong>本质：</strong>先把输入分类，再分发到专门优化过的下游流程</li>
+        <li><strong>关键：</strong>分离关注点（separation of concerns），每个分类用自己的 prompt</li>
+        <li><strong>场景：</strong>有明显类别，且分类可准确判定</li>
+        <li><strong>例子：</strong>客服系统里"普通咨询 / 退款 / 技术支持"分流；简单问题丢给 Haiku，复杂问题丢给 Sonnet</li>
+        <li><strong>反例：</strong>如果不分流，为一个输入优化往往会伤害其他输入</li>
+    </ul>
+
+    <h3>3. Parallelization（并行化）</h3>
+
+    <p>两种变体：</p>
+    <ul>
+        <li><strong>Sectioning（分块）：</strong>把任务拆成独立子任务并行跑，结果聚合</li>
+        <li><strong>Voting（投票）：</strong>同一个任务跑多次，得到多样化输出</li>
+    </ul>
+
+    <p><strong>典型场景：</strong></p>
+    <ul>
+        <li>Sectioning：一个 LLM 处理用户请求，另一个同时做内容审核——比一个 LLM 同时干两件事效果好</li>
+        <li>Voting：审代码漏洞，多个不同 prompt 各自审一遍，谁发现问题就标记；内容审核里设不同投票阈值来平衡误报和漏报</li>
+    </ul>
+
+    <h3>4. Orchestrator-Workers（编排者 + 工人）</h3>
+
+    <div class="ascii"> ┌─→ Worker LLM ─┐
+Orchestrator ──┼─→ Worker LLM ──┼──→ 汇总
+ └─→ Worker LLM ─┘</div>
+
+    <ul>
+        <li><strong>本质：</strong>中央 LLM 动态拆任务、分派给 Worker、汇总结果</li>
+        <li><strong>关键差别（vs. Parallelization）：</strong>子任务不是预先定义的，而是 Orchestrator 根据输入<strong>动态决定</strong>的</li>
+        <li><strong>场景：</strong>你无法预测需要哪些子任务</li>
+        <li><strong>例子：</strong>代码产品对多文件的复杂修改——要改几个文件、每个文件怎么改，取决于具体任务</li>
+    </ul>
+
+    <h3>5. Evaluator-Optimizer（评估者-优化者，闭环反思）</h3>
+
+    <div class="ascii">LLM 生成 → 评估 LLM 打分+反馈 → 再生成 → 再评估 → ...（直到满意）</div>
+
+    <ul>
+        <li><strong>本质：</strong>一个 LLM 生成，另一个 LLM 评估并给反馈，循环改进</li>
+        <li><strong>场景：</strong>有明确评估标准，且迭代能带来可衡量提升</li>
+        <li><strong>判断信号：</strong>① 人类给出反馈时 LLM 能改进；② LLM 自己也能给出这种反馈</li>
+        <li><strong>例子：</strong>文学翻译的细微差别；需要多轮搜索的复杂研究任务</li>
+    </ul>
+
+    <h2>三、Agent 模式（自主性）</h2>
+
+    <p>原文定义：</p>
+
+    <blockquote>
+        "Agents begin their work with either a command from, or interactive discussion with, the human user. Once the task is clear, agents plan and operate independently... it's crucial for the agents to gain 'ground truth' from the environment at each step to assess its progress."
+    </blockquote>
+
+    <blockquote>
+        "They are typically just LLMs using tools based on environmental feedback in a loop."
+    </blockquote>
+
+    <p>一句话：LLM 在一个循环里，根据环境反馈自己决定调哪个工具，直到任务完成或撞墙。</p>
+
+    <p><strong>适用场景：</strong></p>
+    <ul>
+        <li>开放式问题，步骤数无法预测</li>
+        <li>无法硬编码固定路径</li>
+        <li>必须对 LLM 决策有一定信任</li>
+        <li>在可信环境里可规模化</li>
+    </ul>
+
+    <p><strong>代价：</strong></p>
+    <ul>
+        <li>更贵（每一步都是 LLM 调用）</li>
+        <li>错误会复合（compounding errors）</li>
+        <li>必须在沙箱里充分测试 + 加 guardrails</li>
+    </ul>
+
+    <h2>四、5 种模式速查表</h2>
+
+    <table>
+        <tr><th>模式</th><th>核心机制</th><th>适用场景</th><th>复杂度</th></tr>
+        <tr><td>Prompt Chaining</td><td>固定顺序 + 检查门</td><td>任务可线性拆分</td><td>⭐⭐</td></tr>
+        <tr><td>Routing</td><td>分类 → 专用 prompt</td><td>输入有明显类别</td><td>⭐⭐</td></tr>
+        <tr><td>Parallelization</td><td>并行 + 聚合/投票</td><td>子任务独立 / 需要多次确认</td><td>⭐⭐⭐</td></tr>
+        <tr><td>Orchestrator-Workers</td><td>动态拆分 + 汇总</td><td>子任务不可预测</td><td>⭐⭐⭐⭐</td></tr>
+        <tr><td>Evaluator-Optimizer</td><td>生成-评估-再生成循环</td><td>有明确评估标准</td><td>⭐⭐⭐</td></tr>
+        <tr><td><strong>Agent</strong></td><td><strong>LLM 自主循环 + 工具</strong></td><td><strong>开放式、不可预测</strong></td><td>⭐⭐⭐⭐⭐</td></tr>
+    </table>
+
+    <h2>五、文章给的 3 条核心原则</h2>
+
+    <p>结尾点睛，Anthropic 给了三条工程建议：</p>
+
+    <blockquote>
+        <strong>1. Maintain simplicity in your agent's design.</strong><br><br>
+        <strong>2. Prioritize transparency by explicitly showing the agent's planning steps.</strong><br><br>
+        <strong>3. Carefully craft your agent-computer interface (ACI) through thorough tool documentation and testing.</strong>
+    </blockquote>
+
+    <p>第 3 条特别有意思——他们做 SWE-bench agent 时发现：<strong>花在优化工具上的时间，比花在 prompt 上的还多。</strong>比如强制工具用绝对路径，模型就再没出过错。</p>
+
+    <h2>六、关键洞察：ACI > HCI</h2>
+
+    <p>原文 Appendix 2 的精华：</p>
+
+    <blockquote>
+        "Think about how much effort goes into human-computer interfaces (HCI), and plan to invest just as much effort in creating good agent-computer interfaces (ACI)."
+    </blockquote>
+
+    <p>具体建议：</p>
+    <ul>
+        <li><strong>格式对齐：</strong>工具格式要接近模型在互联网上自然见过的格式（别让它写 diff chunk header，因为要算行数）</li>
+        <li><strong>别让模型做格式杂活：</strong>JSON 里转义换行、计算几千行代码的行号——这些交给代码</li>
+        <li><strong>给足思考空间：</strong>给模型足够的 token 思考，别让它把自己写进死胡同</li>
+        <li><strong>防呆设计（Poka-yoke）：</strong>把参数设计得让模型不容易犯错——比如同样意思的参数别起两个名字</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-title">💡 实践经验补充</div>
+        <p>在我们的 Agent 项目中，ACI 优化的投入产出比确实远高于 prompt 调优。具体案例：</p>
+        <ul>
+            <li>把"请返回 JSON"改成 JSON Schema 强约束 + 自动校验，格式错误率从 ~12% 降到 0</li>
+            <li>把相对路径换成绝对路径（和 Anthropic 的经验一致），路径相关错误直接消失</li>
+            <li>工具描述里加一个具体调用示例，比写三行规则描述有效得多</li>
+        </ul>
+    </div>
+
+    <h2>七、决策流程图：到底用哪种模式？</h2>
+
+    <div class="ascii">
+┌─────────────────────────────────┐
+│ 任务能一次 LLM 调用解决吗？       │
+└────────────┬────────────────────┘
+             │
+    ┌────────┴────────┐
+    ▼ Yes             ▼ No
+直接调用       ┌──────────────────────────┐
++ RAG/few-shot │ 步骤能固定拆分吗？          │
+               └──────────┬───────────────┘
+                          │
+                 ┌────────┴────────┐
+                 ▼ Yes             ▼ No
+          ┌──────────────┐  ┌─────────────────────┐
+          │ 有固定顺序？   │  │ 子任务可并行？        │
+          └───┬──────────┘  └────┬────────────────┘
+              │                  │
+     ┌────────┴───────┐    ┌─────┴──────┐
+     ▼ Yes            ▼ No  ▼ Yes        ▼ No
+  Prompt          Eval-  Parallel   Orchestrator
+  Chaining        Opt    / Voting    -Workers
+                          │
+                          │  输入有明确类别？
+                          │  → Routing
+                          │
+                          └──→ 还不行？
+                               → Agent（自主循环）
+    </div>
+
+    <h2>总结</h2>
+
+    <p>Anthropic 这篇文章的价值不在于教你怎么搭 Agent——恰恰相反，它教你<span class="highlight">什么时候不要搭 Agent</span>。核心信息：</p>
+
+    <ol>
+        <li><strong>先问"能不能不用 Agent"</strong>——单次调用能解决的别复杂化</li>
+        <li><strong>Workflow 是主力工具</strong>——5 种模式覆盖了 90% 的工程场景</li>
+        <li><strong>Agent 是最后手段</strong>——留给真正不可预测的开放式问题</li>
+        <li><strong>ACI 的投入产出比 > Prompt 调优</strong>——把时间花在工具设计上</li>
+        <li><strong>简单 > 复杂</strong>——每次加复杂度都要有明确的 ROI 论证</li>
+    </ol>
+
+    <p>原文链接：<a href="https://www.anthropic.com/research/building-effective-agents" target="_blank">Building Effective Agents — Anthropic</a></p>
+
+    <div style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+        <span class="tag">Agent Design</span>
+        <span class="tag">Workflow Patterns</span>
+        <span class="tag">Anthropic</span>
+        <span class="tag">ACI</span>
+        <span class="tag">Engineering</span>
+    </div>
+
+    <p style="margin-top: 2rem;"><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
