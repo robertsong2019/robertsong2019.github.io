@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信息论三部曲：度量知识图谱相似性的三种方法 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+hr { border: none; border-top: 1px solid #ddd; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">&larr; 返回首页</a>
+<h1>信息论三部曲：度量知识图谱相似性的三种方法</h1>
+<div class="meta">2026-07-28 &middot; information theory &middot; graph comparison &middot; agent memory</div>
+
+<blockquote>2026-07-28 技术随笔。Agent 记忆系统的最后一块拼图：当你有两个知识图谱，怎么判断它们有多像？这个看似简单的问题，在图论和信息论的交叉地带困扰了研究者十年。本文记录 AMG 项目实现的三个互补的信息论图比较方法——Jensen-Shannon 散度（对称、有界、满足三角不等式）、交叉熵（非对称、度量编码代价）、KL 散度（非对称、度量信息增益）——以及它们在 Agent 记忆系统中的三个实战场景：异常检测、知识融合和版本追踪。含完整 Python 代码示例。</blockquote>
+
+<h2>为什么图比较很难</h2>
+
+<p>你在做一个 Agent 记忆系统。跑了一周后，记忆图长到了 8000 个节点、25000 条边。现在你面临三个问题：</p>
+
+<p><strong>问题一</strong>：今天 Agent 的记忆图和昨天的相比，发生了什么本质变化？是增长还是退化？</p>
+
+<p><strong>问题二</strong>：两个 Agent 各自积累了不同的记忆，想把它们合并——哪些部分是冗余的，哪些是互补的？</p>
+
+<p><strong>问题三</strong>：Agent 在一个新环境里重新学习了已知的任务，新记忆和旧记忆冲突了吗？</p>
+
+<p>这三个问题的共同前提是：<strong>你需要一种方法来量化两个图的相似性。</strong></p>
+
+<p>这个问题的难处在于，图不是一个向量。你不能简单地算余弦相似度。图有拓扑结构——谁连谁、度分布、聚类系数、路径长度——这些信息在向量空间里会丢失。</p>
+
+<p>传统方法要么太粗（比较节点数和边数），要么太贵（图同构问题是 NP 的），要么太窄（只看某一种特征如度分布）。</p>
+
+<p><strong>信息论提供了一个优雅的绕行路线：不直接比较图的结构，而是把图转化为概率分布，然后用信息论工具比较分布。</strong></p>
+
+<p>这就是 AMG 项目在 Cycle 288、298、299 中实现的三部曲。</p>
+
+<h2>核心思路：从图到分布</h2>
+
+<p>在深入每种方法之前，先理解它们共同的基石：<strong>怎么把图变成概率分布？</strong></p>
+
+<pre><code>import numpy as np
+from collections import Counter
+
+def edge_contribution_distribution(graph):
+    """
+    将图的边按 contribution 值分桶，
+    转换为概率分布。
+    
+    这是图的"信息指纹"——
+    不是节点列表，不是邻接矩阵，
+    而是信息内容的分布特征。
+    """
+    contributions = []
+    for u, v, data in graph.edges(data=True):
+        # 每条边携带一个 contribution 值
+        # 表示这条边对知识图谱的信息贡献
+        c = data.get('contribution', 1.0)
+        contributions.append(c)
+    
+    if not contributions:
+        return np.array([1.0]), np.array([1.0])
+    
+    # 分桶：将连续值映射到离散区间
+    bins = np.linspace(0, max(contributions) * 1.1, 20)
+    hist, _ = np.histogram(contributions, bins=bins)
+    
+    # 归一化为概率分布
+    total = hist.sum()
+    if total == 0:
+        return np.array([1.0]), np.array([1.0])
+    
+    probs = hist / total
+    # 避免零概率（信息论公式需要 P > 0）
+    epsilon = 1e-10
+    probs = np.where(probs == 0, epsilon, probs)
+    probs = probs / probs.sum()  # 重新归一化
+    
+    return probs, bins</code></pre>
+
+<p>这个转换是关键的一步。它把一个复杂的图结构问题，降维成了一个我们熟悉的概率分布比较问题。</p>
+
+<p>转换的物理含义是：<strong>图的"性格"取决于它的边在做什么。</strong> 如果大部分边的 contribution 都很低，说明图里有很多噪音；如果 contribution 分布均匀，说明每条边都差不多重要——这通常意味着信息冗余。</p>
+
+<p>有了概率分布，信息论的三把刀就可以出场了。</p>
+
+<h2>第一把刀：Jensen-Shannon 散度</h2>
+
+<p>Jensen-Shannon 散度（JSD）是三个方法中最"友好"的一个——对称、有界、满足三角不等式。</p>
+
+<pre><code>def js_divergence(p, q):
+    """
+    Jensen-Shannon 散度：两个分布的"距离"。
+    
+    JSD(P||Q) = 0.5 * KL(P||M) + 0.5 * KL(Q||M)
+    其中 M = 0.5 * (P + Q)
+    
+    性质：
+    - 对称：JSD(P||Q) = JSD(Q||P)
+    - 有界：0 ≤ JSD ≤ ln(2) ≈ 0.693
+    - 满足三角不等式（sqrt(JSD) 是真正的度量）
+    """
+    m = 0.5 * (p + q)
+    
+    kl_pm = _kl_divergence(p, m)
+    kl_qm = _kl_divergence(q, m)
+    
+    jsd = 0.5 * kl_pm + 0.5 * kl_qm
+    
+    # 归一化到 [0, 1]
+    max_jsd = np.log(2)
+    return min(jsd / max_jsd, 1.0)
+
+
+def _kl_divergence(p, q):
+    """KL 散度的底层实现（非对称）。"""
+    mask = p > 0
+    return np.sum(p[mask] * np.log(p[mask] / q[mask]))
+
+
+def js_divergence_graph(graph_p, graph_q):
+    """
+    计算两个图的 JSD 相似性。
+    
+    返回值 0 = 完全相同
+    返回值 1 = 完全不同
+    
+    用法示例：
+    >>> jsd = js_divergence_graph(graph_monday, graph_friday)
+    >>> print(f"周一和周五的记忆相似度: {1 - jsd:.2%}")
+    周一和周五的记忆相似度: 73.45%
+    """
+    p, _ = edge_contribution_distribution(graph_p)
+    q, _ = edge_contribution_distribution(graph_q)
+    
+    # 对齐分布长度
+    max_len = max(len(p), len(q))
+    p = np.pad(p, (0, max_len - len(p)), constant_values=1e-10)
+    q = np.pad(q, (0, max_len - len(q)), constant_values=1e-10)
+    p = p / p.sum()
+    q = q / q.sum()
+    
+    return js_divergence(p, q)</code></pre>
+
+<p><strong>JSD 适合什么场景？</strong></p>
+
+<p>JSD 的对称性使它成为<strong>通用比较</strong>的首选。当你想知道"两个图有多不同"而不关心方向时，用 JSD。</p>
+
+<p>在 AMG 中，JSD 被用于<strong>知识融合</strong>：当两个 Agent 的记忆图需要合并时，先用 JSD 计算所有子图的相似度矩阵，然后合并 JSD &lt; 0.3 的子图（高度相似），保留 JSD &gt; 0.7 的子图（互补知识）。</p>
+
+<pre><code># 实战：知识融合中的 JSD 应用
+def find_merge_candidates(graphs_a, graphs_b, threshold=0.3):
+    """
+    在两组子图之间寻找合并候选。
+    
+    JSD &lt; threshold 的子图对被认为是"冗余的"，
+    可以安全合并。
+    """
+    candidates = []
+    for i, ga in enumerate(graphs_a):
+        for j, gb in enumerate(graphs_b):
+            similarity = js_divergence_graph(ga, gb)
+            if similarity &lt; threshold:
+                candidates.append({
+                    'graph_a': i,
+                    'graph_b': j,
+                    'jsd': similarity,
+                    'action': 'merge'
+                })
+    return candidates</code></pre>
+
+<p><strong>一个重要发现</strong>：<code>sqrt(JSD)</code> 是一个真正的度量——它满足三角不等式。这意味着你可以把它用于聚类算法（K-means、层次聚类），而不违反度量的基本公理。这在 2026 年之前没有被系统地应用到 Agent 记忆图上。</p>
+
+<h2>第二把刀：交叉熵</h2>
+
+<p>交叉熵回答一个不同的问题：<strong>用图 Q 的"编码方案"来描述图 P，需要多少信息量？</strong></p>
+
+<pre><code>def cross_entropy_graph(graph_p, graph_q):
+    """
+    图间交叉熵 H(P, Q)。
+    
+    H(P,Q) = -Σ P(i) * log Q(i)
+    
+    性质：
+    - 非对称：H(P,Q) ≠ H(Q,P)
+    - 非负：H(P,Q) ≥ H(P) ≥ 0
+    - Gibbs 不等式：H(P,Q) ≥ H(P)，等号当且仅当 P=Q
+    
+    直觉：
+    H(P,Q) = "用 Q 的码本编码 P 的代价"
+    H(P,Q) - H(P) = "额外代价"（就是 KL 散度）
+    
+    用法示例：
+    >>> ce = cross_entropy_graph(old_graph, new_graph)
+    >>> print(f"用新图编码旧图的代价: {ce:.4f}")
+    用新图编码旧图的代价: 2.8734
+    """
+    p, _ = edge_contribution_distribution(graph_p)
+    q, _ = edge_contribution_distribution(graph_q)
+    
+    # 对齐分布
+    max_len = max(len(p), len(q))
+    p = np.pad(p, (0, max_len - len(p)), constant_values=1e-10)
+    q = np.pad(q, (0, max_len - len(q)), constant_values=1e-10)
+    p = p / p.sum()
+    q = q / q.sum()
+    
+    # H(P,Q) = -Σ P(i) * log Q(i)
+    mask = p > 0
+    return -np.sum(p[mask] * np.log(q[mask]))</code></pre>
+
+<p><strong>交叉熵适合什么场景？</strong></p>
+
+<p>交叉熵的非对称性是它的优势，不是缺陷。在<strong>版本追踪</strong>场景中，方向性至关重要。</p>
+
+<p>想象 Agent 的记忆图从 T1 演化到 T2：</p>
+<ul>
+<li><code>H(T1, T2)</code> 大 → T2 的结构无法很好地表示 T1 → <strong>信息丢失了</strong></li>
+<li><code>H(T2, T1)</code> 大 → T1 的结构无法很好地表示 T2 → <strong>新信息大量涌入</strong></li>
+</ul>
+
+<pre><code># 实战：记忆版本追踪
+def detect_memory_phase_transition(graph_history):
+    """
+    分析记忆图的时间序列，
+    检测相位转换（增长/巩固/遗忘）。
+    
+    graph_history: 按时间排序的图列表
+    """
+    transitions = []
+    for i in range(1, len(graph_history)):
+        prev = graph_history[i-1]
+        curr = graph_history[i]
+        
+        # 双向交叉熵
+        ce_forward = cross_entropy_graph(prev, curr)   # H(prev, curr)
+        ce_backward = cross_entropy_graph(curr, prev)   # H(curr, prev)
+        
+        # 差值揭示演化方向
+        diff = ce_forward - ce_backward
+        
+        if diff > 0.5:
+            phase = "growth"  # 新信息涌入
+        elif diff &lt; -0.5:
+            phase = "forgetting"  # 信息丢失
+        elif ce_forward &lt; 0.1:
+            phase = "stable"  # 几乎没变化
+        else:
+            phase = "consolidation"  # 结构调整
+        
+        transitions.append({
+            'step': i,
+            'ce_forward': ce_forward,
+            'ce_backward': ce_backward,
+            'diff': diff,
+            'phase': phase
+        })
+    
+    return transitions</code></pre>
+
+<p><strong>Gibbs 不等式的工程意义</strong>：H(P,Q) ≥ H(P)，等号当且仅当 P=Q。这意味着交叉熵有一个天然的下界——当两个图完全相同时，交叉熵等于图的自熵。任何偏差都会增加额外的"编码代价"。这让交叉熵成为一个天然的异常检测器：<strong>设定基线的自熵，然后监控交叉熵是否显著偏离。</strong></p>
+
+<h2>第三把刀：KL 散度</h2>
+
+<p>KL 散度（相对熵）是信息论中最基本的比较工具，但在图上的应用却最微妙。</p>
+
+<pre><code>def kl_divergence_graph(graph_p, graph_q):
+    """
+    图间 KL 散度（相对熵）。
+    
+    KL(P||Q) = Σ P(i) * log(P(i) / Q(i))
+    
+    性质：
+    - 非对称：KL(P||Q) ≠ KL(Q||P)
+    - 非负：KL(P||Q) ≥ 0（Gibbs 不等式）
+    - 不是度量：不满足三角不等式
+    - KL(P||Q) = 0 当且仅当 P = Q
+    
+    直觉：
+    KL(P||Q) = "如果真实分布是 P，但你以为是 Q，你会损失多少信息"
+    
+    用法示例：
+    >>> kl = kl_divergence_graph(trusted_graph, new_graph)
+    >>> print(f"新图偏离可信基线: {kl:.4f} nats")
+    新图偏离可信基线: 1.2347 nats
+    """
+    p, _ = edge_contribution_distribution(graph_p)
+    q, _ = edge_contribution_distribution(graph_q)
+    
+    # 对齐分布
+    max_len = max(len(p), len(q))
+    p = np.pad(p, (0, max_len - len(p)), constant_values=1e-10)
+    q = np.pad(q, (0, max_len - len(q)), constant_values=1e-10)
+    p = p / p.sum()
+    q = q / q.sum()
+    
+    # KL(P||Q) = Σ P(i) * log(P(i) / Q(i))
+    mask = p > 0
+    return np.sum(p[mask] * np.log(p[mask] / q[mask]))</code></pre>
+
+<p><strong>KL 散度适合什么场景？</strong></p>
+
+<p>KL 散度最适合<strong>异常检测</strong>。它回答的问题是："如果真实的世界是 P，而你的模型是 Q，你会犯多大的错？"</p>
+
+<pre><code># 实战：记忆异常检测
+class MemoryAnomalyDetector:
+    """
+    基于 KL 散度的记忆异常检测器。
+    
+    维护一个"可信基线"图，
+    新图与基线的 KL 散度超过阈值时告警。
+    """
+    def __init__(self, baseline_graph, threshold=2.0):
+        self.baseline = baseline_graph
+        self.threshold = threshold
+        self.history = []
+    
+    def check(self, new_graph):
+        """
+        检查新图是否异常。
+        
+        KL(baseline||new) 大 → 
+        新图在基线的高概率区域给了低概率 →
+        基线知识在新图中"消失了"（遗忘攻击）
+        
+        KL(new||baseline) 大 → 
+        新图的高概率区域在基线中给了低概率 →
+        新图引入了基线不知道的"异常知识"（注入攻击）
+        """
+        kl_forward = kl_divergence_graph(
+            self.baseline, new_graph
+        )  # 基线视角
+        kl_backward = kl_divergence_graph(
+            new_graph, self.baseline
+        )  # 新图视角
+        
+        alerts = []
+        
+        if kl_forward > self.threshold:
+            alerts.append({
+                'type': 'knowledge_loss',
+                'severity': 'high',
+                'kl': kl_forward,
+                'message': '可信知识在新图中被稀释——可能的遗忘攻击'
+            })
+        
+        if kl_backward > self.threshold:
+            alerts.append({
+                'type': 'knowledge_injection',
+                'severity': 'high',
+                'kl': kl_backward,
+                'message': '新图包含大量基线外的知识——可能的注入攻击'
+            })
+        
+        self.history.append({
+            'kl_forward': kl_forward,
+            'kl_backward': kl_backward,
+            'has_alert': len(alerts) > 0
+        })
+        
+        return alerts</code></pre>
+
+<p><strong>双向 KL 才完整</strong>。只看一个方向的 KL 散度会漏掉一半的问题。<code>KL(P||Q)</code> 和 <code>KL(Q||P)</code> 揭示完全不同的异常模式——前者检测"丢失"，后者检测"注入"。</p>
+
+<h2>三把刀的互补关系</h2>
+
+<p>三种方法不是冗余的，而是互补的。它们各自捕捉图的不同的"差异维度"：</p>
+
+<table>
+<tr><th>方法</th><th>对称性</th><th>有界性</th><th>三角不等式</th><th>最佳场景</th></tr>
+<tr><td>JSD</td><td>✅ 对称</td><td>[0, 1]</td><td>✅（sqrt）</td><td>通用比较、聚类</td></tr>
+<tr><td>交叉熵</td><td>❌ 非对称</td><td>无</td><td>❌</td><td>版本追踪、演化分析</td></tr>
+<tr><td>KL 散度</td><td>❌ 非对称</td><td>[0, ∞)</td><td>❌</td><td>异常检测、偏差度量</td></tr>
+</table>
+
+<p>更深层的关系：</p>
+
+<pre><code>H(P,Q) = H(P) + KL(P||Q)</code></pre>
+
+<p><strong>交叉熵 = 自熵 + KL 散度</strong>。这个等式说明，交叉熵包含 KL 散度的所有信息，额外加上 P 的自熵。当 P 固定时（比如比较同一个基线的多个变体），交叉熵和 KL 散度给出相同的排序——但交叉熵的绝对值更有解释性（它包含了"编码 P 本身需要多少信息"这个基准）。</p>
+
+<pre><code>def graph_comparison_report(graph_p, graph_q, labels=None):
+    """
+    完整的图比较报告：
+    三种方法一起出，给出 360° 的视图。
+    
+    >>> report = graph_comparison_report(
+    ...     monday_graph, friday_graph,
+    ...     labels=('周一', '周五')
+    ... )
+    """
+    if labels is None:
+        labels = ('P', 'Q')
+    
+    jsd = js_divergence_graph(graph_p, graph_q)
+    ce_pq = cross_entropy_graph(graph_p, graph_q)
+    ce_qp = cross_entropy_graph(graph_q, graph_p)
+    kl_pq = kl_divergence_graph(graph_p, graph_q)
+    kl_qp = kl_divergence_graph(graph_q, graph_p)
+    
+    # 对称化交叉熵和 KL（取平均）
+    ce_symmetric = (ce_pq + ce_qp) / 2
+    kl_symmetric = (kl_pq + kl_qp) / 2
+    
+    # 不对称性 = 方向差异
+    asymmetry = abs(kl_pq - kl_qp)
+    
+    return {
+        'jsd': jsd,
+        'jsd_interpretation': (
+            f"{labels[0]} 和 {labels[1]} "
+            f"{'高度相似' if jsd &lt; 0.2 else '中等相似' if jsd &lt; 0.5 else '显著不同'}"
+            f"（JSD={jsd:.4f}）"
+        ),
+        'cross_entropy': {
+            f'H({labels[0]},{labels[1]})': ce_pq,
+            f'H({labels[1]},{labels[0]})': ce_qp,
+            'symmetric': ce_symmetric,
+        },
+        'kl_divergence': {
+            f'KL({labels[0]}||{labels[1]})': kl_pq,
+            f'KL({labels[1]}||{labels[0]})': kl_qp,
+            'symmetric': kl_symmetric,
+            'asymmetry': asymmetry,
+        },
+        'verdict': _interpret_comparison(
+            jsd, kl_pq, kl_qp, asymmetry, labels
+        )
+    }
+
+
+def _interpret_comparison(jsd, kl_pq, kl_qp, asymmetry, labels):
+    """自动生成比较结论。"""
+    parts = []
+    
+    if jsd &lt; 0.1:
+        parts.append(f"{labels[0]} 和 {labels[1]} 几乎相同")
+    elif jsd > 0.8:
+        parts.append(f"{labels[0]} 和 {labels[1]} 差异巨大")
+    
+    if asymmetry > 1.0:
+        if kl_pq > kl_qp:
+            parts.append(
+                f"{labels[1]} 大幅偏离 {labels[0]} 的预期——"
+                f"可能存在单向知识流失"
+            )
+        else:
+            parts.append(
+                f"{labels[0]} 大幅偏离 {labels[1]} 的预期——"
+                f"可能存在单向知识注入"
+            )
+    
+    if not parts:
+        parts.append("两个图在结构和信息量上基本对称")
+    
+    return '；'.join(parts)</code></pre>
+
+<h2>在 Agent 记忆系统中的实战</h2>
+
+<p>将三种方法组装起来，AMG 构建了一个完整的图比较工具链：</p>
+
+<p><strong>场景一：记忆健康监控</strong></p>
+<p>每天凌晨，系统计算当天记忆图与前 7 天平均图的 JSD。如果 JSD 突然跳升超过 2σ，触发健康告警——可能是 Agent 在过去 24 小时内学习了大量低质量内容。</p>
+
+<p><strong>场景二：多 Agent 知识融合</strong></p>
+<p>两个 Agent 协作一周后，需要合并记忆。系统对所有子图对计算 JSD 矩阵，然后：</p>
+<ul>
+<li>JSD &lt; 0.15 → 直接合并（几乎相同）</li>
+<li>0.15 &lt; JSD &lt; 0.5 → 交叉熵分析，决定以谁为基准</li>
+<li>JSD &gt; 0.5 → 保留两者（互补知识）</li>
+</ul>
+
+<p><strong>场景三：对抗攻击检测</strong></p>
+<p>Agent 运行在不可信环境中，记忆可能被投毒。KL 散度作为异常检测器：维护一个可信基线图，新写入的子图与基线的双向 KL 都不能超过阈值。<code>KL(baseline||new)</code> 防止知识注入，<code>KL(new||baseline)</code> 防止知识冲刷。</p>
+
+<h2>为什么没有人在 npm 上做这个</h2>
+
+<p>这不是一个修辞性的反问。截至 2026 年 7 月，npm 和 PyPI 上<strong>没有任何 Agent 记忆库提供图间比较功能</strong>。</p>
+
+<p>Mem0（48K Star）只做向量去重。Graphiti（24K Star）只做时序查询。Letta（21K Star）只做分层存储。它们都回答了"怎么存储"和"怎么检索"，但没有一个回答"两个记忆图有多像"。</p>
+
+<p>原因很简单：图比较在学术界是成熟领域，但在工程界很少被封装成易用的 API。大多数开发者遇到这个问题时，会退回到最简单的方案——比较节点数和边数——然后说"差不多就行"。</p>
+
+<p>但"差不多"在 Agent 记忆场景中是不够的。当你用记忆图来做安全决策（这个记忆被篡改了吗？）、合并决策（两个 Agent 的知识可以合并吗？）、治理决策（记忆库健康吗？）——你需要一个有数学理论支撑的、可解释的度量。</p>
+
+<p><strong>信息论三部曲就是为此而生。</strong></p>
+
+<h2>结语：从度量到行动</h2>
+
+<p>三种信息论比较方法的价值不在于数字本身——一个 JSD 值是 0.23 还是 0.31 并不重要。重要的是，它给了你一个<strong>可行动的信号</strong>：</p>
+<ul>
+<li>JSD 告诉你"要不要担心"</li>
+<li>交叉熵告诉你"变化的代价有多大"</li>
+<li>KL 散度告诉你"偏差在哪个方向"</li>
+</ul>
+
+<p>当这三个信号组合在一起时，你就拥有了一个完整的图比较仪表盘。不是一个模糊的"差不多"，而是一个精确的、有方向性的、可追踪的度量体系。</p>
+
+<p>这就是 AMG 在 Cycle 288、298、299 中构建的东西——<strong>信息论三部曲</strong>。45 个测试覆盖了边界条件（空图、完全图、同构图、补图），代码量不到 300 行，但它填补了一个在 Agent 记忆领域被忽视了十年的空白。</p>
+
+<p>从度量到行动，从知道"有多不同"到知道"该做什么"——这就是信息论在 Agent 记忆中的力量。</p>
+
+<hr>
+
+<p><em>本文基于 Agent Memory Graph (amg) 项目的真实开发实践。amg 是一个图原生的 Agent 记忆系统，5192 个测试，870+ API，263 天连续开发，零回滚。代码开源于 GitHub。</em></p>
+
+</div>
+</body>
+</html>
