@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>主流智能驾驶芯片全景图 · Autonomous Driving SoC Landscape</title>
+<!--
+  Self-contained showcase page for mainstream autonomous-driving SoCs.
+  Data curated from vendor official pages + tech media (updated 2026-07).
+  Key 2026 updates: NVIDIA DRIVE Thor now in production (1000+ INT8 TOPS, Blackwell);
+  Horizon Journey 7 (BPU Riemann arch, 500-700 TOPS); Huawei Ascend 610 (200 dense TOPS, ADS 4.0/5.0);
+  Black Sesame A2000 family (up to 1000 TOPS, self-developed Jiushao NPU).
+  Qualcomm officially uses "dense TOPS"; sparse TOPS ≈ 2× dense TOPS.
+-->
+<style>
+  :root{
+    --bg:#0a0e1a; --bg2:#111827; --card:#161d2e; --card2:#1e2740;
+    --border:#2a3550; --text:#e6edf7; --muted:#8b97b3;
+    --accent:#00ffa3; --accent2:#00b8ff; --warn:#ffb454;
+    /* vendor palette */
+    --nvda:#76b900; --horizon:#d9305d; --huawei:#cf0a2c; --mobileye:#1e88e5;
+    --tesla:#e82127; --qualcomm:#ee3124; --bst:#ff7a00; --houmo:#8b5cf6;
+    --axera:#06b6d4; --siengine:#f59e0b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei",-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(0,255,163,.12), transparent 60%),
+      radial-gradient(1000px 500px at -10% 15%, rgba(0,184,255,.14), transparent 60%),
+      var(--bg);
+    color:var(--text); line-height:1.65; overflow-x:hidden;
+  }
+  .wrap{max-width:1260px;margin:0 auto;padding:0 24px}
+
+  /* ---------- Hero ---------- */
+  header.hero{padding:88px 0 48px;text-align:center}
+  .badge{display:inline-block;padding:6px 16px;border:1px solid var(--border);
+    border-radius:999px;background:rgba(255,255,255,.03);color:var(--accent);
+    font-size:13px;letter-spacing:.5px;margin-bottom:22px}
+  h1{font-size:clamp(30px,5vw,54px);font-weight:800;letter-spacing:-1px;line-height:1.15;
+    background:linear-gradient(120deg,#fff 15%,var(--accent) 50%,var(--accent2) 90%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .sub{color:var(--muted);font-size:17px;margin-top:16px;max-width:760px;margin-left:auto;margin-right:auto}
+  .meta-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:30px}
+  .meta-row span{font-size:13px;color:var(--muted);padding:6px 14px;background:var(--card);
+    border:1px solid var(--border);border-radius:8px}
+  .meta-row span b{color:var(--accent);font-weight:600}
+
+  /* ---------- Section ---------- */
+  section{padding:64px 0}
+  .sec-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:32px;flex-wrap:wrap;gap:12px}
+  .sec-head h2{font-size:30px;font-weight:700;letter-spacing:-.5px}
+  .sec-head h2 .bar{display:inline-block;width:6px;height:26px;
+    background:linear-gradient(var(--accent),var(--accent2));border-radius:3px;vertical-align:-5px;margin-right:12px}
+  .sec-head p{color:var(--muted);font-size:14px;max-width:560px;text-align:right}
+
+  /* ---------- TOPS ranking bars ---------- */
+  .rank-box{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:30px}
+  .rank-row{display:grid;grid-template-columns:38px 150px 1fr 110px;align-items:center;gap:14px;margin-bottom:14px}
+  .rank-row .no{font-weight:800;color:var(--muted);text-align:center;font-size:18px}
+  .rank-row .no.top{color:var(--accent)}
+  .rank-row .name{font-weight:600;font-size:14px}
+  .rank-row .name small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:2px}
+  .rank-track{height:28px;background:rgba(255,255,255,.04);border-radius:14px;overflow:hidden;position:relative}
+  .rank-fill{height:100%;border-radius:14px;display:flex;align-items:center;padding-left:12px;
+    font-size:12px;font-weight:700;color:#06121f;transition:width 1.1s cubic-bezier(.2,.8,.2,1);white-space:nowrap}
+  .rank-row .val{text-align:right;font-weight:800;font-size:16px}
+
+  /* ---------- Tier segments ---------- */
+  .tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .tier{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:26px;position:relative;overflow:hidden}
+  .tier::before{content:"";position:absolute;top:0;left:0;right:0;height:4px}
+  .tier.entry::before{background:linear-gradient(90deg,#34d399,#10b981)}
+  .tier.mid::before{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+  .tier.high::before{background:linear-gradient(90deg,#f87171,#ef4444)}
+  .tier h3{font-size:20px;font-weight:800;margin-bottom:6px}
+  .tier .range{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .tier .range b{color:var(--text)}
+  .tier ul{list-style:none;display:flex;flex-direction:column;gap:10px}
+  .tier li{display:flex;align-items:center;gap:10px;font-size:13.5px}
+  .tier li .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .tier li .chip-name{font-weight:600}
+  .tier li .chip-tops{color:var(--muted);font-size:12px;margin-left:auto}
+
+  /* ---------- Filter ---------- */
+  .filter{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px;align-items:center}
+  .filter .label{color:var(--muted);font-size:13px;margin-right:4px}
+  .chip-filter{padding:7px 16px;border-radius:999px;border:1px solid var(--border);background:var(--card);
+    color:var(--text);font-size:13px;cursor:pointer;transition:.2s;font-family:inherit;display:inline-flex;align-items:center;gap:7px}
+  .chip-filter .fdot{width:9px;height:9px;border-radius:50%}
+  .chip-filter:hover{border-color:var(--accent2)}
+  .chip-filter.active{background:rgba(0,255,163,.1);border-color:var(--accent);color:var(--accent)}
+
+  /* ---------- Cards grid ---------- */
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:22px;
+    position:relative;overflow:hidden;transition:transform .25s,border-color .25s,box-shadow .25s;
+    border-top:3px solid var(--vendor)}
+  .card::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,transparent 65%,rgba(255,255,255,.03));pointer-events:none}
+  .card:hover{transform:translateY(-6px);box-shadow:0 18px 40px -22px var(--vendor)}
+  .card.hidden{display:none}
+  .card .vh{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+  .card .vh .vn{font-size:13px;font-weight:700;color:var(--vendor);letter-spacing:.3px}
+  .card .vh .yr{font-size:11px;color:var(--muted);padding:2px 8px;border:1px solid var(--border);border-radius:6px}
+  .card h3{font-size:21px;font-weight:800;letter-spacing:-.3px}
+  .card .cn{color:var(--muted);font-size:12.5px;margin-bottom:16px}
+  .card .specs{display:flex;flex-direction:column;gap:8px;font-size:13px}
+  .card .specs div{display:flex;gap:8px}
+  .card .specs i{width:64px;flex-shrink:0;color:var(--muted);font-style:normal;font-size:11.5px;padding-top:1px}
+  .card .specs b{font-weight:600;color:var(--text);font-size:12.5px}
+  .card .tops{margin-top:16px;padding-top:14px;border-top:1px dashed var(--border);
+    display:flex;justify-content:space-between;align-items:flex-end}
+  .card .tops .v{font-size:28px;font-weight:800;line-height:1;background:linear-gradient(120deg,var(--vendor),#fff);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .card .tops .v small{font-size:12px;color:var(--muted);-webkit-text-fill-color:var(--muted);font-weight:500;margin-left:2px}
+  .card .tops .tier-tag{font-size:11px;padding:3px 10px;border-radius:6px;font-weight:600;background:rgba(255,255,255,.06)}
+
+  /* ---------- Table ---------- */
+  .table-box{background:var(--card);border:1px solid var(--border);border-radius:18px;overflow:hidden}
+  .tbl-scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:1080px}
+  thead th{background:var(--bg2);color:#fff;font-weight:700;text-align:left;padding:14px 12px;
+    position:sticky;top:0;border-bottom:2px solid var(--accent);white-space:nowrap}
+  tbody td{padding:12px;border-bottom:1px solid var(--border);vertical-align:middle}
+  tbody tr{transition:background .15s}
+  tbody tr:hover{background:rgba(0,255,163,.04)}
+  td.model{font-weight:700;white-space:nowrap}
+  td.model .vd{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:1px;margin-right:7px}
+  td .pill{display:inline-block;padding:2px 9px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(255,255,255,.06)}
+
+  /* ---------- Footnote ---------- */
+  .note-box{background:rgba(255,180,84,.06);border:1px solid rgba(255,180,84,.25);border-radius:14px;
+    padding:20px 24px;margin-top:24px;font-size:13.5px;color:#e6d9c4}
+  .note-box b{color:var(--warn)}
+
+  /* ---------- Footer ---------- */
+  footer{border-top:1px solid var(--border);padding:40px 0 60px;color:var(--muted);font-size:13px}
+  footer .src{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
+  footer .src a{color:var(--accent2);text-decoration:none;padding:4px 10px;border:1px solid var(--border);
+    border-radius:7px;font-size:12px;transition:.2s}
+  footer .src a:hover{background:rgba(0,184,255,.1)}
+
+  @media(max-width:900px){
+    .tiers{grid-template-columns:1fr}
+    .sec-head p{text-align:left}
+    .rank-row{grid-template-columns:30px 110px 1fr 80px;gap:10px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== HERO ===================== -->
+<header class="hero">
+  <div class="wrap">
+    <div class="badge">🧠 Autonomous Driving SoC · 智能驾驶芯片全景</div>
+    <h1>主流智能驾驶芯片全景图</h1>
+    <p class="sub">从 L2 辅助驾驶到 L4 全自动驾驶 —— 横向梳理第三方通用智驾 SoC 与主机厂自研智驾芯片两大阵营，共 14 家厂商 31 款芯片的算力、制程与定位。</p>
+    <div class="meta-row">
+      <span>🏭 覆盖 <b>14 家</b>厂商（两大阵营）</span>
+      <span>🧩 <b>31 款</b>芯片</span>
+      <span>📏 统一 <b>INT8 稠密</b>算力标尺</span>
+      <span>🎯 覆盖 <b>L2 ~ L4</b> 全场景</span>
+    </div>
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:22px;max-width:920px;margin-left:auto;margin-right:auto">
+      <div style="flex:1;min-width:280px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;text-align:left">
+        <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:8px">① 第三方通用智驾 SoC</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">NVIDIA · 高通 · 地平线 · 华为 · Mobileye · 黑芝麻 · 后摩智能 · 芯擎科技 · 爱芯元智</div>
+      </div>
+      <div style="flex:1;min-width:280px;background:var(--card);border:1px solid rgba(255,143,177,.3);border-radius:14px;padding:16px 20px;text-align:left">
+        <div style="font-size:13px;font-weight:700;color:var(--p5);margin-bottom:8px">② 主机厂自研智驾 SoC <span style="font-weight:400;font-size:11px;opacity:.8">（DSA 领域专用架构）</span></div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">特斯拉 · 理想(马赫) · 小鹏(图灵) · 蔚来(神玑) · 比亚迪(璇玑)</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== TOPS RANKING ===================== -->
+<section style="padding-top:20px">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2><span class="bar"></span>AI 算力排行榜（统一 INT8 稠密标尺）</h2>
+      <p>本榜按 <b style="color:var(--accent)">INT8 稠密算力</b>降序排列（工程选型统一标尺）。每行右侧标注<b>精度口径</b>，区分事实值/估算值/规划值/宣传值。车企宣传的 INT4 稀疏峰值已换算或标注，避免跨口径误导。</p>
+    </div>
+    <div class="rank-box" id="rankBox"></div>
+    <p class="bar-note" style="text-align:center;color:var(--muted);font-size:12.5px;margin-top:14px">
+      ⚠️ Mobileye 用自有 <b>DL TOPS</b> 体系（不可与通用 INT8 直接对标）· 特斯拉 HW4 <b>官方未公布</b>（行业估算）· 征程7为<b>规划目标</b>（规格未冻结）· SA8797 的 1280T 是 <b>INT4 稀疏宣传口径</b>
+    </p>
+  </div>
+</section>
+
+<!-- ===================== TIER SEGMENTS ===================== -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2><span class="bar"></span>算力档位地图</h2>
+      <p>智驾芯片按算力大致分为三档，对应不同的智能化能力边界。</p>
+    </div>
+    <div class="tiers">
+      <div class="tier entry">
+        <h3>🟢 入门档 · L2 基础辅助</h3>
+        <div class="range">算力区间 <b>&lt; 30 TOPS</b></div>
+        <ul>
+          <li><span class="dot" style="background:var(--horizon)"></span><span class="chip-name">地平线 征程3</span><span class="chip-tops">5 TOPS</span></li>
+          <li><span class="dot" style="background:var(--mobileye)"></span><span class="chip-name">Mobileye EyeQ5</span><span class="chip-tops">24 TOPS</span></li>
+          <li><span class="dot" style="background:var(--mobileye)"></span><span class="chip-name">Mobileye EyeQ6 Light</span><span class="chip-tops">5 TOPS</span></li>
+          <li><span class="dot" style="background:var(--bst)"></span><span class="chip-name">黑芝麻 A1000L</span><span class="chip-tops">16 TOPS</span></li>
+          <li><span class="dot" style="background:var(--axera)"></span><span class="chip-name">爱芯元智 AX650N</span><span class="chip-tops">10.8 TOPS</span></li>
+        </ul>
+      </div>
+      <div class="tier mid">
+        <h3>🟡 中高阶档 · L2+ 高速/城区 NOA</h3>
+        <div class="range">算力区间 <b>30 ~ 250 TOPS</b></div>
+        <ul>
+          <li><span class="dot" style="background:var(--nvda)"></span><span class="chip-name">NVIDIA Orin-Y</span><span class="chip-tops">≈50~70 T(未公开)</span></li>
+          <li><span class="dot" style="background:var(--nvda)"></span><span class="chip-name">NVIDIA Orin-N</span><span class="chip-tops">84 TOPS</span></li>
+          <li><span class="dot" style="background:var(--mobileye)"></span><span class="chip-name">Mobileye EyeQ6 High</span><span class="chip-tops">34 DL TOPS</span></li>
+          <li><span class="dot" style="background:var(--mobileye)"></span><span class="chip-name">Mobileye EyeQ Ultra</span><span class="chip-tops">176 DL TOPS</span></li>
+          <li><span class="dot" style="background:var(--huawei)"></span><span class="chip-name">华为 昇腾610</span><span class="chip-tops">200 dense TOPS</span></li>
+          <li><span class="dot" style="background:var(--tesla)"></span><span class="chip-name">特斯拉 FSD HW3</span><span class="chip-tops">144 TOPS(双芯)</span></li>
+          <li><span class="dot" style="background:var(--horizon)"></span><span class="chip-name">地平线 征程5</span><span class="chip-tops">128 TOPS</span></li>
+          <li><span class="dot" style="background:var(--horizon)"></span><span class="chip-name">地平线 征程6M</span><span class="chip-tops">128 TOPS(城区)</span></li>
+          <li><span class="dot" style="background:var(--bst)"></span><span class="chip-name">黑芝麻 A1000 Pro</span><span class="chip-tops">106 TOPS</span></li>
+          <li><span class="dot" style="background:var(--qualcomm)"></span><span class="chip-name">高通 SA8650P</span><span class="chip-tops">100 dense TOPS</span></li>
+        </ul>
+        <p style="font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.6">
+          💡 <b>Mobileye EyeQ Ultra</b> 数值虽176落在本档，但采用自有 DL TOPS 体系（不可与通用 INT8 直接对标），架构能效特殊，<b>原生支持 L4</b>，实际能力超数值表现，故仍属旗舰级定位。<b>昇腾610</b> 同理，200 dense TOPS（华为口径≈400稀疏等效）是 ADS 4.0/5.0 主力算力底座。
+        </p>
+      </div>
+      <div class="tier high">
+        <h3>🔴 旗舰档 · L3/L4 全场景（INT8 稠密 &gt; 250 TOPS）</h3>
+        <div class="range">算力区间 <b>&gt; 250 TOPS（INT8 稠密工程标尺）</b></div>
+        <ul>
+          <li><span class="dot" style="background:var(--nvda)"></span><span class="chip-name">NVIDIA Orin-X</span><span class="chip-tops">254 INT8稠密</span></li>
+          <li><span class="dot" style="background:var(--houmo)"></span><span class="chip-name">后摩 H30</span><span class="chip-tops">256 INT8物理稠密</span></li>
+          <li><span class="dot" style="background:var(--siengine)"></span><span class="chip-name">芯擎 AD1000</span><span class="chip-tops">512 INT8</span></li>
+          <li><span class="dot" style="background:var(--tesla)"></span><span class="chip-name">特斯拉 FSD HW4</span><span class="chip-tops">≈500(双芯,未公布)</span></li>
+          <li><span class="dot" style="background:var(--horizon)"></span><span class="chip-name">地平线 征程6P</span><span class="chip-tops">560 INT8</span></li>
+          <li><span class="dot" style="background:var(--nio)"></span><span class="chip-name">蔚来 神玑 NX9031 <small style="color:var(--p5)">[自研]</small></span><span class="chip-tops">估算600~700(DSA)</span></li>
+          <li><span class="dot" style="background:var(--byd)"></span><span class="chip-name">比亚迪 璇玑 A3 <small style="color:var(--p5)">[自研]</small></span><span class="chip-tops">≈700(三芯>2100T)</span></li>
+          <li><span class="dot" style="background:var(--qualcomm)"></span><span class="chip-name">高通 SA8797 Ride Elite</span><span class="chip-tops">≈700 INT8稠密</span></li>
+          <li><span class="dot" style="background:var(--xpeng)"></span><span class="chip-name">小鹏 图灵 Turing <small style="color:var(--p5)">[自研]</small></span><span class="chip-tops">≈750(DSA)</span></li>
+          <li><span class="dot" style="background:var(--horizon)"></span><span class="chip-name">地平线 征程7</span><span class="chip-tops">目标500~700(规划)</span></li>
+          <li><span class="dot" style="background:var(--nvda)"></span><span class="chip-name">NVIDIA DRIVE Thor</span><span class="chip-tops">1000 INT8稠密</span></li>
+          <li><span class="dot" style="background:var(--bst)"></span><span class="chip-name">黑芝麻 A2000X</span><span class="chip-tops">1000等效(口径未公开)</span></li>
+          <li><span class="dot" style="background:var(--lixiang)"></span><span class="chip-name">理想 马赫 M100 <small style="color:var(--p5)">[自研]</small></span><span class="chip-tops">标称1280(动态数据流)</span></li>
+          <li><span class="dot" style="background:var(--tesla)"></span><span class="chip-name">特斯拉 FSD AI5</span><span class="chip-tops">2000~2500(传闻,4-5×HW4)</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CARDS ===================== -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2><span class="bar"></span>芯片详情卡片</h2>
+      <p>点击下方厂商标签筛选；悬停卡片查看高亮。</p>
+    </div>
+
+    <div class="filter" id="filter"></div>
+    <div class="cards" id="cards"></div>
+  </div>
+</section>
+
+<!-- ===================== FULL TABLE ===================== -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2><span class="bar"></span>完整参数对比表</h2>
+      <p>按厂商分组，横向滑动查看全部字段。</p>
+    </div>
+    <div class="table-box">
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>芯片型号</th><th>厂商</th><th>年份</th><th>制程</th>
+              <th>AI算力(INT8)</th><th>CPU</th><th>功耗</th>
+              <th>智驾定位</th><th>典型搭载车型/客户</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="note-box">
+      <b>⚠️ 算力口径与数据性质提示（工程选型必读）</b>
+      <div style="margin-top:12px;font-size:13px;line-height:1.8">
+        <b>1. 精度口径不统一：</b>本全景图统一采用 <b style="color:var(--green)">INT8 稠密</b>作为排行榜与档位划分的工程标尺。
+        <ul style="margin:8px 0 8px 20px;font-size:12.5px;color:#e6d9c4">
+          <li><b>高通</b>：官方用 dense TOPS，sparse ≈ 2×dense；SA8797 的「1280T」是 <b>INT4 稀疏</b>宣传口径，工程标尺应为 ≈700T INT8 稠密</li>
+          <li><b>NVIDIA</b>：多用稠密 INT8（Thor 另有 2000 FP4 FLOPS 低精度口径）</li>
+          <li><b>Mobileye</b>：自有 <b>DL TOPS</b> 体系，<b>不可</b>与通用 NPU INT8 直接对标</li>
+          <li><b>后摩 H30</b>：256T 为 <b>INT8 物理稠密</b>（存算一体，非稀疏宣传）</li>
+          <li><b>黑芝麻 A2000X</b>：1000T 为厂商标称<b>等效算力</b>，精度定义未公开</li>
+        </ul>
+        <b style="color:var(--gold)">→ 跨厂商算力数值不能简单直接比较</b>，需结合能效比(TOPS/W)、算法适配度与实际路测综合评估。
+      </div>
+
+      <div style="margin-top:16px;padding-top:14px;border-top:1px dashed rgba(255,180,84,.3);font-size:13px;line-height:1.8">
+        <b>2. 数据性质区分（本图严格标注）：</b>
+        <ul style="margin:8px 0 0 20px;font-size:12.5px;color:#e6d9c4">
+          <li>🟢 <b>事实值</b>（官方公布）：Orin-X 254、昇腾610 200、SA8650P 100、AD1000 512、特斯拉HW3(单芯72/双芯144) 等</li>
+          <li>🟡 <b>估算值</b>（官方未公布，行业拆解）：特斯拉 <b>HW4</b>（SemiAnalysis拆解:单芯3×NPU≈121.65T，双芯系统≈500T）、Orin-Y（传闻 50~70T）</li>
+          <li>🔵 <b>规划值/传闻</b>（规格未冻结）：地平线征程7（目标500~700T，2027量产）、特斯拉 <b>AI5</b>（传闻2000~2500T，台积电3nm，2026量产，马斯克称4-5×HW4）</li>
+          <li>🟣 <b>宣传值</b>（非工程标尺）：SA8797「1280T」= INT4 稀疏峰值</li>
+        </ul>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;margin-left:20px">
+          💡 <b>特斯拉特殊性</b>：HW3/HW4 均为<b>双芯片冗余架构</b>（两颗FSD芯片做安全冗余），本图算力按<b>系统总算力</b>呈现以与其他单芯片方案公平对比；特斯拉<b>官方从不公布算力</b>，所有数值均为行业拆解/传闻。
+        </p>
+      </div>
+
+      <div style="margin-top:16px;padding:12px 16px;background:rgba(255,143,177,.08);border:1px solid rgba(255,143,177,.25);border-radius:10px;font-size:12.5px;line-height:1.7">
+        <b style="color:var(--p5)">📌 重要提醒（SA8397P 功能边界）：</b>
+        SA8397P 为<b>座舱 SKU</b>，即使硬件具备完整 NPU，授权层面<b>不支持</b>高阶外部感知、L2+自动驾驶决策，仅用于座舱 AI、DMS/OMS、360环视可视化；<b>不可当作智驾芯片使用</b>。智驾需求须选 SA8797P（同晶圆全开版）。
+      </div>
+
+      <div style="margin-top:16px;padding:16px 18px;background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.3);border-radius:10px;font-size:12.5px;line-height:1.8">
+        <b style="color:var(--accent2)">🚨 主机厂自研 DSA 架构风险提示（重点）：</b>
+        <div style="margin-top:8px">
+          小鹏<b>图灵</b>、理想<b>马赫 M100</b>、蔚来<b>神玑</b>、比亚迪<b>璇玑 A3</b>、特斯拉 <b>FSD</b> 属于车企<b>自研领域专用 AI 架构（DSA）</b>。
+          其算力设计思路、推理调度机制与英伟达/高通/地平线的<b>通用 NPU 存在本质区别</b>：
+          <ul style="margin:6px 0 0 20px;font-size:12px;color:#dcd6f0">
+            <li>理想马赫 M100 采用<b>动态数据流架构</b>（摒弃冯诺依曼），算力利用率 &gt;82%，标称 1280T 但<b>不可与通用 INT8 稠密直接横比</b></li>
+            <li>小鹏图灵、比亚迪璇玑等均针对<b>自家算法栈深度优化</b>，纸面 TOPS 不能简单等同于通用 SoC 算力</li>
+            <li>实际性能高度依赖<b>自研算法栈</b>，脱离车企自家软件生态谈算力无意义</li>
+          </ul>
+        </div>
+        <div style="margin-top:12px;padding-top:10px;border-top:1px dashed rgba(124,92,255,.3)">
+          <b>纳入/不纳入规则：</b>
+          <span style="color:var(--green)">✅ 纳入</span>：主机厂<b>全资自研</b>、用于自身车型智驾主计算芯片（特斯拉/理想/小鹏/蔚来/比亚迪）
+          <span style="margin-left:12px;color:#ff8b8b">❌ 不纳入</span>：主机厂<b>投资参股</b>半导体公司（吉利芯擎属独立半导体公司、已在本表；地平线等第三方同理）
+        </div>
+      </div>
+
+      <span style="display:block;margin-top:10px;font-size:12px;opacity:.85">数据来源：高通 OnQ 官方博客 · NVIDIA 官方 · 各车企发布会 · 芯擎科技 · Mobileye · 2026 行业拆解报告</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="wrap">
+    <p>© 2026 · 主流智能驾驶芯片全景整理。本页为学习/梳理用途，算力等参数以各厂商官方为准。</p>
+    <div class="src">
+      <a href="https://www.nvidia.cn/solutions/autonomous-vehicles/in-vehicle-computing/" target="_blank">NVIDIA 车载计算</a>
+      <a href="https://www.horizon.auto/solutions/horizon-journey" target="_blank">地平线征程</a>
+      <a href="https://www.mobileye.com/" target="_blank">Mobileye 官方</a>
+      <a href="https://www.qualcomm.com/automotive" target="_blank">高通汽车</a>
+      <a href="https://www.blacksesame.com/" target="_blank">黑芝麻智能</a>
+      <a href="https://www.houmoai.com/" target="_blank">后摩智能</a>
+      <a href="https://www.siengine.com/" target="_blank">芯擎科技</a>
+      <a href="https://www.axera-tech.com/" target="_blank">爱芯元智</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ===== Vendor metadata =====
+const VENDORS = {
+  // ---- 第三方通用智驾 SoC 厂商 ----
+  nvidia:   {name:"NVIDIA 英伟达", color:"#76b900", type:"third"},
+  horizon:  {name:"地平线",       color:"#d9305d", type:"third"},
+  huawei:   {name:"华为",         color:"#cf0a2c", type:"third"},
+  mobileye: {name:"Mobileye",     color:"#1e88e5", type:"third"},
+  qualcomm: {name:"高通",         color:"#ee3124", type:"third"},
+  bst:      {name:"黑芝麻",       color:"#ff7a00", type:"third"},
+  houmo:    {name:"后摩智能",     color:"#8b5cf6", type:"third"},
+  axera:    {name:"爱芯元智",     color:"#06b6d4", type:"third"},
+  siengine: {name:"芯擎科技",     color:"#f59e0b", type:"third"},
+  // ---- 主机厂自研智驾 SoC ----
+  tesla:    {name:"特斯拉",       color:"#e82127", type:"oem"},
+  lixiang:  {name:"理想汽车",     color:"#22d3ee", type:"oem"},
+  xpeng:    {name:"小鹏汽车",     color:"#10b981", type:"oem"},
+  nio:      {name:"蔚来",         color:"#3b82f6", type:"oem"},
+  byd:      {name:"比亚迪",       color:"#a78bfa", type:"oem"},
+};
+
+// ===== Master dataset =====
+// tier: entry / mid / high
+const CHIPS = [
+  // NVIDIA
+  {model:"Xavier", v:"nvidia", year:"2018", process:"12nm", tops:30, topsStd:30, topsTag:"30 INT8稠密",
+   cpu:"8核 Carmel ARM v8.2", power:"30W", tier:"mid",
+   scene:"早期智驾平台(小鹏P7等)", note:"NVIDIA 首款车载 SoC,已被 Orin 取代"},
+  {model:"Orin-N", v:"nvidia", year:"2022", process:"7nm", tops:84, topsStd:84, topsTag:"84 INT8稠密",
+   cpu:"12核 Cortex-A78AE", power:"~35W", tier:"mid",
+   scene:"中算力 NOA(蔚来ET5/ET7入门版)", note:"Orin 的精简版,性价比之选"},
+  {model:"Orin-Y", v:"nvidia", year:"2022", process:"7nm", tops:60, topsStd:60, topsTag:"≈50~70 INT8稠密(厂商未公开精确值)",
+   cpu:"Cortex-A78AE(核心数裁剪)", power:"~30W", tier:"entry",
+   scene:"入门级 ADAS(基础L2:车道保持/AEB/ACC)",
+   note:"Orin-X 的降本平替版;英伟达从未公开车载Orin-Y精确TOPS,行业传闻区间50~70T,共享同架构靠核心数/频率区分"},
+  {model:"Orin-X", v:"nvidia", year:"2022", process:"7nm", tops:254, topsStd:254, topsTag:"254 INT8稠密",
+   cpu:"12核 Cortex-A78AE", power:"~60W", tier:"high",
+   scene:"高阶智驾主流(蔚来/小鹏/理想/小米)", note:"当前市场占有率最高的旗舰芯片,双芯508 TOPS"},
+  {model:"DRIVE Thor", v:"nvidia", year:"2025量产", process:"台积电4nm", tops:1000, topsStd:1000, topsTag:"1000+ INT8稠密(另2000 FP4 FLOPS)",
+   cpu:"Grace CPU + Blackwell GPU", power:"未公开", tier:"high",
+   scene:"下一代中央计算旗舰(比亚迪/理想/智己/极越/吉利/长城)",
+   note:"官方 1000+ INT8 稠密 TOPS(另 2000 FP4 FLOPS为低精度),Blackwell架构,吉利双Thor达1400 TOPS,2026大规模上车"},
+
+  // Horizon
+  {model:"征程3 (J3)", v:"horizon", year:"2020", process:"16nm", tops:5, topsStd:5, topsTag:"5 INT8",
+   cpu:"4核 Cortex-A35", power:"~5W", tier:"entry",
+   scene:"入门 ADAS/行泊一体(理想ONE/长安)", note:"性价比标杆,主打能效"},
+  {model:"征程5 (J5)", v:"horizon", year:"2022", process:"16nm", tops:128, topsStd:128, topsTag:"128 INT8",
+   cpu:"8核 Cortex-A55", power:"~15W", tier:"mid",
+   scene:"高速 NOA(理想L8/L9/比亚迪)", note:"能效比突出,CNN 时代主力"},
+  {model:"征程6M (J6M)", v:"horizon", year:"2024", process:"7nm", tops:128, topsStd:128, topsTag:"128 INT8(BPU纳什)",
+   cpu:"137K DMIPS", power:"未公开", tier:"mid",
+   scene:"普惠级城区NOA(15-25万级车型)",
+   note:"征程6系列主力款,算力与J5持平(128T)但CPU/架构大升级;BPU纳什架构,单芯城区ADAS已量产,主打性价比"},
+  {model:"征程6P (J6P)", v:"horizon", year:"2024", process:"7nm", tops:560, topsStd:560, topsTag:"560 INT8(BPU纳什)",
+   cpu:"18核 Cortex-A78E", power:"未公开", tier:"high",
+   scene:"城区高阶 NOA(2025量产)", note:"四芯合一,BPU纳什架构,原生支持 Transformer"},
+  {model:"征程7 (J7/J7P)", v:"horizon", year:"2027量产(规划)", process:"未公开", tops:700, topsStd:600, topsTag:"目标500~700 INT8(规划,规格未冻结)",
+   cpu:"未公开", power:"未公开", tier:"high",
+   scene:"下一代旗舰(对标 Thor-X)",
+   note:"【预研/规划阶段】全新BPU黎曼架构,J7目标500~700 TOPS,J7P目标超Thor-X(1000T);2027量产,规格尚未冻结"},
+
+  // Huawei (Ascend + MDC)
+  {model:"昇腾610", v:"huawei", year:"2020", process:"7nm", tops:200, topsStd:200, topsTag:"200 INT8稠密(≈400稀疏等效)",
+   cpu:"达芬奇架构 NPU", power:"未公开", tier:"high",
+   scene:"华为 ADS 4.0/5.0(问界M9/尊界S800)",
+   note:"200 dense TOPS(华为口径,≈400 sparse等效),已搭载华为乾崑智驾主力方案"},
+
+  // Mobileye —— 自有 DL TOPS 体系,与通用NPU INT8不能直接对标
+  {model:"EyeQ5", v:"mobileye", year:"2018", process:"7nm", tops:24, topsStd:24, topsTag:"24 DL TOPS(Mobileye自有体系)",
+   cpu:"多核 CPU", power:"~5W", tier:"entry",
+   scene:"L2/L3 ADAS(极氪001双芯)", note:"Mobileye 黑盒模式代表作;DL TOPS不可与通用INT8直接横比"},
+  {model:"EyeQ6 Light", v:"mobileye", year:"2023", process:"7nm", tops:5, topsStd:5, topsTag:"5 DL TOPS(Mobileye自有体系)",
+   cpu:"ARM", power:"3W", tier:"entry",
+   scene:"入门 ADAS", note:"EyeQ4 的升级,主打低功耗"},
+  {model:"EyeQ6 High", v:"mobileye", year:"2024", process:"7nm", tops:34, topsStd:34, topsTag:"34 DL TOPS(Mobileye自有体系)",
+   cpu:"多核 CPU + PMA", power:"未公开", tier:"mid",
+   scene:"L2+ 辅助驾驶(2026量产17款)",
+   note:"官方确认 34 DL TOPS(INT8),含 PMA 可编程宏阵列,Mobileye 当前量产主力"},
+  {model:"EyeQ Ultra", v:"mobileye", year:"2025量产", process:"5nm", tops:176, topsStd:176, topsTag:"176 DL TOPS(Mobileye自有体系,≈10×EyeQ5)",
+   cpu:"12核24线程", power:"未公开", tier:"mid",
+   scene:"L4 自动驾驶/Chauffeur",
+   note:"Mobileye算力天花板;⚠️ DL TOPS体系不可与通用INT8直接对标,数值虽176但架构能效特殊,原生支持L4,实际能力超数值表现"},
+
+  // Tesla —— 自研FSD芯片,双芯冗余架构;官方从不公布算力,以下为行业拆解
+  {model:"FSD HW3", v:"tesla", year:"2019", process:"三星14nm", tops:144, topsStd:144, topsTag:"144 INT8(双芯冗余,单芯72)",
+   cpu:"12核 Cortex-A72 @2.2GHz", power:"~72W(单芯)", tier:"mid",
+   scene:"特斯拉全系(2019-2023)",
+   note:"特斯拉自研NPU;单芯片2×NPU@2GHz=72T,双芯片冗余架构总算力144T;LPDDR4;针对L4/L5设计"},
+  {model:"FSD HW4 (AI4)", v:"tesla", year:"2023", process:"三星7nm", tops:500, topsStd:500, topsTag:"≈500 INT8(双芯估算,官方未公布)",
+   cpu:"20核 三星M5架构 @2.35GHz", power:"~100W(单芯)", tier:"high",
+   scene:"特斯拉新款 Model 3/Y/S/X/Cybertruck",
+   note:"⚠️特斯拉从未官方公布HW4算力;SemiAnalysis拆解:单芯片3×NPU@2.2GHz≈121.65T,双芯系统≈500T;内存升级LPDDR4→GDDR6,带宽大增;新增HD雷达/更多摄像头;初期靠模拟HW3运行"},
+  {model:"FSD AI5 (HW5)", v:"tesla", year:"2026量产", process:"台积电3nm", tops:2500, topsStd:2500, topsTag:"2000~2500 INT8(传闻,4-5×HW4)",
+   cpu:"未公开(大幅升级)", power:"未公开", tier:"high",
+   scene:"特斯拉下一代FSD计算机(2026量产)",
+   note:"⚠️规格均来自传闻/泄露,非官方确认;马斯克称'惊人的设计',较HW4快4-5倍;台积电3nm(N3),~192GB LPDDR5X,带宽~1.15TB/s;已tape out,2026量产;目标无监督FSD"},
+
+  // Qualcomm Ride
+  {model:"SA8650P (Ride)", v:"qualcomm", year:"2024", process:"5nm", tops:100, topsStd:100, topsTag:"100 INT8稠密(=200稀疏)",
+   cpu:"8核 (230K DMIPS)", power:"未公开", tier:"mid",
+   scene:"中算力 NOA(零跑/红旗/丰田)", note:"官方确认 100 dense TOPS(=200 sparse),对标 Orin-N"},
+  {model:"SA8797 (Ride Elite)", v:"qualcomm", year:"2026量产", process:"台积电N4P", tops:700, topsStd:700, topsTag:"≈700 INT8稠密 / 1280为INT4稀疏(宣传口径)",
+   cpu:"Oryon 16/18核 · 560K DMIPS", power:"未公开", tier:"high",
+   scene:"舱驾融合旗舰(零跑D双芯/理想规划)",
+   note:"⚠️ INT8稠密≈700T(工程选型标尺);车企宣传1280T是INT4稀疏理论峰值,非同口径,不能与8397的320T(INT8稠密)直接比;支持端到端Transformer+VLA"},
+
+  // Black Sesame
+  {model:"A1000L", v:"bst", year:"2022", process:"16nm", tops:16, topsStd:16, topsTag:"16 INT8",
+   cpu:"6核 Cortex-A55", power:"未公开", tier:"entry",
+   scene:"L2 单SoC行泊一体", note:"华山二号入门款"},
+  {model:"A1000", v:"bst", year:"2022", process:"16nm", tops:58, topsStd:58, topsTag:"58 INT8",
+   cpu:"8核 Cortex-A55", power:"~18W", tier:"mid",
+   scene:"L2+/L3 行泊一体(领克08)", note:"系统 ASIL-D,双芯116 TOPS"},
+  {model:"A1000 Pro", v:"bst", year:"2023", process:"16nm", tops:106, topsStd:106, topsTag:"106 INT8(INT4达196)",
+   cpu:"16核 ARM v8", power:"~25W", tier:"mid",
+   scene:"L3单芯/L4多芯", note:"INT4 达 196 TOPS,支持20路摄像头"},
+  {model:"华山 A2000 家族", v:"bst", year:"2026量产", process:"7nm级", tops:1000, topsStd:1000, topsTag:"标称1000等效(精度定义未公开)",
+   cpu:"九韶 NPU(自研)", power:"未公开", tier:"high",
+   scene:"L3/L4 + 具身智能(2026量产)",
+   note:"含 N/L/U/X 四款,单芯片200~1000TOPS;⚠️ 厂商标称等效算力,未严格定义稠密/稀疏与精度,跨厂商对比仅供参考"},
+
+  // Houmo
+  {model:"鸿途 H30", v:"houmo", year:"2023", process:"台积电12nm", tops:256, topsStd:256, topsTag:"256 INT8物理稠密(存算一体,非稀疏)",
+   cpu:"ARM", power:"~35W", tier:"high",
+   scene:"L2+~L4 智驾", note:"中国首款量产存算一体智驾芯片;256T为INT8物理稠密算力(非稀疏宣传),能效比突出"},
+
+  // Axera
+  {model:"AX650N", v:"axera", year:"2022", process:"未公开", tops:10.8, topsStd:10.8, topsTag:"10.8 INT8(INT4达43.2)",
+   cpu:"8核 Cortex-A55", power:"低功耗", tier:"entry",
+   scene:"边缘AI/智驾感知", note:"INT4 达 43.2 TOPS,支持8K ISP"},
+
+  // SiEngine —— AD1000 主型号 512T,AD800 Lite 才是 256T
+  {model:"AD1000 (星辰一号)", v:"siengine", year:"2026量产", process:"7nm车规", tops:512, topsStd:512, topsTag:"512 INT8(AD800 Lite=256)",
+   cpu:"250K DMIPS", power:"未公开", tier:"high",
+   scene:"高阶智驾(2026量产)", note:"官方最新:单颗AD1000星辰一号NPU 512 TOPS;AD800 Lite才是256T;多芯片协同最高2048 TOPS,ASIL-D"},
+
+  // ============================================================
+  // 主机厂自研智驾 SoC —— DSA 领域专用架构,与通用 NPU 不可直接横比
+  // 纳入规则:主机厂全资自研、用于自身车型智驾主计算芯片
+  // 不纳入:主机厂投资参股的半导体公司(芯擎/地平线等)属第三方,已在上方列表
+  // ============================================================
+  {model:"马赫 M100", v:"lixiang", year:"已量产", process:"5nm车规", tops:1280, topsStd:1280, topsTag:"标称1280(自研动态数据流架构,不可对标通用INT8稠密)",
+   cpu:"未公开", power:"未公开", tier:"high",
+   scene:"高阶城区NOA/具身智能L3/L4(新一代L6/L9 Livis)",
+   note:"⚠️全球首款量产动态数据流架构AI芯片,摒弃冯诺依曼架构,专为VLA大模型优化;算力利用率>82%;单芯支持城区NOA,可选双芯面向L3/L4;DSA架构,数值不可与通用NPU直接比"},
+  {model:"图灵 Turing", v:"xpeng", year:"已量产", process:"7nm", tops:750, topsStd:750, topsTag:"≈700~750 INT8(厂商标称,软硬深度耦合)",
+   cpu:"40核异构处理器,双独立ISP", power:"≈30W/颗", tier:"high",
+   scene:"普惠到高端全场景城区NOA(GX/G7 Ultra),已供给大众",
+   note:"⚠️DSA专用架构,原生适配端到端Transformer与VLA;针对XNGP深度优化;支持单/三芯片集群;有效算力显著高于纸面TOPS"},
+  {model:"璇玑 A3", v:"byd", year:"2026量产", process:"4nm车规", tops:700, topsStd:700, topsTag:"≈700 INT8单颗(三芯协同>2100T)",
+   cpu:"16核 CPU,420K DMIPS", power:"未公开", tier:"high",
+   scene:"L3/L4自动驾驶,天神之眼高阶智驾平台底座",
+   note:"⚠️4nm车规自研,ASIL-D;原生支持L3/L4;单颗≈700T,三芯片协同总算力>2100T;比亚迪天神之眼平台"},
+  {model:"神玑 NX9031", v:"nio", year:"已量产", process:"5nm车规", tops:650, topsStd:650, topsTag:"官方未公布(行业估算600~700 INT8)",
+   cpu:"32核异构", power:"未公开", tier:"high",
+   scene:"整车中央计算+高阶智驾(ET9/ES9),支持SkyOS天枢",
+   note:"⚠️5nm车规自研SoC,支撑SkyOS天枢整车操作系统,兼顾智驾与整车控制;蔚来未公开精确稠密算力,600~700T为行业估算;支持单/双芯片方案"},
+];
+
+// ===== Render TOPS ranking (unified INT8 dense standard, with precision tags) =====
+(function(){
+  // Sort by topsStd (INT8 dense engineering standard), not raw tops
+  const ranked = [...CHIPS].filter(c=>c.topsStd>0).sort((a,b)=>b.topsStd-a.topsStd).slice(0,18);
+  const max = Math.max(...ranked.map(c=>c.topsStd));
+  const box = document.getElementById('rankBox');
+  ranked.forEach((c,i)=>{
+    const V = VENDORS[c.v];
+    const pct = Math.max(3, c.topsStd/max*100);
+    // mark OEM self-developed chips with [自研] tag for visual distinction
+    const oemTag = V.type==='oem' ? ' <span style="color:var(--p5);font-size:10px;font-weight:600">[自研]</span>' : '';
+    const row = document.createElement('div');
+    row.className='rank-row';
+    row.innerHTML = `
+      <div class="no ${i<3?'top':''}">${i+1}</div>
+      <div class="name">${c.model}${oemTag}<small>${V.name}</small></div>
+      <div class="rank-track"><div class="rank-fill" data-w="${pct}%"
+        style="width:0;background:linear-gradient(90deg,${V.color},${V.color}aa)">
+        <span style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.topsTag}</span></div></div>
+      <div class="val" style="color:${V.color};font-size:14px">${c.topsStd}+</div>`;
+    box.appendChild(row);
+  });
+  requestAnimationFrame(()=>setTimeout(()=>{
+    box.querySelectorAll('.rank-fill').forEach(f=>f.style.width=f.dataset.w);
+  },150));
+})();
+
+// ===== Render filter + cards =====
+(function(){
+  const filter = document.getElementById('filter');
+  const cards = document.getElementById('cards');
+
+  // "全部" button
+  const allBtn = document.createElement('button');
+  allBtn.className='chip-filter active';
+  allBtn.innerHTML='🌐 全部';
+  allBtn.dataset.v='all';
+  filter.appendChild(allBtn);
+
+  Object.entries(VENDORS).forEach(([key,V])=>{
+    const b=document.createElement('button');
+    b.className='chip-filter';
+    b.dataset.v=key;
+    b.innerHTML=`<span class="fdot" style="background:${V.color}"></span>${V.name}`;
+    filter.appendChild(b);
+  });
+
+  CHIPS.forEach(c=>{
+    const V=VENDORS[c.v];
+    const card=document.createElement('div');
+    card.className='card'; card.dataset.v=c.v;
+    card.style.setProperty('--vendor',V.color);
+    const tierMap={entry:['入门','#34d399'],mid:['中高阶','#fbbf24'],high:['旗舰','#f87171']};
+    const [tn,tc]=tierMap[c.tier];
+    card.innerHTML=`
+      <div class="vh">
+        <div class="vn">${V.name}</div>
+        <div class="yr">${c.year}</div>
+      </div>
+      <h3>${c.model}</h3>
+      <div class="cn">${c.note}</div>
+      <div class="specs">
+        <div><i>制程</i><b>${c.process}</b></div>
+        <div><i>CPU</i><b>${c.cpu}</b></div>
+        <div><i>功耗</i><b>${c.power}</b></div>
+        <div><i>定位</i><b>${c.scene}</b></div>
+      </div>
+      <div class="tops">
+        <div><div class="v">${c.topsStd}<small>TOPS(INT8稠密)</small></div></div>
+        <div class="tier-tag" style="color:${tc}">${tn}档</div>
+      </div>
+      <p style="font-size:11px;color:var(--accent);margin-top:8px;line-height:1.5;border-top:1px dashed var(--border);padding-top:8px">📏 ${c.topsTag}</p>`;
+    cards.appendChild(card);
+  });
+
+  // filter logic
+  filter.addEventListener('click',e=>{
+    const btn=e.target.closest('.chip-filter'); if(!btn) return;
+    filter.querySelectorAll('.chip-filter').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const v=btn.dataset.v;
+    cards.querySelectorAll('.card').forEach(card=>{
+      card.classList.toggle('hidden', v!=='all' && card.dataset.v!==v);
+    });
+  });
+})();
+
+// ===== Render full table =====
+(function(){
+  // Order: third-party first (by vendor), then OEM self-developed
+  const order=['nvidia','horizon','huawei','mobileye','qualcomm','bst','houmo','axera','siengine','tesla','lixiang','xpeng','nio','byd'];
+  const sorted=[...CHIPS].sort((a,b)=>{
+    const d=order.indexOf(a.v)-order.indexOf(b.v);
+    return d!==0?d:b.topsStd-a.topsStd;
+  });
+  const el=document.getElementById('tbody');
+  let lastType=null;
+  sorted.forEach(c=>{
+    const V=VENDORS[c.v];
+    // insert group separator row when switching from third-party to OEM
+    if(lastType!==V.type){
+      lastType=V.type;
+      if(V.type==='oem'){
+        const sep=document.createElement('tr');
+        sep.innerHTML=`<td colspan="9" style="background:rgba(255,143,177,.08);color:var(--p5);font-size:12px;font-weight:700;padding:8px 14px;border-top:1px solid rgba(255,143,177,.25)">🔧 以下为主机厂自研智驾 SoC（DSA 领域专用架构，算力不可与通用 NPU 直接横比）</td>`;
+        el.appendChild(sep);
+      }
+    }
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="model"><span class="vd" style="background:${V.color}"></span>${c.model}</td>
+      <td style="color:${V.color}">${V.name}${V.type==='oem'?' <small style="color:var(--p5)">[自研]</small>':''}</td>
+      <td>${c.year}</td>
+      <td>${c.process}</td>
+      <td><b style="color:var(--accent)">${c.topsTag}</b></td>
+      <td>${c.cpu}</td>
+      <td>${c.power}</td>
+      <td>${c.scene}</td>
+      <td style="color:var(--muted)">${c.note}</td>`;
+    el.appendChild(tr);
+  });
+})();
+</script>
+</body>
+</html>
