@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上下文工程：Prompt Engineering 之后的下一个范式 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>上下文工程：Prompt Engineering 之后的下一个范式</h1>
+        <div class="meta">
+            2026-07-23 · 罗嵩 ·
+            <span class="tag">Context Engineering</span>
+            <span class="tag">AI Agent</span>
+            <span class="tag">LLM</span>
+            <span class="tag">前沿研究</span>
+        </div>
+
+        <blockquote>你精心打磨了 system prompt，调了 47 版 few-shot examples，温度设到 0.3——然后你的 Agent 还是在第 12 步搞砸了。不是因为它不够聪明，而是因为它的上下文窗口里塞满了垃圾。2026 年，研究者们终于说出了那个显而易见的结论：<strong>Agent 不是死于能力不足，而是死于上下文组装失败</strong>。</blockquote>
+
+        <h2>一、一个价值百万美元的问题</h2>
+
+        <p>假设你在构建一个自主编程 Agent。它的任务是：在一个有 300 个文件的项目里修复一个 bug。</p>
+
+        <p>每次 LLM 调用时，你需要把以下信息塞进上下文窗口：</p>
+        <ul>
+            <li>系统指令（"你是一个专业程序员……"）——约 500 token</li>
+            <li>工具描述（文件读取、搜索、终端……）——约 2000 token</li>
+            <li>历史交互（前 11 步的所有操作和结果）——约 15,000 token</li>
+            <li>当前文件内容——约 3000 token</li>
+            <li>搜索结果——约 2000 token</li>
+        </ul>
+
+        <p>看起来还行？但问题在第 12 步爆发了。Agent 突然开始"忘记"它之前看到的关键线索，重复执行已经做过的搜索，甚至回到之前已经放弃的错误路径。</p>
+
+        <p>这不是幻觉，这是<strong>上下文退化</strong>。信息并没有从窗口中消失，但被堆积的历史噪声"淹没"了。就像一个桌子上堆了太多文件——你要找的那份合同还在，但你就是找不到。</p>
+
+        <p>2026 年 7 月，一篇论文直接把这个问题摆在了台面上："AI Agents Do Not Fail Alone: The Context Fails First"。作者的核心论点很直接：</p>
+
+        <blockquote>大多数 Agent 错误不是模型能力问题，而是上下文组装问题。错误的上下文产生错误的推理，错误的推理导致错误的行动。在 Agent 链路中，<strong>上下文是第一个失败的组件</strong>。</blockquote>
+
+        <p>这不是一个孤立的观点。整个 2026 年上半年，arXiv 上以 "Context Engineering" 为关键词的论文出现了井喷——从上下文压缩到前瞻调度，从自主遗忘到权限分离，一个全新的研究方向正在成型。</p>
+
+        <h2>二、从 Prompt Engineering 到 Context Engineering</h2>
+
+        <p>为了理解这个转变，我们先做一个类比。</p>
+
+        <p>Prompt Engineering 就像<strong>写菜谱</strong>——你需要精确描述每一步操作："把鸡蛋打散，加盐 2 克，油温 7 成热，倒入蛋液翻炒 30 秒。"你关心的是：措辞、结构、示例的选择。核心假设是：只要指令足够清晰，模型就能做好。</p>
+
+        <p>Context Engineering 就像<strong>管理整个厨房</strong>——不仅是菜谱（指令），还有食材（数据）、厨具（工具）、厨师之前的尝试（历史）、冰箱里的存货（记忆）、以及隔壁桌客人刚点了什么（环境状态）。你关心的是：在厨师转身就能看到的地方，应该摆什么？</p>
+
+        <p>关键区别在于<strong>动态性</strong>。Prompt 是静态的——写好一次，反复使用。Context 是动态的——每次推理调用时都要重新组装。一个 Agent 在 50 步任务中的第 1 步和第 40 步，需要的上下文完全不同。</p>
+
+        <table>
+            <thead><tr><th>维度</th><th>Prompt Engineering</th><th>Context Engineering</th></tr></thead>
+            <tbody>
+                <tr><td>关注点</td><td>怎么跟模型说话</td><td>模型在每次推理时应该看到什么</td></tr>
+                <tr><td>时间性</td><td>静态（一次写好）</td><td>动态（每次调用重新组装）</td></tr>
+                <tr><td>核心技能</td><td>语言艺术</td><td>系统设计</td></tr>
+                <tr><td>类比</td><td>写菜谱</td><td>管理厨房</td></tr>
+                <tr><td>衡量标准</td><td>单次回答质量</td><td>多步任务成功率</td></tr>
+                <tr><td>失败模式</td><td>回答不好</td><td>上下文退化 → Agent 失控</td></tr>
+            </tbody>
+        </table>
+
+        <p>这个转变不是语义游戏。2026 年 6 月的论文 "From Prompts to Contracts" 指出，企业级 Agent 应用正在经历一次<strong>形式化迁移</strong>：从"靠 prompt 携带行为逻辑"到"用合约定义上下文边界"。这意味着上下文开始有 schema、有审计、有测试——它正在从一个"调参技巧"变成一门工程学科。</p>
+
+        <h2>三、上下文窗口是资源分配问题</h2>
+
+        <p>明确了概念之后，下一个问题是：<strong>怎么管理上下文？</strong></p>
+
+        <p>答案是把它当成一个<strong>资源分配问题</strong>，就像 CPU 调度或内存管理。一个 128K token 的上下文窗口，需要在以下维度分配预算：</p>
+
+        <div class="ascii-art">┌──────────────────────────────────────────────────┐
+│              上下文窗口 Token 预算分配              │
+├──────────┬──────────┬───────────┬──────────────────┤
+│  任务指令  │ Few-shot │  历史交互  │    工具描述       │
+│   ~500    │  ~1000   │  ~10000   │    ~2000         │
+├──────────┼──────────┼───────────┼──────────────────┤
+│  检索结果  │ 工作记忆  │  环境状态  │    安全约束       │
+│   ~3000   │  ~2000   │   ~1000   │     ~500         │
+└──────────┴──────────┴───────────┴──────────────────┘
+       ↕ 剩余空间用于推理过程（CoT 等）↕</div>
+
+        <p>问题在于：这个分配不是固定的。任务刚开始时，历史交互很少，空间充裕；到了第 30 步，历史交互可能占了 80% 的窗口，关键信息被挤出。这就像一个磁盘越来越满——不是没空间了，而是有用的数据被埋在了垃圾下面。</p>
+
+        <p>"Context by Distinct Information"（Pal &amp; Rojkova, 2026.07）提出了一个更激进的观点：<strong>用 token 做内存单位本身就是错误的</strong>。100 个 token 的重复信息应该被压缩为 1 个"信息单元"。他们用 Dirichlet 过程实现了基于信息独特性的工作记忆——不是按 token 数量管理上下文，而是按信息价值管理。</p>
+
+        <p>这个思路跟操作系统从"按块管理内存"演进到"虚拟内存 + 按需换页"的历史如出一辙。</p>
+
+        <h2>四、Agent 应该自己管理上下文</h2>
+
+        <p>早期的上下文管理方案是<strong>被动的</strong>——当上下文窗口快满时，外部系统触发 summarization，把旧历史压缩成摘要。这就像妈妈每天帮你收拾书桌：你不需要操心，但你也不知道她扔了什么。</p>
+
+        <p>2026 年 1 月的 Focus agent 翻转了这个思路。它受到黏菌（<em>Physarum polycephalum</em>）的启发——这种生物会在食物丰富的地方扩展菌丝，在贫瘠的地方收缩。Focus agent 给 LLM 一个 "Knowledge block" 工具，让它<strong>自主决定</strong>：</p>
+        <ul>
+            <li>什么时候把当前交互的关键学习固化到 Knowledge block</li>
+            <li>什么时候主动 withdraw（剪枝）原始交互历史</li>
+            <li>保留什么、遗忘什么</li>
+        </ul>
+
+        <p>实验结果令人振奋：在 SWE-bench Lite 上，Focus 实现了 <strong>22.7% 的 token 减排</strong>（从 14.9M 降到 11.5M），而准确率完全不变（3/5 = 60%）。平均每个任务执行 6.0 次自主压缩，个别实例节省高达 57% 的 token。</p>
+
+        <div class="insight">
+        <strong>核心洞察：</strong>有能力自主管理上下文的模型，不需要外部 summarization 的"家长式管理"。给它工具，让它自己来——效果更好，成本更低。就像人会自然地遗忘不重要的细节、记住关键的教训——你不需要别人帮你清理大脑。
+        </div>
+
+        <p>这个思路在 2026 年 7 月被多个系统进一步验证：</p>
+
+        <h4>Twin Agent：权限分离的上下文压缩</h4>
+        <p>Hu 等人提出的 Twin Agent 使用"双胞胎"架构——低权限 agent 做上下文压缩和过滤，高权限 agent 只看到精炼后的上下文。这是一种安全设计：即使压缩 agent 被注入攻击，也无法影响执行 agent 的核心决策。就像你有一个秘书帮你筛选邮件，但你的秘书看不到你的私人密码。</p>
+
+        <h4>SWE-Pruner Pro：模型已经知道该剪什么</h4>
+        <p>Wang 等人发现代码 LLM 其实"已经知道该 prune 什么"——不需要外部的 pruning 策略，模型内部就能识别哪些上下文是冗余的。论文标题一语双关："The Coder LLM Already Knows What to Prune." 这意味着上下文压缩不需要额外的模型或复杂的 pipeline，只需要给现有模型一个"修剪"工具。</p>
+
+        <h4>CatalogAgent：从 Supervisor 学习注入上下文</h4>
+        <p>CatalogAgent 通过 Supervisor agent 持续监控 Worker agent 的执行模式，把识别到的模式聚合为 "learnings"，然后把这些 learnings 注入到 Worker 的上下文中。这是一种<strong>上下文工程驱动的自我改进</strong>——不修改模型权重，通过动态注入"经验"让 agent 变强。</p>
+
+        <h2>五、前瞻调度：上下文的"指令预取"</h2>
+
+        <p>CPU 有一个经典的优化技术叫<strong>指令预取</strong>（Instruction Prefetch）——在执行当前指令时，提前把接下来几条指令加载到缓存。</p>
+
+        <p>SmoothAgent（Pan et al., 2026.06）把这个思路搬到了 Agent 场景。它提出了 "Lookahead Context Engineering"：</p>
+        <ol>
+            <li>预测未来几步可能需要什么信息</li>
+            <li>提前加载这些信息到上下文</li>
+            <li>如果预测正确，Agent 在后续步骤直接命中"缓存"</li>
+            <li>如果预测错误，回退到按需加载</li>
+        </ol>
+
+        <p>对于 50+ 步的长程任务，这可以显著减少端到端延迟。就像一个有经验的厨师，在炒菜的同时已经把下一步要用的调料拿出来了——而不是等上一步做完了才去翻冰箱。</p>
+
+        <p>更有趣的是，这种前瞻调度和世界模型（World Models）天然互补——世界模型负责"想象下一步会发生什么"，前瞻调度负责"根据想象提前准备上下文"。两者的结合可能是 2026 下半年的重要方向。</p>
+
+        <h2>六、教 Agent "什么时候不做"</h2>
+
+        <p>上下文工程不只是"放什么进来"，还包括"什么时候该停下来"。</p>
+
+        <p>"Agentic Abstention"（Luo et al., 2026.06）研究了一个被忽视的问题：<strong>Agent 知道什么时候该停止行动吗？</strong></p>
+
+        <p>在 WebShop 实验中，研究者发现一个反直觉现象：更大的模型有时在"及时停止"这件事上表现更差。能力强的模型倾向于"多做一点"，结果在已经完成任务的情况下继续操作，反而搞砸了。这就像一个过于勤快的新员工——领导说"做完了"，他非要再"优化一下"，结果把好好的东西改坏了。</p>
+
+        <p>论文提出的 CONVOLVE 方法是一种上下文工程方案：从历史交互轨迹中提取<strong>可复用的停止规则</strong>，注入到当前上下文中。比如："如果搜索结果已经包含目标商品且价格匹配，停止搜索。" 这些规则不是硬编码的 if-else，而是从经验中自然蒸馏出来的。</p>
+
+        <p>这揭示了一个更深的道理：<strong>能力越强的 Agent，越需要上下文工程来约束自己</strong>。不是限制能力，而是给能力一个边界。</p>
+
+        <h2>七、多 Agent 共享上下文：进程间通信问题</h2>
+
+        <p>当我们从单 Agent 走向多 Agent 系统时，上下文工程面临一个新的维度：<strong>Agent 之间应该共享什么上下文？</strong></p>
+
+        <p>"Shared Selective Persistent Memory"（Pedada et al., 2026.07）打破了一个隐含假设——每个 agent 有自己的独立上下文。实际上，在多 Agent 协作中，上下文应该是<strong>选择性共享</strong>的：</p>
+        <ul>
+            <li><strong>广播级</strong>：任务目标、全局约束（所有 agent 都需要）</li>
+            <li><strong>团队级</strong>：子任务状态、共享工具结果（同组 agent 需要）</li>
+            <li><strong>个人级</strong>：具体操作历史、私有推理（单个 agent 独占）</li>
+        </ul>
+
+        <p>这跟操作系统的进程间通信（IPC）极其相似。我们需要为 Agent 设计"上下文通信协议"——谁能看到什么、什么时候能看到、以什么格式看到。</p>
+
+        <div class="highlight">
+        <strong>实践原则：</strong>把 Agent 上下文当作进程地址空间来管理——有共享内存（shared context）、有私有内存（private context）、有消息传递（inter-agent messages）、有信号量（coordination signals）。这不是比喻，这是架构蓝图。
+        </div>
+
+        <h2>八、上下文健康度：Agent 的"体检指标"</h2>
+
+        <p>如果上下文是 Agent 失败的首要原因，那我们应该<strong>监控上下文的健康度</strong>——就像运维团队监控 CPU 利用率和内存使用率一样。</p>
+
+        <p>综合现有研究的发现，我提出以下<strong>上下文健康指标</strong>：</p>
+
+        <table>
+            <thead><tr><th>指标</th><th>定义</th><th>告警阈值</th></tr></thead>
+            <tbody>
+                <tr><td><strong>信噪比</strong></td><td>有效信息 token / 总 token</td><td>&lt; 40%</td></tr>
+                <tr><td><strong>冗余度</strong></td><td>重复信息占比</td><td>&gt; 20%</td></tr>
+                <tr><td><strong>时效性</strong></td><td>最新信息 token / 历史信息 token</td><td>&lt; 15%</td></tr>
+                <tr><td><strong>关键信息覆盖</strong></td><td>任务关键信息在窗口中的比例</td><td>&lt; 90%</td></tr>
+                <tr><td><strong>上下文压力</strong></td><td>已用 token / 总窗口大小</td><td>&gt; 85%</td></tr>
+            </tbody>
+        </table>
+
+        <p>当任何指标越过告警阈值时，系统应该触发上下文压缩、剪枝或扩窗。这比等 Agent 犯错后再调试要高效得多——就像在服务器 CPU 飙到 95% 时告警，而不是等它 OOM 崩溃。</p>
+
+        <h2>九、上下文工程的实践建议</h2>
+
+        <p>说了这么多研究，如果你现在就要改进自己的 Agent 系统，可以做什么？</p>
+
+        <h4>1. 给 Agent 一个 "Knowledge Block" 工具</h4>
+        <p>让 Agent 自己决定何时压缩历史。实现方式：提供一个 <code>consolidate(learnings: str)</code> 工具，Agent 调用后把当前关键发现写入持久化存储，同时清除对应的原始交互历史。Focus agent 已经证明这可以节省 20-50% 的 token。</p>
+
+        <h4>2. 为上下文引入 Schema 标注</h4>
+        <p>不要把所有信息都堆成无差别的文本。给每条上下文信息加元数据：<code>[source=tool_result] [timestamp=step_12] [confidence=high]</code>。这让未来的 pruning 和 compression 决策有据可依。</p>
+
+        <h4>3. 实现"上下文体检"</h4>
+        <p>在每次 LLM 调用前，快速检查上下文健康度。如果信噪比低于 40%，先做一轮压缩再发请求。这比盲目发送 100K token 然后得到低质量回答要划算得多。</p>
+
+        <h4>4. 从历史轨迹提取"停止规则"</h4>
+        <p>CONVOLVE 的思路可以直接落地：分析 Agent 的成功轨迹，提取"什么时候任务其实已经完成了"的信号，注入到未来的上下文中。防止 Agent 过度操作。</p>
+
+        <h4>5. 低权限 Agent 做上下文过滤</h4>
+        <p>参考 Twin Agent 的架构，用一个轻量级 LLM（如 Haiku 级别）做上下文压缩和过滤，核心 Agent 只消费精炼后的上下文。既省钱又安全。</p>
+
+        <h2>结语：上下文是 Agent 的免疫系统</h2>
+
+        <p>回顾整个研究脉络，一个清晰的图景浮现出来：</p>
+
+        <p><strong>模型是大脑，上下文是血液。</strong>大脑再聪明，如果血液里充满了毒素（噪声信息）或者缺少氧气（关键信息），也一样会做出糟糕的决策。</p>
+
+        <p>2026 年的 Context Engineering 研究告诉我们：</p>
+        <ol>
+            <li><strong>上下文失败先于 Agent 失败</strong>——监控上下文健康度可以在问题发生前预警</li>
+            <li><strong>Agent 应该自主管理上下文</strong>——被动 summarization 已经过时，主动压缩才是未来</li>
+            <li><strong>上下文工程正在形式化</strong>——从 prompt 调参走向有 schema、有合约、有审计的工程实践</li>
+            <li><strong>前瞻调度是下一个突破</strong>——预测未来需要什么，比事后补救更高效</li>
+            <li><strong>多 Agent 需要上下文通信协议</strong>——借鉴操作系统 IPC 设计，实现选择性共享</li>
+        </ol>
+
+        <p>如果你正在构建 Agent 系统，现在最值得投入的一件事不是换个更强的模型，而是<strong>把你的上下文工程做好</strong>。一个用 70B 模型但上下文管理优秀的系统，大概率比用 frontier 模型但上下文混乱的系统表现更好。</p>
+
+        <p>这不是直觉，这是 2026 年多项研究的共同结论。</p>
+
+        <hr>
+
+        <p><strong>参考文献：</strong></p>
+        <ul style="font-size: 0.85em; color: #666;">
+            <li>Bousetouane, F. (2026). AI Agents Do Not Fail Alone: The Context Fails First. arXiv:2607.</li>
+            <li>Cheng, Z. et al. (2026). CatalogAgent: A Supervisor-mediated Self-Learning System Enabling Context Engineering. arXiv:2607.</li>
+            <li>Pal, S. &amp; Rojkova, V. (2026). Context by Distinct Information: An Auditable Dirichlet-Process Working Memory. arXiv:2607.</li>
+            <li>Pan, Z. et al. (2026). SmoothAgent: Efficient Long-Horizon LLM-Based Agent Serving with Lookahead Context Engineering. arXiv:2606.</li>
+            <li>Luo, H. et al. (2026). Agentic Abstention: Do Agents Know When to Stop Instead of Act? arXiv:2606.</li>
+            <li>Focus: Active Context Compression (2026). arXiv:2601.07190.</li>
+            <li>Hu, Z. et al. (2026). Twin Agent: Context Residual Compression for Privilege Separated Agents. arXiv:2607.</li>
+            <li>Wang, Y. et al. (2026). SWE-Pruner Pro: The Coder LLM Already Knows What to Prune. arXiv:2607.</li>
+            <li>Ahn, J. &amp; Kim, M. (2026). From Prompts to Contracts: Harness Engineering for Auditable Enterprise LLM Agents. arXiv:2607.</li>
+            <li>Pedada, S. et al. (2026). Shared Selective Persistent Memory for Agentic LLM Systems. arXiv:2607.</li>
+            <li>Nie, J. et al. (2026). TTHE: Test-Time Harness Evolution. arXiv:2607.</li>
+            <li>Sarukkai, V. et al. (2025). Self-Generated In-Context Examples Improve LLM Agents. arXiv:2505.00234.</li>
+        </ul>
+
+        <p style="margin-top: 30px; color: #999; font-size: 0.85em;">本文基于 2026 年 6-7 月 arXiv 上的 12 篇 Context Engineering 相关论文撰写。探索笔记详见 <a href="#">catalyst-research/exploration-notes/2026-07-23-context-engineering.md</a></p>
+    </div>
+</body>
+</html>
