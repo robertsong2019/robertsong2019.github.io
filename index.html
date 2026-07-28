@@ -2738,6 +2738,32 @@
         var viewAllPosts = document.getElementById('viewAllPosts');
         var tipBox = postsList.closest('.card').querySelector('[style*="gray-100"]');
         var postItems = postsList.querySelectorAll('.post-item');
+        var INITIAL_POST_COUNT = 10;
+
+        // Hide posts beyond the initial limit
+        function applyInitialLimit() {
+            var shown = 0;
+            postItems.forEach(function(item) {
+                if (item.classList.contains('hidden-by-search')) return;
+                if (shown >= INITIAL_POST_COUNT) {
+                    item.style.display = 'none';
+                } else {
+                    item.style.display = '';
+                    shown++;
+                }
+            });
+            var countText = viewAllPosts.querySelector('p');
+            if (countText) {
+                countText.textContent = '已展示最新 ' + Math.min(INITIAL_POST_COUNT, postItems.length) + ' 篇随笔，共 ' + postItems.length + ' 篇';
+            }
+        }
+
+        // When searching, show all matches (no limit)
+        function clearDisplayOverrides() {
+            postItems.forEach(function(item) { item.style.display = ''; });
+        }
+
+        applyInitialLimit();
 
         function filterPosts(query) {
             query = query.trim().toLowerCase();
@@ -2751,9 +2777,11 @@
                 noResults.classList.remove('visible');
                 viewAllPosts.style.display = '';
                 if (tipBox) tipBox.style.display = '';
+                applyInitialLimit();
                 return;
             }
 
+            clearDisplayOverrides();
             searchClear.classList.add('visible');
             if (tipBox) tipBox.style.display = 'none';
             viewAllPosts.style.display = 'none';
