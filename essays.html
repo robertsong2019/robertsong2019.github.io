@@ -389,7 +389,7 @@
         <!-- Stats -->
         <div class="stats-bar" id="statsBar">
             <div class="stat-card">
-                <span class="stat-number" id="totalPosts">129</span>
+                <span class="stat-number" id="totalPosts">131</span>
                 <span class="stat-label">篇随笔</span>
             </div>
             <div class="stat-card">
@@ -397,7 +397,7 @@
                 <span class="stat-label">个月份</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number" id="latestDate">2026-07-23</span>
+                <span class="stat-number" id="latestDate">2026-07-30</span>
                 <span class="stat-label">最近更新</span>
             </div>
         </div>
@@ -420,6 +420,27 @@
     <script>
         // Posts data
         const posts = [
+            {
+                date: '2026-07-30',
+                title: '分类器何时该闭嘴：Agent 记忆图分类的拒绝机制与生产安全',
+                excerpt: '所有分类器都有一个危险的默认行为：它们永远会给你一个答案。本文记录 AMG 项目 Cycle 319-320 实现的分类拒绝机制——双阈值后处理层（分数阈值 + 最小间距），任何分类器只需包一层就能获得"我不知道"的能力。30 行核心逻辑，五个生产场景参数建议，附完整 TypeScript 实现。',
+                tags: ['Classification', 'Production Safety', 'Agent Memory', 'Rejection Mechanism'],
+                url: 'posts/classification-rejection-production-safety-2026-07.html'
+            },
+            {
+                date: '2026-07-30',
+                title: 'Agent 上下文的文件系统范式：当记忆从黑盒向量变成可导航的目录树',
+                excerpt: '向量搜索是检索工具，不是组织工具。它能回答"什么是相关的"，但不能回答"我有哪些类别"。探讨把 Agent 上下文组织成可浏览的文件系统，用 ls/tree/find 替代向量检索。三层懒加载设计，token 消耗减少 34-91%。含完整 Python 实现和三种架构的量化对比。',
+                tags: ['Agent Memory', 'File System Paradigm', 'Context Engineering', 'RAG'],
+                url: 'posts/agent-memory-filesystem-paradigm-2026-07.html'
+            },
+            {
+                date: '2026-07-29',
+                title: '节点的信息论价值：用 Leave-One-Out 熵贡献度识别记忆图中的关键节点',
+                excerpt: '所有 Agent 记忆系统都知道节点不是平等的——有些节点是枢纽，删了它会丢失大量上下文。但"知道"和"能量化"之间隔着一道鸿沟。用 Leave-One-Out 方法计算每个节点对图整体信息熵的边际贡献，配合蒙特卡洛扰动鲁棒性分析，构成了一套从描述到诊断的节点级信息论工具。',
+                tags: ['Agent Memory', 'Information Theory', 'Node Importance', 'Entropy'],
+                url: 'posts/entropy-contribution-critical-nodes-2026-07.html'
+            },
             {
                 date: '2026-07-28',
                 title: '信息论三部曲：度量知识图谱相似性的三种方法',

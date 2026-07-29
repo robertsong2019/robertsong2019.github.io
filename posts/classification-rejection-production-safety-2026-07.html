@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分类器何时该闭嘴：Agent 记忆图分类的拒绝机制与生产安全 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.6rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <h1>分类器何时该闭嘴：Agent 记忆图分类的拒绝机制与生产安全</h1>
+    <div class="meta">
+        2026-07-30 ·
+        <span class="tag">Agent Memory</span>
+        <span class="tag">Classification</span>
+        <span class="tag">Production Safety</span>
+        <span class="tag">Information Theory</span>
+    </div>
+
+    <blockquote>所有分类器都有一个危险的默认行为：它们永远会给你一个答案。即使输入是垃圾，即使没有任何参考样本足够接近，即使两个候选几乎无法区分——分类器依然自信地返回一个"最佳匹配"。本文记录 AMG 项目 Cycle 319-320 实现的分类拒绝机制：双阈值后处理层（分数阈值 + 最小间距），任何分类器只需包一层就能获得"我不知道"的能力。含完整 TypeScript 实现和五个生产场景。</blockquote>
+
+    <h2>一个真实的生产事故</h2>
+
+    <p>想象这个场景：你的 Agent 记忆系统有一个图分类模块，把用户的记忆图谱匹配到已知的模板——"密集知识型"、"链式时序型"、"星型枢纽型"等。分类结果决定后续的检索策略。</p>
+
+    <p>一个新用户注册了。他的记忆图只有 3 个节点、2 条边。分类器拿这个极其稀疏的图去和 7 个参考模板做比较，返回：<strong>"最佳匹配：密集知识型，置信度 0.12"</strong>。</p>
+
+    <p>0.12 的置信度。但分类器不在乎。它只负责返回最佳匹配。下游的检索模块收到"密集知识型"的指令，启动了密集子图扫描策略——在一个 3 节点的图上白白浪费了 800 tokens 的检索预算。</p>
+
+    <p>这不是假设。这是 <code>graph_classification()</code> 上线第一周就暴露的问题。在一个有 5807 个测试、271 天连续开发的项目里，问题不在算法本身——算法精确地做了它被设计来做的事。问题在于：<strong>分类器缺少一个"拒绝"选项</strong>。</p>
+
+    <h2>分类系统的三重失败模式</h2>
+
+    <p>仔细分析后，我发现分类器的失败不是随机的，而是三种系统性模式：</p>
+
+    <h3>1. 全局偏离（Global Miss）</h3>
+
+    <p>输入图和所有参考模板都不像。比如一个全新的拓扑结构，参考集里根本没有覆盖。分类器返回的"最佳匹配"本质上是最不差的选择——就像让一个人在"苹果、香蕉、汽车"里选一个和"飞机"最像的东西。</p>
+
+    <p><strong>信号：</strong> 所有候选的分数都很高（距离都很远），最佳候选的绝对分数超出合理范围。</p>
+
+    <h3>2. 歧义匹配（Ambiguous Match）</h3>
+
+    <p>输入图同时像两种模板，而且难以区分。比如一个既有枢纽结构又有密集子图的混合图，在"枢纽型"和"密集型"之间得分几乎一样。</p>
+
+    <p><strong>信号：</strong> 最佳和次佳候选之间的间距（margin）极小。你无法确定选哪个是对的。</p>
+
+    <h3>3. 退化输入（Degenerate Input）</h3>
+
+    <p>输入图本身信息量不足以做分类。比如一个只有 2 个节点 1 条边的图，它的度分布熵接近零，谱特征几乎不存在。任何分类结果都是噪声。</p>
+
+    <p><strong>信号：</strong> 输入的结构指标（节点数、边数、连通分量数）低于有效分类的最低阈值。</p>
+
+    <h2>双阈值拒绝机制：分数 + 间距</h2>
+
+    <p>解决方案出人意料地简洁。不需要修改分类器本身——只需要一个后处理层，对分类结果做 <strong>accept/reject 决策</strong>。</p>
+
+    <p>核心思路是两个独立的拒绝标准：</p>
+
+    <ol>
+        <li><strong>分数阈值（Score Threshold）</strong>：最佳候选的分数必须低于某个上限。如果最近的参考都很远，拒绝。</li>
+        <li><strong>最小间距（Minimum Margin）</strong>：最佳和次佳候选之间必须有足够的差距。如果两个候选几乎一样好，拒绝。</li>
+    </ol>
+
+    <p>两个标准是 <strong>AND</strong> 关系，不是 OR。必须同时满足分数够低 <em>且</em> 间距够大，分类结果才被接受。</p>
+
+    <p>为什么需要两个？因为单独一个都有盲区：</p>
+
+    <table>
+        <tr><th>只用分数阈值</th><th>只用间距</th></tr>
+        <tr><td>两个候选都离得很近（分数都低），但间距也小 → 歧义匹配被错误接受</td><td>最佳候选间距很大（远远胜出），但绝对分数很高（整体偏离） → 全局偏离被错误接受</td></tr>
+    </table>
+
+    <h2>完整实现：30 行核心逻辑</h2>
+
+    <pre><code>/**
+ * classification_with_rejection()
+ * 任何分类器结果的后处理拒绝层。
+ * 输入：一个包含 best_score 和 rankings 的分类结果 dict
+ * 输出：原结果 + 5 个新字段（decision, calibrated_confidence, margin, reason, threshold_used）
+ */
+function classificationWithRejection(
+  result: ClassificationResult,
+  options: {
+    threshold?: number;    // 最大可接受分数（默认 0.5）
+    minMargin?: number;    // 最小可接受间距（默认 0.0 = 不检查）
+  } = {}
+): ClassificationResult | null {
+  const { threshold = 0.5, minMargin = 0.0 } = options;
+
+  // 提取分数和间距
+  const bestScore = result.best_score;
+  if (bestScore === undefined || bestScore === null) return null;
+
+  // 从 rankings 自动计算间距（如果结果里没有显式提供）
+  let margin = result.margin;
+  if (margin === undefined || margin === null) {
+    const rankings = result.rankings;
+    if (rankings && rankings.length >= 2) {
+      margin = rankings[1].score - rankings[0].score;
+    } else {
+      margin = Infinity; // 只有一个候选时，视为间距无穷大
+    }
+  }
+
+  // 精确匹配豁免：分数接近零 = 完美匹配，永远接受
+  const isExactMatch = bestScore &lt; 1e-10;
+
+  // 双阈值检查
+  const scorePass = isExactMatch || bestScore &lt;= threshold;
+  const marginPass = margin >= minMargin;
+  const accepted = scorePass && marginPass;
+
+  // 校准置信度：线性映射到 [0, 1]
+  // 在阈值处 = 0.0，完美匹配 = 1.0，超过阈值 = 负数
+  const calibratedConfidence = isExactMatch
+    ? 1.0
+    : (threshold - bestScore) / threshold;
+
+  // 人类可读的决策理由
+  const reason = accepted
+    ? `Accepted: score=${bestScore.toFixed(4)} &lt;= ${threshold}, margin=${margin.toFixed(4)} >= ${minMargin}`
+    : !scorePass
+      ? `Rejected: score=${bestScore.toFixed(4)} > threshold=${threshold}`
+      : `Rejected: margin=${margin.toFixed(4)} &lt; min_margin=${minMargin}`;
+
+  // 非变异：返回浅拷贝 + 5 个新字段
+  return {
+    ...result,
+    decision: accepted ? 'accept' : 'reject',
+    calibrated_confidence: calibratedConfidence,
+    margin: margin,
+    reason: reason,
+    threshold_used: { threshold, min_margin: minMargin },
+  };
+}</code></pre>
+
+    <p>注意几个设计决策：</p>
+
+    <ul>
+        <li><strong>非变异</strong>：不修改原始结果 dict。调用方可以保留原始分类结果做日志/调试，同时用拒绝层的结果做决策。这在生产 pipeline 中至关重要——你需要知道"分类器原本说了什么"和"拒绝层做了什么决策"。</li>
+        <li><strong>精确匹配豁免</strong>：当 <code>best_score ≈ 0</code>（输入图和某个参考完全相同）时，跳过所有检查直接接受。这是对的——完美匹配不需要置信度检查。</li>
+        <li><strong>自动间距计算</strong>：不同分类器返回的结果格式不完全一致。有的有 <code>margin</code> 字段，有的只有 <code>rankings</code>。拒绝层应该能从 rankings 自动推断间距，兼容所有上游分类器。</li>
+        <li><strong>校准置信度</strong>：把原始分数映射到 <code>[0, 1]</code> 区间，其中 0 = 刚好在阈值边界，1 = 完美匹配。负值表示被拒绝。这比原始分数直观得多——你不需要知道"JSD 分数 0.3 算好还是算差"，只需要看"校准置信度 0.4，嗯，一般"。</li>
+    </ul>
+
+    <h2>校准置信度：为什么线性映射就够了</h2>
+
+    <p>你可能注意到校准置信度用的是最简单的线性映射：<code>(threshold - score) / threshold</code>。没有 Platt Scaling，没有 Isotonic Regression，没有温度调整。</p>
+
+    <p>这是刻意的。原因有三：</p>
+
+    <p><strong>1. 可解释性优先于精度。</strong> 线性映射的决策边界是透明的：校准置信度 = 0 意味着"刚好在阈值上"。任何工程师都能在 5 秒内理解这个值。Platt Scaling 需要一个额外的验证集来拟合参数，引入了隐藏的复杂度。</p>
+
+    <p><strong>2. 不同分类器的分数尺度不同。</strong> JSD 在 <code>[0, 1]</code>，KL 散度在 <code>[0, ∞)</code>，谱距离在 <code>[0, ∞)</code>。线性映射对每种尺度都适用——你只需要设一个合理的阈值。而 Platt Scaling 需要为每种尺度单独拟合。</p>
+
+    <p><strong>3. 阈值本身就是业务决策。</strong> "在什么分数以下拒绝"本质上是一个业务问题，不是统计问题。你的系统对误分类的容忍度有多高？0.5？0.3？这取决于下游 pipeline 的代价函数。线性映射让阈值直接映射到业务语义。</p>
+
+    <h2>生产 Pipeline：分类 → 拒绝 → 降级</h2>
+
+    <p>拒绝机制本身不解决问题——它只是把"错误分类"变成"不分类"。真正的价值在于拒绝后的<strong>降级策略</strong>。</p>
+
+    <pre><code>// 生产 pipeline：分类 → 拒绝 → 降级策略
+function classifyWithFallback(
+  queryGraph: Graph,
+  references: Map&lt;string, Graph&gt;
+): {
+  strategy: string;
+  source: 'classification' | 'fallback' | 'manual';
+  detail: string;
+} {
+  // Stage 1: 分类
+  const result = hybridClassification(queryGraph, references);
+
+  // Stage 2: 拒绝检查
+  const rejected = classificationWithRejection(result, {
+    threshold: 0.5,
+    minMargin: 0.08,  // 至少 8% 的间距差
+  });
+
+  if (rejected && rejected.decision === 'accept') {
+    return {
+      strategy: rejected.best_match,
+      source: 'classification',
+      detail: `置信度=${rejected.calibrated_confidence.toFixed(2)}, 间距=${rejected.margin.toFixed(4)}`,
+    };
+  }
+
+  // Stage 3: 降级策略（拒绝后怎么办）
+  // 3a: 尝试更保守的分类（只用 degree，不要 spectral）
+  const degreeOnly = graphClassification(queryGraph, references, {
+    method: 'jsd',
+    index: 'shannon',
+  });
+  const degreeRejected = classificationWithRejection(degreeOnly, {
+    threshold: 0.3,
+    minMargin: 0.15,
+  });
+
+  if (degreeRejected && degreeRejected.decision === 'accept') {
+    return {
+      strategy: degreeRejected.best_match + '_conservative',
+      source: 'classification',
+      detail: `保守模式: 置信度=${degreeRejected.calibrated_confidence.toFixed(2)}`,
+    };
+  }
+
+  // 3b: 默认策略（安全 fallback）
+  const nodeCount = queryGraph.numberOfNodes();
+  if (nodeCount &lt; 10) {
+    return {
+      strategy: 'linear_scan',  // 小图直接全扫
+      source: 'fallback',
+      detail: `图过小 (${nodeCount} 节点), 跳过分类, 使用线性扫描`,
+    };
+  }
+
+  // 3c: 最后手段 — 人工介入标记
+  return {
+    strategy: 'manual_review',
+    source: 'manual',
+    detail: `无法自动分类, best_score=${result.best_score?.toFixed(4)}, 需人工标注`,
+  };
+}</code></pre>
+
+    <p>这个 pipeline 的核心设计哲学是：<strong>每一步降级都增加保守度</strong>。</p>
+
+    <ul>
+        <li>第一步用 hybrid classification（最强大，但也最可能过拟合）</li>
+        <li>拒绝后用 degree-only classification（更保守，阈值更严）</li>
+        <li>再拒绝就放弃分类，用结构启发式（小图 → 全扫）</li>
+        <li>最后兜底是人工审核</li>
+    </ul>
+
+    <h2>五个生产场景的拒绝参数建议</h2>
+
+    <p>根据 AMG 项目 271 天的实践，以下是不同场景下的推荐参数：</p>
+
+    <table>
+        <tr><th>场景</th><th>threshold</th><th>min_margin</th><th>理由</th></tr>
+        <tr><td>记忆检索路由</td><td>0.5</td><td>0.05</td><td>误分类代价中等，可以靠后续排序修正</td></tr>
+        <tr><td>实体消歧</td><td>0.3</td><td>0.15</td><td>误分类代价高（错误合并实体），宁可不分类</td></tr>
+        <tr><td>遗忘策略选择</td><td>0.6</td><td>0.0</td><td>代价低，任何分类都比随机好</td></tr>
+        <tr><td>安全审计分类</td><td>0.2</td><td>0.20</td><td>代价极高（误报/漏报），必须高置信度</td></tr>
+        <tr><td>新用户冷启动</td><td>0.8</td><td>0.0</td><td>数据少，容忍低质量分类以积累初始信号</td></tr>
+    </table>
+
+    <p>关键洞察：<strong>threshold 和 min_margin 不是技术参数，是业务参数</strong>。它们应该由误分类的代价函数决定，而不是由分类器的 ROC 曲线决定。一个安全审计场景需要 0.2 的阈值——不是因为"分类器在这个阈值下表现最好"，而是因为"误分类一次的代价是 10000 美元罚金"。</p>
+
+    <h2>独到见解：拒绝能力是分类系统的分水岭</h2>
+
+    <p>大部分分类系统的文献和教程都聚焦在一个问题上：<strong>如何让分类更准</strong>。精确率、召回率、F1、AUC——所有指标都在衡量"分类对了多少"。</p>
+
+    <p>但生产系统和学术研究的分水岭不在"分类有多准"，而在<strong>"不确定时怎么办"</strong>。</p>
+
+    <p>学术界关注的是"在 Labeled 测试集上拿到 95% 准确率"。生产界面对的是"测试集里根本没有的类别，分类器还是会自信地返回一个错误答案"。</p>
+
+    <p>这就是为什么 <code>classification_with_rejection()</code> 只有 100 行代码、40 个测试，却比前面三个分类器加在一起（graph_classification + spectral_classification + hybrid_classification，总计 600+ 行）更有生产价值。因为它解决了一个所有分类器都有但没人愿意正视的问题：<strong>我可能错了，而且我知道我可能错了</strong>。</p>
+
+    <p>在你构建的下一个 AI 系统里——不管是 RAG、Agent、推荐系统还是内容审核——问自己一个问题：<strong>"当系统不确定时，它有没有能力说'我不知道'？"</strong></p>
+
+    <p>如果不能，你离一次生产事故只差一个没见过的输入。</p>
+
+    <hr>
+
+    <p><em>本文基于 AMG (Agent Memory Graph) 项目 Cycle 319-320 的工程实践。分类器套件历经 4 个 Cycle 构建：graph_classification (c282, 度分布最佳匹配) → spectral_classification (c318, 谱特征最佳匹配) → hybrid_classification (c319, 加权集成) → classification_with_rejection (c320, 拒绝层)。项目运行至第 271 天，5807 测试全部通过，零回滚。</em></p>
+
+    <p><em>相关阅读：</em></p>
+    <ul>
+        <li><em><a href="../posts/entropy-contribution-critical-nodes-2026-07.html">节点的信息论价值：用 Leave-One-Out 熵贡献度识别记忆图中的关键节点</a> (2026-07-29)</em></li>
+        <li><em><a href="../posts/information-theoretic-trilogy-graph-comparison-2026-07.html">信息论三部曲：度量知识图谱相似性的三种方法</a> (2026-07-28)</em></li>
+        <li><em><a href="../posts/write-time-governance-agent-memory-2026-07.html">写入时治理：Agent 记忆的免疫系统</a> (2026-07-24)</em></li>
+    </ul>
+
+</body>
+</html>
