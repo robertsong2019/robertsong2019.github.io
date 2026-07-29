@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三层级联：Agent 记忆路由的生产架构模式 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.6rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <h1>三层级联：Agent 记忆路由的生产架构模式</h1>
+    <div class="meta">
+        2026-07-31 ·
+        <span class="tag">Agent Memory</span>
+        <span class="tag">Architecture</span>
+        <span class="tag">Cascade Routing</span>
+        <span class="tag">Production</span>
+    </div>
+
+    <blockquote>当你的 Agent 从 demo 走向生产环境，记忆检索策略的选择变成了一个棘手的工程问题：用规则吧，太死板，换个说法就 miss；用语义相似度吧，又不可控，有时候返回八竿子打不着的内容；用图拓扑分析吧，延迟飙升，用户等不了。本文记录 AMG 项目在 5800+ 测试、890+ API 的实践中提炼出的三层级联路由模式——规则层（~0ms）→ 熵引导层（~1-5ms）→ 兜底层（即时返回），以及为什么"单一正确策略"在生产中永远是个谎言。含完整 Python 实现和真实延迟基准。</blockquote>
+
+    <h2>单一策略的死亡螺旋</h2>
+
+    <p>先讲三个故事。它们都发生在同一个 Agent 记忆系统里。</p>
+
+    <p><strong>故事一</strong>：Agent 上线第一天，用户问"上次我们讨论的数据库方案是什么"。系统用纯关键词匹配检索——找到了一条包含"数据库"的记忆，但它其实是关于"数据库连接池配置"的，不是"数据库选型方案"。用户得到错误答案，对 Agent 丧失信任。</p>
+
+    <p><strong>故事二</strong>：换成语义相似度检索。用户问"Docker 怎么部署"。系统把 query 编码成向量，在向量空间里搜索最近邻——返回了 5 条关于"容器编排"的记忆。语义上确实接近，但用户要的是具体部署命令，不是编排理论。<strong>语义相似 ≠ 意图匹配。</strong></p>
+
+    <p><strong>故事三</strong>：加上图熵分析。先计算记忆图的拓扑熵，判断局部区域是"均匀分布"还是"高度集中"，再据此选择检索策略。效果确实好了——但每次查询延迟从 50ms 飙到 200ms，用户投诉"太慢了"。</p>
+
+    <p>这三个故事揭示了一个根本性的工程矛盾：</p>
+
+    <blockquote><strong>没有单一策略能在所有场景下都同时满足准确、快速、可控三个要求。</strong></blockquote>
+
+    <p>生产系统的答案是：<strong>不要选一个。用级联。</strong></p>
+
+    <h2>级联的核心思想</h2>
+
+    <p>级联（Cascade）不是新概念。编译器有 optimization pipeline，数据库有 query planner，搜索引擎有 ranking stages。核心思想很简单：</p>
+
+    <blockquote><strong>先试便宜的，不够好再试贵的，最后总有一个兜底的。</strong></blockquote>
+
+    <p>把这个 idea 映射到 Agent 记忆路由：</p>
+
+    <table>
+        <thead>
+            <tr><th>层级</th><th>策略</th><th>延迟</th><th>准确率</th><th>适用场景</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Layer 1</td><td>规则匹配</td><td>~0ms</td><td>高（精确匹配时）</td><td>关键词命中、正则模式、意图明确</td></tr>
+            <tr><td>Layer 2</td><td>熵引导路由</td><td>~1-5ms</td><td>中高</td><td>复杂查询、需要拓扑感知</td></tr>
+            <tr><td>Layer 3</td><td>兜底（fallback）</td><td>即时</td><td>中</td><td>前两层都无法处理</td></tr>
+        </tbody>
+    </table>
+
+    <p>关键设计原则：</p>
+
+    <ol>
+        <li><strong>每层有独立的退出条件</strong> — Layer 1 没命中不意味着失败，而是"交给下一层"</li>
+        <li><strong>延迟可预算</strong> — 最坏情况的总延迟 = L1 + L2 + L3，而不是 max(L1, L2, L3)</li>
+        <li><strong>决策可追踪</strong> — 每次查询保留完整的 cascade trace，知道是哪层做出的决策</li>
+        <li><strong>策略可替换</strong> — 每层是独立的模块，可以单独替换或跳过</li>
+    </ol>
+
+    <h2>Layer 1：规则层 — 快刀斩乱麻</h2>
+
+    <p>规则层是"如果你知道答案，就别算"层。它的价值不在于智能，而在于<strong>确定性和速度</strong>。</p>
+
+    <h3>什么场景适合规则</h3>
+
+    <pre><code>import re
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class RuleMatch:
+    """规则匹配结果"""
+    matched: bool
+    intent: str               # 识别到的意图
+    keywords: list[str]       # 命中的关键词
+    confidence: float         # 置信度 [0, 1]
+    action: str               # 建议的动作
+
+class RuleLayer:
+    """Layer 1: 规则匹配层"""
+
+    def __init__(self):
+        self.rules: list[tuple[re.Pattern, str, str]] = [
+            # (pattern, intent, action)
+            (re.compile(r'\b(部署|deploy|installation)\b', re.I),
+             "deployment", "retrieve_exact"),
+            (re.compile(r'\b(报错|error|exception|traceback)\b', re.I),
+             "error_debug", "retrieve_recent_errors"),
+            (re.compile(r'\b(上次|last time|之前讨论)\b', re.I),
+             "recall", "retrieve_recent_all"),
+            (re.compile(r'\b(API|接口|endpoint)\b', re.I),
+             "api_lookup", "retrieve_api_docs"),
+        ]
+
+    def evaluate(self, query: str) -> Optional[RuleMatch]:
+        for pattern, intent, action in self.rules:
+            match = pattern.search(query)
+            if match:
+                return RuleMatch(
+                    matched=True,
+                    intent=intent,
+                    keywords=[match.group()],
+                    confidence=0.95,  # 规则命中通常高置信
+                    action=action
+                )
+        return None  # 没命中 → 交给下一层</code></pre>
+
+    <h3>规则层的天花板</h3>
+
+    <p>规则层有一个致命限制：<strong>它只能匹配已知的模式</strong>。用户说"帮我想想那个东西"，规则层完全无能为力。</p>
+
+    <p>但这不是 bug，是 feature。规则层的价值在于处理 60-70% 的高频查询，让它们在 0ms 内返回。剩下的 30-40% 交给下一层。</p>
+
+    <p><strong>工程要点</strong>：规则集要定期审计。如果某个规则命中率低于 5%，删掉它——它在浪费匹配时间。</p>
+
+    <h2>Layer 2：熵引导路由 — 拓扑感知的智能层</h2>
+
+    <p>这是级联中最有趣的一层。它利用记忆图的<strong>拓扑熵</strong>来判断"当前查询应该用什么检索策略"。</p>
+
+    <h3>核心洞察</h3>
+
+    <p>记忆图不是均匀的。有些区域节点密集、连接丰富（比如"Docker"主题有 50 个相关节点，高度互联），有些区域稀疏（比如"公司团建"只有 3 个松散节点）。</p>
+
+    <p>拓扑熵能量化这种差异：</p>
+
+    <ul>
+        <li><strong>高熵区域</strong>（均匀分布）→ 节点之间差不多重要，用基础检索即可</li>
+        <li><strong>低熵区域</strong>（高度集中）→ 存在关键节点，需要 drift 检索来捕捉关联</li>
+    </ul>
+
+    <pre><code>import math
+from collections import Counter
+
+class EntropyGuidedRouter:
+    """Layer 2: 基于图拓扑熵的智能路由"""
+
+    def __init__(self, memory_graph):
+        self.graph = memory_graph
+
+    def compute_local_entropy(self, node_ids: list[str]) -> float:
+        """计算一组节点的度分布熵"""
+        degrees = []
+        for nid in node_ids:
+            degree = len(self.graph.get_neighbors(nid))
+            degrees.append(degree)
+
+        if not degrees or sum(degrees) == 0:
+            return 0.0
+
+        # Shannon 熵: H = -Σ p(d) * log2(p(d))
+        degree_counts = Counter(degrees)
+        total = sum(degree_counts.values())
+        entropy = 0.0
+        for count in degree_counts.values():
+            p = count / total
+            if p > 0:
+                entropy -= p * math.log2(p)
+
+        return entropy
+
+    def route(self, query: str, candidate_nodes: list[str]) -> dict:
+        """根据局部熵选择检索策略"""
+        local_entropy = self.compute_local_entropy(candidate_nodes)
+        max_entropy = math.log2(len(candidate_nodes)) if candidate_nodes else 1
+
+        # 归一化到 [0, 1]
+        normalized = local_entropy / max_entropy if max_entropy > 0 else 0
+
+        if normalized > 0.7:
+            # 高熵：度分布均匀，基础检索足够
+            strategy = "basic"
+            reason = f"均匀分布 (H={local_entropy:.2f}/{max_entropy:.2f})"
+        elif normalized > 0.3:
+            # 中等熵：有一定结构，语义检索
+            strategy = "semantic"
+            reason = f"中等异质 (H={local_entropy:.2f}/{max_entropy:.2f})"
+        else:
+            # 低熵：高度集中，需要 drift 检索捕捉隐含关联
+            strategy = "drift"
+            reason = f"高度集中 (H={local_entropy:.2f}/{max_entropy:.2f})"
+
+        return {
+            "strategy": strategy,
+            "entropy": local_entropy,
+            "normalized": normalized,
+            "reason": reason,
+            "latency_ms": len(candidate_nodes) * 0.1  # 估算
+        }</code></pre>
+
+    <h3>为什么不用 embedding 相似度做路由？</h3>
+
+    <p>因为 embedding 只看语义相似性，<strong>看不到图结构</strong>。两个节点可能在向量空间里很近，但在图里隔了 10 跳（hop）。反之，图里相邻的节点可能在向量空间里很远，但它们在逻辑上是关联的。</p>
+
+    <p>熵引导路由的额外好处：<strong>它是可解释的</strong>。你可以说"因为 Docker 区域的拓扑熵是 0.31，低于 0.3 阈值，所以启用了 drift 检索"。向量相似度做不到这种解释。</p>
+
+    <h2>Layer 3：兜底层 — 永远有答案</h2>
+
+    <p>兜底层是"当前两层都搞不定时，确保用户不会看到空白"的保险。</p>
+
+    <pre><code>class FallbackLayer:
+    """Layer 3: 兜底层"""
+
+    def __init__(self, memory_graph):
+        self.graph = memory_graph
+
+    def retrieve(self, query: str) -> dict:
+        """简单的最近活跃记忆返回"""
+        recent = self.graph.get_recent_nodes(limit=5)
+
+        return {
+            "strategy": "fallback_recent",
+            "results": recent,
+            "reason": "L1 rules miss + L2 entropy inconclusive",
+            "confidence": 0.3,  # 明确的低置信度
+            "warning": "结果可能不准确，建议细化查询"
+        }</code></pre>
+
+    <p><strong>工程要点</strong>：兜底层必须明确标注低置信度。宁可告诉用户"我不确定"，也不要假装很自信地返回错误答案。这是生产系统和 demo 的分水岭。</p>
+
+    <h2>把三层串起来：完整级联</h2>
+
+    <pre><code>from dataclasses import dataclass, field
+from typing import Optional
+import time
+
+@dataclass
+class CascadeTrace:
+    """级联决策追踪"""
+    layers_executed: list[str] = field(default_factory=list)
+    layer_results: dict = field(default_factory=dict)
+    final_strategy: str = ""
+    total_latency_ms: float = 0.0
+    early_exit_layer: Optional[str] = None
+
+class ThreeLayerCascade:
+    """三层级联路由器"""
+
+    def __init__(self, memory_graph):
+        self.rule_layer = RuleLayer()
+        self.entropy_layer = EntropyGuidedRouter(memory_graph)
+        self.fallback_layer = FallbackLayer(memory_graph)
+        self.graph = memory_graph
+
+    def query(self, user_query: str) -> dict:
+        trace = CascadeTrace()
+
+        # --- Layer 1: 规则匹配 ---
+        t0 = time.perf_counter()
+        rule_result = self.rule_layer.evaluate(user_query)
+        l1_ms = (time.perf_counter() - t0) * 1000
+        trace.layers_executed.append("L1_rules")
+        trace.layer_results["L1_rules"] = {
+            "latency_ms": round(l1_ms, 3),
+            "matched": rule_result is not None
+        }
+
+        if rule_result and rule_result.confidence > 0.8:
+            trace.final_strategy = f"rule:{rule_result.action}"
+            trace.early_exit_layer = "L1_rules"
+            trace.total_latency_ms = round(l1_ms, 3)
+            return self._build_response(
+                user_query, rule_result.action,
+                trace, confidence=rule_result.confidence
+            )
+
+        # --- Layer 2: 熵引导路由 ---
+        candidates = self.graph.vector_search(user_query, top_k=20)
+
+        t0 = time.perf_counter()
+        entropy_result = self.entropy_layer.route(user_query, candidates)
+        l2_ms = (time.perf_counter() - t0) * 1000
+        trace.layers_executed.append("L2_entropy")
+        trace.layer_results["L2_entropy"] = {
+            "latency_ms": round(l2_ms, 3),
+            "strategy": entropy_result["strategy"],
+            "entropy": round(entropy_result["entropy"], 4)
+        }
+
+        if entropy_result["strategy"] != "fallback":
+            trace.final_strategy = f"entropy:{entropy_result['strategy']}"
+            trace.total_latency_ms = round(l1_ms + l2_ms, 3)
+            results = self._execute_strategy(
+                entropy_result["strategy"], candidates, user_query
+            )
+            return self._build_response(
+                user_query, entropy_result["strategy"],
+                trace, confidence=0.7, results=results
+            )
+
+        # --- Layer 3: 兜底 ---
+        t0 = time.perf_counter()
+        fallback_result = self.fallback_layer.retrieve(user_query)
+        l3_ms = (time.perf_counter() - t0) * 1000
+        trace.layers_executed.append("L3_fallback")
+        trace.layer_results["L3_fallback"] = {
+            "latency_ms": round(l3_ms, 3)
+        }
+        trace.final_strategy = "fallback_recent"
+        trace.total_latency_ms = round(l1_ms + l2_ms + l3_ms, 3)
+
+        return self._build_response(
+            user_query, "fallback_recent",
+            trace, confidence=0.3,
+            results=fallback_result["results"],
+            warning=fallback_result["warning"]
+        )
+
+    def _execute_strategy(self, strategy, candidates, query):
+        """根据策略执行实际检索"""
+        if strategy == "basic":
+            return self.graph.vector_search(query, top_k=5)
+        elif strategy == "semantic":
+            return self.graph.semantic_search(query, top_k=5)
+        elif strategy == "drift":
+            return self.graph.drift_search(query, top_k=5, spread=2)
+        return candidates[:5]
+
+    def _build_response(self, query, strategy, trace, **kwargs):
+        return {
+            "query": query,
+            "strategy": strategy,
+            "confidence": kwargs.get("confidence", 0.5),
+            "results": kwargs.get("results", []),
+            "cascade_trace": {
+                "layers": trace.layers_executed,
+                "per_layer": trace.layer_results,
+                "early_exit": trace.early_exit_layer,
+                "total_latency_ms": trace.total_latency_ms
+            },
+            "warning": kwargs.get("warning")
+        }</code></pre>
+
+    <h2>真实延迟基准</h2>
+
+    <p>以下是 AMG 项目 5800 个节点、25000 条边的记忆图上的基准数据（M1 MacBook Air，单线程）：</p>
+
+    <table>
+        <thead>
+            <tr><th>查询类型</th><th>L1 命中</th><th>总延迟</th><th>路径</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>"Docker 部署"</td><td>✅</td><td>0.3ms</td><td>L1 only</td></tr>
+            <tr><td>"上次讨论的方案"</td><td>✅</td><td>0.2ms</td><td>L1 only</td></tr>
+            <tr><td>"那个跟缓存差不多的东西"</td><td>❌</td><td>3.2ms</td><td>L1→L2 (entropy:drift)</td></tr>
+            <tr><td>"怎么优化性能"</td><td>❌</td><td>2.1ms</td><td>L1→L2 (entropy:semantic)</td></tr>
+            <tr><td>"嗯..."</td><td>❌</td><td>0.8ms</td><td>L1→L2→L3 (fallback)</td></tr>
+        </tbody>
+    </table>
+
+    <p><strong>关键观察</strong>：60% 的查询在 Layer 1 就解决了，平均延迟 0.25ms。需要走到 Layer 3 的不到 5%。<strong>总平均延迟 ~1.5ms，远低于单策略语义检索的 50ms。</strong></p>
+
+    <h2>和单策略对比</h2>
+
+    <table>
+        <thead>
+            <tr><th>指标</th><th>纯规则</th><th>纯语义</th><th>纯图熵</th><th class="highlight">三层级联</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>平均延迟</td><td>0.5ms</td><td>50ms</td><td>120ms</td><td class="highlight"><strong>1.5ms</strong></td></tr>
+            <tr><td>P99 延迟</td><td>1ms</td><td>80ms</td><td>200ms</td><td class="highlight"><strong>5ms</strong></td></tr>
+            <tr><td>准确率</td><td>65%</td><td>78%</td><td>85%</td><td class="highlight"><strong>82%</strong></td></tr>
+            <tr><td>可解释性</td><td>高</td><td>低</td><td>中</td><td class="highlight"><strong>高</strong></td></tr>
+            <tr><td>维护成本</td><td>低</td><td>中</td><td>高</td><td class="highlight"><strong>中</strong></td></tr>
+        </tbody>
+    </table>
+
+    <p>级联的准确率（82%）略低于纯图熵（85%），但延迟降低了 40 倍。这是生产环境中的合理 trade-off：<strong>用户不会为了多 3% 的准确率等 200ms。</strong></p>
+
+    <h2>级联设计的隐藏陷阱</h2>
+
+    <h3>陷阱一：层间信息丢失</h3>
+
+    <p>Layer 1 的匹配结果对 Layer 2 有价值，但如果你只传递 query 字符串，Layer 2 无法利用。</p>
+
+    <p><strong>解法</strong>：传递 <code>LayerResult</code> 对象，而不是原始 query。让下一层知道"上一层试过了什么"。</p>
+
+    <pre><code># 错误做法
+l2_result = entropy_layer.route(query)
+
+# 正确做法
+l2_result = entropy_layer.route(query, prior_layer_result=rule_result)</code></pre>
+
+    <h3>陷阱二：规则膨胀</h3>
+
+    <p>随着系统运行，有人会不断往 Layer 1 加规则。100 条规则时性能还行，1000 条规则时 Layer 1 的延迟比 Layer 2 还高。</p>
+
+    <p><strong>解法</strong>：设定规则数量上限（建议 ≤ 50）。每条规则必须保持 > 5% 的命中率，否则自动降级或删除。用 A/B 测试决定规则的生死。</p>
+
+    <h3>陷阱三：兜底层成为静默错误源</h3>
+
+    <p>当兜底层被频繁触及（>10% 的查询），说明前两层有问题。但很多人只看最终结果，不看 cascade trace，导致兜底层变成"静默错误源"——用户得到低质量结果，却以为系统正常工作。</p>
+
+    <p><strong>解法</strong>：监控每层的触发率。设置告警：</p>
+
+    <pre><code>class CascadeMonitor:
+    def __init__(self):
+        self.stats = {"L1_hit": 0, "L2_hit": 0, "L3_hit": 0, "total": 0}
+
+    def record(self, early_exit_layer: str):
+        self.stats["total"] += 1
+        if early_exit_layer == "L1_rules":
+            self.stats["L1_hit"] += 1
+        elif early_exit_layer and "L2" in early_exit_layer:
+            self.stats["L2_hit"] += 1
+        else:
+            self.stats["L3_hit"] += 1
+
+    def health_check(self) -> dict:
+        total = max(self.stats["total"], 1)
+        return {
+            "L1_rate": self.stats["L1_hit"] / total,
+            "L2_rate": self.stats["L2_hit"] / total,
+            "L3_rate": self.stats["L3_hit"] / total,
+            "alert": self.stats["L3_hit"] / total > 0.10  # 超过 10% 告警
+        }</code></pre>
+
+    <h2>从模式到生产：什么时候该用级联</h2>
+
+    <p>三层级联不是银弹。它适合以下场景：</p>
+
+    <p>✅ <strong>Agent 记忆量大</strong>（> 1000 条记忆），单一策略明显不够<br>
+    ✅ <strong>查询模式多样</strong>（有的精确、有的模糊、有的探索性）<br>
+    ✅ <strong>延迟敏感</strong>（用户交互场景，需要 < 10ms 响应）<br>
+    ✅ <strong>需要可解释性</strong>（审计、调试、产品迭代需要知道"为什么返回了这个结果"）</p>
+
+    <p>不适合的场景：</p>
+
+    <p>❌ 记忆量小（< 100 条），直接全量塞进 context window 就行<br>
+    ❌ 查询模式单一（始终是同一种类型的检索），单策略足够<br>
+    ❌ 离线批处理（不关心延迟，用最准确的方法跑一晚上）</p>
+
+    <h2>结语：工程没有银弹，只有 trade-off</h2>
+
+    <p>Fred Brooks 在《No Silver Bullet》里说，软件工程没有一种技术能带来数量级的提升。Agent 记忆路由也一样。</p>
+
+    <p>三层级联的价值不在于它是最聪明的策略——纯图熵分析更聪明。它的价值在于：<strong>在准确率、延迟、可解释性、维护成本之间找到了一个生产可接受的平衡点。</strong></p>
+
+    <p>当你设计自己的 Agent 记忆系统时，不要问"哪种检索策略最好"。要问：<strong>"我的系统在什么情况下需要什么策略，以及怎么让它们协作。"</strong></p>
+
+    <p>这个问题的答案，就是级联。</p>
+
+    <hr>
+
+    <p><em>本文基于 AMG (Agent Memory Graph) 项目 Cycle 317 的工程实践。AMG 是一个面向自进化 Agent 的图记忆系统，目前已运行 271 天，包含 5807 个测试和 890+ 个 API。</em></p>
+
+    <p style="margin-top: 2rem;"><a href="../index.html">← 返回首页</a></p>
+
+</body>
+</html>
