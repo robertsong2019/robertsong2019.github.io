@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>下一代电子电气架构（EEA）对标 · 中央计算 + 区域控制器</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#070b16;
+    --bg2:#0b1124;
+    --card:rgba(255,255,255,0.035);
+    --card-hover:rgba(255,255,255,0.06);
+    --line:rgba(255,255,255,0.09);
+    --line2:rgba(255,255,255,0.14);
+    --txt:#e8edf7;
+    --txt2:#9aa6c2;
+    --txt3:#6b7693;
+    --accent:#00e5ff;
+    --accent2:#7c5cff;
+    --good:#3ddc97;
+    --warn:#ffb454;
+    --bad:#ff5d73;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"SF Pro SC","PingFang SC","Microsoft YaHei",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:var(--bg);
+    color:var(--txt);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* Animated background */
+  .bg-grid{
+    position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(124,92,255,0.18), transparent 40%),
+      radial-gradient(circle at 85% 15%, rgba(0,229,255,0.14), transparent 42%),
+      radial-gradient(circle at 50% 90%, rgba(61,220,151,0.10), transparent 45%);
+  }
+  .bg-grid::after{
+    content:"";position:absolute;inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size:54px 54px;
+    mask-image:radial-gradient(circle at 50% 40%, black, transparent 75%);
+  }
+  .wrap{position:relative;z-index:1;max-width:1320px;margin:0 auto;padding:0 24px}
+  .mono{font-family:"JetBrains Mono","SF Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+  .grad-text{
+    background:linear-gradient(120deg,#00e5ff 0%,#7c5cff 55%,#ff5fa2 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .glass{
+    background:var(--card);
+    border:1px solid var(--line);
+    backdrop-filter:blur(12px);
+    border-radius:20px;
+  }
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;
+    border:1px solid var(--line2);
+    background:rgba(255,255,255,0.03);
+    color:var(--txt2);
+  }
+  .chip.yes{color:#0ffdaf;border-color:rgba(61,220,151,0.45);background:rgba(61,220,151,0.08)}
+  .chip.no{color:#ff8da0;border-color:rgba(255,93,115,0.4);background:rgba(255,93,115,0.07)}
+  .chip.warn{color:#ffce82;border-color:rgba(255,180,84,0.45);background:rgba(255,180,84,0.08)}
+  .chip.brand{color:#cfe9ff;border-color:rgba(0,229,255,0.45);background:rgba(0,229,255,0.08)}
+  .tag-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+  /* Nav */
+  nav.top{
+    position:sticky;top:0;z-index:50;
+    backdrop-filter:blur(14px);
+    background:rgba(7,11,22,0.72);
+    border-bottom:1px solid var(--line);
+  }
+  .nav-link{color:var(--txt2);font-size:13px;font-weight:500;transition:color .2s}
+  .nav-link:hover{color:var(--txt)}
+  /* Hero stat */
+  .stat-num{font-size:clamp(34px,5vw,54px);font-weight:800;letter-spacing:-1px;line-height:1}
+  /* Buttons */
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:10px 18px;border-radius:12px;font-size:13px;font-weight:600;
+    transition:all .2s;cursor:pointer;border:1px solid transparent;
+  }
+  .btn-primary{background:linear-gradient(120deg,#00e5ff,#7c5cff);color:#05060e}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(124,92,255,0.35)}
+  .btn-ghost{border-color:var(--line2);color:var(--txt)}
+  .btn-ghost:hover{background:var(--card-hover)}
+  /* Table */
+  .tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+  .tbl th{
+    text-align:left;padding:14px 14px;font-weight:600;color:var(--txt2);
+    font-size:11px;letter-spacing:.6px;text-transform:uppercase;
+    border-bottom:1px solid var(--line2);position:sticky;top:0;background:#0b1124;z-index:2;
+  }
+  .tbl td{padding:14px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--txt)}
+  .tbl tr.row:hover td{background:var(--card-hover)}
+  .tbl tr.row{transition:background .15s}
+  .oem-cell{display:flex;align-items:center;gap:10px}
+  .logo-badge{
+    width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:15px;color:#05060e;flex-shrink:0;
+  }
+  /* Filter buttons */
+  .filter-btn{
+    padding:7px 14px;border-radius:10px;font-size:12px;font-weight:600;
+    border:1px solid var(--line2);color:var(--txt2);background:transparent;cursor:pointer;transition:all .15s;
+  }
+  .filter-btn:hover{color:var(--txt);border-color:var(--accent)}
+  .filter-btn.active{background:var(--accent);color:#05060e;border-color:var(--accent)}
+  /* Arch diagram */
+  .arch-box{
+    background:linear-gradient(180deg, rgba(124,92,255,0.12), rgba(0,229,255,0.06));
+    border:1px solid rgba(124,92,255,0.3);border-radius:14px;padding:14px;text-align:center;
+  }
+  .zone-box{
+    background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.3);border-radius:11px;padding:10px 6px;text-align:center;
+  }
+  .conn{height:2px;background:linear-gradient(90deg,transparent,#7c5cff,transparent);margin:6px 0}
+  .vconn{width:2px;background:linear-gradient(180deg,transparent,#00e5ff,transparent);margin:0 6px;height:18px}
+  /* Cards grid */
+  .oem-card{transition:transform .25s, border-color .25s, box-shadow .25s}
+  .oem-card:hover{transform:translateY(-4px);border-color:var(--line2);box-shadow:0 18px 50px rgba(0,0,0,0.4)}
+  .kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+  .kv:last-child{border-bottom:0}
+  .kv .k{color:var(--txt3)}
+  .kv .v{color:var(--txt);font-weight:600;text-align:right}
+  /* section heading */
+  .sec-eyebrow{color:var(--accent);font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+  .sec-title{font-size:clamp(26px,3.6vw,40px);font-weight:800;letter-spacing:-0.5px;line-height:1.15}
+  /* progress bars */
+  .bar-track{height:7px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#00e5ff,#7c5cff)}
+  /* timeline */
+  .tl-line{position:absolute;left:50%;top:0;bottom:0;width:2px;background:linear-gradient(180deg,transparent,var(--line2),transparent);transform:translateX(-50%)}
+  .tl-dot{width:14px;height:14px;border-radius:50%;background:var(--bg);border:2px solid var(--accent);position:absolute;left:50%;transform:translateX(-50%)}
+  /* fade in */
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s ease}
+  .reveal.in{opacity:1;transform:none}
+  /* footer */
+  footer{border-top:1px solid var(--line);margin-top:60px}
+  a.src{color:var(--accent);text-decoration:none;border-bottom:1px dashed rgba(0,229,255,0.4)}
+  a.src:hover{border-bottom-style:solid}
+  /* highlight callout */
+  .callout{
+    border-left:3px solid var(--accent);
+    background:linear-gradient(90deg, rgba(0,229,255,0.08), transparent);
+    padding:14px 18px;border-radius:0 12px 12px 0;
+  }
+  .tooltip{position:relative}
+  .tooltip:hover .tip{opacity:1;transform:translateY(0)}
+  .tip{
+    position:absolute;bottom:130%;left:50%;transform:translate(-50%,6px);
+    background:#11182e;border:1px solid var(--line2);color:var(--txt);
+    padding:6px 10px;border-radius:8px;font-size:11px;white-space:nowrap;
+    opacity:0;pointer-events:none;transition:all .2s;z-index:10;
+  }
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+
+<!-- ============ NAV ============ -->
+<nav class="top">
+  <div class="wrap flex items-center justify-between py-3">
+    <div class="flex items-center gap-3">
+      <div class="logo-badge" style="background:linear-gradient(120deg,#00e5ff,#7c5cff)">EEA</div>
+      <div>
+        <div class="text-sm font-bold tracking-wide">下一代 EEA 对标</div>
+        <div class="text-[11px] text-[var(--txt3)]">Central Compute × Zonal · 2026-2028</div>
+      </div>
+    </div>
+    <div class="hidden md:flex items-center gap-7">
+      <a class="nav-link" href="#overview">概览</a>
+      <a class="nav-link" href="#compare">对标表</a>
+      <a class="nav-link" href="#cards">架构拆解</a>
+      <a class="nav-link" href="#visual">可视化</a>
+      <a class="nav-link" href="#trend">行业趋势</a>
+      <a class="nav-link" href="#divergence">国内分化</a>
+      <a class="nav-link" href="#source">来源</a>
+    </div>
+    <div class="chip brand mono">v2026.07</div>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header class="wrap pt-16 pb-12">
+  <div class="reveal">
+    <div class="flex items-center gap-3 mb-5">
+      <span class="chip brand">智能汽车 · 车载电子电气架构</span>
+      <span class="chip">行业分析 / 战略研讨</span>
+    </div>
+    <h1 class="font-extrabold leading-[1.05] tracking-tight" style="font-size:clamp(34px,6vw,68px)">
+      <span class="grad-text">中央超算 + 区域控制器</span><br>
+      下一代 EEA 架构全景对标
+    </h1>
+    <p class="mt-6 max-w-2xl text-[15px] leading-relaxed text-[var(--txt2)]">
+      聚焦 11 家代表车企（小鹏 · 蔚来 · 理想 · 广汽 · 吉利 · 大众 · 上汽 · 长安 · 长城 · 比亚迪 · 零跑）下一代电子电气架构路线图。
+      从中央计算平台、区域控制器数量、主干网络带宽到自研深度，一图看懂
+      <span class="text-white font-semibold">2026–2028 年量产目标</span>下的技术分化与行业共识。
+    </p>
+    <div class="mt-7 flex flex-wrap gap-3">
+      <a href="#compare" class="btn btn-primary">查看对标表 →</a>
+      <a href="#visual" class="btn btn-ghost">可视化分析</a>
+    </div>
+  </div>
+
+  <!-- Hero stats -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12 reveal">
+    <div class="glass p-5">
+      <div class="text-[11px] uppercase tracking-wider text-[var(--txt3)] mb-2">覆盖车企</div>
+      <div class="stat-num grad-text mono">11</div>
+      <div class="text-xs text-[var(--txt2)] mt-2">国内 10 家 + 海外 1 家</div>
+    </div>
+    <div class="glass p-5">
+      <div class="text-[11px] uppercase tracking-wider text-[var(--txt3)] mb-2">峰值主干带宽</div>
+      <div class="stat-num grad-text mono">10G</div>
+      <div class="text-xs text-[var(--txt2)] mt-2">TSN 车载以太网</div>
+    </div>
+    <div class="glass p-5">
+      <div class="text-[11px] uppercase tracking-wider text-[var(--txt3)] mb-2">自研 HPC 车企</div>
+      <div class="stat-num grad-text mono">10/11</div>
+      <div class="text-xs text-[var(--txt2)] mt-2">仅大众为联合开发</div>
+    </div>
+    <div class="glass p-5">
+      <div class="text-[11px] uppercase tracking-wider text-[var(--txt3)] mb-2">量产窗口</div>
+      <div class="stat-num grad-text mono">26–28</div>
+      <div class="text-xs text-[var(--txt2)] mt-2">2026–2028 目标装车</div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ OVERVIEW ============ -->
+<section id="overview" class="wrap py-16">
+  <div class="reveal">
+    <div class="sec-eyebrow mb-3">01 · Overview</div>
+    <h2 class="sec-title">架构演进分水岭：<span class="grad-text">两代之间</span></h2>
+    <p class="mt-4 max-w-3xl text-[var(--txt2)] text-[15px] leading-relaxed">
+      表格中的方案属于车企公开规划的<strong class="text-white">下一代量产架构路线图</strong>，多数尚未大规模落地；
+      当前市面主流仍是「多域控制器架构」，仅少量车型小规模搭载中央超算 + 区控硬件。
+    </p>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6 mt-10">
+    <div class="glass p-7 reveal">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="chip warn">当前主流量产</span>
+        <h3 class="text-lg font-bold">多域控制器架构（存量主流）</h3>
+      </div>
+      <ul class="space-y-3 text-[14px] text-[var(--txt2)]">
+        <li class="flex gap-3"><span class="text-[var(--warn)]">●</span>座舱域 / 智驾域 / 动力域 / 车身域<strong class="text-white">相互独立</strong>的域控制器</li>
+        <li class="flex gap-3"><span class="text-[var(--warn)]">●</span>分布式网关，各域之间需编/解码中转</li>
+        <li class="flex gap-3"><span class="text-[var(--warn)]">●</span>ECU 数量多、线束重、软件迭代慢</li>
+        <li class="flex gap-3"><span class="text-[var(--warn)]">●</span>代表：小鹏 X-EEA3.5 / 蔚来 NT2.9 / 理想 LEEA2.0 / 广汽星灵3.0 / 吉利 GEEA3.0 / 大众 MEB</li>
+      </ul>
+    </div>
+    <div class="glass p-7 reveal" style="border-color:rgba(0,229,255,0.25)">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="chip yes">下一代目标架构</span>
+        <h3 class="text-lg font-bold">中央超算 + 区域控制器</h3>
+      </div>
+      <ul class="space-y-3 text-[14px] text-[var(--txt2)]">
+        <li class="flex gap-3"><span class="text-[var(--good)]">●</span><strong class="text-white">舱驾控一体</strong> HPC 内置网关，算力集中到单一中央单元</li>
+        <li class="flex gap-3"><span class="text-[var(--good)]">●</span>取消分散独立网关 / 域控，消除数据中转节点</li>
+        <li class="flex gap-3"><span class="text-[var(--good)]">●</span>区域控制器就近 I/O 采集与执行，线束轻量化</li>
+        <li class="flex gap-3"><span class="text-[var(--good)]">●</span>代表：小鹏 X-EEA4.0 / 蔚来 NT3.0 / 理想 LEEA3.0 / 广汽星灵4.0 / 吉利 GEEA4.0 / 大众 CEA1.0</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout mt-8 reveal">
+    <p class="text-[14px] text-[var(--txt2)] leading-relaxed">
+      <strong class="text-white">关键结论：</strong>HPC 内置集成网关、将座舱 + 智驾 + 整车网关算力收敛到单一中央单元，是当前「中央 + 区控」路线下兼顾<strong class="text-[var(--accent)]">性能与硬件成本</strong>的行业公认最优解 —— 这一底层判断没有过时。
+    </p>
+  </div>
+</section>
+
+<!-- ============ COMPARISON TABLE ============ -->
+<section id="compare" class="wrap py-12">
+  <div class="reveal">
+    <div class="sec-eyebrow mb-3">02 · Benchmark</div>
+    <h2 class="sec-title">十一家车企 <span class="grad-text">EEA 横向对标表</span></h2>
+    <p class="mt-4 max-w-3xl text-[var(--txt2)] text-[15px]">含国内新势力 4 家（小鹏/蔚来/理想/零跑）+ 国内传统/自主 6 家（广汽/吉利/上汽/长安/长城/比亚迪）+ 海外 1 家（大众）。支持按关键词筛选与搜索。</p>
+  </div>
+
+  <!-- Filters -->
+  <div class="flex flex-wrap items-center gap-2 mt-7 mb-5 reveal">
+    <span class="text-xs text-[var(--txt3)] mr-1">筛选：</span>
+    <button class="filter-btn active" data-filter="all">全部</button>
+    <button class="filter-btn" data-filter="self">完全自研</button>
+    <button class="filter-btn" data-filter="10g">10G TSN</button>
+    <button class="filter-btn" data-filter="zone4">4 区控</button>
+    <button class="filter-btn" data-filter="iobox">带 I/O Box</button>
+    <div class="ml-auto relative">
+      <input id="searchBox" type="text" placeholder="搜索车企 / 架构 / 关键词…" class="bg-[var(--card)] border border-[var(--line2)] rounded-xl pl-9 pr-4 py-2 text-sm w-64 outline-none focus:border-[var(--accent)]">
+      <svg class="absolute left-3 top-2.5 w-4 h-4 text-[var(--txt3)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+    </div>
+  </div>
+
+  <div class="glass overflow-x-auto reveal">
+    <table class="tbl" id="cmpTable">
+      <thead>
+        <tr>
+          <th>OEM</th>
+          <th>EEA 代号</th>
+          <th>Key ECU（核心硬件）</th>
+          <th>HPC</th>
+          <th>区控数</th>
+          <th>I/O Box</th>
+          <th>主干带宽</th>
+          <th>自研度</th>
+          <th>关键亮点</th>
+        </tr>
+      </thead>
+      <tbody id="cmpBody"></tbody>
+    </table>
+  </div>
+  <p class="text-xs text-[var(--txt3)] mt-3">* 表格数据综合各车企公开技术规划与行业拆解报告整理，部分参数（如 2.5G TOX）来源于供应链 / 行业研究，非官方口径。</p>
+</section>
+
+<!-- ============ ARCH DIAGRAM ============ -->
+<section id="cards" class="wrap py-16">
+  <div class="reveal">
+    <div class="sec-eyebrow mb-3">03 · Topology</div>
+    <h2 class="sec-title">典型拓扑：<span class="grad-text">中央 HPC + 区域控制器</span></h2>
+    <p class="mt-4 max-w-3xl text-[var(--txt2)] text-[15px]">以理想 LEEA 3.0 为例（主流 4 区 + 万兆 TSN + I/O Box 路线），呈现架构层级关系。</p>
+  </div>
+
+  <div class="glass p-8 mt-8 reveal overflow-x-auto">
+    <div class="min-w-[680px]">
+      <!-- Cloud -->
+      <div class="flex justify-center">
+        <div class="arch-box" style="width:200px;background:linear-gradient(180deg,rgba(255,93,162,0.12),rgba(124,92,255,0.06));border-color:rgba(255,93,162,0.3)">
+          <div class="text-[11px] text-[var(--txt3)] uppercase tracking-wider">Cloud</div>
+          <div class="font-bold text-sm mt-1">数字镜像云 / OTA</div>
+        </div>
+      </div>
+      <div class="conn"></div>
+      <!-- HPC -->
+      <div class="flex justify-center">
+        <div class="arch-box" style="width:480px;padding:18px">
+          <div class="text-[11px] text-[var(--txt3)] uppercase tracking-wider mb-2">HPC · 中央超算（舱驾控一体 + 内置网关 GW）</div>
+          <div class="grid grid-cols-3 gap-3">
+            <div style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);border-radius:10px;padding:10px">
+              <div class="text-[10px] text-[var(--txt3)]">智能座舱</div>
+              <div class="font-bold text-sm">Cockpit</div>
+            </div>
+            <div style="background:rgba(124,92,255,0.12);border:1px solid rgba(124,92,255,0.35);border-radius:10px;padding:10px">
+              <div class="text-[10px] text-[var(--txt3)]">智能驾驶</div>
+              <div class="font-bold text-sm">AD / ADAS</div>
+            </div>
+            <div style="background:rgba(61,220,151,0.1);border:1px solid rgba(61,220,151,0.3);border-radius:10px;padding:10px">
+              <div class="text-[10px] text-[var(--txt3)]">车控 + 网关</div>
+              <div class="font-bold text-sm">Vehicle + GW</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="text-center text-[11px] text-[var(--accent)] my-1 mono">▼ 10G TSN 车载以太网主干 ▼</div>
+      <!-- Zones -->
+      <div class="grid grid-cols-4 gap-3 mt-1">
+        <div class="zone-box"><div class="text-[10px] text-[var(--txt3)]">Zone 1</div><div class="font-bold text-sm">左前</div></div>
+        <div class="zone-box"><div class="text-[10px] text-[var(--txt3)]">Zone 2</div><div class="font-bold text-sm">右前</div></div>
+        <div class="zone-box"><div class="text-[10px] text-[var(--txt3)]">Zone 3</div><div class="font-bold text-sm">左后</div></div>
+        <div class="zone-box"><div class="text-[10px] text-[var(--txt3)]">Zone 4</div><div class="font-bold text-sm">右后</div></div>
+      </div>
+      <div class="text-center text-[11px] text-[var(--txt3)] my-1">▼ CAN / LIN / 配电</div>
+      <!-- I/O + actuators -->
+      <div class="grid grid-cols-4 gap-3">
+        <div class="zone-box" style="background:rgba(255,180,84,0.07);border-color:rgba(255,180,84,0.3)">
+          <div class="text-[10px] text-[var(--txt3)]">I/O Box</div><div class="text-[11px] font-semibold">远端采集</div>
+        </div>
+        <div class="zone-box" style="background:rgba(255,180,84,0.07);border-color:rgba(255,180,84,0.3)">
+          <div class="text-[10px] text-[var(--txt3)]">I/O Box</div><div class="text-[11px] font-semibold">远端执行</div>
+        </div>
+        <div class="zone-box" style="background:rgba(255,180,84,0.07);border-color:rgba(255,180,84,0.3)">
+          <div class="text-[10px] text-[var(--txt3)]">I/O Box</div><div class="text-[11px] font-semibold">远端采集</div>
+        </div>
+        <div class="zone-box" style="background:rgba(255,180,84,0.07);border-color:rgba(255,180,84,0.3)">
+          <div class="text-[10px] text-[var(--txt3)]">I/O Box</div><div class="text-[11px] font-semibold">远端执行</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OEM detail cards -->
+  <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5 mt-8" id="oemCards"></div>
+</section>
+
+<!-- ============ VISUALIZATION ============ -->
+<section id="visual" class="wrap py-16">
+  <div class="reveal">
+    <div class="sec-eyebrow mb-3">04 · Visualization</div>
+    <h2 class="sec-title">关键维度 <span class="grad-text">可视化对比</span></h2>
+  </div>
+  <div class="grid lg:grid-cols-2 gap-6 mt-8">
+    <div class="glass p-6 reveal">
+      <h3 class="font-bold text-base mb-1">主干网络带宽（Gbps）</h3>
+      <p class="text-xs text-[var(--txt3)] mb-4">三大阵营分化：万兆主流 / 2.5G 差异化 / 千兆保守</p>
+      <div style="height:260px"><canvas id="chartBandwidth"></canvas></div>
+    </div>
+    <div class="glass p-6 reveal">
+      <h3 class="font-bold text-base mb-1">区域控制器数量</h3>
+      <p class="text-xs text-[var(--txt3)] mb-4">国内主流 4 区，小鹏精简 3 区，大众保守 2 区</p>
+      <div style="height:260px"><canvas id="chartZone"></canvas></div>
+    </div>
+    <div class="glass p-6 reveal lg:col-span-2">
+      <h3 class="font-bold text-base mb-1">架构自研深度雷达</h3>
+      <p class="text-xs text-[var(--txt3)] mb-4">选取 4 家代表（小鹏·比亚迪·上汽·大众），从 HPC 自研、舱驾融合、网关集成、主干带宽、区控精简、I/O 轻量化六维评估</p>
+      <div style="height:340px"><canvas id="chartRadar"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ INDUSTRY TREND ============ -->
+<section id="trend" class="wrap py-16">
+  <div class="reveal">
+    <div class="sec-eyebrow mb-3">05 · Industry Trend</div>
+    <h2 class="sec-title">行业演进 <span class="grad-text">时间线与共识</span></h2>
+  </div>
+
+  <!-- timeline -->
+  <div class="relative mt-12 reveal" style="min-height:420px">
+    <div class="tl-line"></div>
+    <div class="space-y-12">
+      <div class="relative">
+        <div class="tl-dot" style="top:4px"></div>
+        <div class="grid grid-cols-2 gap-8 items-center">
+          <div class="text-right pr-8">
+            <div class="chip warn mb-2">存量主流</div>
+            <h4 class="font-bold">多域控制器架构</h4>
+            <p class="text-xs text-[var(--txt2)] mt-1">座舱/智驾/动力/车身独立域控 + 分布式网关</p>
+          </div>
+          <div></div>
+        </div>
+      </div>
+      <div class="relative">
+        <div class="tl-dot" style="top:4px;border-color:var(--accent2)"></div>
+        <div class="grid grid-cols-2 gap-8 items-center">
+          <div></div>
+          <div class="pl-8">
+            <div class="chip brand mb-2">过渡 · 2024-2025</div>
+            <h4 class="font-bold">准中央融合 / 双 HPC 松耦合</h4>
+            <p class="text-xs text-[var(--txt2)] mt-1">大众 CEA 1.0 量产；多数「舱驾一体」实为逻辑融合、硬件分离</p>
+          </div>
+        </div>
+      </div>
+      <div class="relative">
+        <div class="tl-dot" style="top:4px;border-color:var(--good)"></div>
+        <div class="grid grid-cols-2 gap-8 items-center">
+          <div class="text-right pr-8">
+            <div class="chip yes mb-2">目标 · 2026-2028</div>
+            <h4 class="font-bold">中央超算 + 区域控制规模化</h4>
+            <p class="text-xs text-[var(--txt2)] mt-1">单芯片舱驾一体（高通 8775/8797、英伟达 Thor）集中上车</p>
+          </div>
+          <div></div>
+        </div>
+      </div>
+      <div class="relative">
+        <div class="tl-dot" style="top:4px;border-color:#ff5fa2"></div>
+        <div class="grid grid-cols-2 gap-8 items-center">
+          <div></div>
+          <div class="pl-8">
+            <div class="chip" style="color:#ff9ec0;border-color:rgba(255,95,162,0.4);background:rgba(255,95,162,0.08)">终局 · 2028+</div>
+            <h4 class="font-bold">单芯全域融合 + 端侧大模型</h4>
+            <p class="text-xs text-[var(--txt2)] mt-1">小鹏 VLMU 独立大模型硬件先行布局端侧生成式 AI</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Consensus cards -->
+  <div class="grid md:grid-cols-3 gap-5 mt-14">
+    <div class="glass p-6 reveal">
+      <div class="text-2xl mb-2">🧠</div>
+      <h4 class="font-bold mb-2">中央 HPC 集成网关</h4>
+      <p class="text-xs text-[var(--txt2)] leading-relaxed">座舱 + 智驾 + 整车网关收敛到单一中央单元，取消独立网关与各类独立域控，消除数据中转节点。</p>
+    </div>
+    <div class="glass p-6 reveal">
+      <div class="text-2xl mb-2">🌐</div>
+      <h4 class="font-bold mb-2">TSN 车载以太网成标准</h4>
+      <p class="text-xs text-[var(--txt2)] leading-relaxed">作为主干网络成为行业共识；分歧仅在 1G / 2.5G / 10G 的带宽选择。</p>
+    </div>
+    <div class="glass p-6 reveal">
+      <div class="text-2xl mb-2">⚙️</div>
+      <h4 class="font-bold mb-2">区域控制器 + I/O 路线博弈</h4>
+      <p class="text-xs text-[var(--txt2)] leading-relaxed">带 I/O Box 可轻量化线束但增加接插件成本；区控直驱负载则反之，两种路线均有 OEM 论证支撑。</p>
+    </div>
+  </div>
+
+  <!-- Engineering reality -->
+  <div class="glass p-7 mt-8 reveal" style="border-color:rgba(255,180,84,0.25)">
+    <div class="flex items-center gap-3 mb-4">
+      <span class="chip warn">工程现实修正</span>
+      <h3 class="text-lg font-bold">"纸面规划" vs "工程落地" 的三处差距</h3>
+    </div>
+    <div class="grid md:grid-cols-3 gap-5 text-[13px]">
+      <div>
+        <div class="font-semibold text-white mb-1">① 舱驾一体 HPC 落地难</div>
+        <p class="text-[var(--txt2)] leading-relaxed">纸面写「舱驾控 + GW」，量产阶段多采用<strong class="text-white">舱计算 + 智驾计算松耦合</strong>，逻辑融合先行、硬件单体融合滞后。</p>
+      </div>
+      <div>
+        <div class="font-semibold text-white mb-1">② 10G TSN 成本与供给瓶颈</div>
+        <p class="text-[var(--txt2)] leading-relaxed">成熟低成本车载 10G 以太网芯片选择有限，部分新车<strong class="text-white">先预留接口、初期跑 2.5G、后期 OTA 开放万兆</strong>。</p>
+      </div>
+      <div>
+        <div class="font-semibold text-white mb-1">③ I/O Box 路线博弈</div>
+        <p class="text-[var(--txt2)] leading-relaxed">小鹏/蔚来/理想/广汽采用独立 I/O Box；吉利/上汽/长安/长城/比亚迪/大众区控直驱负载。<strong class="text-white">无绝对对错</strong>，取决于整车成本模型。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DOMESTIC ROUTE DIVERGENCE ============ -->
+<section id="divergence" class="wrap py-16">
+  <div class="reveal">
+    <div class="sec-eyebrow mb-3">06 · Domestic Divergence</div>
+    <h2 class="sec-title">国内主机厂 <span class="grad-text">路线分化解读</span></h2>
+    <p class="mt-4 max-w-3xl text-[var(--txt2)] text-[15px]">补充上汽 / 长安 / 长城 / 比亚迪后，国内阵营呈现三类典型路线：中央计算形态分化、量产节奏分化、自研模式分化。</p>
+  </div>
+
+  <div class="grid md:grid-cols-3 gap-5 mt-10">
+    <!-- Route 1: HPC form factor -->
+    <div class="glass p-6 reveal" style="border-top:3px solid #00e5ff">
+      <div class="chip brand mb-3">分化一 · 中央计算形态</div>
+      <h4 class="font-bold mb-3">单 HPC vs 双 HPC vs 多计算平台</h4>
+      <ul class="space-y-2.5 text-[13px] text-[var(--txt2)]">
+        <li class="flex gap-2"><span class="text-[var(--accent)] mono font-bold w-20 flex-shrink-0">单 HPC</span><span>小鹏/蔚来/理想/广汽/比亚迪 → 终极目标</span></li>
+        <li class="flex gap-2"><span class="text-[#fbbf24] mono font-bold w-20 flex-shrink-0">双 HPC</span><span><strong class="text-white">上汽零束</strong>独有（HPC1+HPC2 容错/扩展）</span></li>
+        <li class="flex gap-2"><span class="text-[#84cc16] mono font-bold w-20 flex-shrink-0">三平台</span><span><strong class="text-white">长城 GEEP4.0</strong>（中央/智驾/座舱分离过渡）</span></li>
+      </ul>
+      <p class="text-[11px] text-[var(--txt3)] mt-4 leading-relaxed">→ 多计算平台属过渡形态，最终收敛到单 HPC 全域融合。</p>
+    </div>
+
+    <!-- Route 2: Mass production pace -->
+    <div class="glass p-6 reveal" style="border-top:3px solid #3ddc97">
+      <div class="chip yes mb-3">分化二 · 量产节奏</div>
+      <h4 class="font-bold mb-3">已规模化 vs 规划中</h4>
+      <ul class="space-y-2.5 text-[13px] text-[var(--txt2)]">
+        <li class="flex gap-2"><span class="text-[#3ddc97] mono font-bold w-20 flex-shrink-0">已落地</span><span><strong class="text-white">比亚迪璇玑</strong>覆盖仰望/腾势/王朝/海洋；<strong class="text-white">零跑四叶草</strong> C10/C16 量产；小鹏 G7 X-EEA4.0 装车</span></li>
+        <li class="flex gap-2"><span class="text-[#38bdf8] mono font-bold w-20 flex-shrink-0">2025落地</span><span><strong class="text-white">上汽零束全栈3.0</strong>四域合一；长安 SDA 启源A06首发</span></li>
+        <li class="flex gap-2"><span class="text-[#ffb454] mono font-bold w-20 flex-shrink-0">规划中</span><span>蔚来NT3.0 / 理想LEEA3.0 / 广汽星灵4.0 / 长城GEEP4.0</span></li>
+      </ul>
+      <p class="text-[11px] text-[var(--txt3)] mt-4 leading-relaxed">→ 比亚迪、零跑在量产进度上领先，依托全栈/全域自研与性价比策略。</p>
+    </div>
+
+    <!-- Route 3: Self-dev model -->
+    <div class="glass p-6 reveal" style="border-top:3px solid #7c5cff">
+      <div class="chip" style="color:#c4b5fd;border-color:rgba(124,92,255,0.45);background:rgba(124,92,255,0.08)">分化三 · 自研模式</div>
+      <h4 class="font-bold mb-3">全栈自研 vs 子公司 vs 合作</h4>
+      <ul class="space-y-2.5 text-[13px] text-[var(--txt2)]">
+        <li class="flex gap-2"><span class="text-[#ef4444] mono font-bold w-24 flex-shrink-0">全栈自研</span><span><strong class="text-white">比亚迪</strong>（硬件+OS+算法）/ 小鹏 / 蔚来 / 理想 / <strong class="text-white">零跑</strong></span></li>
+        <li class="flex gap-2"><span class="text-[#fbbf24] mono font-bold w-24 flex-shrink-0">子公司</span><span><strong class="text-white">上汽零束</strong>、吉利内部供应商模式</span></li>
+        <li class="flex gap-2"><span class="text-[#38bdf8] mono font-bold w-24 flex-shrink-0">自研主导</span><span>长安 SDA、长城 GEEP（自主架构定义）</span></li>
+        <li class="flex gap-2"><span class="text-[#ff5d73] mono font-bold w-24 flex-shrink-0">联合开发</span><span>大众 CEA × 小鹏（唯一海外合作案例）</span></li>
+      </ul>
+      <p class="text-[11px] text-[var(--txt3)] mt-4 leading-relaxed">→ 国内 10 家均走自研/子公司路线，仅大众依赖外部合作。</p>
+    </div>
+  </div>
+
+  <!-- Key takeaways table -->
+  <div class="glass p-7 mt-8 reveal">
+    <h3 class="font-bold text-base mb-4">🔍 五家新补充车企关键看点</h3>
+    <div class="grid md:grid-cols-2 gap-x-10 gap-y-4">
+      <div class="border-l-2 pl-4" style="border-color:#fbbf24">
+        <div class="font-bold mb-1">上汽零束 · 全栈 3.0/4.0</div>
+        <p class="text-[12.5px] text-[var(--txt2)] leading-relaxed">唯一<strong class="text-white">双 HPC</strong> 架构（HPC1+HPC2），理念为"计算+通信"；3.0 实现"舱驾算联"四域合一并支持 L3；4.0 升级 AI OS + 智能体协同，面向 AI 原生车。<span class="text-[var(--txt3)]">→ 走"多 HPC 容错"而非"单 HPC 极致集中"的差异化路线。</span></p>
+      </div>
+      <div class="border-l-2 pl-4" style="border-color:#38bdf8">
+        <div class="font-bold mb-1">长安 · SDA 天枢架构</div>
+        <p class="text-[12.5px] text-[var(--txt2)] leading-relaxed">2021 年启动，独创<strong class="text-white">6 层架构</strong>（机械/能量/EEA/OS/应用/云端）；软硬解耦 + 服务化 SOA；智驾走<strong class="text-white">纯视觉路线</strong>（去传感器绑定、去高精地图）；启源 A06 首发，规划 7 款新车。<span class="text-[var(--txt3)]">→ 架构分层理念最清晰，软件驱动（Super DNA）。</span></p>
+      </div>
+      <div class="border-l-2 pl-4" style="border-color:#84cc16">
+        <div class="font-bold mb-1">长城 · GEEP 4.0</div>
+        <p class="text-[12.5px] text-[var(--txt2)] leading-relaxed">采用<strong class="text-white">三大计算平台</strong>（中央/智驾/座舱）+ 3 个区域控制器 VIU，属"准中央"过渡形态；中央计算 SOC 30 KDMIPS，率先整合车身/网关/动力底盘/ADAS；配套<strong class="text-white">线控底盘五大系统</strong>（转向/制动/换挡/油门/悬挂）+ SOA 开放 API。<span class="text-[var(--txt3)]">→ 线控底盘能力突出，但中央融合程度落后单 HPC 阵营。</span></p>
+      </div>
+      <div class="border-l-2 pl-4" style="border-color:#ef4444">
+        <div class="font-bold mb-1">比亚迪 · 璇玑架构 Xuanji</div>
+        <p class="text-[12.5px] text-[var(--txt2)] leading-relaxed">行业首个整车一体融合方案，"<strong class="text-white">一脑两端三网四链</strong>"设计；中央超算"天璇" + "天玑"冗余备份；双千兆双以太网环网；<strong class="text-white">全栈自研</strong>（硬件/OS/算法）；已规模化覆盖仰望/腾势/王朝/海洋四大矩阵。<span class="text-[var(--txt3)]">→ 表中少数已大规模量产的架构，凭借垂直整合领先落地。</span></p>
+      </div>
+      <div class="border-l-2 pl-4" style="border-color:#e879f9">
+        <div class="font-bold mb-1">零跑 · LEAP 3.0 四叶草</div>
+        <p class="text-[12.5px] text-[var(--txt2)] leading-relaxed">用 <strong class="text-white">1 SOC + 1 MCU 双芯</strong>构建中央超算实现"四域合一"（座舱/智驾/动力/车身），中央超算集成 <strong class="text-white">15 个功能模块</strong>；ECU 由 42 减至 28、线束由 1850m 减至 1500m；业界首个<strong class="text-white">整车无感 OTA</strong>；C10/C16 已量产。<span class="text-[var(--txt3)]">→ 以更少芯片实现高集成度，"价格屠夫"式性价比路线。</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SUMMARY ============ -->
+<section class="wrap py-16">
+  <div class="glass p-10 reveal text-center" style="background:linear-gradient(135deg,rgba(124,92,255,0.1),rgba(0,229,255,0.06))">
+    <div class="sec-eyebrow mb-3">07 · Bottom Line</div>
+    <h2 class="sec-title mb-5">一句话总结</h2>
+    <p class="max-w-3xl mx-auto text-[15px] leading-relaxed text-[var(--txt2)]">
+      这份架构对标<strong class="text-white">符合各家车企对外官宣的下一代技术规划（2026–2028 量产目标）</strong>，
+      适用于战略研讨与竞品分析；但当前绝大多数车型仍跑在上一代多域控制器 EEA 上。
+      行业底层判断 ——<span class="text-[var(--accent)] font-semibold">中央 HPC 集成网关、走向中央计算 + 区域控制器</span>—— 没有过时，是公认演进方向。
+    </p>
+    <div class="flex flex-wrap justify-center gap-3 mt-7">
+      <span class="chip yes">中央 HPC 集成网关 = 性能/成本最优解</span>
+      <span class="chip brand">小鹏 VLMU = 端侧大模型先行者</span>
+      <span class="chip" style="color:#fecaca;border-color:rgba(239,68,68,0.45);background:rgba(239,68,68,0.08)">比亚迪璇玑 = 已规模化量产领先者</span>
+      <span class="chip" style="color:#f5d0fe;border-color:rgba(232,121,249,0.45);background:rgba(232,121,249,0.08)">零跑四叶草 = 双芯四域高性价比</span>
+      <span class="chip" style="color:#fde68a;border-color:rgba(251,191,36,0.45);background:rgba(251,191,36,0.08)">上汽零束 = 双 HPC 差异化路线</span>
+      <span class="chip warn">大众 = 保守过渡路线</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer id="source" class="wrap py-12 mt-8">
+  <div class="reveal">
+    <h3 class="font-bold text-base mb-4">数据来源（References）</h3>
+    <div class="grid md:grid-cols-2 gap-x-8 gap-y-2 text-[12.5px] text-[var(--txt2)]">
+      <a class="src" target="_blank" href="https://zhuanlan.zhihu.com/p/2039723137957376535">小鹏 G7 EEA 4.0 超算架构拓扑分析（知乎）</a>
+      <a class="src" target="_blank" href="https://www.xiaopeng.com/news/company_news/5289.html">小鹏 × 大众 EEA 技术战略合作（小鹏官方）</a>
+      <a class="src" target="_blank" href="https://www.nio.cn/app-articles/533411">蔚来中央计算平台 ADAM（NIO 官方）</a>
+      <a class="src" target="_blank" href="https://www.ednchina.com/technews/31623.html">蔚来 ET9 数字架构解析（EDN）</a>
+      <a class="src" target="_blank" href="https://news.qq.com/rain/a/20220519A04NA800">理想汽车 EEA 架构迭代（腾讯新闻）</a>
+      <a class="src" target="_blank" href="https://www.eet-china.com/mp/a466151.html">智能汽车全域融合 + 数据中心架构（EET-China）</a>
+      <a class="src" target="_blank" href="https://www.gacgroup.com/cn/news/detail?baseid=19140">广汽发布星灵架构 4.0（广汽官方）</a>
+      <a class="src" target="_blank" href="https://www.galaxy-geely.com/technologysector">吉利 GEA 全球智能新能源架构（官方）</a>
+      <a class="src" target="_blank" href="https://www.volkswagengroupchina.com.cn/MediaCenter/News/Detail?itemid=d7fc22ec-6950-4bf2-9e71-8d7d2f63dfee">大众 × 小鹏 CEA 架构（大众中国官方）</a>
+      <a class="src" target="_blank" href="https://www.news.cn/fortune/20260129/b5e1c0e2e4114d73b5a60865fa281b62/c.html">大众 CEA 架构正式投产（新华网）</a>
+      <a class="src" target="_blank" href="https://www.saicmotor.com/chinese/xwzx/xwk/2024/59726.shtml">上汽"七大技术底座"全栈 3.0/4.0（上汽官方）</a>
+      <a class="src" target="_blank" href="https://www.z-one.tech/product/">零束银河全栈 3.0 中央大脑（零束官方）</a>
+      <a class="src" target="_blank" href="https://www.42how.com/article/7549">解析长安 SDA 天枢架构（42HOW）</a>
+      <a class="src" target="_blank" href="https://auto.gasgoo.com/news/202310/31I70367852C109.shtml">长安 SDA 架构背后逻辑（盖世汽车）</a>
+      <a class="src" target="_blank" href="https://www.42how.com/article/3941">长城 GEEP 4.0 与区域控制器详解（42HOW）</a>
+      <a class="src" target="_blank" href="https://zhuanlan.zhihu.com/p/2059922379481027000">长城 GEEP 4.0 舱驾一体算力解析（知乎）</a>
+      <a class="src" target="_blank" href="https://www.smartautoclub.com/p/108217/">各主机厂 EEA 演进从域控到中央集中式（含比亚迪璇玑）</a>
+      <a class="src" target="_blank" href="https://www.news.cn/auto/20230801/08c8fe2ce6e94776a257783b9d89fb8e/c.html">零跑发布"四叶草"中央集成式 EEA（新华网）</a>
+      <a class="src" target="_blank" href="https://m.leiphone.com/category/transportation/YoUjPlKjIo2Mn4BvC.html">零跑 LEAP 3.0 技术架构解析（雷峰网）</a>
+      <a class="src" target="_blank" href="https://www.smartautoclub.com/p/109673/">舱驾一体迈向单芯片量产时代（智能汽车俱乐部）</a>
+    </div>
+    <p class="text-xs text-[var(--txt3)] mt-6">© 2026 下一代 EEA 对标 · 仅供战略研讨与竞品分析使用 · 数据综合公开资料整理</p>
+  </div>
+</footer>
+
+<script>
+/* ============ DATA ============ */
+const OEMS = [
+  {
+    id:'xpeng', name:'小鹏', short:'XPENG', code:'X-EEA 4.0',
+    color:'#00e5ff',
+    ecu:'自研中央超算 XCCP + 大模型辅盒 VLMU + 3 区域控制器',
+    hpc:'舱驾一体 + 内置网关 GW',
+    zone:3, iobox:true, bandwidth:10, bwLabel:'万兆 10G TSN',
+    self:'完全自研', selfScore:5,
+    remark:'中央超算完全自研；唯一配套独立大模型硬件 VLMU，提前布局端侧车载生成式 AI；3 区精简路线。',
+    tags:['self','10g','iobox'],
+    highlight:'唯一独立大模型硬件 VLMU'
+  },
+  {
+    id:'nio', name:'蔚来', short:'NIO', code:'NT3.0',
+    color:'#3ddc97',
+    ecu:'自研中央超算 ADAM + 4 区域控制器',
+    hpc:'舱驾控一体 + 内置网关',
+    zone:4, iobox:true, bandwidth:2.5, bwLabel:'2.5G TOX 以太网',
+    self:'完全自研', selfScore:5,
+    remark:'中央超算自研；全网带宽选择 2.5G，与自主品牌万兆路线形成差异化；SOA 服务通信 SOME/IP + DDS。',
+    tags:['self','zone4','iobox'],
+    highlight:'2.5G 差异化通信路线'
+  },
+  {
+    id:'li', name:'理想', short:'Li Auto', code:'LEEA 3.0',
+    color:'#ffb454',
+    ecu:'自研中央全域融合 HPC + 4 区控制器',
+    hpc:'舱驾一体 + 网关',
+    zone:4, iobox:true, bandwidth:10, bwLabel:'万兆 10G TSN',
+    self:'完全自研', selfScore:5,
+    remark:'中央超算自研；主流 4 区控 + 万兆路线；PCIe Switch + TSN Switch 高带宽低延迟骨干。',
+    tags:['self','10g','zone4','iobox'],
+    highlight:'主流 4 区 + 万兆 TSN 标杆'
+  },
+  {
+    id:'gac', name:'广汽', short:'GAC', code:'星灵 EEA 4.0',
+    color:'#7c5cff',
+    ecu:'自研中央超算 HPC + 4 区控制器',
+    hpc:'舱驾一体 + 网关',
+    zone:4, iobox:true, bandwidth:10, bwLabel:'万兆 10G TSN',
+    self:'完全自研', selfScore:5,
+    remark:'中央超算自研；布局高度趋同理想；搭载 3nm 制程芯片，首实现智驾/座舱/动力/底盘/车身/车联网六域合一。',
+    tags:['self','10g','zone4','iobox'],
+    highlight:'六域合一 + 3nm 芯片'
+  },
+  {
+    id:'geely', name:'吉利', short:'Geely', code:'GEEA 4.0',
+    color:'#ff5fa2',
+    ecu:'中央超算 HPC + 4 区控制器',
+    hpc:'舱驾 + 网关',
+    zone:4, iobox:false, bandwidth:10, bwLabel:'万兆 10G TSN',
+    self:'内部供应商', selfScore:3,
+    remark:'中央超算非完全自研，采用集团内部供应商方案（相比小鹏/理想/蔚来自研模式更轻）；无独立 I/O Box。',
+    tags:['10g','zone4'],
+    highlight:'内部供应 · 无 I/O Box'
+  },
+  {
+    id:'vw', name:'大众', short:'VW', code:'CEA 1.0',
+    color:'#ff5d73',
+    ecu:'准中央融合 CCU 计算单元 + 2 区域控制器',
+    hpc:'舱驾 + 网关',
+    zone:2, iobox:false, bandwidth:1, bwLabel:'千兆 TSN',
+    self:'联合开发', selfScore:2,
+    remark:'准中央融合（尚未完全中央超算）；CCU 联合小鹏开发，非完全自研；区控数与带宽保守，18 个月量产。',
+    tags:[],
+    highlight:'准中央 · 与小鹏联合开发'
+  },
+  {
+    id:'saic', name:'上汽', short:'SAIC', code:'零束全栈 3.0/4.0',
+    color:'#fbbf24',
+    ecu:'双 HPC（HPC1+HPC2）+ 4 区域控制器 ZONE',
+    hpc:'双 HPC 舱驾算联四域合一 + 网关',
+    zone:4, iobox:false, bandwidth:1, bwLabel:'千兆级车载以太网',
+    self:'零束自研', selfScore:5,
+    remark:'上汽零束中央集中式架构；双 HPC 布局独特（区别于单 HPC 路线）；全栈 3.0 于 2025 年落地"舱驾算联"四域合一、支持 L3；全栈 4.0 面向 AI 原生（AI OS + 智能体协同）。',
+    tags:['self','zone4'],
+    highlight:'独特的双 HPC 架构'
+  },
+  {
+    id:'changan', name:'长安', short:'Changan', code:'SDA 天枢架构',
+    color:'#38bdf8',
+    ecu:'中央计算平台 + 多个区域控制器',
+    hpc:'中央计算 + 网关（软硬解耦）',
+    zone:4, iobox:false, bandwidth:1, bwLabel:'环以太网',
+    self:'完全自研', selfScore:4,
+    remark:'2021 年启动研发的"中央+域控"架构；独创 6 层架构设计（机械/能量/EEA/操作系统/应用/云端）；软硬解耦、服务化 SOA；智驾走纯视觉路线（去高精地图）；启源 A06 首发，已规划 7 款新车。',
+    tags:['self','zone4'],
+    highlight:'6 层架构 · 纯视觉智驾'
+  },
+  {
+    id:'gwm', name:'长城', short:'GWM', code:'GEEP 4.0',
+    color:'#84cc16',
+    ecu:'三大计算平台（中央/智驾/座舱）+ 3 区域控制器 VIU',
+    hpc:'三大计算平台 + 网关（中央计算整合网关）',
+    zone:3, iobox:false, bandwidth:1, bwLabel:'车载以太网',
+    self:'完全自研', selfScore:4,
+    remark:'三大计算平台架构（非完全单 HPC 融合，属过渡形态）；中央计算率先整合车身/网关/动力底盘/ADAS，主 SOC 30 KDMIPS；支持线控转向/制动/换挡/油门/悬挂 5 大系统；SOA 开放 API；率先搭载全新电动、混动平台。',
+    tags:['self'],
+    highlight:'三大计算平台 · 线控底盘'
+  },
+  {
+    id:'byd', name:'比亚迪', short:'BYD', code:'璇玑架构 Xuanji',
+    color:'#ef4444',
+    ecu:'中央超算天璇 + 天玑冗余 + 前/后区域控制器',
+    hpc:'中央超算（舱驾控一体）+ 网关',
+    zone:2, iobox:false, bandwidth:1, bwLabel:'双千兆双以太网环网',
+    self:'全栈自研', selfScore:5,
+    remark:'行业首个整车一体融合方案；"一脑两端三网四链"设计；双千兆双以太网环网 + 冗余计算平台；全栈自研硬件/OS/算法；已规模化落地覆盖仰望/腾势/王朝/海洋四大矩阵——表中少数已大规模量产的架构。',
+    tags:['self'],
+    highlight:'已规模化落地 · 全栈自研'
+  },
+  {
+    id:'leapmotor', name:'零跑', short:'Leapmotor', code:'LEAP 3.0 四叶草',
+    color:'#e879f9',
+    ecu:'中央超算（1 SOC + 1 MCU 四域合一）+ 区域控制器',
+    hpc:'中央超算（集成中央网关 + 15 功能模块）',
+    zone:2, iobox:false, bandwidth:1, bwLabel:'车载以太网',
+    self:'全域自研', selfScore:5,
+    remark:'1 SOC + 1 MCU 双芯构建中央超算，"四域合一"（座舱/智驾/动力/车身）；中央超算集成 15 个功能模块，ECU 由 42 减至 28，线束由 1850m 减至 1500m；业界首个整车无感 OTA；C10/C16 已量产；以更少芯片实现高集成度，性价比突出。',
+    tags:['self'],
+    highlight:'1 SOC+1 MCU 四域合一 · 高性价比'
+  }
+];
+
+/* ============ RENDER TABLE ============ */
+function selfChip(s){
+  if(s==='完全自研') return '<span class="chip yes">完全自研</span>';
+  if(s==='内部供应商') return '<span class="chip warn">内部供应</span>';
+  return '<span class="chip no">联合开发</span>';
+}
+function ioChip(b){return b?'<span class="chip yes">✓ 有</span>':'<span class="chip no">✗ 无</span>'}
+function bwColor(b){return b>=10?'#3ddc97':b>=2.5?'#ffb454':'#ff5d73'}
+
+function renderTable(filter='all', kw=''){
+  const body=document.getElementById('cmpBody');
+  let rows=OEMS.slice();
+  if(filter!=='all') rows=rows.filter(o=>o.tags.includes(filter));
+  if(kw){const k=kw.toLowerCase();rows=rows.filter(o=>(o.name+o.short+o.code+o.ecu+o.remark+o.bwLabel).toLowerCase().includes(k))}
+  body.innerHTML = rows.map(o=>`
+    <tr class="row" data-id="${o.id}">
+      <td>
+        <div class="oem-cell">
+          <div class="logo-badge" style="background:linear-gradient(135deg,${o.color},${o.color}99)">${o.name[0]}</div>
+          <div>
+            <div class="font-bold">${o.name}</div>
+            <div class="text-[11px] text-[var(--txt3)] mono">${o.short}</div>
+          </div>
+        </div>
+      </td>
+      <td><span class="chip brand mono">${o.code}</span></td>
+      <td class="text-[var(--txt2)]" style="max-width:280px">${o.ecu}</td>
+      <td><span class="text-[12px]">${o.hpc}</span></td>
+      <td><span class="mono font-bold" style="font-size:16px;color:${o.zone>=4?'#3ddc97':o.zone===3?'#00e5ff':'#ff5d73'}">${o.zone}</span></td>
+      <td>${ioChip(o.iobox)}</td>
+      <td>
+        <div class="flex items-center gap-2">
+          <span class="mono font-bold" style="color:${bwColor(o.bandwidth)}">${o.bandwidth}G</span>
+          <span class="text-[11px] text-[var(--txt3)]">${o.bwLabel.split(' ')[0]==='万兆'?'TSN':o.bwLabel.split(' ')[0]==='2.5G'?'TOX':'TSN'}</span>
+        </div>
+      </td>
+      <td>${selfChip(o.self)}</td>
+      <td class="text-[12px] text-[var(--txt2)]" style="max-width:240px">${o.remark}</td>
+    </tr>`).join('');
+}
+renderTable();
+
+/* filter & search */
+document.querySelectorAll('.filter-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    renderTable(btn.dataset.filter, document.getElementById('searchBox').value);
+  });
+});
+document.getElementById('searchBox').addEventListener('input',e=>{
+  const active=document.querySelector('.filter-btn.active');
+  renderTable(active?active.dataset.filter:'all', e.target.value);
+});
+
+/* ============ OEM CARDS ============ */
+document.getElementById('oemCards').innerHTML = OEMS.map(o=>`
+  <div class="glass oem-card p-6" style="border-top:3px solid ${o.color}">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-3">
+        <div class="logo-badge" style="background:linear-gradient(135deg,${o.color},${o.color}99)">${o.name[0]}</div>
+        <div>
+          <div class="font-bold text-base">${o.name}</div>
+          <div class="text-[11px] text-[var(--txt3)] mono">${o.short}</div>
+        </div>
+      </div>
+      <span class="chip brand mono">${o.code}</span>
+    </div>
+    <div class="callout mb-4" style="border-color:${o.color}">
+      <div class="text-[11px] text-[var(--txt3)] mb-0.5">亮点</div>
+      <div class="font-semibold text-[13px]" style="color:${o.color}">${o.highlight}</div>
+    </div>
+    <div class="space-y-0">
+      <div class="kv"><span class="k">核心硬件</span><span class="v" style="max-width:60%">${o.ecu}</span></div>
+      <div class="kv"><span class="k">HPC</span><span class="v">${o.hpc}</span></div>
+      <div class="kv"><span class="k">区控数</span><span class="v mono">${o.zone} 区</span></div>
+      <div class="kv"><span class="k">I/O Box</span><span class="v">${o.iobox?'✓ 配备':'✗ 无'}</span></div>
+      <div class="kv"><span class="k">主干带宽</span><span class="v mono" style="color:${bwColor(o.bandwidth)}">${o.bandwidth}G</span></div>
+      <div class="kv"><span class="k">自研度</span><span class="v">${o.self}</span></div>
+    </div>
+    <p class="text-[12px] text-[var(--txt2)] mt-4 leading-relaxed">${o.remark}</p>
+  </div>
+`).join('');
+
+/* ============ CHARTS ============ */
+Chart.defaults.color = '#9aa6c2';
+Chart.defaults.font.family = '"PingFang SC","Microsoft YaHei",sans-serif';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+
+// Bandwidth
+new Chart(document.getElementById('chartBandwidth'),{
+  type:'bar',
+  data:{
+    labels:OEMS.map(o=>o.name),
+    datasets:[{
+      label:'带宽 (Gbps)',
+      data:OEMS.map(o=>o.bandwidth),
+      backgroundColor:OEMS.map(o=>o.color+'cc'),
+      borderColor:OEMS.map(o=>o.color),
+      borderWidth:1.5,
+      borderRadius:8
+    }]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{
+      y:{beginAtZero:true,ticks:{color:'#6b7693'},grid:{color:'rgba(255,255,255,0.05)'}},
+      x:{ticks:{color:'#9aa6c2'},grid:{display:false}}
+    }
+  }
+});
+
+// Zone count
+new Chart(document.getElementById('chartZone'),{
+  type:'bar',
+  data:{
+    labels:OEMS.map(o=>o.name),
+    datasets:[{
+      label:'区控数量',
+      data:OEMS.map(o=>o.zone),
+      backgroundColor:OEMS.map(o=>o.zone>=4?'rgba(61,220,151,0.7)':o.zone===3?'rgba(0,229,255,0.7)':'rgba(255,93,115,0.7)'),
+      borderColor:OEMS.map(o=>o.zone>=4?'#3ddc97':o.zone===3?'#00e5ff':'#ff5d73'),
+      borderWidth:1.5,
+      borderRadius:8
+    }]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,indexAxis:'y',
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{beginAtZero:true,ticks:{stepSize:1,color:'#6b7693'},grid:{color:'rgba(255,255,255,0.05)'}},
+      y:{ticks:{color:'#9aa6c2'},grid:{display:false}}
+    }
+  }
+});
+
+// Radar - select 4 representative (new force / traditional / overseas)
+const radarOems = ['xpeng','byd','saic','vw'];
+const radarData = radarOems.map(id=>OEMS.find(o=>o.id===id));
+new Chart(document.getElementById('chartRadar'),{
+  type:'radar',
+  data:{
+    labels:['HPC 自研','舱驾融合','网关集成','主干带宽','区控精简度','I/O 轻量化'],
+    datasets:radarData.map(o=>({
+      label:`${o.name} ${o.code}`,
+      data:[o.selfScore, 5, 5, o.bandwidth/10*5, o.zone<=3?5:o.zone===4?4:2, o.iobox?5:2],
+      borderColor:o.color,
+      backgroundColor:o.color+'22',
+      pointBackgroundColor:o.color,
+      borderWidth:2
+    }))
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#e8edf7',font:{size:12}}}},
+    scales:{
+      r:{
+        min:0,max:5,
+        ticks:{stepSize:1,color:'#6b7693',backdropColor:'transparent'},
+        angleLines:{color:'rgba(255,255,255,0.08)'},
+        grid:{color:'rgba(255,255,255,0.08)'},
+        pointLabels:{color:'#9aa6c2',font:{size:12}}
+      }
+    }
+  }
+});
+
+/* ============ REVEAL ON SCROLL ============ */
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}});
+},{threshold:0.08});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+/* smooth scroll */
+document.querySelectorAll('a[href^="#"]').forEach(a=>{
+  a.addEventListener('click',e=>{
+    const t=document.querySelector(a.getAttribute('href'));
+    if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth',block:'start'})}
+  });
+});
+</script>
+</body>
+</html>
