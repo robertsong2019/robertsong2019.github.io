@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当分数不可比时：Agent 记忆图分类的四种集成融合策略 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>当分数不可比时：Agent 记忆图分类的四种集成融合策略</h1>
+        <div class="meta">
+            2026-07-31 · 罗嵩 ·
+            <span class="tag">Agent Memory</span>
+            <span class="tag">Ensemble Methods</span>
+            <span class="tag">TypeScript</span>
+            <span class="tag">Graph Classification</span>
+        </div>
+
+        <blockquote>三个分类器分别给出分数 0.72、1.34 和 8.91。你该信谁？如果你的答案是"归一化后取平均"，你可能已经踩坑了——因为这三个分数的分布、量纲和语义完全不同。本文记录我在 Agent 记忆图项目中实现 9 种分类 API 的过程，以及"分数不可比"这个核心工程难题的 4 种解法。</blockquote>
+
+        <h2>一、问题：三种拓扑指纹，三个不可比的世界</h2>
+
+        <p>在 Agent 记忆图（agent-memory-graph）中，<strong>分类</strong>是核心操作：给定一个输入图，在参考图库中找到最匹配的那个。这决定了 Agent 能否正确识别"当前上下文"并召回相关记忆。</p>
+
+        <p>问题在于，图可以从三个拓扑维度刻画：</p>
+
+        <ul>
+            <li><strong>度序列（Degree Sequence）</strong>——节点连接数的分布。用 Jensen-Shannon 散度（JSD）衡量，分数范围 [0, 0.8]，越小越相似。</li>
+            <li><strong>谱特征（Spectral）</strong>——邻接矩阵特征值的分布。用散度衡量，分数范围 [0, 2.5]，越小越相似。</li>
+            <li><strong>结构指纹（Fingerprint）</strong>——三角形数量、聚类系数等局部特征。用欧氏距离衡量，分数范围 [0, 15+]，越小越相似。</li>
+        </ul>
+
+        <p>注意分数范围：<code>[0, 0.8]</code>、<code>[0, 2.5]</code>、<code>[0, 15+]</code>。直接取平均会让 fingerprint 的声音压倒一切。Min-max 归一化？如果你的参考集里有一个极端 outlier，整个归一化就崩了。</p>
+
+        <p>这就是"分数不可比"问题——不是简单的量纲差异，而是<strong>分布形态、尾部行为和语义含义</strong>都不同。</p>
+
+        <h2>二、策略一：Reciprocal Rank Fusion——忘掉分数，只看排名</h2>
+
+        <p>最优雅的解法来自信息检索领域：<strong>别管分数是多少，只看谁排在前面</strong>。</p>
+
+        <p>Reciprocal Rank Fusion（RRF）是 2009 年 SIGIR 论文提出的经典方法。核心公式极其简单：</p>
+
+        <div class="ascii-art">RRF_score(d) = Σ  1 / (k + rank_m(d))
+                   m∈methods</div>
+
+        <p>其中 <code>k</code> 是平滑常数（原论文推荐 60，我在小规模参考集上用 5-10），<code>rank_m(d)</code> 是文档 d 在方法 m 的排序中的位置。</p>
+
+        <p><strong>TypeScript 实现：</strong></p>
+
+        <pre><code>function rrfClassification(
+  input: Graph,
+  references: Graph[],
+  options: { k?: number } = {}
+): ClassificationResult {
+  const { k = 10 } = options;
+  const methods = [
+    { name: 'degree', scores: degreeScores(input, references) },
+    { name: 'spectral', scores: spectralScores(input, references) },
+    { name: 'fingerprint', scores: fingerprintScores(input, references) },
+  ];
+
+  // 每个方法独立排序，得到排名
+  const rrfScores = new Map<string, number>();
+
+  for (const method of methods) {
+    // 升序排列（分数越小越好的场景统一处理）
+    const ranked = [...method.scores]
+      .sort((a, b) => a.score - b.score);
+
+    ranked.forEach((entry, idx) => {
+      const rank = idx + 1;
+      const contribution = 1 / (k + rank);
+      const current = rrfScores.get(entry.refId) ?? 0;
+      rrfScores.set(entry.refId, current + contribution);
+    });
+  }
+
+  // 综合排名
+  const sorted = [...rrfScores.entries()]
+    .sort((a, b) => b[1] - a[1]);  // RRF 分数越大越好
+
+  return {
+    best_reference: sorted[0][0],
+    best_score: sorted[0][1],
+    method: 'rrf',
+    k,
+  };
+}</code></pre>
+
+        <div class="insight">
+            <strong>核心洞察：RRF 是尺度不变的（scale-invariant）。</strong>它不关心你的分数是 0.72 还是 8.91——它只关心"在这套分数里，谁排第一"。这恰好解决了我们的核心问题：三种方法分数范围差 20 倍，但排名是可比的。
+        </div>
+
+        <p><strong>RRF 的适用场景：</strong>当你不知道分数分布的形状，或者不同方法的分数语义完全不同时，RRF 是最安全的默认选择。零参数调优（只需要选个 k），不会出错。</p>
+
+        <p><strong>RRF 的局限：</strong>它丢弃了分数的绝对信息。如果所有方法的 best 都有压倒性优势（比如 0.01 vs 0.5 的差距），RRF 无法利用"这个匹配非常确信"这个信号。</p>
+
+        <h2>三、策略二：Bayesian 自适应权重——让数据自己说话</h2>
+
+        <p>RRF 给所有方法同等权重。但如果对于某个特定输入，spectral 方法非常有信心（第一名和第二名差距很大），而 degree 方法很犹豫（前五名几乎一样），你该不该更信 spectral？</p>
+
+        <p>Bayesian 融合的核心创新：<strong>权重不是固定的，而是每个查询动态计算</strong>。</p>
+
+        <pre><code>function bayesianClassification(
+  input: Graph,
+  references: Graph[]
+): ClassificationResult {
+  const methods = ['degree', 'spectral', 'fingerprint'];
+  const rawScores: Record<string, number[]> = {};
+
+  // 1. 获取原始分数
+  for (const m of methods) {
+    rawScores[m] = computeScores(input, references, m);
+  }
+
+  // 2. 每个方法独立 min-max 归一化
+  const normalized: Record<string, number[]> = {};
+  for (const m of methods) {
+    const scores = rawScores[m];
+    const min = Math.min(...scores);
+    const max = Math.max(...scores);
+    const range = max - min || 1;
+    normalized[m] = scores.map(s => (s - min) / range);
+  }
+
+  // 3. 计算每个方法的"分离度"（separation）
+  //    分离度 = 第二名和第一名的归一化分数之差
+  const weights: Record<string, number> = {};
+  for (const m of methods) {
+    const sorted = [...normalized[m]].sort((a, b) => a - b);
+    const best = sorted[0];       // 最小值 = 最佳匹配
+    const second = sorted[1] ?? 1;
+    const separation = second - best;
+    weights[m] = Math.max(separation, 0);
+  }
+
+  // 4. 归一化权重（sum to 1）
+  const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0);
+  for (const m of methods) {
+    weights[m] = totalWeight > 0
+      ? weights[m] / totalWeight
+      : 1 / methods.length;  // 全部模糊时退化为均等
+  }
+
+  // 5. 加权求和
+  const finalScores = references.map((_, i) => {
+    return methods.reduce((sum, m) => sum + weights[m] * normalized[m][i], 0);
+  });
+
+  const bestIdx = finalScores.indexOf(Math.min(...finalScores));
+
+  return {
+    best_reference: references[bestIdx].id,
+    best_score: finalScores[bestIdx],
+    method: 'bayesian',
+    weights,  // 暴露权重给调用方：诊断利器
+  };
+}</code></pre>
+
+        <p>注意第 3 步的"分离度"概念：<strong>一个方法越有信心（第一名远超第二名），它的权重就越高</strong>。这个权重对每个输入图独立计算——同一个方法在输入 A 上可能权重 0.6，在输入 B 上可能只有 0.15。</p>
+
+        <div class="highlight">
+            <strong>实践要点：</strong>分离度用的是归一化后的值，而不是原始值。这很关键——否则 fingerprint 的大尺度总是会让它看起来"更有信心"，即使这种信心只是量纲假象。
+        </div>
+
+        <p><strong>Bayesian 的适用场景：</strong>当不同方法对不同类型的图有不同判别力时（比如 spectral 擅长区分社区结构，degree 擅长区分星型 vs 网状），自适应权重会自动找到正确的组合方式。</p>
+
+        <h2>四、策略三：k-NN 距离加权投票——多看几个，少数服从多数</h2>
+
+        <p>前两种策略只看每个方法的"第一名"。但有时候正确答案排在第二或第三——特别是当参考图之间很相似时。k-NN 策略的思路：<strong>不只看最近的 1 个，看最近的 k 个</strong>，用距离加权投票。</p>
+
+        <pre><code>function knnClassification(
+  input: Graph,
+  references: Graph[],
+  options: {
+    k?: number;
+    baseMethod?: 'hybrid' | 'graph' | 'spectral' | 'rrf' | 'bayesian';
+    labelPooling?: boolean;
+  } = {}
+): ClassificationResult {
+  const {
+    k = 3,
+    baseMethod = 'hybrid',
+    labelPooling = false,
+  } = options;
+
+  // 1. 用基础方法计算距离
+  const baseResult = classifyByMethod(input, references, baseMethod);
+  const ranked = baseResult.rankings;  // 按分数排序的参考图列表
+
+  // 2. 取前 k 个，距离加权投票
+  const topK = ranked.slice(0, k);
+  const votes: Record<string, number> = {};
+
+  for (const candidate of topK) {
+    const epsilon = 1e-10;
+    const weight = 1 / (Math.abs(candidate.score) + epsilon);
+
+    // label pooling：如果参考图有标签，按标签聚合
+    const key = labelPooling
+      ? (candidate.label ?? candidate.refId)
+      : candidate.refId;
+
+    votes[key] = (votes[key] ?? 0) + weight;
+  }
+
+  // 3. 票数最多的胜出
+  const sorted = Object.entries(votes)
+    .sort((a, b) => b[1] - a[1]);
+
+  const best = sorted[0];
+  const runnerUp = sorted[1] ?? ['', 0];
+
+  // 4. 一致性得分（agreement）
+  const totalVotes = Object.values(votes).reduce((a, b) => a + b, 0);
+  const agreement = best[1] / totalVotes;
+
+  // 5. 检测平局
+  const margin = best[1] - runnerUp[1];
+  const isTie = margin < epsilon;
+
+  return {
+    best_reference: best[0],
+    best_score: best[1],
+    method: 'knn',
+    k,
+    base_method: baseMethod,
+    agreement,   // 0-1，越高越确信
+    tie: isTie,
+    votes: Object.fromEntries(sorted),
+  };
+}</code></pre>
+
+        <p>关键设计决策：</p>
+
+        <ol>
+            <li><strong>权重 = 1 / (|score| + ε)</strong>——距离越近，投票权重越大。ε 防止除零。</li>
+            <li><strong>Label pooling</strong>——如果多个参考图共享一个标签（比如同属"客服场景"类别），可以按标签聚合投票。这让你实现<strong>类别级分类</strong>，而不仅仅是实例级。</li>
+            <li><strong>Agreement 指标</strong>——best 的票数占比。0.95 说明前 k 个高度一致；0.4 说明分歧严重，可能需要人工介入。</li>
+        </ol>
+
+        <p><strong>k-NN 的适用场景：</strong>参考库较大、参考图之间有重叠时。小库（&lt;10 个参考图）用 k=3 就够；大库可以尝试 k=5-7。</p>
+
+        <h2>五、策略四：显式加权平均——把控制权交给用户</h2>
+
+        <p>有时候你不需要花哨的自适应——你就是<strong>知道</strong>在你的场景里 spectral 比 degree 重要。显式加权平均就是最诚实的方案：</p>
+
+        <pre><code>function weightedAverageClassification(
+  input: Graph,
+  references: Graph[],
+  options: {
+    degreeWeight?: number;
+    spectralWeight?: number;
+    fingerprintWeight?: number;
+    normalization?: 'minmax' | 'softmax';
+  } = {}
+): ClassificationResult {
+  const {
+    degreeWeight = 1 / 3,
+    spectralWeight = 1 / 3,
+    fingerprintWeight = 1 / 3,
+    normalization = 'minmax',
+  } = options;
+
+  const entries: ClassificationEntry[] = [];
+
+  for (const ref of references) {
+    const scores: Record<string, number | null> = {
+      degree: degreeScore(input, ref),
+      spectral: spectralScore(input, ref),
+      fingerprint: fingerprintScore(input, ref),
+    };
+
+    // 收集可用模态（有些参考图可能缺某些特征）
+    const available = Object.entries(scores)
+      .filter(([, v]) => v !== null) as [string, number][];
+
+    // 权重重归一化：如果某个模态缺失，把它的权重分给其他模态
+    const weights: Record<string, number> = {
+      degree: degreeWeight,
+      spectral: spectralWeight,
+      fingerprint: fingerprintWeight,
+    };
+    const availableSum = available
+      .map(([k]) => weights[k])
+      .reduce((a, b) => a + b, 0);
+
+    // 逐模态归一化 + 加权
+    let finalScore = 0;
+    const diagnostics: Record<string, { raw: number; norm: number; weight: number }> = {};
+
+    for (const [method, rawScore] of available) {
+      // 归一化在这个 ref 的所有候选中做（外部循环需要收集）
+      // 简化：这里用 softmax / minmax 选项
+      const adjustedWeight = weights[method] / availableSum;
+      finalScore += adjustedWeight * normalize(rawScore, normalization);
+      diagnostics[method] = {
+        raw: rawScore,
+        norm: normalize(rawScore, normalization),
+        weight: adjustedWeight,
+      };
+    }
+
+    entries.push({
+      reference: ref.id,
+      final_score: finalScore,
+      methods_used: available.map(([k]) => k),
+      per_method: diagnostics,
+    });
+  }
+
+  entries.sort((a, b) => a.final_score - b.final_score);
+
+  return {
+    best_reference: entries[0].reference,
+    best_score: entries[0].final_score,
+    method: 'weighted_average',
+    normalization,
+    entries,
+  };
+}</code></pre>
+
+        <p>看似简单，但有两个关键设计经常被忽略：</p>
+
+        <ol>
+            <li><strong>权重重归一化</strong>——当某个参考图缺少某个模态时（比如没有特征值数据），它的剩余模态权重需要重新归一化为 1。否则缺失模态的参考图会被系统性低估。</li>
+            <li><strong>逐模态归一化</strong>——每个模态在自己的分数集合内独立归一化，而不是跨模态归一化。这保证了权重参数的语义清晰："spectralWeight = 0.5" 意味着 spectral 贡献了最终分数的 50%，无论它的原始分数范围是什么。</li>
+        </ol>
+
+        <h2>六、四策略对比：你应该选哪个？</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>策略</th>
+                    <th>参数</th>
+                    <th>自适应</th>
+                    <th>尺度不变</th>
+                    <th>诊断信息</th>
+                    <th>最佳场景</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>RRF</strong></td>
+                    <td>k (默认 10)</td>
+                    <td>❌ 等权重</td>
+                    <td>✅ 完全</td>
+                    <td>排名</td>
+                    <td>默认选择，零调优</td>
+                </tr>
+                <tr>
+                    <td><strong>Bayesian</strong></td>
+                    <td>无</td>
+                    <td>✅ 每查询动态</td>
+                    <td>✅ 归一化后</td>
+                    <td>权重 + 分离度</td>
+                    <td>方法间判别力差异大</td>
+                </tr>
+                <tr>
+                    <td><strong>k-NN</strong></td>
+                    <td>k, baseMethod</td>
+                    <td>部分（依赖基础方法）</td>
+                    <td>取决于基础方法</td>
+                    <td>投票 + agreement</td>
+                    <td>大参考库 + 标签聚合</td>
+                </tr>
+                <tr>
+                    <td><strong>显式加权</strong></td>
+                    <td>3 个权重</td>
+                    <td>❌ 固定</td>
+                    <td>✅ 归一化后</td>
+                    <td>逐模态 raw + norm</td>
+                    <td>领域知识明确时</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="insight">
+            <strong>我的建议：默认用 RRF。</strong>它零调优、尺度不变、行为可预测。当你的系统跑了一段时间，积累了足够多的查询数据后，分析 RRF 的排名结果——如果发现某个方法系统性被高估或低估，再切换到 Bayesian 或显式加权来微调。
+        </div>
+
+        <h2>七、第四种失败模式：当集成本身是错误的时候</h2>
+
+        <p>实现了 9 种分类 API 之后，我发现了一个反直觉的现象：<strong>集成不总是更好的</strong>。</p>
+
+        <p>具体来说，当三种基础方法都指向同一个方向时（三个都选 ref-A），集成是多余的——你花了 3 倍的计算成本，得到一样的答案。更糟糕的是，当两种弱方法联合起来推翻一种强方法的正确判断时，集成反而降低了准确率。</p>
+
+        <p>这就是为什么我额外实现了 <code>classification_compare()</code>——一个共识报告 API。它不是第五种融合策略，而是一个诊断工具：</p>
+
+        <pre><code>const report = classificationCompare(input, refs);
+// 返回：
+// {
+//   consensus: 'ref-A',          // 多数方法的选择
+//   agreement: 0.67,              // 2/3 方法同意
+//   per_method: {
+//     degree:    { winner: 'ref-A', score: 0.12, rank: 1 },
+//     spectral:  { winner: 'ref-B', score: 0.03, rank: 1 },
+//     fingerprint:{ winner: 'ref-A', score: 1.2, rank: 1 },
+//   },
+//   disagreement_level: 'medium', // low / medium / high
+//   recommended_action: 'accept_majority',
+// }</code></pre>
+
+        <p>当 <code>agreement &lt; 0.5</code>（三个方法各选不同的）时，<code>recommended_action</code> 会变成 <code>'flag_for_review'</code>。在我的测试中，这种三级分歧几乎总是意味着参考库里缺少正确的原型——不是算法的问题，是数据的问题。</p>
+
+        <h2>八、从研究到实现：330 个测试的故事</h2>
+
+        <p>这套分类系统不是一次性设计出来的。它是 9 个 API、330 个测试、跨 10 个开发周期的迭代产物：</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Cycle</th>
+                    <th>API</th>
+                    <th>新增测试</th>
+                    <th>角色</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>282</td><td>graph_classification</td><td>baseline</td><td>度序列基线</td></tr>
+                <tr><td>318</td><td>spectral_classification</td><td>+38</td><td>谱 + 指纹单匹配</td></tr>
+                <tr><td>319</td><td>hybrid_classification</td><td>+48</td><td>双模态加权</td></tr>
+                <tr><td>320</td><td>classification_with_rejection</td><td>+40</td><td>拒绝层（生产安全）</td></tr>
+                <tr><td>326</td><td>rrf_classification</td><td>+20</td><td>策略 1：排名融合</td></tr>
+                <tr><td>327</td><td>bayesian_classification</td><td>+36</td><td>策略 2：自适应权重</td></tr>
+                <tr><td>328</td><td>classification_compare</td><td>+40</td><td>诊断工具</td></tr>
+                <tr><td>329</td><td>knn_classification</td><td>+56</td><td>策略 3：k-NN 投票</td></tr>
+                <tr><td>330</td><td>weighted_average_classification</td><td>+52</td><td>策略 4：显式权重</td></tr>
+            </tbody>
+        </table>
+
+        <p>每个 API 平均 37 个测试，覆盖正常路径、边界条件（空参考集、单一参考、所有分数相同）、错误处理（方法失败时的降级）、以及交叉验证（RRF 和 Bayesian 在同一输入上的结果一致性）。</p>
+
+        <p><strong>零回滚。</strong>9 个 API 在各自周期内一次通过，没有需要 revert 的提交。这不是因为代码完美——而是因为每个 API 在实现前都有明确的成功标准（"X 个测试覆盖 Y 个场景，全部通过"），让自动验证循环可以自主运行。</p>
+
+        <h2>九、给你的三条建议</h2>
+
+        <ol>
+            <li><strong>不要在分数层面做集成。</strong>分数的量纲、分布、尾部行为都不同。要么在排名层面融合（RRF），要么在归一化后的分数层面融合（Bayesian / 显式加权）。原始分数的直接平均几乎总是错的。</li>
+            <li><strong>保留诊断信息。</strong>每个融合 API 的返回值都应包含 per-method 的原始分数、归一化分数和权重。当你需要在生产环境调试"为什么系统把 ref-B 排在第一位"时，这些诊断信息价值连城。</li>
+            <li><strong>实现拒绝机制。</strong>分类器的输出不应该是"最匹配的参考图"，而应该是"这个匹配是否可信"。双阈值（分数 + margin）拒绝机制让你的系统在面对分布外输入时能说"我不知道"，而不是强行给一个错误答案。这在生产环境中是分水岭级别的差异。</li>
+        </ol>
+
+        <hr>
+
+        <p>这套分类系统是 <a href="https://github.com/robertsong2019/agent-memory-graph">agent-memory-graph</a> 项目的一部分。9 个 API、330+ 个测试、零回滚——全部开源，欢迎 star 和 issue。</p>
+
+        <p><em>下一篇会写关于 Benchmark Harness 的设计——为什么"发布记分牌"比"发布选手"更有价值。</em></p>
+
+    </div>
+</body>
+</html>
