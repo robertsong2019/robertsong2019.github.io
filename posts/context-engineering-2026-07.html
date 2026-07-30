@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>提示工程已死，上下文工程当立 — Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+.insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+.warning { background: #fdf2f2; padding: 15px; border-radius: 4px; border-left: 4px solid #ef4444; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+.tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">&larr; 返回首页</a>
+
+<h1>提示工程已死，上下文工程当立</h1>
+<div class="meta">
+    2026-07-30 &middot; 罗嵩 &middot;
+    <span class="tag">Context Engineering</span>
+    <span class="tag">LLM</span>
+    <span class="tag">AI Agent</span>
+    <span class="tag">工程实践</span>
+</div>
+
+<blockquote>2025 年 6 月，Shopify CEO Tobi Lütke 在内部备忘录中写下一句话：「Context engineering 描述了核心技能，比 prompt engineering 更好。」Andrej Karpathy 随即转发赞同。三个月后，Anthropic 发布了系统框架，Google DeepMind 工程师称之为「新技能」，LangChain 说它是「最重要的技能」。一个名字的变更，背后是整个 AI 工程范式的迁移——从"怎么写提示词"到"如何系统性地管理模型的全部输入"。</blockquote>
+
+<h2>一、为什么"提示工程"不够用了？</h2>
+
+<p>想象你在管理一个新入职的工程师。你能做的最差的事情是什么？不是给他模糊的任务——至少他还会问。最差的是<strong>一次性倒给他 500 页文档</strong>，然后说"这里面有你需要的所有信息，自己找吧"。</p>
+
+<p>这就是 2025 年 AI 工程的现状。模型的上下文窗口从 4K 涨到 128K，再到 1M、10M。很多人的第一反应是："太好了，什么都能塞进去了！"于是把整个代码库、所有工具定义、全部对话历史、所有可能相关的文档——一股脑塞进上下文窗口。</p>
+
+<p>结果呢？模型表现更差了。</p>
+
+<p>Chroma Research 对 18 个主流 LLM 做了系统测试，发现了一个他们称之为 <strong>"Context Rot"（上下文腐烂）</strong>的现象：随着输入 token 数量增加，模型的准确检索能力持续下降，<strong>即使在最简单的任务上也是如此</strong>。所有模型无一幸免。</p>
+
+<div class="warning">
+<strong>关键发现：</strong>Gemini 2.5 的技术报告承认：当 agent 的上下文显著超过 100K token 后，它开始<strong>重复历史行为</strong>，而非<strong>生成新策略</strong>。上下文越长，模型越像一个"只会翻旧账"的实习生。
+</div>
+
+<p>问题的根源不是模型不够聪明，而是 Transformer 架构的基本数学约束：注意力机制是 O(n²) 的——每个 token 都需要和所有其他 token 计算注意力权重。token 越多，注意力越"稀薄"。就像一个房间里 10 个人聊天你能跟上，1000 个人同时说话就是噪音。</p>
+
+<p>这就引出了一个核心结论：<strong>上下文不是"能放就放"，而是"必须修剪"</strong>。每个 token 都有成本。而这个"修剪"的工程实践，就是 Context Engineering。</p>
+
+<h2>二、什么是 Context Engineering？</h2>
+
+<p>Philipp Schmid（Google DeepMind）给出了最清晰的定义：</p>
+
+<blockquote>Context Engineering 是设计和构建动态系统的学科——在正确的时刻，以正确的格式，提供正确的信息和工具，让 LLM 拥有完成任务所需的一切。</blockquote>
+
+<p>注意几个关键词：</p>
+
+<ul>
+    <li><strong>系统，不是字符串</strong>——上下文不是一个静态的 prompt 模板，而是一个在每次推理前动态组装的系统</li>
+    <li><strong>动态</strong>——不同请求需要不同的上下文。这次是日历数据，下次是邮件历史，再下次是代码库</li>
+    <li><strong>正确的格式</strong>——一份精炼的摘要胜过原始 JSON dump；一个清晰的工具 schema 胜过模糊的自然语言描述</li>
+    <li><strong>正确的时刻</strong>——不是预加载所有信息，而是按需加载</li>
+</ul>
+
+<p>用 Schmid 自己的例子来说明。有人发邮件问："明天有空聊聊吗？"</p>
+
+<p><strong>糟糕的 Agent</strong>（没有上下文）回复：</p>
+<pre><code>感谢您的消息。明天可以，请问您希望几点？</code></pre>
+
+<p><strong>优秀的 Agent</strong>（有完整上下文）回复：</p>
+<pre><code>Jim 你好！明天我全天满档，从早到晚都是会。周四上午有空，方便吗？已经发了邀请，确认一下。</code></pre>
+
+<p>第二个回复的"魔法"不在于用了更好的模型或者更精妙的 prompt——而在于<strong>在调用 LLM 之前，系统已经把日历、历史邮件、联系人关系都准备好了</strong>。Agent 的好坏，80% 取决于上下文工程，20% 才是模型和提示词。</p>
+
+<h2>三、上下文的四种死亡方式</h2>
+
+<p>Drew Breunig 在一篇广泛传播的文章中，系统性地分类了上下文失败的四种模式。每一个做过 Agent 开发的人都会会心苦笑——因为我们都踩过这些坑。</p>
+
+<h3>模式 1：Context Poisoning（上下文中毒）</h3>
+
+<p><strong>症状：</strong>模型产生了幻觉（比如错误地认为某个函数存在），这个幻觉进入了对话历史，然后被反复引用和强化。最终，整个 agent 的行为都建立在一个虚假前提上。</p>
+
+<p><strong>类比：</strong>就像一个人的记忆被植入了虚假事件——他所有后续的决策都基于这个不存在的事实。电影《盗梦空间》里植入一个想法就能改变一个人的人生；上下文中毒就是 LLM 版的盗梦空间。</p>
+
+<p>Gemini 2.5 在玩 Pokémon 时展示了这个问题的严重性：一旦"目标"部分被幻觉污染，agent 会执着地追求一个不可能完成的目标，反复尝试相同的行为。</p>
+
+<h3>模式 2：Context Distraction（上下文分心）</h3>
+
+<p><strong>症状：</strong>上下文太长，模型开始过度依赖上下文中的历史行为，忽略了自己在训练中学到的知识。</p>
+
+<p><strong>类比：</strong>就像考试时带了一本太厚的参考书——学生在里面找到了一个"差不多"的答案就直接抄，而不是用自己脑中的知识去思考。</p>
+
+<p>Databricks 的研究量化了这个问题：Llama 3.1 405b 在上下文超过 32K token 后开始出错，更小的模型更早。如果你的 agent 跑了很久，对话历史不断累积——恭喜，你正在经历 Context Distraction。</p>
+
+<h3>模式 3：Context Confusion（上下文混淆）</h3>
+
+<p><strong>症状：</strong>上下文中有太多不相关的内容（尤其是过多的工具定义），模型被干扰，做出低质量的决策。</p>
+
+<p><strong>数据：</strong>Berkeley Function-Calling Leaderboard 表明——<strong>每多给一个工具，准确率就下降</strong>。更惊人的是：一个 8B 参数的 Llama 模型，给 46 个工具时失败，给 19 个工具时成功——问题不是模型不够大，而是工具太多。</p>
+
+<p><strong>类比：</strong>就像给一个新员工一本 500 页的操作手册，里面包含了所有可能用到的工具——从咖啡机到核反应堆。他找一个"打印"按钮都要翻半天，最后按错了。</p>
+
+<h3>模式 4：Context Clash（上下文冲突）</h3>
+
+<p><strong>症状：</strong>上下文的不同部分互相矛盾。比如系统指令说"用中文回复"，但用户消息里有一段英文指令说"respond in English"。模型行为变得不可预测。</p>
+
+<p><strong>类比：</strong>就像两个领导给下属下达了矛盾的指令——一个说"赶紧做完"，另一个说"务必仔细检查"。下属不管怎么做都是错的。</p>
+
+<div class="highlight">
+<strong>实践建议：</strong>每次 agent 出错时，先别怪模型。按这四种模式做一次诊断——大概率是上下文的问题，不是模型的问题。
+</div>
+
+<h2>四、Just-In-Time：让 Agent 学会"按需加载"</h2>
+
+<p>Anthropic 在 Claude Code 中实践了一种叫做 <strong>"Just-In-Time Context"（即时上下文）</strong>的策略，这是目前最成熟的上下文管理方案。</p>
+
+<p>核心思路可以用一个类比解释：</p>
+
+<blockquote>人类不记忆整个互联网。我们记住的是<strong>在哪里能找到</strong>信息——文件在哪个柜子、联系人在通讯录里哪个位置、网页收藏夹的目录结构。需要时，我们按需取出。</blockquote>
+
+<p>Agent 也应该这样工作。不要预加载整个知识库，而是：</p>
+
+<ol>
+    <li><strong>维护轻量级引用</strong>——文件路径、URL、查询语句，而非完整数据</li>
+    <li><strong>通过工具按需加载</strong>——agent 自己决定何时取出什么信息</li>
+    <li><strong>利用元数据</strong>——文件名、目录结构、时间戳本身就携带语义。<code>test_utils.py</code> 在 <code>tests/</code> 目录下和 <code>src/core/</code> 下含义不同，agent 能理解这种差异</li>
+    <li><strong>渐进式发现</strong>——每次交互获得的信息指导下一次决策。先看文件大小判断复杂度，再决定是否深入</li>
+</ol>
+
+<p>Claude Code 就是这个策略的最佳实践者：<code>CLAUDE.md</code> 预加载核心指令（"我是谁、代码规范是什么"），其余通过 <code>glob</code> 和 <code>grep</code> 按需获取。这让它能在大型代码库中高效工作，而不会把上下文窗口塞满。</p>
+
+<p>当然，纯即时检索也有代价：速度慢。每次工具调用都是一次 round trip。所以实践中，<strong>混合策略</strong>是最优解：</p>
+
+<table>
+    <thead>
+        <tr><th>策略</th><th>预加载</th><th>即时检索</th><th>适用场景</th></tr>
+    </thead>
+    <tbody>
+        <tr><td>纯预加载（传统 RAG）</td><td>全部相关数据</td><td>无</td><td>静态文档问答</td></tr>
+        <tr><td>纯即时检索</td><td>最小核心指令</td><td>全部动态数据</td><td>探索性分析</td></tr>
+        <tr><td><strong>混合策略（推荐）</strong></td><td>核心指令+关键配置</td><td>具体数据+大文件</td><td><strong>大多数 Agent 场景</strong></td></tr>
+    </tbody>
+</table>
+
+<h2>五、系统提示词的"正确高度"</h2>
+
+<p>Anthropic 提出了一个精妙的比喻——系统提示词应该找到<strong>"正确的高度"（The Right Altitude）</strong>。</p>
+
+<p>想象你在飞一架飞机。飞太低（过于具体的指令），你能看清每棵树但很容易撞上——每次场景变化都需要修改 prompt，脆弱不堪。飞太高（过于模糊的指令），你什么都看不到——模型不理解你到底想要什么。</p>
+
+<p>正确的高度在中间：</p>
+
+<ul>
+    <li><strong>太低（过于具体）：</strong>"如果用户说X就做Y，如果用户说A就做B，如果条件C满足且D不为空则..."——这是一堆 if-else，不是 prompt。一旦场景超出你的枚举，立刻崩溃。</li>
+    <li><strong>太高（过于模糊）：</strong>"你是一个有帮助的助手，请尽力帮助用户。"——说了等于没说。</li>
+    <li><strong>正确高度：</strong>提供清晰的行为准则和少量多样化示例（few-shot），让模型理解"怎么思考"而非"每一步做什么"。</li>
+</ul>
+
+<p>Anthropic 的建议是：<strong>从最小化 prompt + 最好的模型开始</strong>，测试它在你的任务上表现如何。根据失败模式，逐步添加明确的指令和示例。不要一开始就写一个 500 行的 prompt——那是在掩耳盗铃，掩盖了模型本身的能力不足。</p>
+
+<div class="insight">
+<strong>核心原则：</strong>Few-shot 示例是"值千言的图片"。与其写一千字的规则描述，不如给三个多样化的、能体现期望行为的示例。模型从示例中泛化的能力，远超从规则中推断。
+</div>
+
+<h2>六、工具设计的隐藏成本</h2>
+
+<p>如果你在做 Agent 开发，你可能犯过这个错误：给 agent 一堆工具，希望它"什么都能做"。搜索、邮件、日历、代码执行、数据库查询...二十个工具一股脑塞进去。</p>
+
+<p>Berkeley 的研究告诉我们：这是一个灾难。</p>
+
+<p>工具定义本身就是上下文的一部分。每个工具的名称、描述、参数 schema 都在消耗 token 预算。更重要的是，<strong>工具越多，模型的选择空间越大，决策质量越低</strong>。这和人类面对过多选择时的"决策瘫痪"是一样的。</p>
+
+<p>好的工具设计遵循三条原则：</p>
+
+<ol>
+    <li><strong>最小集合</strong>——如果人类工程师无法在 3 秒内说出"这个任务该用哪个工具"，模型也不行</li>
+    <li><strong>无重叠</strong>——两个工具不应该能完成同一件事。如果可以，合并它们</li>
+    <li><strong>自描述</strong>——工具名和参数名应该让人一看就懂。不要叫 <code>process_data</code>，要叫 <code>search_customer_by_email</code></li>
+</ol>
+
+<h2>七、你能立刻做的 6 件事</h2>
+
+<p>理论说得够多了。以下是你可以<strong>今天就开始</strong>的上下文工程实践：</p>
+
+<h3>1. 审计你的上下文</h3>
+<p>把你的 agent 每次调用 LLM 时的<strong>完整输入</strong>记录下来（包括系统指令、历史、工具定义、检索结果）。打印出来，用红笔标出：哪些信息是这次调用真正需要的？哪些是在"以防万一"？你会发现 30-50% 的 token 可能是浪费的。</p>
+
+<h3>2. 设定上下文预算</h3>
+<p>为每个组件分配 token 预算。比如：系统指令 10%、工具定义 15%、对话历史 30%、检索结果 35%、用户输入 10%。超出预算就触发压缩或截断。没有预算的上下文就像没有预算的项目——注定失控。</p>
+
+<h3>3. 从"预加载"切换到"按需加载"</h3>
+<p>找出你的 agent 上下文中最大的数据块（通常是 RAG 检索结果或对话历史）。问自己：这些信息是否每次都需要？如果不需要，把它替换成一个工具调用——让 agent 自己决定何时加载。</p>
+
+<h3>4. 修剪你的工具集</h3>
+<p>如果你的 agent 有超过 8 个工具，做一次审计。合并功能重叠的、移除使用率低于 5% 的。如果确实需要很多工具，考虑<strong>分层加载</strong>——先给核心工具，agent 判断需要时再"解锁"高级工具。</p>
+
+<h3>5. 实现对话压缩</h3>
+<p>当对话超过 N 轮（比如 10 轮），自动把前面的历史摘要为一到两段话。保留最近 5 轮的原始记录，更早的只保留摘要。这能减少 60-80% 的历史 token，同时保持关键信息。</p>
+
+<h3>6. 建立可观测性</h3>
+<p>用 LangSmith、OpenTelemetry 或自建工具，追踪每次 LLM 调用的完整上下文和输出。当 agent 出错时，你能快速定位：是上下文太多（Distraction）？太矛盾（Clash）？还是缺失关键信息？没有可观测性的 agent 工程，就像没有日志的生产系统——出了问题只能猜。</p>
+
+<h2>结语：从"写好一句话"到"管好一个系统"</h2>
+
+<p>2020 年，GPT-3 发布时，我们面临的问题是"怎么写好一个 prompt"。答案是一堆技巧和模板——zero-shot、few-shot、chain-of-thought。</p>
+
+<p>2026 年，我们面临的问题变成了"怎么管好一个动态系统"——上下文窗口是有限的注意力资源，模型在每个 token 上都有递减的边际收益，agent 在多步推理中不断产生新信息。</p>
+
+<p>Context Engineering 不是又一个 buzzword。它是一个认知框架的迁移：从把 LLM 当作"接受指令的机器"，到把它当作"在有限注意力下工作的协作者"。</p>
+
+<p>当你开始用"注意力预算"的视角看你的 agent，而不是"提示词优化"的视角——你就已经从一个 prompt engineer 变成了一个 context engineer。</p>
+
+<p>这条路没有终点。但好消息是：每一步修剪、每一次按需加载、每一个被移除的冗余工具，都会立刻反映在你的 agent 表现上。</p>
+
+<blockquote><strong>记住 Karpathy 的话：</strong>Context engineering 是"在上下文窗口中放入恰好的信息，供下一步推理"的艺术与科学。不是太少，不是错的格式——而是刚刚好。</blockquote>
+
+<hr>
+
+<p><strong>参考资料：</strong></p>
+<ul style="font-size: 0.85em; color: #666;">
+    <li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Anthropic - Effective Context Engineering for AI Agents</a></li>
+    <li><a href="https://www.philschmid.de/context-engineering">Philipp Schmid (Google DeepMind) - The New Skill in AI is Not Prompting, It's Context Engineering</a></li>
+    <li><a href="https://www.langchain.com/blog/the-rise-of-context-engineering">LangChain - The Rise of Context Engineering</a></li>
+    <li><a href="https://redis.io/blog/context-engineering-best-practices-for-an-emerging-discipline/">Redis - Context Engineering: Best Practices for an Emerging Discipline</a></li>
+    <li><a href="https://www.dbreunig.com/2025/06/22/how-contexts-fail-and-how-to-fix-them.html">Drew Breunig - How Long Contexts Fail and How to Fix Them</a></li>
+    <li><a href="https://www.trychroma.com/research/context-rot">Chroma Research - Context Rot: How Increasing Input Tokens Impacts LLM Performance</a></li>
+    <li><a href="https://arxiv.org/abs/2507.13334">Mei et al. - A Survey of Context Engineering for Large Language Models</a></li>
+    <li><a href="https://github.com/Meirtz/Awesome-Context-Engineering">Awesome Context Engineering (GitHub)</a></li>
+</ul>
+
+</div>
+</body>
+</html>
