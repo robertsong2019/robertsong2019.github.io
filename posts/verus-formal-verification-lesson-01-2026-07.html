@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verus 第 1 课 · fuzz 抓不到的 bug,形式化验证抓到了</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,900&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ────────────────────────────────────────────────────────────────
+   * Design system: dark tech style (consistent with repo's other HTMLs)
+   * Base: deep navy + cyan accent + purple. This page adds:
+   *   --rust (amber) for the fuzz/testing world
+   *   --proof (green) for the verified world
+   * ──────────────────────────────────────────────────────────────── */
+  :root {
+    --bg-deep: #050811;
+    --bg: #0a0e1a;
+    --bg-elev: #111726;
+    --bg-card: #161d30;
+    --border: #1f2940;
+    --border-bright: #2f3d5f;
+    --text: #e6ebf5;
+    --text-dim: #8a94b0;
+    --text-muted: #5a647a;
+    --accent: #00ffc8;
+    --accent-dim: #00b88f;
+    --purple: #a78bfa;
+    --purple-dim: #7c6fe0;
+    --warn: #fbbf24;
+    --error: #f87171;
+    --success: #4ade80;
+    --code-bg: #0d1320;
+    --grid-line: rgba(47, 61, 95, 0.4);
+
+    /* This page's signature: the two worlds */
+    --rust:  #f59e0b;   /* testing/fuzz world — amber */
+    --proof: #4ade80;   /* verified world — green */
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-weight: 300;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(0, 255, 200, 0.04) 0%, transparent 40%),
+      radial-gradient(circle at 85% 80%, rgba(167, 139, 250, 0.05) 0%, transparent 45%),
+      linear-gradient(rgba(47, 61, 95, 0.15) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(47, 61, 95, 0.15) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 60px 60px, 60px 60px;
+    background-attachment: fixed;
+  }
+
+  /* ─── Top nav ─── */
+  nav.topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(10, 14, 26, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  }
+  nav.topbar .logo {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--accent); font-weight: 700; letter-spacing: 0.5px;
+  }
+  nav.topbar .logo::before {
+    content: '⊢'; font-family: 'Fraunces', serif; font-size: 22px;
+    color: var(--purple); line-height: 1;
+  }
+  nav.topbar .nav-links { display: flex; gap: 24px; }
+  nav.topbar .nav-links a {
+    color: var(--text-dim); text-decoration: none; transition: color 0.2s;
+  }
+  nav.topbar .nav-links a:hover { color: var(--accent); }
+
+  /* ─── Section layout ─── */
+  section { padding: 100px 32px; max-width: 1200px; margin: 0 auto; position: relative; }
+  .section-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: var(--accent); letter-spacing: 3px; text-transform: uppercase;
+    margin-bottom: 16px; display: flex; align-items: center; gap: 12px;
+  }
+  .section-label::before {
+    content: ''; width: 32px; height: 1px; background: var(--accent);
+  }
+
+  h1, h2, h3 { font-family: 'Fraunces', serif; font-weight: 600; letter-spacing: -0.02em; color: var(--text); }
+  h2 { font-size: clamp(32px, 4vw, 48px); line-height: 1.15; margin-bottom: 24px; }
+  h2 em { font-style: italic; color: var(--accent); font-weight: 400; }
+  h3 { font-size: 22px; margin-bottom: 12px; color: var(--text); }
+  p { margin-bottom: 16px; color: var(--text-dim); }
+  p strong { color: var(--text); font-weight: 500; }
+  p code, li code {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.88em;
+    background: var(--code-bg); padding: 2px 7px; border-radius: 4px;
+    color: var(--accent); border: 1px solid var(--border);
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    min-height: 100vh; display: flex; flex-direction: column;
+    justify-content: center; padding-top: 80px; position: relative;
+  }
+  .hero .eyebrow {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    color: var(--text-muted); margin-bottom: 32px; letter-spacing: 2px;
+    animation: fadeUp 0.8s ease-out;
+  }
+  .hero .eyebrow span { color: var(--purple); }
+  .hero h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(44px, 6.5vw, 84px); font-weight: 300;
+    line-height: 1.04; letter-spacing: -0.03em; margin-bottom: 32px;
+    animation: fadeUp 0.8s ease-out 0.1s both;
+  }
+  .hero h1 .accent-word {
+    font-style: italic; font-weight: 600;
+    background: linear-gradient(135deg, var(--rust) 0%, var(--proof) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero h1 .small {
+    font-size: 0.38em; color: var(--text-dim); font-weight: 300;
+    font-style: italic; display: block; margin-top: 16px; line-height: 1.4;
+  }
+  .hero .lede {
+    font-size: 19px; max-width: 680px; color: var(--text-dim);
+    margin-bottom: 48px; animation: fadeUp 0.8s ease-out 0.2s both;
+  }
+  .hero .lede strong { color: var(--accent); font-weight: 500; }
+  .hero-cta { display: flex; gap: 16px; animation: fadeUp 0.8s ease-out 0.3s both; }
+  .btn {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    padding: 14px 24px; border-radius: 6px; text-decoration: none;
+    transition: all 0.2s; cursor: pointer; border: none;
+    display: inline-flex; align-items: center; gap: 10px; letter-spacing: 0.5px;
+  }
+  .btn-primary { background: var(--accent); color: var(--bg-deep); font-weight: 700; }
+  .btn-primary:hover {
+    background: var(--text); transform: translateY(-1px);
+    box-shadow: 0 10px 30px rgba(0, 255, 200, 0.25);
+  }
+  .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border-bright); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* HERO final result badge */
+  .hero-result {
+    position: absolute; right: 32px; top: 50%; transform: translateY(-50%);
+    animation: fadeUp 0.8s ease-out 0.4s both;
+  }
+  .hero-result .badge {
+    background: var(--bg-card); border: 1px solid var(--proof);
+    border-radius: 12px; padding: 24px 28px; text-align: center;
+    box-shadow: 0 0 40px rgba(74, 222, 128, 0.15);
+  }
+  .hero-result .badge .label {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .hero-result .badge .num {
+    font-family: 'Fraunces', serif; font-size: 42px; font-weight: 600;
+    color: var(--proof); line-height: 1;
+  }
+  .hero-result .badge .sub {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-dim); margin-top: 6px;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── Two-world comparison ─── */
+  .worlds {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 48px;
+  }
+  .world {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 32px; position: relative; overflow: hidden;
+  }
+  .world::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .world.fuzz::before { background: var(--rust); }
+  .world.proof::before { background: var(--proof); }
+  .world .world-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;
+  }
+  .world.fuzz .world-label { color: var(--rust); }
+  .world.proof .world-label { color: var(--proof); }
+  .world h3 {
+    font-family: 'Fraunces', serif; font-size: 26px; margin-bottom: 16px;
+  }
+  .world.fuzz h3 { color: var(--text); }
+  .world.proof h3 { color: var(--text); }
+  .world .stat-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 14px 0; border-bottom: 1px dashed var(--border);
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  }
+  .world .stat-row:last-child { border-bottom: none; }
+  .world .stat-row .k { color: var(--text-muted); }
+  .world .stat-row .v { color: var(--text); font-weight: 500; }
+  .world.fuzz .stat-row .v.hi { color: var(--rust); }
+  .world.proof .stat-row .v.hi { color: var(--proof); }
+  .world .verdict {
+    margin-top: 20px; padding: 16px; border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6;
+  }
+  .world.fuzz .verdict {
+    background: rgba(245, 158, 11, 0.08); border-left: 3px solid var(--rust);
+    color: var(--text-dim);
+  }
+  .world.proof .verdict {
+    background: rgba(74, 222, 128, 0.08); border-left: 3px solid var(--proof);
+    color: var(--text-dim);
+  }
+
+  /* ─── The bug Verus caught ─── */
+  .bug-showcase {
+    margin-top: 48px; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+  }
+  .bug-showcase .bug-head {
+    padding: 20px 28px; background: var(--bg-elev);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  }
+  .bug-showcase .bug-head .dot {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--error);
+    box-shadow: 0 0 12px var(--error);
+  }
+  .bug-showcase .bug-head .title { color: var(--error); font-weight: 700; }
+  .bug-showcase .bug-head .loc { color: var(--text-muted); margin-left: auto; }
+  .bug-showcase pre {
+    padding: 24px 28px; font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; line-height: 1.8; color: var(--text); overflow-x: auto;
+  }
+  .bug-showcase pre .kw { color: var(--purple); }
+  .bug-showcase pre .cm { color: var(--text-muted); font-style: italic; }
+  .bug-showcase pre .err {
+    color: var(--error); text-decoration: underline wavy var(--error);
+    text-underline-offset: 4px;
+  }
+  .bug-showcase pre .ok { color: var(--proof); }
+
+  /* ─── Timeline of 5 rejections ─── */
+  .timeline { margin-top: 48px; position: relative; padding-left: 40px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 14px; top: 0; bottom: 0;
+    width: 2px; background: linear-gradient(var(--error), var(--warn), var(--proof));
+  }
+  .tl-item {
+    position: relative; margin-bottom: 32px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px 28px;
+  }
+  .tl-item::before {
+    content: ''; position: absolute; left: -33px; top: 28px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--bg); border: 3px solid var(--error);
+  }
+  .tl-item.warn::before { border-color: var(--warn); }
+  .tl-item.ok::before { border-color: var(--proof); }
+  .tl-item .tl-head {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+  }
+  .tl-item .tl-num {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    padding: 3px 10px; border-radius: 100px; letter-spacing: 1px;
+    border: 1px solid var(--border-bright); color: var(--text-muted);
+  }
+  .tl-item .tl-title { font-family: 'Fraunces', serif; font-size: 19px; color: var(--text); }
+  .tl-item .tl-err {
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+    background: var(--code-bg); border-left: 3px solid var(--error);
+    padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 12px 0;
+    color: var(--error); line-height: 1.6;
+  }
+  .tl-item .tl-fix {
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+    color: var(--text-dim); line-height: 1.7;
+  }
+  .tl-item .tl-fix strong { color: var(--proof); }
+  .tl-item.ok .tl-err {
+    border-left-color: var(--proof); color: var(--proof);
+    background: rgba(74, 222, 128, 0.05);
+  }
+
+  /* ─── The verified code ─── */
+  .code-final {
+    margin-top: 48px; background: var(--code-bg);
+    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  }
+  .code-final .code-head {
+    padding: 14px 20px; background: var(--bg-elev);
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+  .code-final .code-head .name { color: var(--proof); font-weight: 700; }
+  .code-final .code-head .status {
+    padding: 3px 10px; background: rgba(74, 222, 128, 0.15);
+    color: var(--proof); border-radius: 100px; font-size: 10px; letter-spacing: 1px;
+  }
+  .code-final pre {
+    padding: 24px 28px; font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; line-height: 1.8; color: var(--text); overflow-x: auto;
+  }
+  .code-final pre .kw { color: var(--purple); font-weight: 500; }
+  .code-final pre .cm { color: var(--text-muted); font-style: italic; }
+  .code-final pre .fn { color: var(--accent); }
+  .code-final pre .ty { color: #38bdf8; }
+  .code-final pre .num { color: var(--warn); }
+  .code-final pre .sp { color: var(--proof); } /* spec/ensures highlights */
+
+  /* ─── Pyramid closure ─── */
+  .pyramid-wrap { margin-top: 48px; }
+  .pyramid {
+    display: flex; flex-direction: column-reverse; gap: 6px; max-width: 640px; margin: 0 auto;
+  }
+  .pyr-layer {
+    border-radius: 8px; padding: 20px 28px; text-align: center;
+    border: 1px solid; position: relative;
+  }
+  .pyr-layer .pyr-name {
+    font-family: 'Fraunces', serif; font-size: 19px; margin-bottom: 4px;
+  }
+  .pyr-layer .pyr-meta {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 1px; opacity: 0.8;
+  }
+  .pyr-layer.base {
+    background: rgba(90, 100, 122, 0.15); border-color: var(--text-muted); color: var(--text-dim);
+  }
+  .pyr-layer.waist {
+    background: rgba(245, 158, 11, 0.12); border-color: var(--rust); color: var(--rust);
+    margin: 0 40px;
+  }
+  .pyr-layer.top {
+    background: rgba(74, 222, 128, 0.15); border-color: var(--proof); color: var(--proof);
+    margin: 0 100px;
+    box-shadow: 0 0 30px rgba(74, 222, 128, 0.2);
+  }
+  .pyr-layer.top .pyr-name { color: var(--proof); }
+  .pyr-layer .pyr-check {
+    position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+    font-family: 'JetBrains Mono', monospace; font-size: 14px;
+  }
+
+  /* ─── Takeaway callout ─── */
+  .takeaway {
+    margin-top: 48px; background: var(--bg-card);
+    border: 1px solid var(--border); border-left: 3px solid var(--purple);
+    border-radius: 0 12px 12px 0; padding: 32px 40px; position: relative;
+  }
+  .takeaway::before {
+    content: '≡'; position: absolute; top: 20px; right: 28px;
+    font-family: 'Fraunces', serif; font-size: 32px; color: var(--purple); opacity: 0.5;
+  }
+  .takeaway p { font-size: 17px; color: var(--text); }
+  .takeaway p strong { color: var(--accent); }
+
+  /* ─── Footer ─── */
+  footer {
+    border-top: 1px solid var(--border); padding: 60px 32px 40px;
+    text-align: center; color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 2;
+  }
+  footer .qed-mark {
+    font-family: 'Fraunces', serif; font-size: 28px; color: var(--purple);
+    margin-bottom: 16px; display: block;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 900px) {
+    section { padding: 60px 20px; }
+    .worlds { grid-template-columns: 1fr; }
+    .hero-result { display: none; }
+    nav.topbar .nav-links { display: none; }
+    .pyr-layer.waist { margin: 0 20px; }
+    .pyr-layer.top { margin: 0 40px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="logo">formal-verification-lab</div>
+  <div class="nav-links">
+    <a href="#worlds">两种范式</a>
+    <a href="#bug">Verus 抓到的 bug</a>
+    <a href="#timeline">5 次拒绝</a>
+    <a href="#code">最终代码</a>
+    <a href="#pyramid">金字塔闭环</a>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     HERO
+═══════════════════════════════════════════════════════════════ -->
+<section class="hero" id="top">
+  <div class="eyebrow">
+    Verus 第 1 课 · <span>fuzz 抓不到的 bug，形式化验证抓到了</span>
+  </div>
+  <h1>
+    15000 次 fuzz <span class="accent-word">没抓到</span>的 bug，<br>
+    Verus 第一行就<span class="accent-word">抓到了</span>。
+    <span class="small">用 rust_binutils 的真实代码，对照两种验证范式的根本差距。</span>
+  </h1>
+  <p class="lede">
+    我们给 <code>read_u16</code>/<code>read_u32</code>/<code>read_u64</code> 做了 fuzzing，
+    跑了 15000 次随机输入，<strong>0 panic</strong>。然后我们把同一个函数交给 Verus，
+    它<strong>立刻拒绝了第一版代码</strong>——发现了一个 fuzz 概率上几乎不可能触发的整数溢出。
+    这一页记录整个过程。
+  </p>
+  <div class="hero-cta">
+    <a href="#bug" class="btn btn-primary">看 Verus 抓到了什么 →</a>
+    <a href="#timeline" class="btn btn-ghost">5 次拒绝到通过的全过程</a>
+  </div>
+
+  <div class="hero-result">
+    <div class="badge">
+      <div class="label">FINAL RESULT</div>
+      <div class="num">5 / 0</div>
+      <div class="sub">verified &nbsp;·&nbsp; errors</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     两种范式对照
+═══════════════════════════════════════════════════════════════ -->
+<section id="worlds">
+  <div class="section-label">TWO PARADIGMS · 同一个函数,两种验证</div>
+  <h2>fuzzing 和 Verus,差在<em>哪</em></h2>
+  <p style="max-width: 760px;">
+    被测对象完全一样：<code>rust_binutils/src/util.rs</code> 的 <code>read_uXX</code> 三个读取原语。
+    但两种方法给出了截然不同的"信心"。
+  </p>
+
+  <div class="worlds">
+    <div class="world fuzz">
+      <div class="world-label">● 腰部 · TESTING</div>
+      <h3>Fuzzing（15000 次）</h3>
+      <div class="stat-row"><span class="k">检查的输入数</span><span class="v hi">15000 个具体值</span></div>
+      <div class="stat-row"><span class="k">覆盖的输入空间</span><span class="v">≈ 0%（无穷空间的样本）</span></div>
+      <div class="stat-row"><span class="k">发现 panic</span><span class="v hi">0 个</span></div>
+      <div class="stat-row"><span class="k">结论强度</span><span class="v">统计（"没碰到"）</span></div>
+      <div class="stat-row"><span class="k">运行时间</span><span class="v">0.03 秒</span></div>
+      <div class="verdict">
+        结论：<strong style="color: var(--rust);">"我没找到反例"</strong><br>
+        但 <code>off = usize::MAX</code> 这种输入,fuzz 几乎不可能随机生成。
+      </div>
+    </div>
+
+    <div class="world proof">
+      <div class="world-label">● 塔尖 · VERIFIED</div>
+      <h3>Verus（符号证明）</h3>
+      <div class="stat-row"><span class="k">检查的输入数</span><span class="v hi">所有可能值（无穷）</span></div>
+      <div class="stat-row"><span class="k">覆盖的输入空间</span><span class="v">100%</span></div>
+      <div class="stat-row"><span class="k">发现 bug</span><span class="v hi">1 个（第 1 版立刻）</span></div>
+      <div class="stat-row"><span class="k">结论强度</span><span class="v">数学证明（"不可能"）</span></div>
+      <div class="stat-row"><span class="k">运行时间</span><span class="v">≈ 1 秒</span></div>
+      <div class="verdict">
+        结论：<strong style="color: var(--proof);">"反例不可能存在"</strong><br>
+        Z3 用符号执行,直接推理出 <code>off + 2</code> 会溢出。
+      </div>
+    </div>
+  </div>
+
+  <div class="takeaway" style="margin-top: 32px;">
+    <p>
+      <strong>本质区别不在"快慢",在"穷尽性"。</strong>
+      fuzz 是归纳法（inductive）—— 跑过的才算数；Verus 是演绎法（deductive）——
+      推理出对<strong>所有</strong>输入成立。前者抓"需要碰运气触发的 bug"，
+      后者抓"需要推理才能发现的 bug"。
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Verus 抓到的 bug
+═══════════════════════════════════════════════════════════════ -->
+<section id="bug">
+  <div class="section-label">THE BUG · Verus 第一行就抓到的</div>
+  <h2>usize 加法<em>溢出</em></h2>
+  <p style="max-width: 760px;">
+    我最初照搬 <code>util.rs</code> 的写法 <code>if off + 2 &lt;= data.len()</code>。
+    这在普通 Rust 里能编译，fuzz 也跑不出问题。但 Verus 直接拒绝：
+  </p>
+
+  <div class="bug-showcase">
+    <div class="bug-head">
+      <span class="dot"></span>
+      <span class="title">possible arithmetic underflow/overflow</span>
+      <span class="loc">read_uxx.rs:83</span>
+    </div>
+<pre><span class="cm">// 我照搬 util.rs 的写法 —— 普通 Rust 能编译,fuzz 跑不出问题</span>
+<span class="kw">if</span> <span class="err">off + 2</span> &lt;= data.len() {
+    <span class="kw">let</span> b0 = data[off] <span class="kw">as</span> <span class="ty">u16</span>;
+    ...
+
+<span class="cm">// ↑ Verus 拒绝: 当 off = usize::MAX 时,off + 2 在 usize 里回绕成 1
+//   比较结果错误 → 函数可能越界访问
+//   fuzz 几乎不可能随机生成 usize::MAX,所以永远发现不了</span>
+
+<span class="cm">// 修复: 用等价但不溢出的形式</span>
+<span class="kw">if</span> <span class="ok">data.len() - off &gt;= 2</span> {     <span class="cm">// requires 保证 off &lt; len,减法安全</span>
+    <span class="kw">let</span> b0 = data[off] <span class="kw">as</span> <span class="ty">u16</span>;
+    ...</pre>
+  </div>
+
+  <p style="margin-top: 24px; font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--text-muted);">
+    // 这就是 Q2 笔记里讲的陷阱 —— <strong style="color: var(--accent);">Verus 强制你处理它</strong>,
+    而不是像 fuzz 那样靠概率放过它。
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     5 次拒绝到通过的时间线
+═══════════════════════════════════════════════════════════════ -->
+<section id="timeline">
+  <div class="section-label">DEBUG TIMELINE · 从 5 errors 到 0 errors</div>
+  <h2>代码被拒绝<em>5 次</em>,才通过</h2>
+  <p style="max-width: 760px;">
+    这 5 次拒绝本身就是最好的教学材料 —— 每一个错误都是"Verus 和普通 Rust 编译器的本质区别"。
+    我把完整过程记录下来，因为<strong>这些坑就是形式化验证的价值所在</strong>。
+  </p>
+
+  <div class="timeline">
+
+    <div class="tl-item">
+      <div class="tl-head">
+        <span class="tl-num">REJECT #1</span>
+        <span class="tl-title">usize 加法溢出（3 处）</span>
+      </div>
+      <div class="tl-err">error: possible arithmetic underflow/overflow
+  --> read_uxx.rs:83  |  if off + 2 &lt;= data.len()</div>
+      <div class="tl-fix">
+        <strong>修复:</strong> <code>off + 2 &lt;= data.len()</code> → <code>data.len() - off &gt;= 2</code><br>
+        requires 保证 <code>off &lt; data.len()</code>,所以减法不溢出。这就是上面 #bug 详述的那个。
+      </div>
+    </div>
+
+    <div class="tl-item warn">
+      <div class="tl-head">
+        <span class="tl-num">REJECT #2</span>
+        <span class="tl-title">println! 在 verus! 块里不支持</span>
+      </div>
+      <div class="tl-err">error: Unsupported constant type
+  --> read_uxx.rs:237  |  println!("{:?}", v)</div>
+      <div class="tl-fix">
+        <strong>修复:</strong> 把 <code>main</code> 移出 <code>verus! { ... }</code> 块。<br>
+        main 只是 demo runner,不需要验证;Verus 的 exec 模式对 Debug 格式化支持有限。
+      </div>
+    </div>
+
+    <div class="tl-item warn">
+      <div class="tl-head">
+        <span class="tl-num">REJECT #3</span>
+        <span class="tl-title">位运算 lemma 证不出来</span>
+      </div>
+      <div class="tl-err">error: postcondition not satisfied
+  --> lemma_read_u16_le  |  (b0 as u16) + (b1 as u16) * 256 == ((b0 as u16) | ...)</div>
+      <div class="tl-fix">
+        <strong>修复:</strong> 加 <code>#[verifier::bit_vector]</code> 属性。<br>
+        默认整数理论里,<code>&lt;&lt;</code> 和 <code>|</code> 是未解释函数;切到 bitvector 理论 Z3 才能证等价。<br>
+        <span style="color: var(--error);">坑:</span>拼写是 <code>bit_vector</code>(下划线),不是 <code>bitvector</code>。
+      </div>
+    </div>
+
+    <div class="tl-item warn">
+      <div class="tl-head">
+        <span class="tl-num">REJECT #4</span>
+        <span class="tl-title">quantifier 找不到 trigger</span>
+      </div>
+      <div class="tl-err">error: Could not automatically infer triggers for this quantifier.
+  --> forall|b0: u8, b1: u8| ...</div>
+      <div class="tl-fix">
+        <strong>修复:</strong> 在量化体的关键子表达式前加 <code>#[trigger]</code>。<br>
+        Z3 用 trigger 做模式匹配,决定"什么时候把这个 forall 实例化"。手动指定避免它瞎猜。
+      </div>
+    </div>
+
+    <div class="tl-item ok">
+      <div class="tl-head">
+        <span class="tl-num">ACCEPT ✓</span>
+        <span class="tl-title">全部通过</span>
+      </div>
+      <div class="tl-err">verification results:: 5 verified, 0 errors</div>
+      <div class="tl-fix">
+        <strong>5 个验证目标:</strong><br>
+        ① read_u16 完整性+安全性　② read_u32 同　③ read_u64 同<br>
+        ④ lemma_read_u16_le 位运算等价　⑤ lemma_read_u16_be 同<br>
+        对所有可能输入,边界性质恒成立。
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     最终验证通过的代码
+═══════════════════════════════════════════════════════════════ -->
+<section id="code">
+  <div class="section-label">THE VERIFIED CODE · 最终通过的代码</div>
+  <h2>read_u16 的<em>完整规范</em></h2>
+  <p style="max-width: 760px;">
+    这是 Verus 最终接受的版本。注意 <code class="sp">requires</code> / <code class="sp">ensures</code>
+    里用 <code>int</code> 推理（数学整数,不溢出），实现里用减法避免溢出 —— 两层配合才通过。
+  </p>
+
+  <div class="code-final">
+    <div class="code-head">
+      <span class="name">read_u16 · verified</span>
+      <span class="status">● 5 VERIFIED</span>
+    </div>
+<pre><span class="kw">pub fn</span> <span class="fn">read_u16</span>(data: &amp;[<span class="ty">u8</span>], off: <span class="ty">usize</span>, le: <span class="ty">bool</span>) -&gt; (r: <span class="ty">Option</span>&lt;<span class="ty">u16</span>&gt;)
+    <span class="sp">requires</span>
+        <span class="cm">// 前置条件: off 本身必须合法(用 int 推理,不溢出)</span>
+        off &lt; data.len(),
+    <span class="sp">ensures</span>
+        <span class="cm">// 完整性: 够长就返回 Some</span>
+        off + <span class="num">2</span> &lt;= data.len() ==&gt; r.is_some(),
+        <span class="cm">// 安全性: 返回 Some 就一定够长(绝不越界) ★关键★</span>
+        r.is_some() ==&gt; off + <span class="num">2</span> &lt;= data.len(),
+{
+    <span class="cm">// 用减法形式避免 off+2 溢出 —— Verus 强制的要求</span>
+    <span class="kw">if</span> data.len() - off &gt;= <span class="num">2</span> {
+        <span class="kw">let</span> b0 = data[off] <span class="kw">as</span> <span class="ty">u16</span>;
+        <span class="kw">let</span> b1 = data[off + <span class="num">1</span>] <span class="kw">as</span> <span class="ty">u16</span>;
+        <span class="kw">if</span> le {
+            <span class="kw">Some</span>(b0 + b1 * <span class="num">256</span>)        <span class="cm">// 小端: 低字节在前</span>
+        } <span class="kw">else</span> {
+            <span class="kw">Some</span>(b0 * <span class="num">256</span> + b1)        <span class="cm">// 大端: 高字节在前</span>
+        }
+    } <span class="kw">else</span> {
+        <span class="kw">None</span>
+    }
+}</pre>
+  </div>
+
+  <p style="margin-top: 24px; font-size: 15px; color: var(--text-dim);">
+    <strong style="color: var(--text);">两条 ensures 合起来构成"当且仅当"：</strong>
+    <code>返回 Some ⟺ off + 2 &lt;= data.len()</code>。
+    缺任何一条,调用方（elf.rs/macho.rs）的 <code>?</code> 操作符就无法正确判断"数据够不够长"。
+    这正是形式化验证的严格之处 —— 测试永远不会要求你写明这种双向契约。
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     金字塔三层闭环
+═══════════════════════════════════════════════════════════════ -->
+<section id="pyramid">
+  <div class="section-label">PYRAMID CLOSURE · 金字塔三层闭环</div>
+  <h2>第一次在真实项目上<em>走通三层</em></h2>
+  <p style="max-width: 760px;">
+    从 Isabelle 的加法交换律,到真实工程代码的形式化验证 ——
+    我们在 <code>rust_binutils</code> 上首次完成了金字塔三层闭环。
+    每一层抓不同类型的 bug,缺一不可。
+  </p>
+
+  <div class="pyramid-wrap">
+    <div class="pyramid">
+      <div class="pyr-layer base">
+        <div class="pyr-name">基座 · borrow checker</div>
+        <div class="pyr-meta">内存安全 · 免费 · 80% 代码</div>
+        <div class="pyr-check">✓</div>
+      </div>
+      <div class="pyr-layer waist">
+        <div class="pyr-name">腰部 · proptest + fuzz</div>
+        <div class="pyr-meta">15000 次随机输入 · 线性成本</div>
+        <div class="pyr-check">✓</div>
+      </div>
+      <div class="pyr-layer top">
+        <div class="pyr-name">塔尖 · Verus 形式化证明</div>
+        <div class="pyr-meta">对所有输入 · 数学证明</div>
+        <div class="pyr-check">✓ 5/0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="takeaway" style="margin-top: 48px;">
+    <p>
+      <strong>三层不是替代,是互补。</strong>
+      基座白送内存安全,腰部用统计抓绝大多数 bug,塔尖用证明兜底那些"概率上碰不到、逻辑上存在"的漏洞。
+      <code>read_uXX</code> 的 usize 溢出就是典型 —— fuzz 放过了它,Verus 抓住了它。
+      <strong>这就是金字塔存在的意义。</strong>
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Footer
+═══════════════════════════════════════════════════════════════ -->
+<footer>
+  <span class="qed-mark">∎</span>
+  <div>formal-verification-lab / verus / verus_lesson_01.html</div>
+  <div>
+    <a href="./01-read-uxx/thys/read_uxx.rs">验证代码</a> ·
+    <a href="./01-read-uxx/notes/lesson_01_notes.md">第 1 课笔记</a> ·
+    <a href="../notes/verification_pyramid.md">金字塔方法论</a>
+  </div>
+  <div>← 回到 <a href="../README.md">README</a></div>
+</footer>
+
+</body>
+</html>

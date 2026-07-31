@@ -613,6 +613,24 @@
 
             <div class="posts-list" id="postsList">
 
+<!-- 2026-07-31 Verus Formal Verification Lesson 01 -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-07-31</div>
+                    <a href="posts/verus-formal-verification-lesson-01-2026-07.html" class="post-title-link">
+                        <div class="post-title">Verus 第 1 课 — fuzz 跑了 15000 次没抓到的 bug，形式化验证第一行就抓到了</div>
+                    </a>
+                    <div class="post-excerpt">
+        对同一个 read_u16/read_u32/read_u64 函数，fuzzing 跑了 15000 次随机输入，0 panic。然后交给 Verus 做形式化验证，它立刻拒绝了第一版代码——发现了一个 fuzz 概率上几乎不可能触发的 usize 整数溢出。这篇文章记录了从被拒绝 5 次到最终 5 verified / 0 errors 的完整过程：usize 加法溢出、println 不支持、位运算 lemma 证不出来、quantifier trigger 缺失。每个错误都是 Verus 和普通 Rust 编译器的本质区别。最终构成了金字塔三层闭环：borrow checker（内存安全）+ proptest/fuzz（统计兜底）+ Verus（数学证明）。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Verus</span>
+                        <span class="post-tag">Formal Verification</span>
+                        <span class="post-tag">Rust</span>
+                        <span class="post-tag">Fuzzing</span>
+                    </div>
+                    <a href="posts/verus-formal-verification-lesson-01-2026-07.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-07-31 TinyStories nanoGPT Training Report -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-07-31</div>
