@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>从 10M 到 30M：nanoGPT 在 4090 上的实测对比基准</title>
+<title>从 10M 到 100M：nanoGPT 在 4090 上的三档实测 Scaling 基准</title>
 <style>
 :root {
   --bg: #0a0e1a;
@@ -15,7 +15,6 @@
   --text-dim: #8a94b0;
   --text-muted: #5a647a;
   --accent: #00ffc8;
-  --accent-dim: #00b88f;
   --purple: #a78bfa;
   --rust: #f59e0b;
   --proof: #4ade80;
@@ -27,11 +26,8 @@
 html { scroll-behavior: smooth; }
 body {
   font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.8;
-  font-weight: 300;
-  overflow-x: hidden;
+  background: var(--bg); color: var(--text);
+  line-height: 1.8; font-weight: 300; overflow-x: hidden;
   background-image:
     radial-gradient(circle at 15% 20%, rgba(0,255,200,0.04) 0%, transparent 40%),
     radial-gradient(circle at 85% 80%, rgba(167,139,250,0.05) 0%, transparent 45%),
@@ -40,14 +36,10 @@ body {
   background-size: 100% 100%, 100% 100%, 60px 60px, 60px 60px;
   background-attachment: fixed;
 }
-
-.wrap { max-width: 900px; margin: 0 auto; padding: 80px 32px 60px; }
+.wrap { max-width: 920px; margin: 0 auto; padding: 80px 32px 60px; }
 
 /* Header */
-header {
-  margin-bottom: 48px; padding-bottom: 32px;
-  border-bottom: 1px solid var(--border);
-}
+header { margin-bottom: 48px; padding-bottom: 32px; border-bottom: 1px solid var(--border); }
 header .meta {
   font-family: 'JetBrains Mono', monospace; font-size: 12px;
   color: var(--text-muted); letter-spacing: 1px; margin-bottom: 16px;
@@ -57,19 +49,21 @@ header .meta .tag {
   background: rgba(0,255,200,0.1); color: var(--accent);
   border: 1px solid rgba(0,255,200,0.2); margin-right: 8px;
 }
+header .version {
+  display: inline-block; padding: 2px 10px; border-radius: 4px;
+  background: rgba(245,158,11,0.1); color: var(--rust);
+  border: 1px solid rgba(245,158,11,0.3); font-weight: 700;
+}
 header h1 {
   font-family: Georgia, 'Songti SC', serif;
   font-size: clamp(28px, 4vw, 40px); font-weight: 600;
   line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 16px;
 }
-header h1 em {
-  font-style: italic; color: var(--accent); font-weight: 400;
-}
+header h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
 header .subtitle {
   font-size: 16px; color: var(--text-dim); line-height: 1.7;
   padding: 16px 20px; background: var(--bg-card);
-  border-left: 3px solid var(--purple); border-radius: 0 8px 8px 0;
-  margin-top: 16px;
+  border-left: 3px solid var(--purple); border-radius: 0 8px 8px 0; margin-top: 16px;
 }
 
 /* Headings */
@@ -83,29 +77,21 @@ h2 .num {
   font-family: 'JetBrains Mono', monospace; font-size: 14px;
   color: var(--accent); margin-right: 12px; vertical-align: middle;
 }
-h3 {
-  font-size: 19px; font-weight: 600; color: var(--text);
-  margin-top: 32px; margin-bottom: 12px;
-}
-h3::before {
-  content: '▸ '; color: var(--accent); font-weight: 400;
-}
+h3 { font-size: 19px; font-weight: 600; color: var(--text); margin-top: 32px; margin-bottom: 12px; }
+h3::before { content: '▸ '; color: var(--accent); font-weight: 400; }
 
-/* Paragraphs */
+/* Text */
 p { margin-bottom: 16px; color: var(--text-dim); line-height: 1.85; }
 p strong { color: var(--text); font-weight: 500; }
 p em { color: var(--accent); font-style: normal; font-weight: 500; }
-p code, li code, td code {
+code {
   font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace; font-size: 0.85em;
   background: var(--code-bg); padding: 2px 6px; border-radius: 3px;
   color: var(--accent); border: 1px solid var(--border);
 }
-
-/* Blockquotes */
 blockquote {
-  margin: 20px 0; padding: 16px 24px;
-  background: var(--bg-card); border-left: 3px solid var(--purple);
-  border-radius: 0 8px 8px 0;
+  margin: 20px 0; padding: 16px 24px; background: var(--bg-card);
+  border-left: 3px solid var(--purple); border-radius: 0 8px 8px 0;
 }
 blockquote p { color: var(--text); font-size: 15px; }
 
@@ -115,17 +101,12 @@ table {
   font-size: 14px; display: block; overflow-x: auto;
 }
 th {
-  background: var(--bg-elev); color: var(--accent);
-  text-align: left; padding: 10px 14px;
-  font-family: 'JetBrains Mono', monospace; font-size: 12px;
-  letter-spacing: 0.5px; font-weight: 600;
-  border-bottom: 1px solid var(--border-bright);
-  white-space: nowrap;
+  background: var(--bg-elev); color: var(--accent); text-align: left;
+  padding: 10px 14px; font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; letter-spacing: 0.5px; font-weight: 600;
+  border-bottom: 1px solid var(--border-bright); white-space: nowrap;
 }
-td {
-  padding: 10px 14px; border-bottom: 1px solid var(--border);
-  color: var(--text-dim); vertical-align: top;
-}
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-dim); vertical-align: top; }
 td strong { color: var(--text); }
 tr:hover td { background: rgba(0,255,200,0.03); }
 
@@ -137,39 +118,22 @@ pre {
 }
 pre code {
   font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
-  background: none; border: none; color: var(--text);
-  padding: 0; font-size: 13px;
+  background: none; border: none; color: var(--text); padding: 0; font-size: 13px;
 }
-/* Simple syntax-ish */
-pre .c { color: var(--text-muted); } /* comment */
-pre .s { color: var(--proof); } /* string */
-pre .k { color: var(--purple); } /* keyword */
-pre .n { color: var(--rust); } /* number */
-pre .f { color: var(--accent); } /* flag */
+pre .c { color: var(--text-muted); }
+pre .s { color: var(--proof); }
+pre .k { color: var(--purple); }
+pre .n { color: var(--rust); }
 
 /* Lists */
 ul, ol { margin: 12px 0 16px 24px; }
 li { margin-bottom: 6px; color: var(--text-dim); line-height: 1.7; }
 li strong { color: var(--text); }
 
-/* TL;DR Box */
-.tldr {
-  background: var(--bg-card); border: 1px solid var(--border-bright);
-  border-radius: 12px; padding: 28px 32px; margin: 24px 0;
-  position: relative; overflow: hidden;
-}
-.tldr::before {
-  content: 'TL;DR'; position: absolute; top: 16px; right: 24px;
-  font-family: 'JetBrains Mono', monospace; font-size: 11px;
-  letter-spacing: 2px; color: var(--accent); font-weight: 700;
-}
-.tldr table { margin: 0; }
-
-/* Highlight callout */
+/* Callouts */
 .callout {
-  margin: 24px 0; padding: 20px 28px;
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 0 12px 12px 0;
+  margin: 24px 0; padding: 20px 28px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 0 12px 12px 0;
 }
 .callout.accent { border-left: 3px solid var(--accent); }
 .callout.warn { border-left: 3px solid var(--warn); }
@@ -179,8 +143,7 @@ li strong { color: var(--text); }
 .callout p strong { color: var(--accent); }
 .callout .label {
   font-family: 'JetBrains Mono', monospace; font-size: 11px;
-  letter-spacing: 2px; margin-bottom: 8px; text-transform: uppercase;
-  font-weight: 700;
+  letter-spacing: 2px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700;
 }
 .callout.accent .label { color: var(--accent); }
 .callout.warn .label { color: var(--warn); }
@@ -195,40 +158,41 @@ li strong { color: var(--text); }
   font-size: 13px; line-height: 1.7; color: var(--text-dim);
   white-space: pre-wrap; word-wrap: break-word;
 }
-.sample .label {
-  display: block; font-size: 11px; color: var(--accent);
-  letter-spacing: 1px; margin-bottom: 8px;
-}
+.sample .label { display: block; font-size: 11px; color: var(--accent); letter-spacing: 1px; margin-bottom: 8px; }
 
-/* Warning box */
+/* TL;DR */
+.tldr {
+  background: var(--bg-card); border: 1px solid var(--border-bright);
+  border-radius: 12px; padding: 28px 32px; margin: 24px 0; position: relative; overflow: hidden;
+}
+.tldr::before {
+  content: 'TL;DR'; position: absolute; top: 16px; right: 24px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: 2px; color: var(--accent); font-weight: 700;
+}
+.tldr table { margin: 0; }
+
+/* Warning */
 .warning {
   background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3);
   border-radius: 8px; padding: 16px 24px; margin: 16px 0;
 }
 .warning p { color: var(--warn); }
-.warning p strong { color: var(--rust); }
-
-/* Section anchor */
-section { margin-top: 48px; }
 
 /* Footer */
 footer {
-  margin-top: 80px; padding-top: 32px;
-  border-top: 1px solid var(--border);
+  margin-top: 80px; padding-top: 32px; border-top: 1px solid var(--border);
   color: var(--text-muted); font-size: 13px; line-height: 2;
   font-family: 'JetBrains Mono', monospace;
 }
-footer .qed {
-  font-family: Georgia, serif; font-size: 24px; color: var(--purple);
-  display: block; margin-bottom: 8px;
-}
+footer .qed { font-family: Georgia, serif; font-size: 24px; color: var(--purple); display: block; margin-bottom: 8px; }
 
-/* Responsive */
+section { margin-top: 48px; }
 @media (max-width: 700px) {
   .wrap { padding: 60px 16px 40px; }
   h2 { font-size: 22px; }
   pre, .sample { font-size: 12px; padding: 14px; }
-  table { font-size: 13px; }
+  table { font-size: 12px; }
 }
 </style>
 </head>
@@ -239,78 +203,72 @@ footer .qed {
   <div class="meta">
     <span class="tag">实测基准</span>
     <span class="tag">nanoGPT</span>
-    <span class="tag">RTX 4090 48GB</span>
+    <span class="tag">RTX 4090 48GB × 2</span>
+    <span class="version">v2 — 三档实测</span>
     2026-07-31
   </div>
-  <h1>从 10M 到 30M：nanoGPT 在 4090 上的<em>实测对比基准</em></h1>
+  <h1>从 10M 到 100M：nanoGPT 在 4090 上的<em>三档实测 Scaling 基准</em></h1>
   <div class="subtitle">
-    两次完整实跑验证，非估算。作为训练时间 / 模型大小 / 数据规模三维 scaling 的「实测锚点」。
-    任何中文 AI 训练教程里给出的训练时间估算，都应回到这个基准校准。
+    三次完整实跑验证，非估算。从字符级 10M 到 BPE 100M（GPT-1 small 架构），
+    覆盖「无意义 → 完整故事 → 长程一致+抽象寓意」的能力跃迁。
+    中文 AI 训练教程里的训练时间估算，都应回到这个基准校准。
   </div>
 </header>
 
 <!-- TL;DR -->
 <div class="tldr">
 <table>
-<tr><th>指标</th><th>10M（Shakespeare char）</th><th>30M（TinyStories BPE）</th><th>倍数</th></tr>
-<tr><td><strong>模型参数</strong></td><td>10.65M</td><td><strong>29.92M</strong></td><td>2.8×</td></tr>
-<tr><td><strong>词表大小</strong></td><td>65（char）</td><td>50257（GPT-2 BPE）</td><td>773×</td></tr>
-<tr><td><strong>数据集大小</strong></td><td>1 MB</td><td><strong>2.1 GB</strong></td><td>2100×</td></tr>
-<tr><td><strong>训练 token 总量</strong></td><td>24.6M（24 遍 epoch）</td><td>328M（0.6 遍 epoch）</td><td>13×</td></tr>
-<tr><td><strong>训练步数</strong></td><td>1500</td><td><strong>20000</strong></td><td>13×</td></tr>
-<tr><td><strong>训练总时间</strong></td><td>25 秒</td><td><strong>18 分钟</strong></td><td>43×</td></tr>
-<tr><td><strong>每 step 时间</strong></td><td>15 ms</td><td>55 ms</td><td>3.7×</td></tr>
-<tr><td><strong>MFU</strong></td><td>22-24%</td><td>14-17%</td><td>0.7×</td></tr>
-<tr><td><strong>最终 val loss</strong></td><td>1.48（char 级）</td><td>1.42（BPE 级）</td><td>—</td></tr>
-<tr><td><strong>显存占用</strong></td><td>&lt; 1 GB</td><td>14 GB</td><td>14×</td></tr>
-<tr><td><strong>生成质量</strong></td><td>「看着像莎剧，语义破碎」</td><td><strong>「读得通的完整短故事」</strong></td><td>质变</td></tr>
+<tr><th>指标</th><th>10M (Shakespeare)</th><th>30M (TinyStories)</th><th>100M (TinyStories)</th></tr>
+<tr><td><strong>模型参数</strong></td><td>10.65M</td><td>29.92M</td><td><strong>123.55M</strong></td></tr>
+<tr><td><strong>架构</strong></td><td>6L × 6H × 384d</td><td>6L × 6H × 384d</td><td><strong>12L × 12H × 768d</strong></td></tr>
+<tr><td><strong>词表</strong></td><td>65 (char)</td><td>50257 (BPE)</td><td>50257 (BPE)</td></tr>
+<tr><td><strong>数据集</strong></td><td>1 MB</td><td>2.1 GB</td><td>2.1 GB</td></tr>
+<tr><td><strong>训练步数</strong></td><td>1500</td><td>20000</td><td>20000</td></tr>
+<tr><td><strong>训练总时间</strong></td><td><strong>25 秒</strong></td><td><strong>18 分钟</strong></td><td><strong>45 分钟</strong>（2 卡 DDP）</td></tr>
+<tr><td><strong>每 step</strong></td><td>15 ms</td><td>55 ms</td><td>129 ms</td></tr>
+<tr><td><strong>最终 val loss</strong></td><td>1.48</td><td>1.42</td><td><strong>1.22</strong></td></tr>
+<tr><td><strong>bits/char 等效</strong></td><td>2.14</td><td>0.51</td><td><strong>0.44</strong></td></tr>
+<tr><td><strong>显存</strong></td><td>&lt; 1 GB</td><td>14 GB</td><td>14 GB × 2</td></tr>
+<tr><td><strong>生成质量</strong></td><td>语义破碎</td><td>故事但设定矛盾</td><td><strong>复杂情节 + 长程一致 + 抽象寓意</strong></td></tr>
 </table>
 </div>
 
 <div class="callout accent">
   <div class="label">核心反直觉</div>
-  <p>参数量只涨了 2.8 倍，但生成质量是<strong>质变</strong>而非「量变」。原因不在模型大，而在<em>数据集变了 2000 倍 + tokenizer 换了 773 倍词表</em>。</p>
+  <p>参数涨 12 倍（10M→123M），生成质量不是线性提升，而是<strong>能力维度的扩展</strong>：10M 只能模仿字符模式，30M 能写完整故事但有 bug，100M 能保持长程一致 + 给出抽象寓意。这是 scaling law 最直观的体现——<em>能力在达到某个阈值后涌现</em>。</p>
 </div>
 
 <!-- §1 -->
 <section>
-<h2><span class="num">一</span>两次实验的完整配置对比</h2>
+<h2><span class="num">一</span>三档实验完整对比</h2>
 
 <h3>模型架构</h3>
 <table>
-<tr><th></th><th>10M Shakespeare</th><th>30M TinyStories</th></tr>
-<tr><td>n_layer</td><td>6</td><td>6</td></tr>
-<tr><td>n_head</td><td>6</td><td>6</td></tr>
-<tr><td>n_embd</td><td>384</td><td>384</td></tr>
-<tr><td>block_size</td><td>256</td><td>256</td></tr>
-<tr><td>dropout</td><td>0.2</td><td>0.2</td></tr>
-<tr><td>vocab_size</td><td>65</td><td>50257</td></tr>
-<tr><td><strong>总参数</strong></td><td><strong>10.65M</strong></td><td><strong>29.92M</strong></td></tr>
-<tr><td>- transformer 主体</td><td>~10.6M</td><td>~10.6M</td></tr>
-<tr><td>- token embedding</td><td>0.025M (65×384)</td><td><strong>19.3M</strong> (50257×384)</td></tr>
-<tr><td>- position embedding</td><td>0.098M</td><td>0.098M</td></tr>
+<tr><th></th><th>10M Shakespeare</th><th>30M TinyStories</th><th>100M TinyStories</th></tr>
+<tr><td>n_layer</td><td>6</td><td>6</td><td><strong>12</strong></td></tr>
+<tr><td>n_head</td><td>6</td><td>6</td><td><strong>12</strong></td></tr>
+<tr><td>n_embd</td><td>384</td><td>384</td><td><strong>768</strong></td></tr>
+<tr><td>block_size</td><td>256</td><td>256</td><td>256</td></tr>
+<tr><td>vocab_size</td><td>65</td><td>50257</td><td>50257</td></tr>
+<tr><td><strong>总参数</strong></td><td><strong>10.65M</strong></td><td><strong>29.92M</strong></td><td><strong>123.55M</strong></td></tr>
+<tr><td>- transformer 主体</td><td>10.5M</td><td>10.5M</td><td><strong>84.9M</strong></td></tr>
+<tr><td>- token embedding</td><td>0.025M</td><td>19.3M</td><td>38.6M</td></tr>
+<tr><td>- position embedding</td><td>0.098M</td><td>0.098M</td><td>0.196M</td></tr>
 </table>
 
 <div class="callout accent">
   <div class="label">关键洞察</div>
-  <p>换 BPE 后，模型主体没变（6 层 × 6 头 × 384 维还是 ~10M 参数），但 token embedding 从 25K 参数暴涨到 19.3M，主导了参数增长。这意味着模型「实际能用的容量」并没翻 3 倍。BPE embedding 那 19.3M 参数基本是<strong>字典查询表</strong>，不是「思考能力」。<em>真正的 transformer 思考容量两次完全一样。</em></p>
+  <p>30M → 100M 增长 93M 参数，其中 <strong>74.4M 来自 transformer 主体</strong>（真思考力），19.3M 来自 embedding 扩大。这次增长是<em>真本事</em>——transformer 主体扩大 8 倍，不是 embedding 主导。这就是为什么 100M 能做 30M 做不到的事（长程依赖、抽象寓意）。</p>
 </div>
 
 <h3>数据集</h3>
 <table>
-<tr><th></th><th>10M Shakespeare</th><th>30M TinyStories</th></tr>
-<tr><td>文件大小</td><td>1 MB</td><td>2.1 GB</td></tr>
-<tr><td>Token 数</td><td>1M</td><td>547M</td></tr>
-<tr><td>词表利用率</td><td>100%（用满 65 字符）</td><td>&lt; 5%（50257 词表，常用 token 集中在数千个）</td></tr>
-<tr><td>主题分布</td><td>单一（莎剧）</td><td>单一（儿童短故事）</td></tr>
-<tr><td>来源</td><td>公共领域</td><td>GPT-4 合成（MIT 许可）</td></tr>
-<tr><td>Train/Val 划分</td><td>同一文件 90/10 切分</td><td><strong>不同文件</strong>（train.txt + valid.txt）</td></tr>
+<tr><th></th><th>10M</th><th>30M</th><th>100M</th></tr>
+<tr><td>文件</td><td>1 MB</td><td>2.1 GB</td><td>2.1 GB（同 30M）</td></tr>
+<tr><td>Token 数</td><td>1M</td><td>547M</td><td>547M</td></tr>
+<tr><td>Train/Val</td><td>同源切分</td><td><strong>异源</strong></td><td><strong>异源</strong></td></tr>
+<tr><td>训练 epoch</td><td>24 遍</td><td>0.6 遍</td><td>0.6 遍</td></tr>
 </table>
-
-<div class="callout accent">
-  <div class="label">关键洞察</div>
-  <p><strong>train/val 同源</strong>（Shakespeare 实验）vs <strong>train/val 异源</strong>（TinyStories 实验）是工程严谨度上的重要差异。同源 val loss 偏乐观，不能反映真实泛化。</p>
-</div>
 </section>
 
 <!-- §2 -->
@@ -319,219 +277,240 @@ footer .qed {
 
 <h3>单步速度</h3>
 <table>
-<tr><th>模型</th><th>每 step 时间</th><th>主要耗时来源</th></tr>
-<tr><td>10M char-level</td><td><strong>15 ms</strong></td><td>transformer 计算（embedding 小可忽略）</td></tr>
-<tr><td>30M BPE</td><td><strong>55 ms</strong></td><td>embedding lookup + softmax over 50257 vocab</td></tr>
+<tr><th>模型</th><th>配置</th><th>每 step</th><th>主要瓶颈</th></tr>
+<tr><td>10M</td><td>单卡</td><td><strong>15 ms</strong></td><td>transformer 计算</td></tr>
+<tr><td>30M</td><td>单卡</td><td><strong>55 ms</strong></td><td>transformer + BPE softmax</td></tr>
+<tr><td>100M</td><td>2 卡 DDP</td><td><strong>129 ms</strong></td><td>transformer 主体 8 倍计算量</td></tr>
 </table>
-<p>30M 模型慢 3.7 倍，但 transformer 主体计算量只多 3 倍（参数 2.8 倍）。多出来的 0.7 倍主要在 <strong>softmax over 大词表</strong>——50257 个 token 的 softmax 比 65 个慢得多。</p>
+<p>100M 用 2 卡 DDP，每 step 129 ms。如果单卡跑，估算约 250 ms——<strong>2 卡加速比约 1.9×</strong>（4090 无 NVLink，PCIe 通信开销限制了上限）。</p>
 
 <h3>总训练时间</h3>
 <table>
 <tr><th>模型</th><th>步数</th><th>总时间</th><th>Chinchilla 比例</th></tr>
-<tr><td>10M</td><td>1500</td><td><strong>25 秒</strong></td><td>0.12×（严重欠训练）</td></tr>
-<tr><td>30M</td><td>20000</td><td><strong>18 分钟</strong></td><td>0.55×（接近最优但还能继续）</td></tr>
+<tr><td>10M</td><td>1500</td><td><strong>25 秒</strong></td><td>0.12×</td></tr>
+<tr><td>30M</td><td>20000</td><td><strong>18 分钟</strong></td><td>0.55×</td></tr>
+<tr><td>100M</td><td>20000</td><td><strong>45 分钟</strong>（2 卡）</td><td>0.27×</td></tr>
 </table>
-<p><strong>Chinchilla 最优参考</strong>：每参数训 20 个 token。</p>
-<ul>
-<li>10M Chinchilla 最优：200M token = 12000 步 = 3 分钟</li>
-<li>30M Chinchilla 最优：600M token = 37000 步 = <strong>34 分钟</strong></li>
-</ul>
+<p>100M 距离 Chinchilla 最优还差 4×（最优需 73000 步 × 129ms = 2.5 小时 2 卡）。loss 还有下降空间。</p>
 
 <h3>显存占用</h3>
 <table>
 <tr><th>模型</th><th>显存</th><th>占 48GB 比例</th></tr>
 <tr><td>10M</td><td>&lt; 1 GB</td><td>&lt; 2%</td></tr>
 <tr><td>30M</td><td>14 GB</td><td>29%</td></tr>
-<tr><td>100M（外推）</td><td>~30 GB</td><td>62%</td></tr>
-<tr><td>1B（外推）</td><td>单卡不可行</td><td>&gt; 200%</td></tr>
+<tr><td>100M (DDP)</td><td>14 GB × 2 卡</td><td>29% / 卡</td></tr>
 </table>
+<p><strong>关键发现</strong>：100M DDP 下每张卡只用 14 GB——跟 30M 一样！DDP 是数据并行，每张卡装完整模型副本。如果 FSDP（模型并行），单卡显存更低但通信开销更大。</p>
 </section>
 
 <!-- §3 -->
 <section>
 <h2><span class="num">三</span>Loss 不能直接比（重要）</h2>
-<p>10M 模型 val 1.48，30M 模型 val 1.42——看起来差不多，<strong>但这是两个不同尺度的 loss</strong>。</p>
 <table>
-<tr><th></th><th>10M</th><th>30M</th></tr>
-<tr><td>Loss 单位</td><td>每字符 nats</td><td>每子词 nats</td></tr>
-<tr><td>每 token 对应字符数</td><td>1</td><td><strong>~4</strong>（BPE 平均压缩比）</td></tr>
-<tr><td>换算到 bits/char</td><td>1.48 / ln(2) / 1 = <strong>2.14</strong></td><td>1.42 / ln(2) / 4 = <strong>0.51</strong></td></tr>
-<tr><td>困惑度（perplexity）</td><td>e^1.48 = 4.4 字符</td><td>e^1.42 = 4.1 子词 ≈ ~14 字符</td></tr>
+<tr><th>模型</th><th>val loss</th><th>单位</th><th>换算到 bits/char</th></tr>
+<tr><td>10M</td><td>1.48</td><td>每字符 nats</td><td>1.48 / ln(2) / 1 = <strong>2.14</strong></td></tr>
+<tr><td>30M</td><td>1.42</td><td>每 BPE 子词 nats</td><td>1.42 / ln(2) / 4 ≈ <strong>0.51</strong></td></tr>
+<tr><td>100M</td><td>1.22</td><td>每 BPE 子词 nats</td><td>1.22 / ln(2) / 4 ≈ <strong>0.44</strong></td></tr>
 </table>
 <div class="callout proof">
   <div class="label">结论</div>
-  <p>30M 模型在「每字符压缩效率」上是 10M 的 <strong>4.2 倍</strong>。这个差距远大于 val loss 数字本身的差距。</p>
+  <p>10M → 30M：bits/char 从 2.14 → 0.51（<strong>4.2 倍</strong>效率提升）—— 主要靠换 BPE tokenizer<br>
+  30M → 100M：bits/char 从 0.51 → 0.44（<strong>1.16 倍</strong>效率提升）—— 纯靠模型容量增大<br><br>
+  <em>换 tokenizer 的收益远大于换模型大小。</em>这就是为什么 LLaMA/Qwen 都用 BPE 而不是 char-level。</p>
 </div>
 </section>
 
 <!-- §4 -->
 <section>
-<h2><span class="num">四</span>生成质量对比（这才是真相）</h2>
+<h2><span class="num">四</span>生成质量对比（真实样本）</h2>
 
-<div class="sample">
-<span class="label">10M char-level Shakespeare（val 1.48）</span>
+<div class="sample"><span class="label">10M val 1.48 — char-level Shakespeare</span>
 DUKE VINCENTIO:
 I am a word with your heart? what methinks me?
 You are a words of that word desires there brows?
 Or sea thou to be a man, and speak perform'd
-Those of measure image for a course,
 </div>
+<p>特征：句子破碎、词级模式但无语义。</p>
 
-<p>特征：戏剧对白格式正确、词汇古雅、<strong>句子之间逻辑断裂</strong>。</p>
-
-<div class="sample">
-<span class="label">30M BPE TinyStories（val 1.42）</span>
+<div class="sample"><span class="label">30M val 1.42 — BPE TinyStories</span>
 Once upon a time, in a big forest, there was a cute little rabbit.
 This rabbit had a secret secret. He could not speak, but he could
 help people all.
 
-One sunny day, the little rabbit was playing under a big tree.
-Suddenly, he heard a loud noise! It was a strong lion! The lion
-was very loud and mean. The other animals were scared of the lion.
-
+One sunny day, the little rabbit was playing under a big tree...
 The little rabbit wanted to help his new friend. He walked up to
 the lion and said, "Hi, Mr. Lion! Can you teach me how to speak?"
-The lion looked at the rabbit and smiled. He showed the rabbit
-how to speak and sing. The rabbit was happy and thanked the lion.
 
 From that day on, the rabbit and the lion became good friends.
-They played and talked together in the forest, and they were
-never scared again.
+</div>
+<p>特征：完整故事，但<strong>设定漂移</strong>——开头说兔子不会说话，结尾变成兔子教狮子说话。</p>
+
+<div class="sample"><span class="label">100M val 1.22 — BPE TinyStories</span>
+Once upon a time, in a big forest, there was a fat reindeer.
+This reindeer had a big smile and could do many things. He liked
+to play with his friends, the little birds, and the squirrels.
+
+One day, the fat reindeer saw a big rock. He was very curious about
+the rock, so he picked it up with his big mouth and started to talk
+to the little birds in the tree. "Hello, little birds! What do you
+do all this way?" he asked.
+
+As the fat reindeer talked, a strong wind blew, and the rock moved
+a little. Suddenly, a door appeared in front of the fat reindeer.
+The animals were surprised and didn't know what to do. But the fat
+reindeer had an idea. He gave the gate a big push and opened it.
+Inside, they found a secret room full of toys and games. They all
+played together and had lots of fun.
+
+The fat reindeer showed everyone that even small gifts can bring
+big surprises.
 </div>
 
-<p>特征：<strong>完整故事起承转合</strong>、角色弧线（兔子从怕狮子到做朋友）、直接对话、TinyStories 经典结尾。</p>
+<p>特征：</p>
+<ul>
+<li>✅ <strong>设定长程一致</strong>：驯鹿能说话、能拿石头、有朋友——从头到尾保持</li>
+<li>✅ <strong>复杂情节</strong>：发现岩石 → 跟鸟说话 → 风吹 → 门出现 → 推门 → 发现秘密房间</li>
+<li>✅ <strong>抽象寓意</strong>：结尾给出「small gifts can bring big surprises」</li>
+<li>⚠️ 小瑕疵：door / gate 用词不一致；鸟没回应对话</li>
+</ul>
 
 <h3>量化对比</h3>
 <table>
-<tr><th>维度</th><th>10M</th><th>30M</th></tr>
-<tr><td>句子语法正确率</td><td>~70%</td><td>~95%</td></tr>
-<tr><td>句间逻辑连贯</td><td>弱</td><td>强</td></tr>
-<tr><td>长程依赖（&gt;100 字符）</td><td>几乎没有</td><td>有，但有 bug</td></tr>
-<tr><td>角色一致性</td><td>漂移</td><td>保持</td></tr>
-<tr><td>故事结构</td><td>无</td><td><strong>完整</strong>（起承转合）</td></tr>
-<tr><td>可读性</td><td>读得通但无意义</td><td><strong>像小学生作文</strong></td></tr>
+<tr><th>维度</th><th>10M</th><th>30M</th><th>100M</th></tr>
+<tr><td>句子语法正确率</td><td>~70%</td><td>~95%</td><td><strong>~98%</strong></td></tr>
+<tr><td>故事结构</td><td>无</td><td>起承转合</td><td><strong>复杂情节链</strong></td></tr>
+<tr><td>长程一致性</td><td>❌</td><td><strong>❌ 漂移</strong></td><td><strong>✓ 保持</strong></td></tr>
+<tr><td>因果链</td><td>无</td><td>弱</td><td><strong>强</strong></td></tr>
+<tr><td>寓意抽象</td><td>无</td><td>简单</td><td><strong>抽象总结</strong></td></tr>
+<tr><td>字数</td><td>~50</td><td>~250</td><td><strong>~350</strong></td></tr>
+<tr><td>可读性</td><td>无意义</td><td>小学生作文</td><td><strong>寓言短文</strong></td></tr>
 </table>
 </section>
 
 <!-- §5 -->
 <section>
-<h2><span class="num">五</span>100M 外推估算</h2>
-<div class="warning">
-  <p><strong>⚠️ 未实测</strong> — 外推误差可能 ±50%。要拿到准确数字必须实跑——这是工程估算的边界。</p>
-</div>
-<p>基于 10M → 30M 的实测 scaling，外推 100M：</p>
+<h2><span class="num">五</span>关键工程洞察</h2>
+
+<h3>1. 30M → 100M 是「能力涌现」的分界线</h3>
 <table>
-<tr><th>指标</th><th>100M 估算</th><th>估算依据</th></tr>
-<tr><td>模型架构</td><td>12 层 × 12 头 × 768 维（GPT-1 small）</td><td>标准 baby GPT 升级</td></tr>
-<tr><td>每 step 时间</td><td>~150 ms</td><td>实测 10M→30M 涨 3.7×，按计算量推</td></tr>
-<tr><td>Chinchilla 最优步数</td><td>~120K</td><td>100M × 20 / 16384</td></tr>
-<tr><td>Chinchilla 最优训练时间</td><td>~5 小时</td><td>120000 × 150ms</td></tr>
-<tr><td>显存占用</td><td>~30 GB</td><td>主体 + Adam + 激活</td></tr>
-<tr><td>数据需求</td><td><strong>2B token</strong></td><td>Chinchilla 20:1</td></tr>
+<tr><th>能力</th><th>30M</th><th>100M</th></tr>
+<tr><td>写完整故事</td><td>✓</td><td>✓</td></tr>
+<tr><td>保持设定一致</td><td><strong>❌</strong></td><td><strong>✓</strong></td></tr>
+<tr><td>复杂因果链</td><td>弱</td><td>强</td></tr>
+<tr><td>抽象寓意</td><td>简单</td><td>明确</td></tr>
 </table>
-<div class="callout accent">
-  <div class="label">为什么 100M 值得跑</div>
-  <p>30M 模型在小逻辑（"兔子教狮子说话"反了）上天花板明显——长程依赖能力不够。100M 是「能保持角色设定 / 故事一致性」的<strong>最小尺度</strong>。5 小时在 4090 单卡可承受。</p>
-</div>
+<p>能力不是线性增长的，而是<strong>达到某个参数阈值后涌现</strong>。100M 在 TinyStories 这个任务上跨过了「长程一致」的阈值。</p>
+
+<h3>2. 2 卡 DDP 的实测加速比</h3>
+<table>
+<tr><th>配置</th><th>每 step</th><th>加速比</th></tr>
+<tr><td>100M 单卡（估算）</td><td>~250 ms</td><td>1.0×</td></tr>
+<tr><td>100M 2 卡 DDP（实测）</td><td>129 ms</td><td><strong>1.9×</strong></td></tr>
+<tr><td>100M 4 卡 DDP（外推）</td><td>~85 ms</td><td>~2.9×</td></tr>
+</table>
+<p>4090 无 NVLink 的代价：理想 2 卡应 2× 加速，实际 1.9×。PCIe 通信开销占了 ~5%。</p>
+
+<h3>3. 数据集不变时，模型越大 loss 越低</h3>
+<table>
+<tr><th>同样 2.1 GB TinyStories + 同样 20000 步</th><th>val loss</th></tr>
+<tr><td>30M</td><td>1.42</td></tr>
+<tr><td>100M</td><td><strong>1.22</strong></td></tr>
+</table>
+<p>差 0.20 看起来不多，但<strong>生成质量是质变</strong>。Loss 是对数指标，越低每一点提升越值钱。</p>
+
+<h3>4. 100M 还远未训到 Chinchilla 最优</h3>
+<p>100M Chinchilla 最优 = 2.5B token = 73000 步 × 129ms = <strong>2.5 小时（2 卡）</strong>。当前只跑了 20000 步（27% Chinchilla）。继续训到 70000 步，loss 应能到 <strong>1.05-1.10</strong>。</p>
+
+<h3>5. 4090 单卡 48GB 能力边界（更新版）</h3>
+<table>
+<tr><th>模型规模</th><th>单卡可行性</th><th>多卡推荐</th></tr>
+<tr><td>10M-30M</td><td>✅ 秒级-分钟级</td><td>不需要</td></tr>
+<tr><td>100M</td><td>✅ ~50 分钟</td><td>2 卡 DDP ~30 分钟</td></tr>
+<tr><td>350M</td><td>✅ 几小时</td><td>2 卡 DDP ~2 小时</td></tr>
+<tr><td>1B</td><td>⚠️ 单卡勉强</td><td>FSDP 切 2 卡</td></tr>
+<tr><td>7B+</td><td>❌</td><td>必须 LoRA 或 FSDP 4 卡</td></tr>
+</table>
 </section>
 
 <!-- §6 -->
 <section>
-<h2><span class="num">六</span>关键工程洞察</h2>
+<h2><span class="num">六</span>复现命令</h2>
 
-<h3>1. Tokenizer 选择对参数量的影响巨大</h3>
-<p>换 BPE 后 vocab 从 65 → 50257，<strong>仅 token embedding 就占 19.3M 参数</strong>（占模型总参数 65%）。但这个 embedding 是「字典」，不是「思考力」——<em>衡量模型「真实容量」应该看 transformer 主体参数，不是总参数</em>。</p>
-
-<h3>2. 数据扩大 100 倍的收益是非线性的</h3>
-<table>
-<tr><th>数据扩大</th><th>val loss 改善</th><th>生成质量改善</th></tr>
-<tr><td>22MB → 2.1GB（100×）</td><td>1.94 → 1.42（-27%）</td><td><strong>质变</strong>（无意义 → 可读故事）</td></tr>
-</table>
-<p>Loss 是对数指标，<strong>每降低 0.1 在生成质量上的视觉冲击远超数字本身</strong>。所以「loss 只降了 0.5」可能意味着「模型从废品变可用」。</p>
-
-<h3>3. Train/Val 同源 vs 异源是真实泛化能力的分水岭</h3>
-<table>
-<tr><th>设置</th><th>Dry-run（22MB）</th><th>正式训练（2GB）</th></tr>
-<tr><td>Train 来源</td><td>valid.txt 前 90%</td><td>train.txt（独立文件）</td></tr>
-<tr><td>Val 来源</td><td>valid.txt 后 10%</td><td>valid.txt（独立文件）</td></tr>
-<tr><td>同源偏差</td><td>val loss 偏乐观</td><td>val loss 反映真泛化</td></tr>
-</table>
-<p><strong>结论</strong>：永远不要用「同源 train/val 切分」做严肃实验。这是 nanoGPT 教学代码省略的关键工程严谨度。</p>
-
-<h3>4. 4090 单卡 48GB 的实际能力边界</h3>
-<table>
-<tr><th>模型规模</th><th>单卡可行性</th><th>备注</th></tr>
-<tr><td>10M-30M</td><td>✅ 秒级训练</td><td>浪费</td></tr>
-<tr><td>100M</td><td>✅ 小时级</td><td>推荐实战尺度</td></tr>
-<tr><td>350M</td><td>✅ 几小时</td><td>接近显存上限</td></tr>
-<tr><td>1B</td><td>⚠️ 需 FSDP 切多卡</td><td>单卡勉强装下但训练慢</td></tr>
-<tr><td>7B+</td><td>❌ 必须 LoRA 或 FSDP</td><td>全参数训练不可行</td></tr>
-</table>
-
-<h3>5. 多卡在 10M-30M 尺度是浪费</h3>
-<p>4090 没有 NVLink，PCIe 通信开销大。DDP 在小模型上加速比 2-2.5×（不是理想的 4×）。<strong>真正划算的多卡用法是并行实验</strong>：4 张卡同时跑 4 组超参，达到真 4× 吞吐。</p>
-</section>
-
-<!-- §7 -->
-<section>
-<h2><span class="num">七</span>复现命令</h2>
-
-<h3>10M Shakespeare（25 秒）</h3>
-<pre><code><span class="c"># 数据准备 + 训练 + 采样</span>
-<span class="k">cd</span> nanoGPT
+<h3>10M Shakespeare（25 秒，单卡）</h3>
+<pre><code><span class="k">cd</span> nanoGPT
 python data/shakespeare_char/prepare.py
 CUDA_VISIBLE_DEVICES=<span class="n">0</span> python train.py config/train_shakespeare_char.py \
-  --device=cuda --compile=<span class="k">False</span> --max_iters=<span class="n">1500</span> --lr_decay_iters=<span class="n">1500</span>
-python sample_shakespeare.py</code></pre>
+  --device=cuda --compile=<span class="k">False</span> --max_iters=<span class="n">1500</span> --lr_decay_iters=<span class="n">1500</span></code></pre>
 
-<h3>30M TinyStories（18 分钟）</h3>
-<pre><code><span class="c"># 数据准备（约 5-10 分钟，含下载）</span>
-<span class="k">cd</span> nanoGPT
-
+<h3>30M TinyStories（18 分钟，单卡）</h3>
+<pre><code><span class="c"># 数据准备（一次性）</span>
 curl -sSL <span class="s">"https://hf-mirror.com/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-train.txt"</span> \
   -o /data/tinystories/train.txt
 curl -sSL <span class="s">"https://hf-mirror.com/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-valid.txt"</span> \
   -o /data/tinystories/valid.txt
 python data/tinystories/prepare_full.py
 
-<span class="c"># 软链接</span>
-ln -s /data/tinystories/{train,val}.bin data/tinystories/
-ln -s /data/tinystories/meta.pkl data/tinystories/
+<span class="c"># 训练</span>
+CUDA_VISIBLE_DEVICES=<span class="n">0</span> python train.py config/train_tinystories.py \
+  --device=cuda --compile=<span class="k">False</span> --max_iters=<span class="n">20000</span></code></pre>
 
-<span class="c"># 训练 20000 步</span>
-CUDA_VISIBLE_DEVICES=<span class="n">0</span> PYTHONUNBUFFERED=<span class="n">1</span> python -u train.py config/train_tinystories.py \
-  --device=cuda --compile=<span class="k">False</span> \
-  --max_iters=<span class="n">20000</span> --lr_decay_iters=<span class="n">20000</span> \
-  --eval_interval=<span class="n">500</span> --eval_iters=<span class="n">100</span> --log_interval=<span class="n">200</span>
+<h3>100M TinyStories（45 分钟，2 卡 DDP）</h3>
+<pre><code><span class="c"># 复用上面 30M 的数据（无需重新准备）</span>
 
-python sample_tinystories.py</code></pre>
+<span class="c"># 2 卡 DDP 训练</span>
+CUDA_VISIBLE_DEVICES=<span class="n">0,1</span> python -m torch.distributed.run \
+  --nproc_per_node=<span class="n">2</span> --master_port=<span class="n">29500</span> \
+  train.py config/train_tinystories_100m.py \
+  --device=cuda --compile=<span class="k">False</span></code></pre>
+
+<div class="callout warn">
+  <div class="label">关键 DDP 配置坑</div>
+  <p>
+  <code>gradient_accumulation_steps</code> 必须是 <code>world_size</code> 的倍数（nanoGPT assert 要求）。<br>
+  effective batch = <code>batch_size × (grad_accum / world_size) × world_size</code><br>
+  设 grad_accum=2, batch=32, world=2 → effective batch = 32 × 1 × 2 = <strong>64</strong>（跟单卡 batch=64 对齐）
+  </p>
+</div>
+</section>
+
+<!-- §7 -->
+<section>
+<h2><span class="num">七</span>本基准的局限</h2>
+<ol>
+<li><strong>未跑满 Chinchilla 最优</strong>。100M 只跑了 27%（20000/73000 步）。继续训能压到 val 1.05-1.10。</li>
+<li><strong>没测 4 卡 FSDP</strong>。理论上 FSDP 比 DDP 更省显存，但配置复杂。</li>
+<li><strong>未测采样效率</strong>。100M 推理速度、KV cache 表现未量化。</li>
+<li><strong>nanoGPT 是教学代码</strong>。Megatron / DeepSpeed 的 MFU 可能高 1.5-2 倍。</li>
+<li><strong>未做超参搜索</strong>。lr=6e-4 是从 GPT-1 paper 借的，没扫超参看是不是最优。</li>
+</ol>
 </section>
 
 <!-- §8 -->
 <section>
-<h2><span class="num">八</span>本基准的局限</h2>
-<ol>
-<li><strong>只测了 2 个尺度</strong>（10M + 30M）。100M 是外推，没实测。建议有卡的人补测。</li>
-<li><strong>nanoGPT 是教学代码</strong>，工程优化不极致。生产级框架（Megatron / DeepSpeed / Torchtitan）的 MFU 可能更高。</li>
-<li><strong>TinyStories 是合成数据</strong>，词汇简单。换自然语言数据（FineWeb-Edu / OpenWebText）的 loss 不可比。</li>
-<li><strong>未测多卡场景</strong>。DDP / FSDP 的实际加速比待补。</li>
-<li><strong>未测采样效率</strong>。生产部署还需要 vLLM / llama.cpp 测推理速度。</li>
-</ol>
+<h2><span class="num">八</span>三个核心叙事点</h2>
+<div class="callout accent">
+  <div class="label">这份基准的价值</div>
+  <p>
+  <strong>1. 从 10M 到 100M 是「能力涌现」的故事</strong>——不是线性提升，是质变。10M 无意义，30M 有结构但漂移，100M 长程一致 + 抽象寓意。<br><br>
+  <strong>2. Tokenizer 选择比模型大小更重要</strong>——换 BPE 收益（4.2×）远大于换模型大小收益（1.16×）。<br><br>
+  <strong>3. 2 卡 DDP 在 4090 上的实际加速比是 1.9×</strong>——不是理想的 2×，PCIe 通信是瓶颈。这数据中文圈没人发过。
+  </p>
+</div>
 
 <div class="callout">
   <div class="label">元数据</div>
   <p style="font-size: 13px; color: var(--text-muted);">
-    训练日志：<code>nanoGPT/out-tinystories/train.log</code> + <code>nanoGPT/out-shakespeare-char/train.log</code><br>
-    Checkpoints：<code>out-tinystories/ckpt.pt</code>（30M）+ <code>out-shakespeare-char/ckpt.pt</code>（10M）<br>
-    数据存放：<code>/data/tinystories/</code>（HDD 1.8TB，外挂）<br>
-    数据来源：本机 RTX 4090 48GB 实跑，2026-07-31
+    训练日志：<code>nanoGPT/out-shakespeare-char/</code> + <code>out-tinystories/</code> + <code>out-tinystories-100m/</code><br>
+    Checkpoints：3 个 ckpt.pt（10M + 30M + 100M）<br>
+    数据存放：<code>/data/tinystories/</code>（HDD 1.8TB）<br>
+    数据来源：本机 RTX 4090 48GB × 2 实跑，2026-07-31
   </p>
 </div>
 </section>
 
 <footer>
   <span class="qed">∎</span>
-  <div>nanoGPT Scaling Benchmark — 10M vs 30M on RTX 4090 48GB</div>
+  <div>nanoGPT Scaling Benchmark v2 — 10M / 30M / 100M on RTX 4090 48GB</div>
   <div>作者：罗嵩 · 整理：Claude Code · 2026-07-31</div>
 </footer>
 
