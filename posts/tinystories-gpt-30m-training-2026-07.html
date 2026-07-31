@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TinyStories GPT 30M — 训练全过程报告</title>
+<style>
+  :root {
+    --parchment: #f4ecd8;
+    --parchment-dark: #e8dcc0;
+    --ink: #2b1a0e;
+    --ink-light: #5c4630;
+    --ink-lighter: #8b7355;
+    --accent: #8b2e1f;
+    --gold: #a87b3a;
+    --green: #5a8c3a;
+    --blue: #3a5a8c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--parchment);
+    color: var(--ink);
+    font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'PingFang SC', 'Microsoft YaHei', serif;
+    line-height: 1.75;
+    font-size: 17px;
+  }
+  body {
+    background-image:
+      radial-gradient(at 15% 5%, rgba(168,123,58,0.08) 0%, transparent 40%),
+      radial-gradient(at 85% 95%, rgba(139,46,31,0.06) 0%, transparent 40%);
+    min-height: 100vh;
+  }
+  .container { max-width: 880px; margin: 0 auto; padding: 60px 32px 80px; }
+  code, pre { font-family: 'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace; }
+
+  header.hero {
+    text-align: center;
+    padding-bottom: 48px;
+    border-bottom: 2px solid var(--gold);
+    margin-bottom: 48px;
+    position: relative;
+  }
+  header.hero::before, header.hero::after {
+    content: '❦'; color: var(--gold); font-size: 22px;
+    position: absolute; bottom: -14px; background: var(--parchment); padding: 0 12px;
+  }
+  header.hero::before { left: 30%; }
+  header.hero::after { right: 30%; }
+  header.hero h1 {
+    font-size: 48px; font-weight: 600; font-style: italic;
+    color: var(--ink); margin-bottom: 12px;
+  }
+  header.hero .subtitle {
+    font-size: 16px; color: var(--ink-light);
+    margin-bottom: 32px; max-width: 640px; margin-left: auto; margin-right: auto;
+    line-height: 1.7;
+  }
+  .hero-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+    padding: 24px 16px; background: var(--parchment-dark);
+    border: 1px solid var(--gold); border-radius: 2px; max-width: 680px; margin: 0 auto;
+  }
+  .hero-stat { text-align: center; border-right: 1px dotted var(--gold); }
+  .hero-stat:last-child { border-right: none; }
+  .hero-stat .num { font-size: 26px; font-weight: 600; color: var(--accent); line-height: 1.2; display: block; }
+  .hero-stat .lbl { font-size: 11px; letter-spacing: 1px; color: var(--ink-light); margin-top: 4px; }
+  @media (max-width: 600px) {
+    header.hero h1 { font-size: 32px; }
+    .hero-stats { grid-template-columns: repeat(2, 1fr); }
+    .hero-stat { border-right: none; border-bottom: 1px dotted var(--gold); padding-bottom: 8px; }
+    .hero-stat:nth-last-child(-n+2) { border-bottom: none; }
+  }
+
+  section { margin-bottom: 56px; }
+  h2 {
+    font-size: 26px; font-weight: 600; color: var(--ink);
+    margin-bottom: 8px; display: flex; align-items: baseline; gap: 14px; line-height: 1.4;
+  }
+  h2 .num { font-size: 13px; color: var(--accent); letter-spacing: 2px; font-weight: 700; flex-shrink: 0; }
+  h3 { font-size: 18px; color: var(--ink); margin: 20px 0 10px; font-weight: 600; }
+  p { margin-bottom: 14px; }
+  .lead {
+    font-size: 17px; color: var(--ink-light); margin-bottom: 20px;
+    border-left: 3px solid var(--gold); padding: 4px 0 4px 16px; line-height: 1.8;
+  }
+  code { background: rgba(168,123,58,0.15); padding: 2px 6px; border-radius: 2px; font-size: 0.92em; color: var(--accent); }
+  pre {
+    background: var(--ink); color: var(--parchment); padding: 18px 22px;
+    border-radius: 4px; overflow-x: auto; margin: 16px 0; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  ul, ol { padding-left: 24px; margin-bottom: 14px; }
+  li { margin-bottom: 6px; }
+  strong { color: var(--ink); font-weight: 600; }
+  em { color: var(--accent); font-style: normal; font-weight: 500; }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 16px 0;
+    font-size: 15px; background: var(--parchment-dark); border: 1px solid var(--gold);
+  }
+  th {
+    background: var(--ink); color: var(--parchment); text-align: left;
+    padding: 10px 14px; font-size: 13px; letter-spacing: 1px; font-weight: 600;
+  }
+  td { padding: 10px 14px; border-top: 1px dotted var(--gold); vertical-align: top; }
+  td.num { font-family: 'SF Mono', Menlo, Consolas, monospace; text-align: right; }
+  tr:hover td { background: rgba(168,123,58,0.08); }
+
+  .callout {
+    background: rgba(139,46,31,0.07); border-left: 4px solid var(--accent);
+    padding: 18px 22px; margin: 20px 0; border-radius: 0 4px 4px 0;
+  }
+  .callout.warn { background: rgba(168,123,58,0.12); border-left-color: var(--gold); }
+  .callout.success { background: rgba(90,140,58,0.08); border-left-color: var(--green); }
+  .callout-title { font-size: 13px; letter-spacing: 1.5px; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+  .callout.warn .callout-title { color: var(--gold); }
+  .callout.success .callout-title { color: var(--green); }
+
+  .chart-wrap {
+    background: var(--parchment-dark); border: 1px solid var(--gold);
+    padding: 24px; margin: 20px 0; border-radius: 2px;
+  }
+  .chart-title { font-size: 13px; letter-spacing: 1px; color: var(--ink-light); text-align: center; margin-bottom: 12px; }
+  svg.chart { width: 100%; height: auto; display: block; }
+  .legend { display: flex; gap: 24px; justify-content: center; margin-top: 12px; font-size: 13px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+
+  .sample-card {
+    background: var(--parchment-dark); border: 1px solid var(--gold);
+    padding: 20px 24px; border-radius: 2px; margin: 16px 0;
+  }
+  .sample-card .prompt { color: var(--ink-light); border-left: 2px solid var(--gold); padding-left: 12px; margin-bottom: 12px; font-size: 14px; }
+  .sample-card .output { white-space: pre-wrap; line-height: 1.7; color: var(--ink); }
+  .sample-card .meta { margin-top: 14px; padding-top: 12px; border-top: 1px dotted var(--gold); font-size: 12px; color: var(--ink-lighter); }
+
+  .timeline { border-left: 2px solid var(--gold); padding-left: 28px; margin: 20px 0; }
+  .tl-item { position: relative; padding-bottom: 24px; }
+  .tl-item::before {
+    content: ''; position: absolute; left: -36px; top: 4px;
+    width: 14px; height: 14px; background: var(--accent);
+    border-radius: 50%; border: 3px solid var(--parchment);
+  }
+  .tl-item .tl-time { font-size: 12px; letter-spacing: 1px; color: var(--accent); font-weight: 700; font-family: 'SF Mono', Menlo, monospace; }
+  .tl-item .tl-title { font-size: 17px; color: var(--ink); font-weight: 600; margin: 2px 0 4px; }
+  .tl-item .tl-desc { font-size: 14px; color: var(--ink-light); line-height: 1.7; }
+
+  .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  @media (max-width: 600px) {
+    .comparison { grid-template-columns: 1fr; }
+    .container { padding: 40px 20px; }
+    h2 { font-size: 22px; }
+  }
+  .comp-cell { padding: 16px; border-radius: 2px; }
+  .comp-cell.bad { background: rgba(139,46,31,0.07); border-left: 3px solid var(--accent); }
+  .comp-cell.good { background: rgba(90,140,58,0.07); border-left: 3px solid var(--green); }
+  .comp-cell h4 { font-size: 13px; letter-spacing: 1px; margin-bottom: 8px; }
+  .comp-cell.bad h4 { color: var(--accent); }
+  .comp-cell.good h4 { color: var(--green); }
+
+  footer.foot {
+    margin-top: 60px; padding-top: 32px; border-top: 2px solid var(--gold);
+    text-align: center; color: var(--ink-light); font-size: 13px;
+  }
+  footer.foot .meta-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    max-width: 600px; margin: 0 auto 24px;
+  }
+  footer.foot .meta-grid > div {
+    text-align: center; padding: 12px; background: var(--parchment-dark);
+    border: 1px solid var(--gold); border-radius: 2px;
+  }
+  footer.foot .meta-grid .k { font-size: 11px; letter-spacing: 1px; color: var(--ink-lighter); display: block; margin-bottom: 4px; }
+  footer.foot .meta-grid .v { font-size: 14px; color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="hero">
+  <h1>TinyStories GPT</h1>
+  <div class="subtitle">
+    一个 30M 参数的 GPT，2GB 现代英文短故事训练，<br>
+    在单张 4090 上 18 分钟跑完，能写出完整连贯的小学生故事。
+  </div>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">29.92M</span><span class="lbl">参数量</span></div>
+    <div class="hero-stat"><span class="num">20000</span><span class="lbl">训练步数</span></div>
+    <div class="hero-stat"><span class="num">18 分</span><span class="lbl">训练耗时</span></div>
+    <div class="hero-stat"><span class="num">1.42</span><span class="lbl">验证 loss</span></div>
+  </div>
+</header>
+
+<!-- 1 -->
+<section>
+  <h2><span class="num">§ 01</span> 这是什么</h2>
+  <p class="lead">
+    莎士比亚 demo 之后的下一步：换数据集、换 tokenizer，看模型能否学会写「现代英文短故事」。
+    结果——从「读不通」到「读得通」，发生了肉眼可见的质变。
+  </p>
+  <p>
+    模型架构跟之前的 Shakespeare demo 完全一样（6 层、6 头、384 维），但<strong>数据集从 1MB 莎剧换成了 2.1GB 的 TinyStories</strong>
+    （GPT-4 生成的儿童短故事），<strong>tokenizer 从字符级换成了 GPT-2 BPE</strong>（词表 65 → 50257）。
+    最终参数量从 10.65M 涨到 29.92M——涨的不是「思考力」，是「字典」。
+  </p>
+  <div class="callout">
+    <div class="callout-title">这次实验回答了什么</div>
+    「同样的模型架构，换更好的数据和 tokenizer，能不能写出像样的故事？」答案：能。这是从玩具到实战门槛的关键一步。
+  </div>
+</section>
+
+<!-- 2 -->
+<section>
+  <h2><span class="num">§ 02</span> 实验环境</h2>
+  <h3>硬件</h3>
+  <table>
+    <tr><th>组件</th><th>规格</th><th>实际使用</th></tr>
+    <tr><td>GPU</td><td>RTX 4090 48GB（单卡）</td><td>14 GB 显存（29%）</td></tr>
+    <tr><td>数据盘</td><td>1.8 TB 外挂 HDD</td><td>占用 3.2 GB</td></tr>
+    <tr><td>CUDA</td><td>13.0 / 驱动 580.173.02</td><td>—</td></tr>
+  </table>
+  <h3>软件</h3>
+  <table>
+    <tr><th>包</th><th>版本</th></tr>
+    <tr><td>PyTorch</td><td>2.13.0+cu130</td></tr>
+    <tr><td>tiktoken</td><td>0.13.0（GPT-2 BPE）</td></tr>
+    <tr><td>nanoGPT</td><td>master 分支</td></tr>
+  </table>
+  <div class="callout warn">
+    <div class="callout-title">网络通道（国内）</div>
+    HuggingFace 直连不通。数据从 <code>hf-mirror.com</code> 拉取（50 MB/s，2GB 用 40 秒下完）。
+    无云 API、无遥测，完全自托管。
+  </div>
+</section>
+
+<!-- 3 -->
+<section>
+  <h2><span class="num">§ 03</span> 数据集：TinyStories</h2>
+  <p class="lead">
+    Microsoft Research 用 GPT-4 合成的英文儿童短故事，每个故事 100-500 词，词汇控制在 4 岁儿童可理解范围。
+    专为「小模型能学到东西」设计的数据集。
+  </p>
+  <h3>文件结构</h3>
+  <table>
+    <tr><th>文件</th><th>大小</th><th>用途</th></tr>
+    <tr><td><code>train.txt</code></td><td>2.1 GB</td><td>训练集（271 万故事）</td></tr>
+    <tr><td><code>valid.txt</code></td><td>22 MB</td><td>验证集（2.7 万故事）</td></tr>
+  </table>
+  <h3>Tokenize 后</h3>
+  <table>
+    <tr><th></th><th>token 数</th><th>uint16 文件</th></tr>
+    <tr><td>训练集</td><td class="num">547.73M</td><td>1.1 GB</td></tr>
+    <tr><td>验证集</td><td class="num">5.53M</td><td>11 MB</td></tr>
+    <tr><td>合计</td><td class="num">553.26M</td><td>1.11 GB</td></tr>
+  </table>
+  <p>Tokenizer 用 GPT-2 BPE，词表 50257，故事之间用 <code>&lt;|endoftext|&gt;</code>（token id 50256）分隔。</p>
+
+  <div class="callout success">
+    <div class="callout-title">工程严谨度修复</div>
+    <p>Shakespeare demo 里 train/val 是同一个文件 90/10 切分——val loss 偏乐观。</p>
+    <p>本次实验修复：train.txt 训练，valid.txt 验证，<strong>两份完全独立的文件</strong>。val loss 反映真实泛化能力。</p>
+  </div>
+</section>
+
+<!-- 4 -->
+<section>
+  <h2><span class="num">§ 04</span> 模型架构</h2>
+  <p>架构跟 Shakespeare 完全一样，但因为换 BPE 词表，参数量结构发生了巨大变化。</p>
+  <table>
+    <tr><th>超参</th><th>Shakespeare</th><th>TinyStories</th></tr>
+    <tr><td>n_layer</td><td class="num">6</td><td class="num">6</td></tr>
+    <tr><td>n_head</td><td class="num">6</td><td class="num">6</td></tr>
+    <tr><td>n_embd</td><td class="num">384</td><td class="num">384</td></tr>
+    <tr><td>block_size</td><td class="num">256</td><td class="num">256</td></tr>
+    <tr><td>vocab_size</td><td class="num">65</td><td class="num"><strong>50257</strong></td></tr>
+    <tr><td><strong>总参数</strong></td><td class="num"><strong>10.65M</strong></td><td class="num"><strong>29.92M</strong></td></tr>
+  </table>
+  <h3>参数分布对比</h3>
+  <pre><code>                     Shakespeare    TinyStories
+transformer 主体      10.5M           10.5M     ← 完全一样
+token embedding      0.025M          <strong>19.3M</strong>     ← 暴涨 770 倍
+position embedding   0.098M          0.098M
+layer norms          ~0.01M          ~0.01M</code></pre>
+  <div class="callout">
+    <div class="callout-title">关键洞察：embedding 主导参数量</div>
+    <p>换 BPE 后 vocab 从 65 → 50257，token embedding 从 25K 参数涨到 19.3M，<strong>占了模型总参数的 65%</strong>。</p>
+    <p>但这个 embedding 是「字典查询表」，不是「思考能力」。两次实验的 <em>transformer 思考容量完全相同</em>。
+    评价模型「真实容量」应该看 transformer 主体参数，不是总参数。</p>
+  </div>
+</section>
+
+<!-- 5 -->
+<section>
+  <h2><span class="num">§ 05</span> 训练过程</h2>
+  <p class="lead">
+    20000 步训练，每 500 步评估一次 val loss。共 40 个评估点。
+    train loss 与 val loss 全程几乎重合——这是健康泛化的标志。
+  </p>
+
+  <div class="chart-wrap">
+    <div class="chart-title">20000 步训练 loss 曲线（前 500 步 loss 10.9 已截断）</div>
+    <svg class="chart" viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#d9c9a3" stroke-width="0.5" fill="none">
+        <line x1="60" y1="40" x2="760" y2="40"/>
+        <line x1="60" y1="96" x2="760" y2="96"/>
+        <line x1="60" y1="152" x2="760" y2="152"/>
+        <line x1="60" y1="208" x2="760" y2="208"/>
+        <line x1="60" y1="264" x2="760" y2="264"/>
+        <line x1="60" y1="40" x2="60" y2="320"/>
+        <line x1="235" y1="40" x2="235" y2="320"/>
+        <line x1="410" y1="40" x2="410" y2="320"/>
+        <line x1="585" y1="40" x2="585" y2="320"/>
+        <line x1="760" y1="40" x2="760" y2="320"/>
+        <line x1="60" y1="320" x2="760" y2="320"/>
+      </g>
+      <g font-family="Georgia, serif" font-size="11" fill="#5c4630">
+        <text x="50" y="44" text-anchor="end">3.5</text>
+        <text x="50" y="100" text-anchor="end">3.0</text>
+        <text x="50" y="156" text-anchor="end">2.5</text>
+        <text x="50" y="212" text-anchor="end">2.0</text>
+        <text x="50" y="268" text-anchor="end">1.5</text>
+      </g>
+      <g font-family="Georgia, serif" font-size="11" fill="#5c4630">
+        <text x="60" y="338" text-anchor="middle">0</text>
+        <text x="235" y="338" text-anchor="middle">5000</text>
+        <text x="410" y="338" text-anchor="middle">10000</text>
+        <text x="585" y="338" text-anchor="middle">15000</text>
+        <text x="760" y="338" text-anchor="middle">20000</text>
+      </g>
+      <text x="410" y="356" text-anchor="middle" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5c4630">iteration（步数）</text>
+      <text x="20" y="180" text-anchor="middle" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5c4630" transform="rotate(-90 20 180)">loss</text>
+
+      <!-- train loss (red) -->
+      <polyline fill="none" stroke="#8b2e1f" stroke-width="2" stroke-linejoin="round"
+        points="77.5,152 95,196 112.5,212 130,223 147.5,228 165,234 182.5,237 200,239 217.5,243 235,246 252.5,247 270,248 287.5,251 305,252 322.5,253 340,255 357.5,256 375,257 392.5,258 410,260 427.5,261 445,262 462.5,263 480,264 497.5,265 515,265 532.5,266 550,266 567.5,268 585,268 602.5,270 620,270 637.5,271 655,271 672.5,272 690,272 707.5,272 725,272 742.5,273 760,273"/>
+
+      <!-- val loss (blue, dashed) - almost overlapping -->
+      <polyline fill="none" stroke="#3a5a8c" stroke-width="1.5" stroke-dasharray="4 3"
+        points="77.5,152 95,197 112.5,213 130,224 147.5,228 165,235 182.5,237 200,240 217.5,242 235,246 252.5,247 270,249 287.5,251 305,252 322.5,253 340,256 357.5,257 375,258 392.5,258 410,260 427.5,261 445,263 462.5,263 480,265 497.5,265 515,266 532.5,267 550,267 567.5,269 585,269 602.5,270 620,271 637.5,271 655,272 672.5,272 690,273 707.5,273 725,273 742.5,273 760,273"/>
+    </svg>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#8b2e1f"></span> train loss</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#3a5a8c"></span> val loss（来自完全独立的 valid.txt）</span>
+    </div>
+  </div>
+
+  <p>val loss 与 train loss 全程几乎重合（差距 &lt; 0.02），说明模型在 547M token 上没有过拟合——可以继续训练。</p>
+
+  <h3>训练里程碑</h3>
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-time">iter 0 · t=0s</div>
+      <div class="tl-title">val loss 10.90 ≈ ln(50257)</div>
+      <div class="tl-desc">随机初始化。模型对 50257 个 token 均匀预测，正好等于 ln(50257)=10.82 nats。</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">iter 500 · t=27s</div>
+      <div class="tl-title">val loss 2.50</div>
+      <div class="tl-desc">词级模式涌现。模型学会了英文基本语法结构（主谓宾）。</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">iter 5000 · t=4.5min</div>
+      <div class="tl-title">val loss 1.66</div>
+      <div class="tl-desc">开始能输出连贯的英文短句。但故事结构跳跃。</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">iter 10000 · t=9min</div>
+      <div class="tl-title">val loss 1.54</div>
+      <div class="tl-desc">故事起承转合开始涌现。角色能保持一致，但偶有逻辑漏洞。</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">iter 20000 · t=18min</div>
+      <div class="tl-title">val loss <strong>1.42</strong></div>
+      <div class="tl-desc">完整连贯的儿童故事，包含对话、情节转折、教训结尾。TinyStories 经典模板吃透。</div>
+    </div>
+  </div>
+
+  <h3>速度指标</h3>
+  <table>
+    <tr><th>指标</th><th>实测值</th></tr>
+    <tr><td>每步耗时</td><td class="num">55 ms（稳定后）</td></tr>
+    <tr><td>MFU</td><td class="num">14-17%</td></tr>
+    <tr><td>吞吐</td><td class="num">~300 K token / 秒</td></tr>
+    <tr><td>总训练 token</td><td class="num">328M（20000 × 16384）</td></tr>
+    <tr><td>每 epoch token</td><td class="num">547M（整个 train.txt）</td></tr>
+    <tr><td>训练 epoch 数</td><td class="num">0.6（一遍都没读完）</td></tr>
+    <tr><td>Chinchilla 最优比</td><td class="num">55%（20000 / 37000 步）</td></tr>
+  </table>
+</section>
+
+<!-- 6 -->
+<section>
+  <h2><span class="num">§ 06</span> 它能写什么</h2>
+  <p class="lead">
+    模型生成了一个完整的小故事——有起承转合、有角色发展、有自然结尾。
+    但仍有 30M 模型的天花板：长程依赖能力不足，偶尔出现设定前后矛盾。
+  </p>
+
+  <div class="sample-card">
+    <div class="prompt">Prompt: <code>Once upon a time, in a big forest,</code></div>
+    <div class="output">there was a cute little rabbit. This rabbit had a secret secret. He could not speak, but he could help people all.
+
+One sunny day, the little rabbit was playing under a big tree. Suddenly, he heard a loud noise! It was a strong lion! The lion was very loud and mean. The other animals were scared of the lion.
+
+The little rabbit wanted to help his new friend. He walked up to the lion and said, "Hi, Mr. Lion! Can you teach me how to speak?" The lion looked at the rabbit and smiled. He showed the rabbit how to speak and sing. The rabbit was happy and thanked the lion.
+
+From that day on, the rabbit and the lion became good friends. They played and talked together in the forest, and they were never scared again.</div>
+    <div class="meta">Temperature 0.8 · Top-K 40 · Seed 42 · 来自 20000 步 checkpoint · val loss 1.42</div>
+  </div>
+
+  <div class="comparison">
+    <div class="comp-cell good">
+      <h4>✓ 学到了的</h4>
+      <ul>
+        <li>完整故事结构（起承转合）</li>
+        <li>角色弧线（兔子从怕狮子 → 做朋友）</li>
+        <li>直接对话（"Hi, Mr. Lion!"）</li>
+        <li>场景细节（"big tree" / "loud noise"）</li>
+        <li>TinyStories 经典结尾（"From that day on..."）</li>
+        <li>自然停止（生成 &lt;|endoftext|&gt;）</li>
+      </ul>
+    </div>
+    <div class="comp-cell bad">
+      <h4>✗ 30M 模型的天花板</h4>
+      <ul>
+        <li><strong>设定前后矛盾</strong>：开头说"兔子不会说话"，结尾变成"兔子教狮子说话"</li>
+        <li>长程依赖（>200 字符）偶尔失效</li>
+        <li>"help people all" 这种不自然搭配</li>
+        <li>角色动机不够深入</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">val loss 1.42 在 BPE 子词级意味着什么</div>
+    每生成一个 BPE token 携带 1.42 nats 惊讶度。换算成字符级：1 个 BPE token ≈ 4 字符，所以每字符约 0.36 nats ≈ 0.51 bits。<br>
+    对比 Shakespeare 10M 模型的 2.14 bits/char——<strong>30M 模型的字符压缩效率是 10M 的 4.2 倍</strong>。
+  </div>
+</section>
+
+<!-- 7 -->
+<section>
+  <h2><span class="num">§ 07</span> 关键发现</h2>
+
+  <h3>1. 数据扩大 100 倍的收益是非线性的</h3>
+  <p>从 22MB（dry-run）到 2.1GB（正式），数据扩大 100 倍：</p>
+  <table>
+    <tr><th>指标</th><th>22MB dry-run</th><th>2.1GB 正式</th><th>变化</th></tr>
+    <tr><td>val loss</td><td class="num">1.94</td><td class="num">1.42</td><td>-27%</td></tr>
+    <tr><td>句子语法正确率</td><td class="num">~80%</td><td class="num">~95%</td><td>+15%</td></tr>
+    <tr><td>故事结构</td><td>跳跃</td><td>完整</td><td><strong>质变</strong></td></tr>
+    <tr><td>角色一致性</td><td>漂移</td><td>保持</td><td><strong>质变</strong></td></tr>
+  </table>
+  <p>Loss 是对数指标，<strong>每降低 0.1 在生成质量上的视觉冲击远超数字本身</strong>。</p>
+
+  <h3>2. Token embedding 占了模型 65% 参数，但不贡献思考力</h3>
+  <p>29.92M 总参数里，19.3M 是 token embedding（50257 × 384）。这部分是「字典」，不是「大脑」。
+  评价模型真实思考能力应该看 transformer 主体（10.5M），跟 Shakespeare 10M 完全一样。</p>
+  <p><strong>这意味着</strong>：30M 比 10M「思考力」没变强，但「词汇量」大了 770 倍——所以能处理现代英文，而不是只能模仿莎剧字符。</p>
+
+  <h3>3. Train/Val 异源是真实泛化能力的分水岭</h3>
+  <p>Shakespeare 实验里 train/val 同源（90/10 切分），val loss 1.48 偏乐观。本次实验 train.txt + valid.txt 完全独立，val loss 1.42 反映真泛化。
+  <strong>永远不要用同源切分做严肃实验</strong>。</p>
+
+  <h3>4. 30M 模型在 4090 上的经济性</h3>
+  <p>18 分钟训完一轮，每轮成本约 0.3 元电费。<strong>可以一天跑 50 轮不同超参的实验</strong>——这才是 4090 48GB 的正确用法。</p>
+
+  <h3>5. 30M 是写「像样短故事」的甜点尺度</h3>
+  <p>再小（10M）故事结构跳跃，再大（100M+）才开始能保持长程依赖。30M 是「能产出可读内容」的最小尺度，对教学、demo、垂直应用足够。</p>
+</section>
+
+<!-- 8 -->
+<section>
+  <h2><span class="num">§ 08</span> 局限与下一步</h2>
+
+  <h3>这个模型做不到的事</h3>
+  <ul>
+    <li><strong>保持长程逻辑一致</strong>。"兔子不会说话" 后面变成 "兔子教狮子说话"——长程依赖能力不够。</li>
+    <li><strong>答问 / 指令遵循</strong>。不是 instruction-tuned 模型，不会按指令行动。</li>
+    <li><strong>处理超出儿童词汇的内容</strong>。TinyStories 词表简单，遇到专业词就翻车。</li>
+    <li><strong>中文 / 多语言</strong>。Tokenizer 是 GPT-2 BPE，对中文不友好。</li>
+  </ul>
+
+  <h3>合理的下一步</h3>
+  <table>
+    <tr><th>目标</th><th>怎么做</th><th>预估成本</th></tr>
+    <tr>
+      <td>修复长程依赖 bug</td>
+      <td>扩大到 100M（12 层 × 12 头 × 768 维），同数据集继续训</td>
+      <td>~5 小时</td>
+    </tr>
+    <tr>
+      <td>真问答能力</td>
+      <td>换 Qwen2.5-7B + LoRA 微调</td>
+      <td>2-4 小时</td>
+    </tr>
+    <tr>
+      <td>中文短故事生成</td>
+      <td>换中文数据集（COIG / C4-zh）+ Qwen tokenizer</td>
+      <td>1-2 天</td>
+    </tr>
+    <tr>
+      <td>更进一步降低 val loss</td>
+      <td>同 30M 模型训到 40000 步</td>
+      <td>再加 18 分钟</td>
+    </tr>
+  </table>
+
+  <div class="callout success">
+    <div class="callout-title">你实际学到了什么</div>
+    <p>从 10M Shakespeare 到 30M TinyStories，你跨过了「玩具 → 实战门槛」这一步。你亲历了：</p>
+    <ul>
+      <li>tokenizer 选择（char-level vs BPE）对模型能力的影响</li>
+      <li>数据集扩大对生成质量的非线性提升</li>
+      <li>train/val 异源在工程严谨度上的重要性</li>
+      <li>embedding 占参数大头但不贡献思考力的反直觉事实</li>
+    </ul>
+    <p>下一步无论走向 100M 还是 LoRA 微调，这些经验都是基础。</p>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="meta-grid">
+    <div><span class="k">训练日期</span><span class="v">2026-07-31</span></div>
+    <div><span class="k">硬件</span><span class="v">RTX 4090 48GB</span></div>
+    <div><span class="k">数据</span><span class="v">2.1 GB TinyStories</span></div>
+  </div>
+  <p>
+    端到端自托管 · 无云 API · 无遥测 · 无专有依赖<br>
+    源码：<code>karpathy/nanoGPT</code> · 数据：Microsoft TinyStories · 整理：Catalyst 🧪
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

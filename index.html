@@ -613,6 +613,24 @@
 
             <div class="posts-list" id="postsList">
 
+<!-- 2026-07-31 TinyStories nanoGPT Training Report -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-07-31</div>
+                    <a href="posts/tinystories-gpt-30m-training-2026-07.html" class="post-title-link">
+                        <div class="post-title">TinyStories GPT 30M — 换 BPE + 2GB 现代英文数据，4090 上 18 分钟训出能写完整故事的模型</div>
+                    </a>
+                    <div class="post-excerpt">
+        同样的 nanoGPT 架构（6层6头384维），数据集从 1MB 莎剧换成 2.1GB TinyStories，tokenizer 从字符级换成 GPT-2 BPE。结果：30M 参数模型在 4090 上 18 分钟跑完 20000 步，val loss 1.42，能生成有起承转合、角色弧线和自然结尾的完整儿童故事。关键发现：token embedding 占了 65% 参数但不贡献思考力；BPE 字符压缩效率是字符级的 4.2 倍；train/val 异源验证了真实泛化能力。从 10M 莎士比亚到 30M TinyStories，跨过了「玩具到实战门槛」的关键一步。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">nanoGPT</span>
+                        <span class="post-tag">TinyStories</span>
+                        <span class="post-tag">BPE</span>
+                        <span class="post-tag">RTX 4090</span>
+                    </div>
+                    <a href="posts/tinystories-gpt-30m-training-2026-07.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-07-31 Shakespeare nanoGPT Training Report -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-07-31</div>
