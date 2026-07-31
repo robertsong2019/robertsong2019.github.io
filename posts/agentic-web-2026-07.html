@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic Web：当 AI Agent 成为互联网的一等公民 — Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+.insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+.warning { background: #fdf2f2; padding: 15px; border-radius: 4px; border-left: 4px solid #ef4444; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+.tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">&larr; 返回首页</a>
+
+<h1>Agentic Web：当 AI Agent 成为互联网的一等公民</h1>
+<div class="meta">
+    2026-07-31 &middot; 罗嵩 &middot;
+    <span class="tag">Agentic Web</span>
+    <span class="tag">MCP</span>
+    <span class="tag">A2A Protocol</span>
+    <span class="tag">AI Agent</span>
+</div>
+
+<blockquote>想象一下：你告诉你的 AI 助手"下周去东京出差，帮我安排好一切"。然后——你的 Agent 自己去搜索航班、比较价格、预订酒店、安排接机、把日程同步给团队、甚至帮你申请签证。你不需要打开任何一个 App，不需要点击任何一个网页。Agent 替你做了一切。这不是科幻。2025年7月，OpenAI 发布了 ChatGPT Agent，它已经能替你购物、预订餐厅、操作软件。但这只是冰山一角。真正的问题是：当互联网的"用户"不再是人类，而是 AI Agent 时，整个互联网的基础设施需要被重新设计。这就是 Agentic Web。</blockquote>
+
+<h2>一、三次 Web 革命，三次身份转换</h2>
+
+<p>要理解 Agentic Web，我们先回顾互联网的进化。每一次 Web 范式转换，本质上都是<strong>"谁是用户"</strong>的重新定义。</p>
+
+<table>
+<tr><th>阶段</th><th>时间</th><th>用户</th><th>核心交互</th><th>商业模式</th></tr>
+<tr><td><strong>PC Web</strong></td><td>1990s-2010s</td><td>人类坐在电脑前</td><td>搜索 → 浏览 → 点击</td><td>SEO + 搜索广告</td></tr>
+<tr><td><strong>Mobile Web</strong></td><td>2010s-2020s</td><td>人类拿着手机</td><td>推荐 → 刷信息流 → 点击</td><td>推荐算法 + 注意力经济</td></tr>
+<tr><td><strong>Agentic Web</strong></td><td>2025-</td><td>AI Agent 替人类行动</td><td>意图 → 规划 → 协作 → 执行</td><td>Agent Attention Economy（新）</td></tr>
+</table>
+
+<p>看到规律了吗？PC Web 时代，人类主动找信息（Google 搜索）。Mobile Web 时代，算法主动推信息给人类（TikTok/朋友圈）。Agentic Web 时代，<strong>信息本身变成了行动——Agent 接收意图，自主完成任务</strong>。</p>
+
+<p>2025年7月，一篇来自 UC Berkeley、上海交大、UCL等机构的论文（arXiv:2507.21206）首次系统性地定义了这个新范式。论文提出了一个三维框架：<strong>智能（Intelligence）、交互（Interaction）、经济（Economics）</strong>。三个维度共同支撑 Agent 的核心能力：检索、推荐、规划和协作。</p>
+
+<div class="highlight">
+<strong>核心论点：</strong>Agentic Web 不是一个新功能，而是互联网的<strong>架构级重构</strong>。从"连接信息"到"连接意图"——你不再需要知道服务在哪里，只需要告诉 Agent 你想要什么。
+</div>
+
+<h2>二、两个协议正在定义新互联网的"TCP/IP"</h2>
+
+<p>1970年代，ARPANET 面临一个问题：不同网络之间无法通信。于是有了 TCP/IP——一套让任何网络都能互联的标准。2025年，AI Agent 生态面临完全相同的问题：不同厂商的 Agent、不同的工具、不同的框架，彼此无法通信。</p>
+
+<p>两个开放协议正在解决这个问题，它们互补而非竞争：</p>
+
+<h3>MCP（Model Context Protocol）：Agent 的"USB-C"接口</h3>
+
+<p>Anthropic 在 2024年11月发布了 MCP。它解决的问题简单而根本：<strong>Agent 如何连接外部工具和数据源</strong>。</p>
+
+<p>在 MCP 之前，如果你有 10 个 AI 应用和 100 个工具，你需要 1000 个自定义集成。MCP 把这变成了：每个应用实现一次 MCP Client，每个工具实现一次 MCP Server，就完成了。</p>
+
+<pre><code>没有 MCP:                        有 MCP:
+┌─────────┐  自定义集成1  ┌─────┐    ┌─────────┐  ┌──────┐  ┌─────────┐
+│ Claude   │──────────────▶│GitHub│   │ Claude   │─┐│      │┌─│ GitHub  │
+└─────────┘  自定义集成2  └─────┘    └─────────┘ ││ MCP  ││ └─────────┘
+┌─────────┐──────────────▶┌─────┐    ┌─────────┐ ││协议层 ││ ┌─────────┐
+│ ChatGPT  │──────────────│GitHub│   │ ChatGPT  │─┼▶│      │◀┼─│ Slack   │
+└─────────┘  自定义集成3  └─────┘    └─────────┘ │└──────┘│ └─────────┘
+┌─────────┐──────────────▶┌─────┐    ┌─────────┐ │        │ ┌─────────┐
+│ Gemini   │              │Slack│    │ Gemini   │─┘        └─│ Notion  │
+└─────────┘              └─────┘    └─────────┘            └─────────┘</code></pre>
+
+<p>MCP 的增长速度令人震惊。截至2025年底：</p>
+<ul>
+    <li><strong>5,800+</strong> 个 MCP Server（从100个起步，一年增长58倍）</li>
+    <li><strong>300+</strong> 个 MCP Client</li>
+    <li><strong>9700万</strong> 月均 SDK 下载量（Python + TypeScript）</li>
+    <li>OpenAI、Google、Microsoft、AWS <strong>全部采纳</strong></li>
+</ul>
+
+<p>2025年12月9日，Anthropic 把 MCP 捐赠给了 Linux Foundation 新成立的 Agentic AI Foundation（AAIF）。Mike Krieger（Anthropic CPO）说："捐赠 MCP 给 Linux Foundation 确保它在成为 AI 关键基础设施的过程中保持开放、中立和社区驱动。"</p>
+
+<h3>A2A（Agent2Agent Protocol）：Agent 之间的"外交协议"</h3>
+
+<p>如果说 MCP 解决的是"Agent 如何用工具"，那么 A2A 解决的是"Agent 如何与其他 Agent 协作"。这是 Google 在 2025年4月发布的开放协议，获得了 50+ 家技术合作伙伴支持，包括 Atlassian、Salesforce、SAP、PayPal 等。</p>
+
+<p>A2A 的核心设计理念：</p>
+
+<ul>
+    <li><strong>Agent Card</strong>：每个 Agent 用 JSON 声明自己的能力，让别人能发现并调用它</li>
+    <li><strong>Task Lifecycle</strong>：任务有完整生命周期——从创建到完成，支持长时间运行（甚至数天）</li>
+    <li><strong>Artifact</strong>：任务的产出物，可以是文本、图片、视频或任何格式</li>
+    <li><strong>模态协商</strong>：Agent 之间协商交互格式——你要给我图片还是文本？支持 iframe 还是视频？</li>
+</ul>
+
+<p>A2A 基于 HTTP、SSE（Server-Sent Events）和 JSON-RPC——都是现有的成熟标准。这意味着企业不需要改造现有 IT 基础设施就能接入。</p>
+
+<div class="insight">
+<strong>关键判断：</strong>MCP 和 A2A 的关系不是竞争，而是<strong>互补</strong>。MCP 是"Agent 的手"（连接工具），A2A 是"Agent 的嘴"（Agent 间沟通）。Microsoft Build 2025 同时宣布支持两者，Google 明确说 A2A "complements MCP"。这是整个行业的共识，不是某一家公司的游戏。
+</div>
+
+<h2>三、Agent Attention Economy：谁来赢取 Agent 的"注意力"？</h2>
+
+<p>这是 Agentic Web 中最颠覆性的变化。</p>
+
+<p>在 Mobile Web 时代，人类的注意力是稀缺资源。Facebook、TikTok、微信——所有产品都在争夺你每天那几个小时的使用时间。广告、推送通知、无限信息流——都是"注意力经济"的产物。</p>
+
+<p>但当 Agent 开始替人类做决策时，<strong>人类的注意力不再是 bottleneck——Agent 的注意力才是</strong>。</p>
+
+<p>考虑这个场景：你想买一台咖啡机。在传统 Web 中，你会去 Google 搜索，看评测，比较价格，点击广告。你的注意力被多个网站瓜分，SEO 做得好的网站赢。</p>
+
+<p>在 Agentic Web 中，你告诉 Agent"帮我找一台性价比高的咖啡机，预算500以内"。Agent 自己搜索、比较、评估，然后给你一个推荐。<strong>整个过程你甚至没看任何一个网页</strong>。</p>
+
+<p>这意味着什么？</p>
+
+<ul>
+    <li><strong>SEO 失效</strong>：优化 Google 排名不再有用，因为没有人类在点击搜索结果</li>
+    <li><strong>广告失效</strong>：Agent 不会被 banner 广告吸引</li>
+    <li><strong>新的"被发现"逻辑</strong>：你的服务需要被 Agent 理解和信任。不是排名越高越好，而是<strong>数据越结构化、越可信赖、越容易被 Agent 调用越好</strong></li>
+</ul>
+
+<p>论文把这个称为 <strong>Agent Attention Economy</strong>。核心逻辑：从"争夺人类眼球"到"争夺 Agent 的调用"。让 Agent 更容易发现你、理解你、信任你——这是 Agentic Web 时代的"SEO"。</p>
+
+<div class="warning">
+<strong>商业警示：</strong>如果你的业务依赖搜索引擎流量，现在就需要开始思考"Agent 可发现性"策略。这不是五年后的事——ChatGPT Agent 已经在替人类做购买决策了。
+</div>
+
+<h2>四、Agent 身份：谁为 Agent 的行为负责？</h2>
+
+<p>当 Agent 替你做事时，一个根本问题出现了：<strong>Agent 是谁？它有什么权限？它犯了错谁负责？</strong></p>
+
+<p>当前 Web 的认证体系——OAuth、Cookie、Session——全部假设用户是人类。你用用户名密码登录，浏览器记住你的状态。但 Agent 不是人类。它没有"浏览器"，它直接调用 API。它可能同时代表不同的人行动。它的"身份"是什么？</p>
+
+<p>Microsoft 在 Build 2025 上给出了一个方案：<strong>Microsoft Entra Agent ID</strong>。核心理念很直接——像管理员工身份一样管理 Agent 身份。</p>
+
+<ul>
+    <li>每个 Agent 自动获得一个唯一身份（像员工的工号）</li>
+    <li>Agent 的权限被明确定义（像员工的岗位权限）</li>
+    <li>Agent 的行为可审计（像员工的操作日志）</li>
+    <li>防止"Agent 蔓延"（agent sprawl）——企业不知道有多少 Agent 在运行、在做什么</li>
+</ul>
+
+<p>但这只是起步。更大的问题是<strong>委托链</strong>：你授权 Agent A → Agent A 调用 Agent B → Agent B 访问 Agent C 的服务。每一步的信任如何传递？Agent B 能否代表你做决策？如果 Agent C 有恶意，如何防止？</p>
+
+<p>arXiv 论文用了一整章分析 Agentic Web 的安全威胁，覆盖了从推理层到系统层的全栈风险。结论很坦诚：<strong>现有防御手段远远不够</strong>。</p>
+
+<h2>五、Web 基础设施的架构重构</h2>
+
+<p>Akamai（全球最大 CDN 提供商之一）在2026年发布了白皮书《Architecting the Agentic Web》。核心论点：</p>
+
+<blockquote>推理（inference）正在快速成为 AI 的运营核心，嵌入每一次用户交互、每个应用工作流、最终每个 Agent 驱动的体验中。当应用从静态界面进化为实时智能系统时，现代 Web 的基础设施必须进化以支撑它们。</blockquote>
+
+<p>这意味着什么？</p>
+
+<ul>
+    <li><strong>CDN 需要重构</strong>：从"分发内容"（缓存 HTML/图片）变为"分发推理"（边缘推理节点）</li>
+    <li><strong>API Gateway 需要重构</strong>：从"人类触发请求"变为"Agent 自主发起请求"——频率更高、模式不同、需要 Agent 身份验证</li>
+    <li><strong>网页需要 Agent 友好化</strong>：HTML 给人看，但 Agent 需要 <code>llms.txt</code>（类比 <code>robots.txt</code>，但描述服务内容而非爬虫规则）</li>
+    <li><strong>计费模型需要重构</strong>：Agent 调用 API 的频率远超人类点击——按请求计费？按 token 计费？按任务完成计费？</li>
+</ul>
+
+<h2>六、从"Agent-as-Tool"到"Agent-as-User"的进化</h2>
+
+<p>论文将 Agentic Web 的应用形态分为三个阶段：</p>
+
+<table>
+<tr><th>阶段</th><th>名称</th><th>Agent 角色</th><th>当前状态</th></tr>
+<tr><td>1</td><td><strong>Agent-as-Interface</strong></td><td>Agent 帮人类操作 Web（如 Copilot 帮你搜信息）</td><td>✅ 已普及</td></tr>
+<tr><td>2</td><td><strong>Agent-as-User</strong></td><td>Agent 完全代理人类（如 ChatGPT Agent 替你购物）</td><td>🔄 早期</td></tr>
+<tr><td>3</td><td><strong>Agent-with-Physics</strong></td><td>Agent 结合物理世界（如机器人配送）</td><td>🧪 实验室阶段</td></tr>
+</table>
+
+<p>当前正处于第一阶段向第二阶段的过渡期。ChatGPT Agent（2025年7月）是第二阶段的早期产品——它能替你完成购买、预订等操作。但距离真正的"全自主 Agent"还有距离：当前的 Agent 在复杂决策、多步骤规划、异常处理上仍然脆弱。</p>
+
+<p>但趋势是明确的。Deloitte 的2026科技趋势报告指出："尽管有大量承诺，许多 Agentic AI 实施正在失败。但那些将 Agent 视为员工来管理的领先组织正在找到成功路径。"</p>
+
+<h2>七、你现在可以做什么？</h2>
+
+<p>说了这么多宏观趋势，作为开发者或技术管理者，你现在可以做什么来为 Agentic Web 做准备？</p>
+
+<h3>1. 为你的服务实现 MCP Server</h3>
+<p>如果你有 API 或数据源，包装一层 MCP Server。这是 Agentic Web 的"上线第一步"——让你的服务能被任何支持 MCP 的 Agent 发现和使用。Anthropic 提供了 Python 和 TypeScript SDK，实现一个基础 MCP Server 只需要几十行代码。</p>
+
+<h3>2. 设计你的 Agent Card</h3>
+<p>按 A2A 规范，用 JSON 描述你的 Agent 能做什么。这就像 Web 早期的 <code>meta tags</code>——让 Agent 能理解你的服务能力。</p>
+
+<h3>3. 创建 <code>llms.txt</code> 文件</h3>
+<p>在你的网站根目录放一个 <code>llms.txt</code>，用纯文本描述你的服务。这是给 Agent 看的"说明书"，让 Agent 理解你的网站做什么、提供什么 API、如何使用。</p>
+
+<h3>4. 给你的 Agent 分配身份</h3>
+<p>如果你已经在运行 Agent（哪怕只是内部工具），给每个 Agent 分配独立身份，定义权限边界。不要等到 Agent 蔓延到不可控才开始管理。</p>
+
+<h3>5. 思考"Agent 可发现性"策略</h3>
+<p>如果你的业务依赖搜索引擎流量，认真思考：当 Agent 替人类搜索时，你的服务如何被发现？答案不是关键词优化，而是<strong>结构化数据 + API 开放 + 信任度建设</strong>。</p>
+
+<h3>6. 关注 AAIF 和协议演进</h3>
+<p>Linux Foundation 的 Agentic AI Foundation 是 MCP、goose、AGENTS.md 的治理组织。关注其 Working Group 的输出——这些标准将定义 Agentic Web 的基础设施。</p>
+
+<hr>
+
+<p>Agentic Web 不是未来的某个神奇时刻——它正在我们眼前发生。MCP 用一年时间实现了从0到9700万月下载。A2A 获得了50+家行业巨头支持。Microsoft、Google、OpenAI、Anthropic——所有巨头都在往同一个方向走。</p>
+
+<p>每一次 Web 范式转换，先行者都获得了巨大的红利。PC Web 时代的 Google，Mobile Web 时代的 Facebook。Agentic Web 时代的赢家，将是那些最先让服务被 Agent 理解和信任的人。</p>
+
+<p>机会窗口就在现在。</p>
+
+<div class="insight">
+<strong>一句话总结：</strong>Agentic Web 的本质不是"AI 更聪明了"，而是"互联网的 用户变了"。从人类到 Agent，从点击到意图，从注意力经济到 Agent 注意力经济。你的服务准备好服务 Agent 用户了吗？
+</div>
+
+<p style="margin-top: 30px; color: #666; font-size: 0.85em;">
+参考资料：arXiv:2507.21206 "Weaving the Next Web with AI Agents" | Google A2A Specification v1.0 | MCP Specification 2025-11-25 | Microsoft Build 2025 Keynote | Deepak Gupta "MCP Enterprise Guide 2025" | Akamai "Architecting the Agentic Web" 2026 | Deloitte Tech Trends 2026
+</p>
+
+</div>
+</body>
+</html>
