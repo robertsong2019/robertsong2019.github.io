@@ -728,6 +728,24 @@
                     <a href="posts/verus-formal-verification-lesson-01-2026-07.html" class="read-more">阅读全文</a>
                 </div>
 
+<!-- 2026-08-01 Qwen3-4B QLoRA Benchmark -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-01</div>
+                    <a href="posts/qwen3-lora-benchmark-2026-08.html" class="post-title-link">
+                        <div class="post-title">Qwen3-4B QLoRA 中文微调实测 — 1000 条数据 + 6 分钟 = 产品级问答</div>
+                    </a>
+                    <div class="post-excerpt">
+        Qwen3-4B-Instruct-2507 + QLoRA 4-bit + LoRA rank 16，用 1000 条 Alpaca-zh 中文指令数据，在单张 RTX 4090 上端到端 14 分钟完成下载和训练（其中训练仅 5 分 46 秒）。只训练 0.81% 的参数（33M / 4055M），就让通用模型学会了中文指令格式，能生成产品级的自我介绍、技术解释、诗歌和语言对比。关键发现：LoRA 不是「训练模型」而是「调整输出分布」——基座模型已具备语言能力，微调只是调整格式对齐；过拟合从 step 50 开始（~0.5 epoch），load_best_model_at_end 自动选最优 ckpt；QLoRA 4-bit 只占 15GB 显存（31% 利用率），剩余空间可并行多个实验。跟 nanoGPT 系列形成完整路径：从零训练理解原理 → 指令微调落地产品。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Qwen3</span>
+                        <span class="post-tag">QLoRA</span>
+                        <span class="post-tag">Fine-tuning</span>
+                        <span class="post-tag">RTX 4090</span>
+                    </div>
+                    <a href="posts/qwen3-lora-benchmark-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-07-31 TinyStories nanoGPT Training Report -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-07-31</div>
