@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LoRA 微调实测报告——从负优化到正向的完整闭环</title>
+<style>
+  :root {
+    --parchment: #f4ecd8;
+    --parchment-dark: #e8dcc0;
+    --ink: #2b1a0e;
+    --ink-light: #5c4630;
+    --ink-lighter: #8b7355;
+    --accent: #8b2e1f;
+    --gold: #a87b3a;
+    --green: #5a8c3a;
+    --blue: #3a5a8c;
+    --red-soft: #c44a3a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--parchment);
+    color: var(--ink);
+    font-family: 'Iowan Old Style', Palatino, Georgia, 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif;
+    line-height: 1.8;
+    font-size: 17px;
+  }
+  body {
+    background-image:
+      radial-gradient(at 15% 5%, rgba(168,123,58,0.08) 0%, transparent 40%),
+      radial-gradient(at 85% 95%, rgba(139,46,31,0.06) 0%, transparent 40%);
+    min-height: 100vh;
+  }
+  .container { max-width: 920px; margin: 0 auto; padding: 60px 32px 80px; }
+  code, pre { font-family: 'SF Mono', Menlo, Consolas, monospace; }
+
+  header.hero {
+    text-align: center;
+    padding-bottom: 48px;
+    border-bottom: 2px solid var(--gold);
+    margin-bottom: 48px;
+    position: relative;
+  }
+  header.hero::before, header.hero::after {
+    content: '❦'; color: var(--gold); font-size: 22px;
+    position: absolute; bottom: -14px; background: var(--parchment); padding: 0 12px;
+  }
+  header.hero::before { left: 30%; }
+  header.hero::after { right: 30%; }
+  header.hero h1 {
+    font-size: 44px; font-weight: 600; font-style: italic;
+    color: var(--ink); margin-bottom: 12px;
+  }
+  header.hero .subtitle {
+    font-size: 16px; color: var(--ink-light); margin-bottom: 28px;
+    max-width: 640px; margin-left: auto; margin-right: auto; line-height: 1.7;
+  }
+  .hero-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+    padding: 24px 16px; background: var(--parchment-dark);
+    border: 1px solid var(--gold); border-radius: 2px; max-width: 680px; margin: 0 auto;
+  }
+  .hero-stat { text-align: center; border-right: 1px dotted var(--gold); }
+  .hero-stat:last-child { border-right: none; }
+  .hero-stat .num { font-size: 26px; font-weight: 600; color: var(--accent); line-height: 1.2; display: block; }
+  .hero-stat .lbl { font-size: 11px; letter-spacing: 1px; color: var(--ink-light); margin-top: 4px; }
+  @media (max-width: 600px) {
+    header.hero h1 { font-size: 30px; }
+    .hero-stats { grid-template-columns: repeat(2, 1fr); }
+    .hero-stat { border-right: none; border-bottom: 1px dotted var(--gold); padding-bottom: 8px; }
+  }
+
+  section { margin-bottom: 56px; }
+  h2 {
+    font-size: 26px; font-weight: 600; color: var(--ink);
+    margin-bottom: 8px; display: flex; align-items: baseline; gap: 14px; line-height: 1.4;
+  }
+  h2 .num { font-size: 13px; color: var(--accent); letter-spacing: 2px; font-weight: 700; flex-shrink: 0; }
+  h3 { font-size: 18px; color: var(--ink); margin: 20px 0 10px; font-weight: 600; }
+  p { margin-bottom: 14px; }
+  .lead {
+    font-size: 17px; color: var(--ink-light); margin-bottom: 20px;
+    border-left: 3px solid var(--gold); padding: 4px 0 4px 16px; line-height: 1.8;
+  }
+  code { background: rgba(168,123,58,0.15); padding: 2px 6px; border-radius: 2px; font-size: 0.92em; color: var(--accent); }
+  pre { background: var(--ink); color: var(--parchment); padding: 18px 22px; border-radius: 4px; overflow-x: auto; margin: 16px 0; font-size: 14px; line-height: 1.6; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  ul, ol { padding-left: 24px; margin-bottom: 14px; }
+  li { margin-bottom: 6px; }
+  strong { color: var(--ink); font-weight: 600; }
+  em { color: var(--accent); font-style: normal; font-weight: 500; }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px;
+    background: var(--parchment-dark); border: 1px solid var(--gold);
+  }
+  th { background: var(--ink); color: var(--parchment); text-align: left; padding: 10px 14px; font-size: 13px; letter-spacing: 1px; font-weight: 600; }
+  td { padding: 10px 14px; border-top: 1px dotted var(--gold); vertical-align: top; }
+  td.num { font-family: 'SF Mono', Menlo, monospace; text-align: right; }
+  tr:hover td { background: rgba(168,123,58,0.08); }
+
+  .callout { background: rgba(139,46,31,0.07); border-left: 4px solid var(--accent); padding: 18px 22px; margin: 20px 0; border-radius: 0 4px 4px 0; }
+  .callout.warn { background: rgba(168,123,58,0.12); border-left-color: var(--gold); }
+  .callout.success { background: rgba(90,140,58,0.08); border-left-color: var(--green); }
+  .callout-title { font-size: 13px; letter-spacing: 1.5px; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+  .callout.warn .callout-title { color: var(--gold); }
+  .callout.success .callout-title { color: var(--green); }
+
+  .experiment-card {
+    background: var(--parchment-dark); border: 1px solid var(--gold);
+    padding: 20px 24px; border-radius: 2px; margin: 16px 0;
+  }
+  .experiment-card .tag {
+    display: inline-block; padding: 3px 10px; font-size: 11px; letter-spacing: 1px;
+    border-radius: 12px; margin-bottom: 8px;
+  }
+  .tag.negative { background: rgba(196,74,58,0.15); color: var(--red-soft); border: 1px solid var(--red-soft); }
+  .tag.positive { background: rgba(90,140,58,0.12); color: var(--green); border: 1px solid var(--green); }
+
+  .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  @media (max-width: 600px) { .comparison { grid-template-columns: 1fr; } .container { padding: 40px 20px; } }
+  .comp-cell { padding: 16px; border-radius: 2px; }
+  .comp-cell.bad { background: rgba(196,74,58,0.07); border-left: 3px solid var(--red-soft); }
+  .comp-cell.good { background: rgba(90,140,58,0.07); border-left: 3px solid var(--green); }
+  .comp-cell h4 { font-size: 13px; letter-spacing: 1px; margin-bottom: 8px; }
+  .comp-cell.bad h4 { color: var(--red-soft); }
+  .comp-cell.good h4 { color: var(--green); }
+
+  .architecture-box {
+    background: var(--ink); color: var(--parchment); padding: 28px;
+    border-radius: 4px; margin: 20px 0; font-family: 'SF Mono', Menlo, monospace;
+    font-size: 14px; line-height: 1.8; overflow-x: auto;
+  }
+
+  footer.foot {
+    margin-top: 60px; padding-top: 32px; border-top: 2px solid var(--gold);
+    text-align: center; color: var(--ink-light); font-size: 13px;
+  }
+  footer.foot .meta-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    max-width: 600px; margin: 0 auto 24px;
+  }
+  footer.foot .meta-grid > div {
+    text-align: center; padding: 12px; background: var(--parchment-dark);
+    border: 1px solid var(--gold); border-radius: 2px;
+  }
+  footer.foot .meta-grid .k { font-size: 11px; letter-spacing: 1px; color: var(--ink-lighter); display: block; margin-bottom: 4px; }
+  footer.foot .meta-grid .v { font-size: 14px; color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="hero">
+  <h1>LoRA 微调实测报告</h1>
+  <div class="subtitle">
+    从 3 次负优化到 1 次正向——Qwen3-4B 在通用问答 / 医疗 / 雷诺座舱上的完整实证。<br>
+    含 4 版迭代优化 + 数据量验证 + 端侧 vs 云端架构判断。
+  </div>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">5</span><span class="lbl">实验次数</span></div>
+    <div class="hero-stat"><span class="num">4 版</span><span class="lbl">雷诺迭代</span></div>
+    <div class="hero-stat"><span class="num">1339 条</span><span class="lbl">最优数据量</span></div>
+    <div class="hero-stat"><span class="num">0.063</span><span class="lbl">最优 val loss</span></div>
+  </div>
+</header>
+
+<!-- §01 -->
+<section>
+  <h2><span class="num">§ 01</span> 实验全景：5 个实验的完整对照</h2>
+  <p class="lead">
+    在 Qwen3-4B-Instruct-2507（2026 最新版）上做了 5 个 LoRA 微调实验，覆盖通用问答、医疗、汽车座舱三个领域。<strong>3 次负优化 + 1 次正向（4 版迭代）</strong>，完整验证了「LoRA 什么时候该用」。
+  </p>
+
+  <table>
+    <tr>
+      <th>实验</th>
+      <th>数据</th>
+      <th>条数</th>
+      <th>基座擅长</th>
+      <th>结果</th>
+    </tr>
+    <tr>
+      <td><strong>附录 B</strong>：通用 LoRA</td>
+      <td>Alpaca-zh demo</td>
+      <td class="num">1,000</td>
+      <td>✅ 擅长</td>
+      <td><span style="color:var(--red-soft)">❌ 负优化（简短化）</span></td>
+    </tr>
+    <tr>
+      <td><strong>附录 C</strong>：医疗 LoRA v1</td>
+      <td>公开医疗 SFT</td>
+      <td class="num">2,856</td>
+      <td>✅ 擅长</td>
+      <td><span style="color:var(--red-soft)">❌ 严重负优化（重复退化）</span></td>
+    </tr>
+    <tr>
+      <td><strong>附录 D</strong>：医疗 LoRA v2</td>
+      <td>清洗后医疗</td>
+      <td class="num">1,741</td>
+      <td>✅ 擅长</td>
+      <td><span style="color:var(--red-soft)">❌ 部分修复仍负优化</span></td>
+    </tr>
+    <tr>
+      <td><strong>附录 E</strong>：雷诺 v1→v4 迭代</td>
+      <td>合成雷诺座舱</td>
+      <td class="num">852→861→294→1339</td>
+      <td>❌ <strong>不擅长</strong></td>
+      <td><span style="color:var(--green)">✅ 正向（5/7 问题正确）</span></td>
+    </tr>
+  </table>
+
+  <div class="callout success">
+    <div class="callout-title">核心结论</div>
+    <strong>基座不擅长 + 数据私有 = LoRA 适合</strong>。基座已擅长 + 任何数据 = LoRA 负优化。4 次实验 100% 预测正确。
+  </div>
+</section>
+
+<!-- §02 -->
+<section>
+  <h2><span class="num">§ 02</span> 三次负优化：LoRA 的失败模式</h2>
+
+  <div class="experiment-card">
+    <span class="tag negative">附录 B：简短化负优化</span>
+    <h3>通用 Alpaca-zh 数据（1,000 条）</h3>
+    <p><strong>失败表现</strong>：BASE 回答平均 570 字（markdown 结构化），LoRA 后降到 210 字（单段模板化），<strong>全面变短 -55%</strong>。</p>
+    <p><strong>根因</strong>：通用 demo 数据的风格（简洁通用）跟 Qwen3-4B 的 RLHF 偏好（详细有帮助）冲突。LoRA 用更弱的数据覆盖了基座的好偏好。</p>
+  </div>
+
+  <div class="experiment-card">
+    <span class="tag negative">附录 C：重复退化（严重）</span>
+    <h3>医疗 SFT 数据 v1（2,856 条）</h3>
+    <p><strong>失败表现</strong>：4/5 问题陷入重复循环。</p>
+    <pre><code>Q: 糖尿病一级预防是什么？
+A: ...消除对糖尿病的恐惧心理，消除对糖尿病的误解，
+   消除对糖尿病的偏见，消除对糖尿病的排斥，
+   消除对糖尿病的排斥，消除对糖尿病的排斥...</code></pre>
+    <p><strong>根因</strong>：医疗数据里的「消除对 X 的 Y」模板被 LoRA 学成了强先验。val loss 2.32 看起来正常——<strong>但生成质量崩坏</strong>。</p>
+    <p><strong>新发现</strong>：<em>val loss 是骗人的指标</em>。重复 token 的 loss 反而低（容易预测），完全无法反映生成质量。</p>
+  </div>
+
+  <div class="experiment-card">
+    <span class="tag negative">附录 D：清洗降 lr 仍负优化</span>
+    <h3>医疗 SFT v2（1,741 条清洗 + lr 5e-5）</h3>
+    <p><strong>修复效果</strong>：死循环从 4/5 降到 1/5。<strong>但每个问题上仍然不如 BASE 和通用 LoRA</strong>。</p>
+    <p><strong>真正根因</strong>：Qwen3-4B 预训练时已经吃过海量医疗语料。LoRA 微调相当于「用更少数据教老医生看病」——必然负优化。</p>
+  </div>
+</section>
+
+<!-- §03 -->
+<section>
+  <h2><span class="num">§ 03</span> 首次正向：雷诺座舱 4 版迭代</h2>
+  <p class="lead">
+    雷诺智能座舱是 LoRA 真正适合的场景——Austral（2022 发布）/ Rafale（2023 发布）/ 4Control 是基座训练数据之后的<strong>新车型新技术</strong>。BASE 严重幻觉，LoRA 修复。
+  </p>
+
+  <h3>BASE 的两个严重幻觉</h3>
+  <div class="comparison">
+    <div class="comp-cell bad">
+      <h4>Q3：Austral 4Control</h4>
+      <p><strong>BASE 回答</strong>："雷诺 Austral 并不是雷诺官方车型名称...雷诺并没有 4Control 四轮转向系统..."</p>
+      <p>→ <em>完全幻觉</em>（Austral 是真实车型，4Control 是真实技术）</p>
+    </div>
+    <div class="comp-cell bad">
+      <h4>Q7：Rafale</h4>
+      <p><strong>BASE 回答</strong>："雷诺并没有名为 Rafale 的车型...这是法国空军的战斗机..."</p>
+      <p>→ <em>完全幻觉</em>（Rafale 是 2023 年发布的真实雷诺旗舰 SUV）</p>
+    </div>
+  </div>
+
+  <h3>4 版迭代优化路径</h3>
+  <table>
+    <tr>
+      <th>版本</th>
+      <th>数据量</th>
+      <th>关键改动</th>
+      <th>Q4 重复退化</th>
+      <th>事实准确率</th>
+      <th>val loss</th>
+    </tr>
+    <tr>
+      <td>v1</td>
+      <td class="num">852</td>
+      <td>原始合成</td>
+      <td>❌ 严重</td>
+      <td>3/7</td>
+      <td class="num">—</td>
+    </tr>
+    <tr>
+      <td>v2</td>
+      <td class="num">861</td>
+      <td>去掉「10.25」固定短语</td>
+      <td>✅ 修复</td>
+      <td>4/7</td>
+      <td class="num">0.215</td>
+    </tr>
+    <tr>
+      <td>v3</td>
+      <td class="num">294</td>
+      <td>4-gram 去重清洗</td>
+      <td>✅ 无</td>
+      <td>3/7（数据太少）</td>
+      <td class="num">0.737</td>
+    </tr>
+    <tr style="background: rgba(90,140,58,0.08);">
+      <td><strong>v4（最优）</strong></td>
+      <td class="num"><strong>1,339</strong></td>
+      <td>增广（不删 + 新增）</td>
+      <td>✅ 无</td>
+      <td><strong>5/7</strong></td>
+      <td class="num"><strong>0.063</strong></td>
+    </tr>
+  </table>
+
+  <div class="callout success">
+    <div class="callout-title">数据优化新发现：增广 > 去重</div>
+    <p><strong>错误路径</strong>（v3）：去重 → 数据 -66% → 模型学不深 → 新事实错误</p>
+    <p><strong>正确路径</strong>（v4）：增广 → 数据 +55% → 模型学得更精确 → 最优结果</p>
+    <p>合成数据做 LoRA 的最佳策略：<strong>修固定短语 → 不要激进去重 → 增广 + 保持多样</strong>。</p>
+  </div>
+</section>
+
+<!-- §04 -->
+<section>
+  <h2><span class="num">§ 04</span> 决策框架：LoRA vs RAG vs Skill</h2>
+
+  <div class="architecture-box">
+用户提问
+   ↓
+意图识别（端侧小模型，&lt;100ms）
+   ├─ 高频 / 低延迟 / 离线 → <strong>端侧 LoRA</strong>（空调、导航、车况、品牌话术）
+   ├─ 复杂 / 知识密集 → <strong>云端 RAG</strong>（行程规划、邮件、知识问答）
+   └─ 网络不可用 → 降级到端侧（即使质量差也答）
+  </div>
+
+  <h3>LoRA 适合的少数场景</h3>
+  <table>
+    <tr><th>场景</th><th>为什么 LoRA 对</th></tr>
+    <tr><td>品牌专属助手（雷诺座舱 / 蔚来 Nomi）</td><td>基座不擅长品牌话术</td></tr>
+    <tr><td>新发布产品（2024 后新车型）</td><td>基座训练数据没覆盖</td></tr>
+    <tr><td>公司内部 SOP / 流程文档</td><td>基座没见过</td></tr>
+    <tr><td>边缘 / 离线部署（车机芯片）</td><td>必须把能力装进小模型</td></tr>
+  </table>
+
+  <div class="callout">
+    <div class="callout-title">3 个灵魂问题（接 LoRA 项目前必问）</div>
+    <ol>
+      <li><strong>基座在这个领域擅长吗？</strong> → 是就别做 LoRA，做 RAG</li>
+      <li><strong>客户的数据是「基座没见过」的吗？</strong> → 否就别做</li>
+      <li><strong>能做 base vs LoRA 对比测试吗？</strong> → 不能就别接</li>
+    </ol>
+  </div>
+</section>
+
+<!-- §05 -->
+<section>
+  <h2><span class="num">§ 05</span> 数据量参考：多少条够？</h2>
+
+  <table>
+    <tr><th>学习目标</th><th>最低量</th><th>推荐量</th><th>实测验证</th></tr>
+    <tr><td>风格 / 格式</td><td class="num">200</td><td class="num">500-2,000</td><td>✅ 861 条够</td></tr>
+    <tr><td>简单事实</td><td class="num">500</td><td class="num">1,000-3,000</td><td>✅ 1,339 条够</td></tr>
+    <tr><td>系统性知识</td><td class="num">3,000</td><td class="num">5,000-20,000</td><td>❌ 1,339 不够</td></tr>
+    <tr><td>产品级质量</td><td class="num">10,000</td><td class="num">20,000-50,000</td><td>未测</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <div class="callout-title">实用公式</div>
+    <p><strong>推荐数据量 ≈ 覆盖维度 × 每维度 15-30 条</strong></p>
+    <p>雷诺座舱示例：6 车型 × 8 系统 × 6 问题类型 = 288 维度 × 20 条 ≈ <strong>5,760 条</strong></p>
+    <p>当前 1,339 条 / 288 维度 ≈ 每维度 4-5 条 → <strong>偏少</strong>（应该 15-30 条）</p>
+  </div>
+</section>
+
+<!-- §06 -->
+<section>
+  <h2><span class="num">§ 06</span> 端侧 vs 云端：不是二选一</h2>
+  <p class="lead">
+    LoRA 端侧小模型 = 处理 80% 高频任务。云端大模型 + RAG = 处理 20% 复杂任务。<strong>这是量产座舱的真实架构</strong>（蔚来 Nomi / 理想 / 雷诺 OpenR Link 都是）。
+  </p>
+
+  <div class="comparison">
+    <div class="comp-cell good">
+      <h4>端侧 LoRA（你的雷诺 PoC）</h4>
+      <ul>
+        <li>✅ 离线可用（隧道 / 地下车库）</li>
+        <li>✅ 低延迟（200-500ms）</li>
+        <li>✅ 隐私（数据不出车）</li>
+        <li>✅ 品牌话术 + 简单指令</li>
+        <li>⚠️ 容量限制（&lt; 5 万条知识）</li>
+      </ul>
+    </div>
+    <div class="comp-cell good">
+      <h4>云端 RAG（你日常工作）</h4>
+      <ul>
+        <li>✅ 知识量大（几乎无限）</li>
+        <li>✅ 可溯源（引用文档）</li>
+        <li>✅ 可更新（增删文档）</li>
+        <li>✅ 精确（原文检索）</li>
+        <li>⚠️ 依赖网络 + 延迟高</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout success">
+    <div class="callout-title">最终认知</div>
+    <p>LoRA 微调的难度比中文 AI 圈宣传的高 10 倍。不光是「数据要有特色」，还要：</p>
+    <ol>
+      <li>数据是<em>基座没见过</em>的（医疗 / 法律 / 通用都不行）</li>
+      <li>数据量足够（每维度 15-30 条）</li>
+      <li>参数保守（lr 5e-5、epoch 1-2）</li>
+      <li>评测严格（base vs LoRA + 多样本 + 重复检测）</li>
+    </ol>
+    <p>不满足任意一条，必踩坑。</p>
+  </div>
+</section>
+
+<!-- §07 -->
+<section>
+  <h2><span class="num">§ 07</span> 给汽车行业的实战路径</h2>
+  <table>
+    <tr><th>阶段</th><th>数据量</th><th>数据来源</th><th>目标</th></tr>
+    <tr><td><strong>PoC（已完成）</strong></td><td class="num">1,339 条</td><td>合成数据</td><td>✅ 验证 LoRA 可行性</td></tr>
+    <tr><td>内部 demo</td><td class="num">3,000-5,000</td><td>合成 + GPT-4 增广</td><td>给同事 / 老板看</td></tr>
+    <tr><td>给雷诺方提案</td><td class="num">5,000-10,000</td><td>合成 + 官网 / 手册 QA + GPT-4</td><td>争取项目</td></tr>
+    <tr><td>产品部署</td><td class="num">20,000-50,000</td><td><strong>真实客服日志 + 标注</strong></td><td>部署到量产车</td></tr>
+    <tr><td>量产上线</td><td class="num">50,000+</td><td>真实数据 + 持续学习闭环</td><td>跟 Nomi / 理想竞争</td></tr>
+  </table>
+
+  <div class="callout">
+    <div class="callout-title">给独立开发者的报价建议</div>
+    <p>LoRA 项目的报价必须包含三部分：</p>
+    <ul>
+      <li><strong>数据评估（40%）</strong>：含基座能力评估——先用 base 跑 5-10 个客户问题，base 答得好就<strong>拒绝接 LoRA，转推 RAG</strong></li>
+      <li><strong>训练 + 调参（20%）</strong>：lr / epoch / 数据增广</li>
+      <li><strong>评测 + 对比（40%）</strong>：base vs LoRA + 多样本生成 + 重复检测</li>
+    </ul>
+    <p><strong>报价里没有「评测」一项，必踩坑</strong>。</p>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="meta-grid">
+    <div><span class="k">硬件</span><span class="v">RTX 4090 48GB</span></div>
+    <div><span class="k">基座模型</span><span class="v">Qwen3-4B-Instruct-2507</span></div>
+    <div><span class="k">方法</span><span class="v">QLoRA 4-bit + LoRA r=16</span></div>
+  </div>
+  <p>
+    5 个实验 · 4 版迭代 · 3 次负优化 + 1 次正向<br>
+    自托管端到端 · 无云 API · 无遥测 · 2026-08-01
+  </p>
+</footer>
+
+</div>
+</body>
+</html>
