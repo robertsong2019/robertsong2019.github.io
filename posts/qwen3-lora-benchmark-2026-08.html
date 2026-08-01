@@ -166,7 +166,7 @@
 
 <header class="hero">
   <h1>Qwen3-4B QLoRA 中文微调实测</h1>
-  <p class="subtitle">1000 条数据 + 6 分钟训练 = 产品级中文问答。从 nanoGPT 续写跨入真问答的最小可行路径。</p>
+  <p class="subtitle">1000 条数据 + 6 分钟训练 = 产品级中文问答。但 base vs LoRA 对比实测发现：微调可能让模型变差。从 nanoGPT 续写跨入真问答的最小可行路径——含反向验证。</p>
   <div class="hero-stats">
     <div class="hero-stat"><span class="num">6 min</span><span class="lbl">训练耗时</span></div>
     <div class="hero-stat"><span class="num">0.81%</span><span class="lbl">可训参数</span></div>
@@ -461,12 +461,145 @@ CUDA_VISIBLE_DEVICES=0 python3 server_qwen.py
       <li><strong>QLoRA 4-bit 是单卡 4090 的最优解</strong> — 15 GB 显存 + 6 分钟训练</li>
       <li><strong>1000 条数据 + 6 分钟 = 产品级中文问答</strong> — LoRA 性价比的极致体现</li>
     </ol>
+    <p>但附录 B 会告诉你：<strong>「看起来不错」可能只是基座的功劳</strong>。</p>
     <p>跟之前的 nanoGPT 实测系列形成对比：</p>
     <ul>
       <li>nanoGPT 系列：<strong>从零训练</strong>（理解 LLM 训练原理）</li>
       <li>Qwen3-LoRA：<strong>指令微调</strong>（理解产品落地路径）</li>
     </ul>
     <p>两条路径是互补的，资源库里并列。</p>
+  </div>
+</section>
+
+<!-- 附录 B：Base vs LoRA 对比实测 -->
+<section>
+  <h2><span class="num">附录 B</span>Base vs LoRA 对比实测：微调让模型变差了</h2>
+
+  <div class="callout">
+    <div class="callout-title">实验动机</div>
+    <p>主章节的 4 个生成样本看起来很惊艳。但 Qwen3-4B-Instruct 本来就是大语言模型，本来就能答这类通用问题。<strong>核心疑问：LoRA 微调到底改了什么？怎么证明微调真的有效？</strong></p>
+  </div>
+
+  <h3>B.2 实验设计</h3>
+  <ul>
+    <li>加载 base 模型（Qwen3-4B-Instruct，无 LoRA）</li>
+    <li>加载 LoRA 模型（base + 训练的 adapter）</li>
+    <li>用 <strong>5 个相同问题</strong>分别问两个模型</li>
+    <li>控制变量：temperature=0.3、top_p=0.9、seed=42、max_new_tokens=400</li>
+  </ul>
+  <p>5 个问题：① 自我介绍（训练集风格）② 解释 ML（训练集风格）③ Python 快速排序（陌生：代码）④ 深夜程序员创作（陌生：创作）⑤ 天空为什么蓝色（陌生：常识）</p>
+
+  <h3>B.3 量化对比：LoRA 后回答全面变短</h3>
+  <table>
+    <tr><th>问题</th><th>BASE 字数</th><th>LORA 字数</th><th>变化</th></tr>
+    <tr><td>Q1 自我介绍</td><td class="num">~250</td><td class="num">~150</td><td class="num">-40%</td></tr>
+    <tr><td>Q2 解释 ML</td><td class="num">~500（结构化）</td><td class="num">~130（单段）</td><td class="num"><strong>-74%</strong></td></tr>
+    <tr><td>Q3 快速排序</td><td class="num">~1200（两版本）</td><td class="num">~400（一版本）</td><td class="num">-67%</td></tr>
+    <tr><td>Q4 创作程序员</td><td class="num">~280（有名字细节）</td><td class="num">~250（模板化）</td><td class="num">-11%</td></tr>
+    <tr><td>Q5 天空蓝色</td><td class="num">~600（4 段 markdown）</td><td class="num">~100（单段）</td><td class="num"><strong>-83%</strong></td></tr>
+  </table>
+  <p><strong>结论：LoRA 后回答全面变短，平均缩短 55%。</strong></p>
+
+  <h3>B.4 质性对比：差异最明显的 Q2</h3>
+
+  <div class="comparison">
+    <div class="comp-cell good">
+      <h4>BASE（500 字，结构化教学）</h4>
+      <p>当然可以！我们来用简单的话解释什么是<strong>机器学习</strong>。</p>
+      <p>想象一下，你有一个小机器人，它一开始不知道怎么识别猫和狗。你给它看很多图片，比如：一张图片是猫，你告诉它"这是猫。"一张图片是狗，你告诉它"这是狗。"</p>
+      <p>然后，它慢慢学会：看到耳朵尖、眼睛大、毛茸茸的，就说是"猫"...</p>
+      <p style="margin-top:12px;"><strong>一句话总结：</strong>机器学习就是让电脑通过"看很多例子"，自己学会"怎么判断新东西"的过程。</p>
+      <p>✅ 简单 ✅ 不用数学 ✅ 易懂！</p>
+    </div>
+    <div class="comp-cell bad">
+      <h4>LORA（130 字，单段平铺）</h4>
+      <p>机器学习是一种让计算机通过学习数据来改进其性能的方法。它通过使用算法和统计模型来帮助计算机从数据中学习并做出预测或决策。简单来说，机器学习就是让计算机通过"学习"来获得新知识，而不是通过人为编写程序来完成任务。</p>
+    </div>
+  </div>
+  <p style="font-size:14px;color:var(--ink-light);">BASE 用猫狗比喻、分段、有总结；LORA 一段平铺直叙。</p>
+
+  <h3>B.5 残酷结论：LoRA 让模型变差了</h3>
+  <table>
+    <tr><th>维度</th><th>BASE</th><th>LORA</th><th>评价</th></tr>
+    <tr><td>回答详细度</td><td>高</td><td><strong>明显降低</strong></td><td>❌</td></tr>
+    <tr><td>结构化程度</td><td>markdown 分段</td><td>单段叙述</td><td>❌</td></tr>
+    <tr><td>创意性</td><td>高（比喻、emoji、人物名）</td><td>低（模板）</td><td>❌</td></tr>
+    <tr><td>专业深度</td><td>深（多角度、举一反三）</td><td>浅（点到为止）</td><td>❌</td></tr>
+    <tr><td>准确性</td><td>准确</td><td>准确</td><td>=</td></tr>
+  </table>
+  <p><strong>LoRA 后的模型在通用问答上几乎全面变差，没有任何指标变好。</strong></p>
+
+  <div class="callout warn">
+    <div class="callout-title">B.6 为什么会变差？</div>
+    <p><strong>根因</strong>：训练数据 Alpaca-zh demo 的风格是「简洁通用」。</p>
+    <ul>
+      <li>output 平均长度：<strong>195 字符</strong></li>
+      <li>风格：单段、直接回答、不展开</li>
+    </ul>
+    <p>LoRA 微调让模型学到了「简洁直接」的输出偏好——但这跟 Qwen3-4B-Instruct 原本被 RLHF 训练的「详细 + 有帮助」偏好<strong>直接冲突</strong>。</p>
+    <div class="insight-flow" style="margin-top:16px;">
+      <div class="stage">基座原本的偏好（RLHF 训练结果）：详细、结构化、有创意<span class="label">↓ 1000 条 Alpaca-zh LoRA 微调</span></div>
+      <div class="arrow">↓</div>
+      <div class="stage">模型新偏好：简洁、单段、模板化<span class="label">LoRA 把基座的"好偏好"冲掉了</span></div>
+    </div>
+  </div>
+
+  <div class="callout blue">
+    <div class="callout-title">B.7 这次「失败」对资源库的价值</div>
+    <p>中文 AI 圈几乎没有人发过「LoRA 让模型变差」的实测对比。所有 LoRA 教程都说「微调让模型变强」，但<strong>没人提醒前提是「训练数据足够特色」</strong>。</p>
+    <p>这次实验反向证明了 LoRA 的作用机制：</p>
+    <ol>
+      <li>✓ <strong>LoRA 确实在改模型</strong>（回答全面变短）</li>
+      <li>✓ <strong>改的是输出风格</strong>（不是知识）</li>
+      <li>⚠ <strong>方向可能错</strong>（如果训练风格不够好）</li>
+    </ol>
+  </div>
+
+  <h3>B.8 三个工业级教训</h3>
+
+  <div class="callout">
+    <div class="callout-title">教训 1：通用 demo 数据 ≠ 好的训练数据</div>
+    <p><code>alpaca_zh_demo.json</code> 是 LLaMA-Factory 自带的入门 demo，<strong>目的是验证 pipeline 通不通，不是产出可用模型</strong>。生产环境必须用：</p>
+    <ul>
+      <li>领域专精数据（医疗 / 法律 / 客服 / 代码）</li>
+      <li>高质量人工标注（不是 GPT 蒸馏）</li>
+      <li>风格统一的格式（markdown / JSON / 特定语气）</li>
+    </ul>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">教训 2：验证 LoRA 有效必须做对比测试</div>
+    <p>不要只看生成样本就下结论。<strong>必须</strong>：</p>
+    <ul>
+      <li>用同样问题问 base 和 LoRA</li>
+      <li>量化差异（长度、结构、准确性）</li>
+      <li>看差异方向（变好还是变差）</li>
+    </ul>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">教训 3：LoRA 是「行为塑形」，不是「能力提升」</div>
+    <div class="comparison" style="margin-top:12px;">
+      <div class="comp-cell bad">
+        <h4>误解</h4>
+        <p>LoRA 让模型变聪明</p>
+      </div>
+      <div class="comp-cell good">
+        <h4>事实</h4>
+        <p>LoRA 让模型按训练数据的方式回答<br>如果训练数据方式比基座原有偏好差，LoRA 就是<strong>负优化</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <h3>B.9 完整认知</h3>
+  <p>主章节（"成功"的生成样本）+ 附录 B（对比实测）构成完整的「LoRA 双刃剑」教学素材：</p>
+  <ul>
+    <li><strong>主章节</strong>：展示 LoRA 微调流程能跑通、能产生「看起来不错」的回答</li>
+    <li><strong>附录 B</strong>：通过对比测试证明「看起来不错」可能只是基座的功劳</li>
+  </ul>
+  <div class="callout success">
+    <div class="callout-title">反直觉但正确的认知</div>
+    <p style="font-size:18px;font-style:italic;">LoRA 微调的难度，不在于「让模型变好」（这很难），而在于「别让模型变差」（这需要谨慎选数据）。</p>
   </div>
 </section>
 
