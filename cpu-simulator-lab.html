@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>从 hello.c 到 CPU 内部：芯片模拟器学习实验室</title>
+  <style>
+    :root {
+      --paper: #f1ecdf;
+      --ink: #17130f;
+      --muted: #665f55;
+      --line: #252019;
+      --panel: #fff8ea;
+      --coal: #1f1f1b;
+      --red: #b34534;
+      --amber: #d69a2c;
+      --green: #157967;
+      --blue: #286c9f;
+      --violet: #6b5ca1;
+      --shadow: 8px 8px 0 rgba(23,19,15,.95);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--paper);
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, serif;
+      background:
+        radial-gradient(circle at 16% 10%, rgba(214,154,44,.2), transparent 28%),
+        radial-gradient(circle at 88% 5%, rgba(40,108,159,.15), transparent 30%),
+        repeating-linear-gradient(90deg, rgba(23,19,15,.045) 0 1px, transparent 1px 34px),
+        repeating-linear-gradient(0deg, rgba(23,19,15,.04) 0 1px, transparent 1px 34px),
+        var(--paper);
+    }
+
+    a { color: inherit; }
+
+    .shell {
+      width: min(1180px, calc(100% - 36px));
+      margin: 0 auto;
+    }
+
+    .top {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 2px solid var(--line);
+      background: rgba(241,236,223,.92);
+      backdrop-filter: blur(14px);
+    }
+
+    .top .shell {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      border: 2px solid var(--line);
+      background:
+        linear-gradient(90deg, transparent 42%, var(--line) 42% 58%, transparent 58%),
+        linear-gradient(transparent 42%, var(--line) 42% 58%, transparent 58%),
+        var(--amber);
+      box-shadow: 4px 4px 0 var(--line);
+    }
+
+    nav {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+    }
+
+    nav::-webkit-scrollbar { display: none; }
+
+    nav a {
+      text-decoration: none;
+      border: 1.5px solid rgba(23,19,15,.25);
+      background: rgba(255,248,234,.78);
+      padding: 8px 10px;
+      white-space: nowrap;
+    }
+
+    .hero {
+      min-height: calc(100vh - 64px);
+      display: grid;
+      align-items: center;
+      padding: 52px 0 34px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.02fr .98fr;
+      gap: 42px;
+      align-items: center;
+    }
+
+    .tag {
+      display: inline-flex;
+      border: 2px solid var(--line);
+      background: var(--panel);
+      box-shadow: 5px 5px 0 var(--line);
+      padding: 9px 12px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    h1 {
+      margin: 24px 0 18px;
+      font-size: clamp(44px, 7.1vw, 96px);
+      line-height: .94;
+      letter-spacing: 0;
+      max-width: 10em;
+    }
+
+    .lead {
+      max-width: 760px;
+      font-size: clamp(18px, 2.1vw, 25px);
+      line-height: 1.58;
+      color: #39342d;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      border: 2px solid var(--line);
+      background: var(--coal);
+      color: #fff8ea;
+      text-decoration: none;
+      padding: 0 16px;
+      font-weight: 900;
+      box-shadow: 5px 5px 0 var(--red);
+    }
+
+    .btn.alt {
+      background: var(--panel);
+      color: var(--ink);
+      box-shadow: 5px 5px 0 var(--amber);
+    }
+
+    .machine {
+      min-height: 520px;
+      border: 3px solid var(--line);
+      background: #22211d;
+      color: #fff8ea;
+      padding: 26px;
+      box-shadow: 14px 14px 0 rgba(23,19,15,.22);
+      display: grid;
+      grid-template-columns: .9fr 1.2fr .9fr;
+      grid-template-rows: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .block {
+      border: 2px solid rgba(255,248,234,.82);
+      padding: 12px;
+      display: flex;
+      align-items: flex-end;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1.35;
+      background: rgba(255,248,234,.08);
+    }
+
+    .block.core {
+      grid-column: 2;
+      grid-row: 1 / 5;
+      font-size: 20px;
+      background:
+        repeating-linear-gradient(90deg, rgba(255,255,255,.1) 0 2px, transparent 2px 16px),
+        repeating-linear-gradient(0deg, rgba(255,255,255,.09) 0 2px, transparent 2px 16px),
+        rgba(179,69,52,.72);
+    }
+
+    .blue { background: rgba(40,108,159,.58); }
+    .green { background: rgba(21,121,103,.56); }
+    .amber { background: rgba(214,154,44,.62); }
+    .violet { background: rgba(107,92,161,.58); }
+
+    section {
+      padding: 76px 0;
+      border-top: 2px solid rgba(23,19,15,.2);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: .42fr 1fr;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      color: var(--red);
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(30px, 4.1vw, 56px);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.72;
+    }
+
+    .stack {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(170px, 1fr));
+      border: 2px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow-x: auto;
+    }
+
+    .layer {
+      min-height: 245px;
+      border-right: 2px solid var(--line);
+      padding: 17px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .layer:last-child { border-right: 0; }
+
+    .num {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--line);
+      background: var(--amber);
+      font-weight: 900;
+    }
+
+    .layer strong {
+      display: block;
+      margin: 14px 0 8px;
+      font-size: 18px;
+    }
+
+    .layer span {
+      display: block;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 13px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      box-shadow: 7px 7px 0 rgba(23,19,15,.18);
+      padding: 22px;
+      min-height: 250px;
+    }
+
+    .card.dark {
+      background: var(--coal);
+      color: #fff8ea;
+      box-shadow: var(--shadow);
+    }
+
+    .card h3 {
+      margin: 0 0 12px;
+      font-size: 27px;
+    }
+
+    .card p,
+    .card li {
+      color: #554e44;
+      line-height: 1.68;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+    }
+
+    .card.dark p,
+    .card.dark li {
+      color: rgba(255,248,234,.75);
+    }
+
+    .card ul {
+      margin: 12px 0 0;
+      padding-left: 18px;
+    }
+
+    .flow {
+      border: 2px solid var(--line);
+      background: var(--coal);
+      color: #fff8ea;
+      box-shadow: var(--shadow);
+      padding: 24px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      overflow-x: auto;
+    }
+
+    .codeflow {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(130px, 1fr));
+      gap: 10px;
+      min-width: 900px;
+    }
+
+    .node {
+      border: 2px solid rgba(255,248,234,.82);
+      padding: 14px;
+      min-height: 118px;
+      background: rgba(255,248,234,.08);
+    }
+
+    .node b {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 15px;
+    }
+
+    .node span {
+      display: block;
+      color: rgba(255,248,234,.72);
+      line-height: 1.45;
+      font-size: 12px;
+    }
+
+    .table {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    th, td {
+      border-bottom: 1.5px solid rgba(23,19,15,.22);
+      border-right: 1.5px solid rgba(23,19,15,.22);
+      padding: 14px;
+      text-align: left;
+      vertical-align: top;
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    th {
+      background: #ecd097;
+      font-weight: 900;
+      color: var(--ink);
+    }
+
+    td { color: #554e44; }
+    tr:last-child td { border-bottom: 0; }
+    th:last-child, td:last-child { border-right: 0; }
+
+    .quote {
+      border: 3px solid var(--line);
+      background: var(--coal);
+      color: #fff8ea;
+      padding: clamp(24px, 4vw, 48px);
+      box-shadow: 10px 10px 0 var(--amber);
+      font-size: clamp(23px, 3.4vw, 42px);
+      line-height: 1.28;
+      font-weight: 900;
+    }
+
+    .quote small {
+      display: block;
+      margin-top: 18px;
+      color: rgba(255,248,234,.75);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      font-weight: 500;
+    }
+
+    .sources {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      padding: 20px;
+      box-shadow: 7px 7px 0 rgba(23,19,15,.16);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .sources li {
+      margin: 8px 0;
+      line-height: 1.55;
+    }
+
+    .sources a {
+      color: var(--blue);
+      font-weight: 900;
+    }
+
+    footer {
+      padding: 34px 0 54px;
+      color: var(--muted);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity .55s ease, transform .55s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 940px) {
+      .hero-grid, .section-head, .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .grid-3 {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .top .shell {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 12px 0;
+      }
+
+      .hero {
+        min-height: auto;
+        padding-top: 34px;
+      }
+
+      h1 { font-size: 44px; }
+
+      .grid-3 { grid-template-columns: 1fr; }
+
+      .machine {
+        min-height: 620px;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .block.core {
+        grid-column: 1 / 3;
+        grid-row: 2 / 4;
+      }
+
+      section { padding: 54px 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="shell">
+      <div class="brand"><span class="mark" aria-hidden="true"></span>芯片模拟器学习实验室</div>
+      <nav aria-label="页面导航">
+        <a href="#layers">五层模拟</a>
+        <a href="#hello">Hello 路径</a>
+        <a href="#projects">开源项目</a>
+        <a href="#route">推荐路线</a>
+        <a href="#sources">资料入口</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="shell hero-grid">
+        <div>
+          <div class="tag">从 C 代码、指令、流水线，到 RTL 波形</div>
+          <h1>如何看见 hello.c 在 CPU 里跑起来</h1>
+          <p class="lead">QEMU 能让程序在虚拟芯片上跑，Ripes 能让你看见指令穿过流水线，Verilator 能把真实 RTL CPU 跑起来，Nand2Tetris 则从门电路一路带你造出一台教学计算机。</p>
+          <div class="actions">
+            <a class="btn" href="#hello">看执行链路</a>
+            <a class="btn alt" href="#projects">看开源项目</a>
+          </div>
+        </div>
+        <div class="machine" aria-label="从软件到硬件的模拟层次示意">
+          <div class="block blue">hello.c<br>源代码</div>
+          <div class="block core">CPU Pipeline / RTL<br>取指 · 译码 · 执行 · 访存 · 写回</div>
+          <div class="block amber">Compiler<br>生成 ELF</div>
+          <div class="block green">Memory<br>指令和数据</div>
+          <div class="block violet">UART<br>输出字符</div>
+          <div class="block">Waveform<br>看信号变化</div>
+          <div class="block">Simulator<br>QEMU / Ripes / Verilator</div>
+          <div class="block">SoC<br>总线与外设</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="layers">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Abstraction Layers</div>
+            <h2>“模拟芯片”其实分很多层</h2>
+          </div>
+          <p>不同工具回答的问题不一样。QEMU 重在软件能不能跑，Ripes 重在教学可视化，Verilator 重在 RTL 是否真的按周期执行，SystemC/gem5 重在系统级架构探索。</p>
+        </div>
+
+        <div class="stack reveal">
+          <div class="layer"><span class="num">01</span><strong>功能级模拟</strong><span>QEMU、Spike。快速跑程序、跑系统，但一般不细看每个周期的硬件内部。</span></div>
+          <div class="layer"><span class="num">02</span><strong>教学流水线</strong><span>Ripes、WebRISC-V。可视化指令如何经过 IF/ID/EX/MEM/WB。</span></div>
+          <div class="layer"><span class="num">03</span><strong>RTL 仿真</strong><span>Verilator、Icarus、商业仿真器。真正跑 Verilog/SystemVerilog 设计。</span></div>
+          <div class="layer"><span class="num">04</span><strong>系统级建模</strong><span>SystemC/TLM、gem5。用更高抽象层模拟 CPU、总线、内存和外设交互。</span></div>
+          <div class="layer"><span class="num">05</span><strong>全栈教学</strong><span>Nand2Tetris。从 NAND 门、CPU、汇编器、编译器一路到程序。</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="hello">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Hello World Path</div>
+            <h2>一段 C 程序到 CPU 输出，实际经历了什么</h2>
+          </div>
+          <p>最经典的教学实验是让 `hello.c` 最后通过 memory-mapped UART 打印字符。这样你能同时看到软件、指令、内存、总线、外设和波形。</p>
+        </div>
+
+        <div class="flow reveal">
+          <div class="codeflow">
+            <div class="node"><b>hello.c</b><span>你写的 C 代码，里面调用 puts 或直接写 UART 地址。</span></div>
+            <div class="node"><b>riscv-gcc</b><span>交叉编译成 RISC-V ELF，包含指令、数据和入口地址。</span></div>
+            <div class="node"><b>objcopy</b><span>把 ELF 转成 hex/bin，加载到仿真内存。</span></div>
+            <div class="node"><b>CPU fetch</b><span>PC 指向第一条指令，CPU 从内存取指。</span></div>
+            <div class="node"><b>pipeline</b><span>指令经过译码、执行、访存、写回。</span></div>
+            <div class="node"><b>UART write</b><span>程序写一个特殊地址，仿真器把它当成串口输出。</span></div>
+            <div class="node"><b>terminal</b><span>屏幕打印 hello，同时可用 GTKWave 看每根信号。</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="projects">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Open Source Projects</div>
+            <h2>这些开源项目可以拼出完整学习体验</h2>
+          </div>
+          <p>没有一个工具能完美覆盖所有层次。最实用的方法是组合使用：先用可视化工具建立直觉，再用真实 RTL 仿真建立工程感。</p>
+        </div>
+
+        <div class="grid-3">
+          <article class="card reveal">
+            <h3>Ripes</h3>
+            <p>最适合课堂演示 RISC-V 流水线。可以看到寄存器、内存、指令执行和流水线状态。</p>
+            <ul>
+              <li>适合：计算机组成、体系结构入门</li>
+              <li>重点：流水线、冒险、指令执行</li>
+            </ul>
+          </article>
+          <article class="card reveal">
+            <h3>Nand2Tetris</h3>
+            <p>从 NAND 门一路构造计算机、汇编器、VM、编译器和 OS。它不是 RISC-V，但教学闭环极完整。</p>
+            <ul>
+              <li>适合：理解计算机底层全貌</li>
+              <li>重点：从门电路到软件栈</li>
+            </ul>
+          </article>
+          <article class="card reveal">
+            <h3>PicoRV32 / Ibex</h3>
+            <p>真实开源 RISC-V CPU RTL。配合 Verilator，可以跑固件、看波形、理解 RTL CPU 的行为。</p>
+            <ul>
+              <li>适合：数字前端、RTL 入门</li>
+              <li>重点：真实硬件描述语言</li>
+            </ul>
+          </article>
+          <article class="card reveal">
+            <h3>QEMU / Spike</h3>
+            <p>功能级模拟器，适合快速跑 RISC-V/ARM 程序或系统，验证软件栈和 ISA 行为。</p>
+            <ul>
+              <li>适合：固件、OS、编译工具链</li>
+              <li>重点：程序是否能正确运行</li>
+            </ul>
+          </article>
+          <article class="card reveal">
+            <h3>Renode</h3>
+            <p>面向嵌入式和 SoC 的虚拟平台，可以模拟外设、板卡、传感器和多节点系统。</p>
+            <ul>
+              <li>适合：嵌入式软件和 SoC 平台</li>
+              <li>重点：系统级外设交互</li>
+            </ul>
+          </article>
+          <article class="card reveal">
+            <h3>gem5 / SystemC</h3>
+            <p>用于体系结构和系统级建模。比 RTL 抽象，适合研究缓存、内存、互连、时序和架构取舍。</p>
+            <ul>
+              <li>适合：架构研究、性能建模</li>
+              <li>重点：系统级探索而非门级细节</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="route">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Recommended Route</div>
+            <h2>最适合学生的实践路线</h2>
+          </div>
+          <p>你的目标如果是“看见 hello world 怎么在处理器里执行”，可以按下面顺序走。每一步都能形成一个可展示的小项目。</p>
+        </div>
+
+        <div class="grid-2">
+          <article class="card dark reveal">
+            <h3>路线 A：先建立直觉</h3>
+            <ul>
+              <li>用 Nand2Tetris 理解门电路、ALU、寄存器、CPU、汇编器。</li>
+              <li>用 Ripes 跑 RISC-V 小程序，看指令如何走流水线。</li>
+              <li>写几个汇编例子：加法、循环、函数调用、内存访问。</li>
+            </ul>
+          </article>
+          <article class="card dark reveal">
+            <h3>路线 B：进入真实 RTL</h3>
+            <ul>
+              <li>选 PicoRV32 或 Ibex。</li>
+              <li>用 riscv-gcc 编译 hello.c，生成 memory image。</li>
+              <li>用 Verilator 跑 CPU RTL，通过 UART 打印字符。</li>
+              <li>用 GTKWave 看 PC、寄存器写回、总线访问和 UART 信号。</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="quote reveal" style="margin-top:18px">
+          最好的展示不是“我知道 QEMU”，而是把同一个 hello world 放进三种显微镜里看：QEMU 看它能跑，Ripes 看它怎么过流水线，Verilator 看真实 RTL 信号怎么跳。
+          <small>这正好连接计算机组成、编译器、嵌入式、数字前端和验证，是非常适合学生的跨层项目。</small>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Tool Choice</div>
+            <h2>不同工具适合回答不同问题</h2>
+          </div>
+          <p>选工具前先问自己：我是要跑软件、看流水线、验证 RTL，还是研究系统架构？</p>
+        </div>
+
+        <div class="table reveal">
+          <table>
+            <thead>
+              <tr>
+                <th>工具/项目</th>
+                <th>抽象层级</th>
+                <th>最适合展示</th>
+                <th>不擅长什么</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>QEMU / Spike</td>
+                <td>ISA / 功能级</td>
+                <td>程序能否在目标架构上运行，固件和 OS 是否启动。</td>
+                <td>不适合展示每个周期的真实硬件内部信号。</td>
+              </tr>
+              <tr>
+                <td>Ripes</td>
+                <td>教学微架构</td>
+                <td>RISC-V 指令、寄存器、内存、流水线和冒险处理。</td>
+                <td>不是量产 CPU RTL，也不是后端物理实现。</td>
+              </tr>
+              <tr>
+                <td>Verilator + RTL CPU</td>
+                <td>周期级 RTL</td>
+                <td>真实 Verilog/SystemVerilog CPU 怎么执行程序。</td>
+                <td>跑大型 OS 和复杂外设会比 QEMU 慢很多。</td>
+              </tr>
+              <tr>
+                <td>SystemC / gem5</td>
+                <td>系统级 / 架构级</td>
+                <td>缓存、内存、互连、时序和系统架构探索。</td>
+                <td>不直接等同于最终门级电路。</td>
+              </tr>
+              <tr>
+                <td>Nand2Tetris</td>
+                <td>全栈教学</td>
+                <td>从门电路到 CPU、汇编器、编译器和 OS 的完整闭环。</td>
+                <td>不是工业 RISC-V/ARM 架构。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="sources">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Sources</div>
+            <h2>开源项目入口</h2>
+          </div>
+          <p>这些项目足够支撑一门“从程序到芯片模拟”的入门实验课。</p>
+        </div>
+
+        <div class="sources reveal">
+          <ul>
+            <li><a href="https://github.com/mortbopet/Ripes" target="_blank" rel="noreferrer">Ripes：RISC-V 可视化处理器模拟器</a></li>
+            <li><a href="https://www.nand2tetris.org/" target="_blank" rel="noreferrer">Nand2Tetris：从 NAND 门到完整计算机系统</a></li>
+            <li><a href="https://github.com/YosysHQ/picorv32" target="_blank" rel="noreferrer">PicoRV32：开源 Verilog RISC-V CPU</a></li>
+            <li><a href="https://github.com/lowRISC/ibex" target="_blank" rel="noreferrer">Ibex：lowRISC 开源 SystemVerilog RISC-V Core</a></li>
+            <li><a href="https://github.com/verilator/verilator" target="_blank" rel="noreferrer">Verilator：开源 Verilog/SystemVerilog 仿真器</a></li>
+            <li><a href="https://www.gem5.org/about/" target="_blank" rel="noreferrer">gem5：体系结构和系统级模拟器</a></li>
+            <li><a href="https://renode.io/" target="_blank" rel="noreferrer">Renode：嵌入式 SoC 虚拟平台</a></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">芯片模拟器学习实验室 · 从 C 程序到 CPU 内部执行 · 面向计算机和芯片设计入门者</div>
+  </footer>
+
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) entry.target.classList.add("visible");
+      });
+    }, { threshold: 0.12 });
+
+    document.querySelectorAll(".reveal").forEach((item, index) => {
+      item.style.transitionDelay = `${Math.min(index % 6, 5) * 45}ms`;
+      observer.observe(item);
+    });
+  </script>
+</body>
+</html>
