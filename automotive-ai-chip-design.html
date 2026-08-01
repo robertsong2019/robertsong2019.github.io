@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>车载 AI 芯片是怎样设计出来的</title>
+  <style>
+    :root {
+      --bg: #f3f0e7;
+      --ink: #12110f;
+      --muted: #666056;
+      --line: #24211d;
+      --card: #fffaf0;
+      --coal: #1d1d1a;
+      --red: #b93f32;
+      --amber: #d99b2b;
+      --blue: #236e9e;
+      --teal: #137b72;
+      --lime: #aecf4a;
+      --shadow: 8px 8px 0 rgba(18,17,15,.95);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--bg);
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, serif;
+      background:
+        linear-gradient(120deg, rgba(185,63,50,.1), transparent 32%),
+        linear-gradient(240deg, rgba(35,110,158,.12), transparent 34%),
+        repeating-linear-gradient(90deg, rgba(18,17,15,.045) 0 1px, transparent 1px 36px),
+        repeating-linear-gradient(0deg, rgba(18,17,15,.04) 0 1px, transparent 1px 36px),
+        var(--bg);
+    }
+
+    a { color: inherit; }
+
+    .shell {
+      width: min(1200px, calc(100% - 36px));
+      margin: 0 auto;
+    }
+
+    .top {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 2px solid var(--line);
+      background: rgba(243,240,231,.92);
+      backdrop-filter: blur(14px);
+    }
+
+    .top .shell {
+      min-height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .logo {
+      width: 34px;
+      height: 34px;
+      border: 2px solid var(--line);
+      background:
+        linear-gradient(90deg, transparent 42%, var(--line) 42% 58%, transparent 58%),
+        linear-gradient(transparent 42%, var(--line) 42% 58%, transparent 58%),
+        var(--amber);
+      box-shadow: 4px 4px 0 var(--line);
+    }
+
+    nav {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+    }
+
+    nav::-webkit-scrollbar { display: none; }
+
+    nav a {
+      text-decoration: none;
+      border: 1.5px solid rgba(18,17,15,.25);
+      background: rgba(255,250,240,.76);
+      padding: 8px 10px;
+      white-space: nowrap;
+    }
+
+    .hero {
+      min-height: calc(100vh - 62px);
+      display: grid;
+      align-items: center;
+      padding: 52px 0 34px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.04fr .96fr;
+      gap: 42px;
+      align-items: center;
+    }
+
+    .tag {
+      display: inline-flex;
+      border: 2px solid var(--line);
+      background: var(--card);
+      box-shadow: 5px 5px 0 var(--line);
+      padding: 9px 12px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    h1 {
+      margin: 24px 0 18px;
+      font-size: clamp(44px, 7.4vw, 100px);
+      line-height: .92;
+      letter-spacing: 0;
+      max-width: 9em;
+    }
+
+    .lead {
+      max-width: 760px;
+      font-size: clamp(18px, 2.1vw, 25px);
+      line-height: 1.58;
+      color: #39342d;
+    }
+
+    .actions {
+      margin-top: 28px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .btn {
+      min-height: 46px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--line);
+      background: var(--coal);
+      color: #fffaf0;
+      text-decoration: none;
+      padding: 0 16px;
+      font-weight: 900;
+      box-shadow: 5px 5px 0 var(--red);
+    }
+
+    .btn.alt {
+      background: var(--card);
+      color: var(--ink);
+      box-shadow: 5px 5px 0 var(--amber);
+    }
+
+    .chip {
+      border: 3px solid var(--line);
+      background: #211f1b;
+      box-shadow: 14px 14px 0 rgba(18,17,15,.22);
+      min-height: 520px;
+      padding: 28px;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      grid-template-rows: .8fr 1.3fr 1fr;
+      position: relative;
+    }
+
+    .chip::before,
+    .chip::after {
+      content: "";
+      position: absolute;
+      inset: -18px 8%;
+      border-left: 2px solid var(--line);
+      border-right: 2px solid var(--line);
+      pointer-events: none;
+    }
+
+    .chip::after {
+      inset: 8% -18px;
+      border: 0;
+      border-top: 2px solid var(--line);
+      border-bottom: 2px solid var(--line);
+    }
+
+    .unit {
+      border: 2px solid rgba(255,250,240,.82);
+      color: #fffaf0;
+      padding: 12px;
+      display: flex;
+      align-items: flex-end;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1.35;
+      background: rgba(255,250,240,.09);
+    }
+
+    .unit.npu {
+      grid-column: 2;
+      grid-row: 1 / 4;
+      background:
+        repeating-linear-gradient(90deg, rgba(255,255,255,.12) 0 2px, transparent 2px 16px),
+        repeating-linear-gradient(0deg, rgba(255,255,255,.1) 0 2px, transparent 2px 16px),
+        rgba(185,63,50,.7);
+      font-size: 20px;
+    }
+
+    .unit.cpu { background: rgba(35,110,158,.58); }
+    .unit.mem { background: rgba(19,123,114,.56); }
+    .unit.isp { background: rgba(217,155,43,.6); }
+    .unit.safe { background: rgba(174,207,74,.38); }
+
+    section {
+      padding: 78px 0;
+      border-top: 2px solid rgba(18,17,15,.2);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: .44fr 1fr;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      color: var(--red);
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(30px, 4.2vw, 58px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.72;
+    }
+
+    .thesis {
+      border: 3px solid var(--line);
+      background: var(--coal);
+      color: #fffaf0;
+      padding: clamp(24px, 4vw, 46px);
+      box-shadow: 10px 10px 0 var(--amber);
+      font-size: clamp(23px, 3.4vw, 42px);
+      line-height: 1.28;
+      font-weight: 900;
+    }
+
+    .thesis small {
+      display: block;
+      margin-top: 18px;
+      font-size: 15px;
+      line-height: 1.7;
+      color: rgba(255,250,240,.75);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-weight: 500;
+    }
+
+    .case-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+
+    .case {
+      border: 2px solid var(--line);
+      background: var(--card);
+      box-shadow: 7px 7px 0 rgba(18,17,15,.2);
+      padding: 20px;
+      min-height: 275px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .case h3 {
+      margin: 0 0 12px;
+      font-size: 25px;
+      font-family: "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+    }
+
+    .case p,
+    .case li {
+      color: #554e44;
+      line-height: 1.68;
+      font-size: 14px;
+    }
+
+    .case ul {
+      margin: 12px 0 0;
+      padding-left: 18px;
+    }
+
+    .pill {
+      display: inline-flex;
+      border: 1.5px solid var(--line);
+      background: #f3d281;
+      padding: 5px 8px;
+      margin-bottom: 14px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 18px;
+    }
+
+    .panel {
+      border: 2px solid var(--line);
+      background: var(--card);
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+
+    .panel.dark {
+      background: var(--coal);
+      color: #fffaf0;
+    }
+
+    .panel h3 {
+      margin: 0 0 16px;
+      font-size: 34px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 40px 1fr;
+      gap: 14px;
+      padding: 15px 0;
+      border-top: 1.5px solid rgba(18,17,15,.2);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .dark .row { border-color: rgba(255,250,240,.24); }
+    .row:first-of-type { border-top: 0; }
+
+    .num {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--line);
+      background: var(--amber);
+      font-weight: 900;
+      color: var(--ink);
+    }
+
+    .row b {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .row span {
+      display: block;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .dark .row span { color: rgba(255,250,240,.7); }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(145px, 1fr));
+      border: 2px solid var(--line);
+      overflow-x: auto;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+
+    .step {
+      min-height: 205px;
+      border-right: 2px solid var(--line);
+      padding: 16px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .step:last-child { border-right: 0; }
+
+    .step strong {
+      display: block;
+      font-size: 18px;
+      margin: 12px 0 8px;
+    }
+
+    .step span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .scope {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .scope-card {
+      border: 2px solid var(--line);
+      background: var(--card);
+      box-shadow: 7px 7px 0 rgba(18,17,15,.18);
+      padding: 22px;
+      min-height: 260px;
+    }
+
+    .scope-card h3 {
+      margin: 0 0 14px;
+      font-size: 28px;
+    }
+
+    .scope-card li {
+      margin: 9px 0;
+      line-height: 1.58;
+      color: #554e44;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .metric {
+      border: 2px solid var(--line);
+      background: var(--card);
+      padding: 18px;
+      min-height: 170px;
+      box-shadow: 6px 6px 0 rgba(18,17,15,.16);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .metric b {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .sources {
+      border: 2px solid var(--line);
+      background: var(--card);
+      padding: 20px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      box-shadow: 7px 7px 0 rgba(18,17,15,.16);
+    }
+
+    .sources li {
+      margin: 8px 0;
+      line-height: 1.55;
+    }
+
+    .sources a {
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    footer {
+      padding: 34px 0 54px;
+      color: var(--muted);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity .55s ease, transform .55s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 940px) {
+      .hero-grid,
+      .section-head,
+      .split,
+      .scope {
+        grid-template-columns: 1fr;
+      }
+
+      .case-grid,
+      .compare {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .chip { min-height: 440px; }
+    }
+
+    @media (max-width: 640px) {
+      .top .shell {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 12px 0;
+      }
+
+      .hero {
+        min-height: auto;
+        padding-top: 34px;
+      }
+
+      h1 { font-size: 46px; }
+
+      .case-grid,
+      .compare {
+        grid-template-columns: 1fr;
+      }
+
+      .chip {
+        min-height: 560px;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: repeat(4, 1fr);
+      }
+
+      .unit.npu {
+        grid-column: 1 / 3;
+        grid-row: 2 / 4;
+      }
+
+      section { padding: 54px 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="shell">
+      <div class="brand"><span class="logo" aria-hidden="true"></span>车载 AI SoC 设计地图</div>
+      <nav aria-label="页面导航">
+        <a href="#what">它到底是什么</a>
+        <a href="#cases">公开案例</a>
+        <a href="#npu">NPU 核心</a>
+        <a href="#flow">设计流程</a>
+        <a href="#ip">IP 策略</a>
+        <a href="#verify">车规验证</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="shell hero-grid">
+        <div>
+          <div class="tag">以理想 M100、蔚来神玑、小鹏图灵这类车载 AI SoC 为例</div>
+          <h1>车企自研 AI 芯片，真正难在哪</h1>
+          <p class="lead">它不是只做一个“算大模型的计算单元”。一颗上车的 AI 芯片通常是完整 SoC：摄像头进来，图像处理，神经网络推理，CPU 调度，安全岛兜底，内存和 IO 喂数据，最后把结果交给智能驾驶系统。</p>
+          <div class="actions">
+            <a class="btn" href="#flow">看设计路线</a>
+            <a class="btn alt" href="#ip">看哪些 IP 会买</a>
+          </div>
+        </div>
+
+        <div class="chip" aria-label="车载 AI SoC 模块示意">
+          <div class="unit cpu">CPU Cluster<br>系统调度</div>
+          <div class="unit npu">NPU / Tensor Engine<br>矩阵计算 · Transformer · 稀疏化 · 量化</div>
+          <div class="unit isp">ISP / VPU<br>摄像头与视频</div>
+          <div class="unit mem">LPDDR / SRAM<br>高带宽数据喂给 NPU</div>
+          <div class="unit safe">Safety Island<br>ASIL-D 安全监控</div>
+          <div class="unit">NoC / DMA<br>片上互连</div>
+          <div class="unit">PCIe / Ethernet<br>车内高速连接</div>
+          <div class="unit">Security<br>安全启动与加密</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="what">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Core Idea</div>
+            <h2>车载 AI 芯片的核心不是 TOPS，而是“端到端数据流”</h2>
+          </div>
+          <p>普通宣传喜欢讲 TOPS，但工程上更关心摄像头、雷达、BEV/Occupancy/Transformer 模型、内存带宽、延迟、功耗、功能安全和软件工具链能否在车上长期稳定工作。</p>
+        </div>
+
+        <div class="thesis reveal">
+          车企真正想自研的，通常是 NPU 架构、内存层级、编译器和模型部署闭环；CPU、DDR PHY、PCIe、SerDes、部分模拟和基础 IO，则大量依赖成熟 IP 和 foundry 生态。
+          <small>原因很现实：智能驾驶算法变化很快，车企希望自己的芯片更贴合自家模型；但高速接口、存储控制、车规安全和制造库的坑太深，成熟 IP 能显著降低项目风险。</small>
+        </div>
+      </div>
+    </section>
+
+    <section id="cases">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Public Cases</div>
+            <h2>几个公开案例说明了同一个趋势</h2>
+          </div>
+          <p>以下只采用公开资料。不同公司公布口径不完全一致，TOPS、工艺、核心数量不宜直接横向比较；更有价值的是看它们都在围绕“大模型上车、低延迟推理、软硬件协同”做架构。</p>
+        </div>
+
+        <div class="case-grid">
+          <article class="case reveal">
+            <span class="pill">理想 M100</span>
+            <h3>把差异点放在 NPU</h3>
+            <p>理想公开论文把 M100 描述为面向智能驾驶和舱内 LLM 的车载 SoC。论文明确提到 SoC 内有应用 CPU、多媒体 IP、安全岛和标准 IO，但主要创新集中在可扩展 NPU。</p>
+            <ul>
+              <li>面向端到端智能驾驶和 LLM 推理</li>
+              <li>强调 NPU 集群、片上 SRAM、LPDDR5X 带宽</li>
+              <li>这是典型“通用 SoC + 自研 AI 加速器”的路线</li>
+            </ul>
+          </article>
+
+          <article class="case reveal">
+            <span class="pill">蔚来 神玑 NX9031</span>
+            <h3>车规 SoC 不止算力</h3>
+            <p>蔚来公开资料称神玑 NX9031 为 5nm 智驾芯片，包含 CPU、ISP、自研 NPU 和安全能力，并强调 ASIL-D 安全岛。它体现了车载芯片必须同时服务感知、计算、控制和安全。</p>
+            <ul>
+              <li>摄像头图像链路和 AI 推理同等重要</li>
+              <li>安全岛负责监控、故障处理和可靠性</li>
+              <li>软件系统和芯片一起定义体验</li>
+            </ul>
+          </article>
+
+          <article class="case reveal">
+            <span class="pill">小鹏 图灵</span>
+            <h3>大模型驱动芯片规格</h3>
+            <p>小鹏官方信息强调图灵 AI 芯片面向机器人、AI 汽车和飞行汽车，包含 40 核处理器、2 个自研 NPU，并提到可支持 30B 参数级模型。这说明车企正在按模型规模反推芯片设计。</p>
+            <ul>
+              <li>模型越大，片上 SRAM 和外部带宽越关键</li>
+              <li>编译器要把 Transformer 拆成硬件友好的算子</li>
+              <li>多芯片协同会带来调度和一致性问题</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="npu">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">NPU Design</div>
+            <h2>AI 芯片的“自研灵魂”，通常在 NPU 和编译器</h2>
+          </div>
+          <p>如果把 SoC 看成一家公司，NPU 是生产车间，SRAM/DDR 是仓库和物流，编译器是排产系统。算力高但数据喂不上，实际性能会很难看。</p>
+        </div>
+
+        <div class="split">
+          <article class="panel dark reveal">
+            <h3>NPU 要做什么</h3>
+            <div class="row"><span class="num">1</span><div><b>矩阵乘加阵列</b><span>Transformer、CNN、BEV 模型都离不开大规模 MAC。阵列规模决定峰值算力，但不是唯一指标。</span></div></div>
+            <div class="row"><span class="num">2</span><div><b>多精度计算</b><span>INT8、INT4、BF16、FP16 等不同精度影响速度、功耗、模型精度和软件适配。</span></div></div>
+            <div class="row"><span class="num">3</span><div><b>片上存储</b><span>激活值、权重和中间结果尽量留在 SRAM，少访问外部 DRAM，才能降低延迟和功耗。</span></div></div>
+            <div class="row"><span class="num">4</span><div><b>专用算子</b><span>Attention、LayerNorm、Softmax、RoPE、稀疏化、后处理等决定大模型推理效率。</span></div></div>
+          </article>
+
+          <article class="panel reveal">
+            <h3>车载场景更苛刻</h3>
+            <div class="row"><span class="num">A</span><div><b>低延迟</b><span>智驾不是离线跑分，感知到规划控制有严格时延预算。</span></div></div>
+            <div class="row"><span class="num">B</span><div><b>低功耗</b><span>车上散热、供电、座舱温度和整车能耗都会限制芯片功耗。</span></div></div>
+            <div class="row"><span class="num">C</span><div><b>高可靠</b><span>要考虑温度、电压、老化、软错误和功能安全。</span></div></div>
+            <div class="row"><span class="num">D</span><div><b>可升级</b><span>算法几个月一迭代，芯片要通过编译器和软件栈支持新模型。</span></div></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="flow">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Design Flow</div>
+            <h2>以车企自研 AI SoC 为例，一般会这样推进</h2>
+          </div>
+          <p>它继承普通 SoC 的前后端流程，但前期多了模型画像和算子分析，后期多了车规安全、量产测试、软件部署和整车验证。</p>
+        </div>
+
+        <div class="flow reveal">
+          <div class="step"><span class="num">01</span><strong>定义任务</strong><span>明确服务 NOA、泊车、舱内语音、多模态助手，还是机器人平台。不同任务决定摄像头数量、模型规模和延迟目标。</span></div>
+          <div class="step"><span class="num">02</span><strong>模型画像</strong><span>统计 CNN、Transformer、BEV、Occupancy、LLM 的算子比例、张量尺寸、带宽需求和精度要求。</span></div>
+          <div class="step"><span class="num">03</span><strong>架构取舍</strong><span>决定 NPU 阵列、SRAM 容量、NoC、DDR 带宽、CPU 核、ISP、视频、安全岛和 IO 组合。</span></div>
+          <div class="step"><span class="num">04</span><strong>IP 集成</strong><span>采购或复用 CPU、DDR/PCIe/SerDes PHY、SRAM compiler、PLL、安全 IP、部分 ISP/Video 等。</span></div>
+          <div class="step"><span class="num">05</span><strong>RTL 与验证</strong><span>自研 NPU、DMA、调度器、寄存器、总线桥接，并用模型 trace、随机测试和形式验证证明正确。</span></div>
+          <div class="step"><span class="num">06</span><strong>后端与量产</strong><span>综合、布局布线、时序功耗收敛、DRC/LVS、车规可靠性、ATE 测试、封装、板级和整车验证。</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="ip">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Buy vs Build</div>
+            <h2>哪些通常买，哪些值得自研</h2>
+          </div>
+          <p>“自研芯片”不等于每个模块都自己写。真正成熟的芯片公司会把工程资源押在差异化模块上，把标准复杂模块交给成熟 IP 供应商和 foundry 生态。</p>
+        </div>
+
+        <div class="scope">
+          <article class="scope-card reveal">
+            <h3>通常采购 / 复用</h3>
+            <ul>
+              <li>CPU 核：Arm Cortex-A/R 或 RISC-V 生态核心</li>
+              <li>DDR 控制器与 PHY：高速模拟混合信号风险极高</li>
+              <li>PCIe、Ethernet、USB、MIPI、SerDes 等高速 IO</li>
+              <li>SRAM compiler、标准单元库、PLL、传感器、Efuse</li>
+              <li>安全启动、加密、调试、JTAG、DFT 基础 IP</li>
+              <li>部分 ISP、Video Codec、显示和音频 IP</li>
+            </ul>
+          </article>
+
+          <article class="scope-card reveal">
+            <h3>更适合自研</h3>
+            <ul>
+              <li>NPU/Tensor 计算阵列和数据流</li>
+              <li>面向自家模型的 Attention、稀疏、量化和后处理单元</li>
+              <li>片上 SRAM 分层、DMA、调度器和多核同步机制</li>
+              <li>编译器、算子库、模型量化和部署工具链</li>
+              <li>智驾系统级 profiling、仿真和性能闭环</li>
+              <li>与整车软件、OTA、诊断、安全策略的接口</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="verify">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Automotive Grade</div>
+            <h2>车载 AI SoC 最怕“能跑分，但不能上车”</h2>
+          </div>
+          <p>上车芯片不仅要算得快，还要在极端温度、电压扰动、长期老化、软硬件升级和故障场景下保持可诊断、可降级、可追责。</p>
+        </div>
+
+        <div class="compare">
+          <div class="metric reveal"><b>功能安全</b><span>ASIL 目标、安全岛、锁步或监控、故障注入、诊断覆盖率、失效模式分析。</span></div>
+          <div class="metric reveal"><b>模型正确性</b><span>量化误差、算子一致性、编译器正确性、仿真结果与硅后结果对齐。</span></div>
+          <div class="metric reveal"><b>PPA 收敛</b><span>在真实频率下同时看性能、功耗和面积，不能只用峰值 TOPS 做宣传。</span></div>
+          <div class="metric reveal"><b>硅后验证</b><span>Bring-up、ATE、板级测试、温箱、道路数据回放、OTA 回归和故障诊断。</span></div>
+        </div>
+
+        <div class="thesis reveal" style="margin-top:18px">
+          结论：车企做 AI 芯片，表面是“自研算力”，本质是把算法、数据、编译器、芯片和整车系统变成一个闭环。
+          <small>能买的 IP 会买，能复用的模块会复用；真正决定差异化的是自家模型如何被映射到硬件上，以及这个硬件能否在车规环境下长期稳定量产。</small>
+        </div>
+      </div>
+    </section>
+
+    <section id="sources">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Sources</div>
+            <h2>公开资料与阅读入口</h2>
+          </div>
+          <p>页面中的公司案例来自公开资料；行业流程部分是基于车载 SoC 和 AI 加速器设计的通用工程归纳。</p>
+        </div>
+        <div class="sources reveal">
+          <ul>
+            <li><a href="https://arxiv.org/html/2604.17862v1" target="_blank" rel="noreferrer">Li Auto M100 论文：M100: A High-Performance Scalable Automotive AI SoC</a></li>
+            <li><a href="https://www.nio.cn/innovation" target="_blank" rel="noreferrer">蔚来创新技术页面：神玑 NX9031 相关公开介绍</a></li>
+            <li><a href="https://ir.xiaopeng.com/news-releases/news-release-details/xpeng-unveils-next-generation-technology-architecture" target="_blank" rel="noreferrer">小鹏官方新闻稿：图灵 AI 芯片与下一代技术架构</a></li>
+            <li><a href="https://www.nvidia.com/en-us/self-driving-cars/drive-thor/" target="_blank" rel="noreferrer">NVIDIA DRIVE Thor 官方页面：车载集中式计算平台参考</a></li>
+            <li><a href="https://www.tesla.com/AI" target="_blank" rel="noreferrer">Tesla AI 页面：FSD 与车载 AI 计算公开入口</a></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">车载 AI SoC 设计地图 · 公开资料整理 + 工程流程归纳 · 面向非专业读者</div>
+  </footer>
+
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) entry.target.classList.add("visible");
+      });
+    }, { threshold: 0.12 });
+
+    document.querySelectorAll(".reveal").forEach((item, index) => {
+      item.style.transitionDelay = `${Math.min(index % 6, 5) * 45}ms`;
+      observer.observe(item);
+    });
+  </script>
+</body>
+</html>
