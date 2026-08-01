@@ -1,0 +1,869 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>一颗芯片是怎样被设计出来的</title>
+  <style>
+    :root {
+      --ink: #14120f;
+      --muted: #6c665d;
+      --paper: #f5f0e8;
+      --panel: #fffaf1;
+      --line: #2c2924;
+      --copper: #bd5d2b;
+      --gold: #d7a33c;
+      --green: #157a66;
+      --blue: #2d659c;
+      --red: #a43d32;
+      --shadow: 0 18px 42px rgba(32, 27, 19, .16);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--paper);
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, serif;
+      background:
+        linear-gradient(90deg, rgba(20,18,15,.055) 1px, transparent 1px),
+        linear-gradient(rgba(20,18,15,.045) 1px, transparent 1px),
+        radial-gradient(circle at 18% 20%, rgba(215, 163, 60, .18), transparent 30%),
+        radial-gradient(circle at 86% 8%, rgba(45, 101, 156, .15), transparent 28%),
+        var(--paper);
+      background-size: 28px 28px, 28px 28px, auto, auto, auto;
+    }
+
+    a { color: inherit; }
+
+    .shell {
+      width: min(1180px, calc(100% - 34px));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 2px solid var(--line);
+      background: rgba(245, 240, 232, .92);
+      backdrop-filter: blur(12px);
+    }
+
+    .topbar .shell {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 62px;
+      gap: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 900;
+      letter-spacing: .02em;
+      white-space: nowrap;
+    }
+
+    .mark {
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--line);
+      background:
+        linear-gradient(90deg, transparent 43%, var(--line) 43% 57%, transparent 57%),
+        linear-gradient(transparent 43%, var(--line) 43% 57%, transparent 57%),
+        var(--gold);
+      box-shadow: 4px 4px 0 var(--line);
+    }
+
+    nav {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+    }
+
+    nav::-webkit-scrollbar { display: none; }
+
+    nav a {
+      text-decoration: none;
+      border: 1.5px solid rgba(20,18,15,.25);
+      padding: 8px 10px;
+      background: rgba(255, 250, 241, .72);
+      white-space: nowrap;
+    }
+
+    .hero {
+      position: relative;
+      min-height: calc(100vh - 62px);
+      display: grid;
+      align-items: center;
+      padding: 52px 0 34px;
+      overflow: hidden;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.02fr .98fr;
+      gap: 42px;
+      align-items: center;
+    }
+
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      border: 2px solid var(--line);
+      background: var(--panel);
+      padding: 9px 12px;
+      box-shadow: 5px 5px 0 var(--line);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    h1 {
+      margin: 24px 0 18px;
+      font-size: clamp(46px, 7vw, 102px);
+      line-height: .92;
+      letter-spacing: 0;
+      max-width: 9em;
+    }
+
+    .lead {
+      max-width: 760px;
+      font-size: clamp(18px, 2.2vw, 26px);
+      line-height: 1.56;
+      color: #38322b;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 46px;
+      padding: 0 16px;
+      border: 2px solid var(--line);
+      background: var(--ink);
+      color: #fffaf1;
+      text-decoration: none;
+      font-weight: 900;
+      box-shadow: 5px 5px 0 var(--copper);
+    }
+
+    .btn.secondary {
+      color: var(--ink);
+      background: var(--panel);
+      box-shadow: 5px 5px 0 var(--gold);
+    }
+
+    .wafer {
+      position: relative;
+      aspect-ratio: 1;
+      min-height: 430px;
+      border: 3px solid var(--line);
+      background:
+        linear-gradient(90deg, transparent 48%, rgba(20,18,15,.55) 49% 51%, transparent 52%),
+        linear-gradient(transparent 48%, rgba(20,18,15,.55) 49% 51%, transparent 52%),
+        repeating-linear-gradient(90deg, rgba(20,18,15,.12) 0 2px, transparent 2px 31px),
+        repeating-linear-gradient(0deg, rgba(20,18,15,.12) 0 2px, transparent 2px 31px),
+        #d4c5a6;
+      border-radius: 50%;
+      box-shadow: var(--shadow), inset 0 0 0 18px rgba(255,255,255,.22);
+      overflow: hidden;
+      transform: rotate(-5deg);
+    }
+
+    .die {
+      position: absolute;
+      inset: 18%;
+      border: 3px solid var(--line);
+      background: #20201d;
+      box-shadow: 10px 10px 0 rgba(20,18,15,.32);
+      transform: rotate(5deg);
+      padding: 22px;
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 10px;
+    }
+
+    .block {
+      border: 2px solid rgba(255,250,241,.88);
+      background: rgba(215, 163, 60, .2);
+      color: #fffaf1;
+      padding: 10px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+      display: flex;
+      align-items: end;
+    }
+
+    .block:nth-child(2) { background: rgba(45, 101, 156, .38); }
+    .block:nth-child(3) { background: rgba(21, 122, 102, .34); }
+    .block:nth-child(4) { background: rgba(189, 93, 43, .42); }
+    .block:nth-child(5) { grid-column: span 2; background: rgba(255, 250, 241, .16); }
+
+    section {
+      padding: 78px 0;
+      border-top: 2px solid rgba(20,18,15,.22);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: .46fr 1fr;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 30px;
+    }
+
+    .eyebrow {
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      color: var(--copper);
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(30px, 4.2vw, 58px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.72;
+    }
+
+    .strip {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(136px, 1fr));
+      border: 2px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow-x: auto;
+    }
+
+    .stage {
+      min-height: 176px;
+      border-right: 2px solid var(--line);
+      padding: 16px;
+      cursor: pointer;
+      transition: background .18s ease, transform .18s ease;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .stage:last-child { border-right: 0; }
+    .stage:hover, .stage.active { background: #f0c56b; }
+
+    .stage-num {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 2px solid var(--line);
+      background: #fffaf1;
+      font-weight: 900;
+      margin-bottom: 18px;
+    }
+
+    .stage strong {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+
+    .stage span {
+      display: block;
+      color: #514a42;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .stage-detail {
+      margin-top: 18px;
+      border: 2px solid var(--line);
+      background: var(--ink);
+      color: #fffaf1;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: .75fr 1.25fr;
+      gap: 20px;
+      box-shadow: 8px 8px 0 var(--gold);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .stage-detail h3 {
+      margin: 0 0 10px;
+      font-size: 28px;
+    }
+
+    .stage-detail p {
+      margin: 0;
+      color: rgba(255,250,241,.78);
+      line-height: 1.72;
+    }
+
+    .work-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .work {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      padding: 22px;
+      min-height: 230px;
+      box-shadow: 7px 7px 0 rgba(20,18,15,.18);
+    }
+
+    .work h3 {
+      margin: 0 0 12px;
+      font-size: 24px;
+    }
+
+    .work p, .work li {
+      color: #554e45;
+      font-size: 15px;
+      line-height: 1.72;
+    }
+
+    .work ul {
+      margin: 12px 0 0;
+      padding-left: 18px;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .lane {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .lane.front { border-top: 12px solid var(--blue); }
+    .lane.back { border-top: 12px solid var(--green); }
+
+    .lane h3 {
+      margin: 0 0 18px;
+      font-size: 34px;
+    }
+
+    .task {
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 13px;
+      padding: 15px 0;
+      border-top: 1.5px solid rgba(20,18,15,.2);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .task:first-of-type { border-top: 0; }
+
+    .dot {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--line);
+      background: #f0c56b;
+      font-weight: 900;
+    }
+
+    .task strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .task span {
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .ip-board {
+      border: 2px solid var(--line);
+      background: #22211d;
+      padding: 22px;
+      box-shadow: var(--shadow);
+      color: #fffaf1;
+    }
+
+    .ip-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .ip {
+      min-height: 94px;
+      border: 2px solid rgba(255,250,241,.74);
+      padding: 12px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      background: rgba(255,250,241,.08);
+    }
+
+    .ip b { display: block; margin-bottom: 8px; }
+    .ip small { color: rgba(255,250,241,.7); line-height: 1.45; display: block; }
+
+    .buy-build {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      padding: 22px;
+      box-shadow: 8px 8px 0 var(--copper);
+    }
+
+    .rule {
+      padding: 14px 0;
+      border-top: 1.5px solid rgba(20,18,15,.22);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .rule:first-of-type { border-top: 0; }
+    .rule strong { display: block; margin-bottom: 5px; }
+    .rule span { color: var(--muted); line-height: 1.55; }
+
+    .signoff {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .check {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      padding: 18px;
+      min-height: 160px;
+      box-shadow: 6px 6px 0 rgba(20,18,15,.16);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .check::before {
+      content: "";
+      display: block;
+      width: 34px;
+      height: 8px;
+      background: var(--green);
+      margin-bottom: 16px;
+      border: 2px solid var(--line);
+    }
+
+    .check h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .check p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.58;
+      font-size: 14px;
+    }
+
+    .people {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
+
+    .person {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      min-height: 170px;
+      padding: 18px;
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+    }
+
+    .person b {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .person span {
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .quote {
+      border: 3px solid var(--line);
+      background: var(--ink);
+      color: #fffaf1;
+      padding: clamp(24px, 5vw, 56px);
+      box-shadow: 10px 10px 0 var(--gold);
+      font-size: clamp(24px, 4vw, 48px);
+      line-height: 1.22;
+      font-weight: 900;
+    }
+
+    .quote small {
+      display: block;
+      margin-top: 18px;
+      font-size: 16px;
+      line-height: 1.7;
+      color: rgba(255,250,241,.76);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-weight: 500;
+    }
+
+    footer {
+      padding: 34px 0 54px;
+      color: var(--muted);
+      font-family: ui-sans-serif, "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity .55s ease, transform .55s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 920px) {
+      .hero-grid,
+      .section-head,
+      .stage-detail,
+      .split,
+      .matrix {
+        grid-template-columns: 1fr;
+      }
+
+      .wafer {
+        min-height: auto;
+      }
+
+      .work-grid,
+      .signoff,
+      .people {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .topbar .shell {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 12px 0;
+      }
+
+      .hero {
+        min-height: auto;
+        padding-top: 34px;
+      }
+
+      h1 {
+        font-size: 48px;
+      }
+
+      .work-grid,
+      .signoff,
+      .people,
+      .ip-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stage-detail {
+        padding: 18px;
+      }
+
+      section {
+        padding: 54px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell">
+      <div class="brand"><span class="mark" aria-hidden="true"></span>芯片设计通识地图</div>
+      <nav aria-label="页面导航">
+        <a href="#flow">完整流程</a>
+        <a href="#frontback">前端/后端</a>
+        <a href="#ip">IP 选择</a>
+        <a href="#verify">验证与 Sign-off</a>
+        <a href="#team">团队分工</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="shell hero-grid">
+        <div>
+          <div class="kicker">从一个想法，到可以交给晶圆厂的版图</div>
+          <h1>一颗芯片是怎样被设计出来的</h1>
+          <p class="lead">把芯片设计想成建一座城市：前端决定城市功能和交通规则，验证反复检查规则是否执行正确，后端把蓝图落到真实土地上，Sign-off 则是在开工前做最后的法规、供电、时序和制造检查。</p>
+          <div class="hero-actions">
+            <a class="btn" href="#flow">看完整路线</a>
+            <a class="btn secondary" href="#ip">先搞懂 IP</a>
+          </div>
+        </div>
+        <div class="wafer" aria-label="晶圆与芯片布局示意图">
+          <div class="die">
+            <div class="block">CPU Core</div>
+            <div class="block">SRAM</div>
+            <div class="block">NoC / Bus</div>
+            <div class="block">AI / DSP</div>
+            <div class="block">IO · PLL · Debug · Power</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="flow">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">End to End Flow</div>
+            <h2>芯片设计不是一步，而是一条反复回环的工程流水线</h2>
+          </div>
+          <p>普通人常以为“写完代码就有芯片”。真实情况是：规格、架构、RTL、验证、综合、布局布线、Sign-off 每一关都会把问题反馈回前面，直到功能、性能、功耗、面积和可制造性同时过线。</p>
+        </div>
+
+        <div class="strip reveal" role="tablist" aria-label="芯片设计流程">
+          <button class="stage active" data-title="1. 产品定义" data-body="先回答这颗芯片为什么存在：目标市场、性能指标、功耗预算、成本、工艺节点、封装、软件生态和量产时间。很多失败项目不是输在后端，而是规格一开始就不清楚。" role="tab">
+            <span class="stage-num">01</span><strong>产品定义</strong><span>需求、成本、功耗、工艺、上市时间</span>
+          </button>
+          <button class="stage" data-title="2. 架构设计" data-body="架构师把需求变成系统方案：用几个 CPU 核、有没有 AI/DSP 加速器、缓存多大、总线怎么连、内存带宽够不够、哪些模块自研、哪些买 IP。" role="tab">
+            <span class="stage-num">02</span><strong>架构设计</strong><span>模块划分、数据通路、性能建模</span>
+          </button>
+          <button class="stage" data-title="3. IP 集成" data-body="现代芯片很少全部从零开始。CPU、DDR、PCIe、USB、SerDes、GPU、NPU、SRAM、PLL 等经常采购或复用。工程重点是接口、授权、验证模型、物理库和风险管理。" role="tab">
+            <span class="stage-num">03</span><strong>IP 集成</strong><span>买成熟模块，拼成自己的 SoC</span>
+          </button>
+          <button class="stage" data-title="4. 前端设计" data-body="前端团队用 Verilog/SystemVerilog 写 RTL，定义寄存器、状态机、流水线、总线协议和控制逻辑。RTL 不是软件，它描述的是未来会被做成门电路的硬件结构。" role="tab">
+            <span class="stage-num">04</span><strong>前端 RTL</strong><span>把架构写成可综合的硬件描述</span>
+          </button>
+          <button class="stage" data-title="5. 功能验证" data-body="验证团队用仿真、形式验证、随机测试、覆盖率和参考模型证明 RTL 没有功能错误。大型芯片里，验证工作量通常超过 RTL 编写本身。" role="tab">
+            <span class="stage-num">05</span><strong>验证</strong><span>证明它在各种场景下都算对</span>
+          </button>
+          <button class="stage" data-title="6. 后端实现" data-body="后端把 RTL 转成门级网表，再完成 Floorplan、Place、CTS、Route。它处理的是现实约束：线太长会慢，电源不稳会掉压，面积太大会贵，温度和噪声会影响可靠性。" role="tab">
+            <span class="stage-num">06</span><strong>后端 P&R</strong><span>把逻辑真正摆到硅片版图上</span>
+          </button>
+          <button class="stage" data-title="7. Sign-off 与流片" data-body="最后做时序、功耗、IR Drop、EM、DRC、LVS、天线效应等检查。全部达标后输出 GDSII/OASIS 交给晶圆厂，这一步叫 tape-out。" role="tab">
+            <span class="stage-num">07</span><strong>Sign-off</strong><span>确认能制造，再交付晶圆厂</span>
+          </button>
+        </div>
+
+        <div class="stage-detail reveal">
+          <div>
+            <div class="eyebrow">当前步骤</div>
+            <h3 id="detailTitle">1. 产品定义</h3>
+          </div>
+          <p id="detailBody">先回答这颗芯片为什么存在：目标市场、性能指标、功耗预算、成本、工艺节点、封装、软件生态和量产时间。很多失败项目不是输在后端，而是规格一开始就不清楚。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="frontback">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Front-End vs Back-End</div>
+            <h2>前端管“逻辑对不对”，后端管“硅上能不能跑”</h2>
+          </div>
+          <p>两者不是上下游甩锅关系，而是共同收敛。后端发现频率上不去，可能要求前端改流水线；验证发现协议死锁，可能要求架构重拆模块。</p>
+        </div>
+
+        <div class="split">
+          <article class="lane front reveal">
+            <h3>前端设计</h3>
+            <div class="task"><span class="dot">A</span><div><strong>规格拆解</strong><span>把产品需求变成寄存器表、接口协议、状态机和微架构说明。</span></div></div>
+            <div class="task"><span class="dot">B</span><div><strong>RTL 编写</strong><span>用 Verilog/SystemVerilog 描述硬件逻辑，保证代码可综合、可验证、可维护。</span></div></div>
+            <div class="task"><span class="dot">C</span><div><strong>仿真验证</strong><span>写 testbench、断言、随机激励、参考模型，追踪覆盖率和 bug 关闭率。</span></div></div>
+            <div class="task"><span class="dot">D</span><div><strong>DFT 约束</strong><span>预留扫描链、BIST、JTAG、调试接口，让芯片制造后能被测试。</span></div></div>
+          </article>
+
+          <article class="lane back reveal">
+            <h3>后端设计</h3>
+            <div class="task"><span class="dot">A</span><div><strong>逻辑综合</strong><span>把 RTL 翻译成标准单元门级网表，同时满足面积、时序和功耗约束。</span></div></div>
+            <div class="task"><span class="dot">B</span><div><strong>Floorplan</strong><span>决定芯片轮廓、宏单元位置、电源网、时钟区域和 IO 摆放。</span></div></div>
+            <div class="task"><span class="dot">C</span><div><strong>布局布线</strong><span>摆放标准单元、生成时钟树、连接金属线，减少拥塞和延迟。</span></div></div>
+            <div class="task"><span class="dot">D</span><div><strong>物理收敛</strong><span>反复修时序、功耗、面积、压降、电迁移、串扰和制造规则。</span></div></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="ip">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">IP Strategy</div>
+            <h2>很多模块确实是买的，核心竞争力在“选、接、证、调”</h2>
+          </div>
+          <p>一颗 SoC 像一座工厂。不是每台设备都自己造，但你必须知道买来的设备能不能接进产线、许可证能不能量产、性能是否够、出了问题谁负责。</p>
+        </div>
+
+        <div class="matrix">
+          <div class="ip-board reveal">
+            <h3>常见可采购或复用的 IP</h3>
+            <div class="ip-grid">
+              <div class="ip"><b>CPU Core</b><small>Arm、RISC-V、DSP 控制核</small></div>
+              <div class="ip"><b>Memory</b><small>SRAM compiler、DDR 控制器、Cache</small></div>
+              <div class="ip"><b>High-Speed IO</b><small>PCIe、USB、Ethernet、SerDes</small></div>
+              <div class="ip"><b>Analog</b><small>PLL、ADC、DAC、PMU、温度传感器</small></div>
+              <div class="ip"><b>Security</b><small>加密引擎、安全启动、TRNG</small></div>
+              <div class="ip"><b>AI / Media</b><small>NPU、GPU、ISP、Video Codec</small></div>
+            </div>
+          </div>
+
+          <div class="buy-build reveal buy-build">
+            <h3>什么时候买，什么时候自研？</h3>
+            <div class="rule"><strong>买：标准、复杂、风险高</strong><span>比如 PCIe、DDR、USB、SerDes。协议和物理层太复杂，自研周期长且验证成本高。</span></div>
+            <div class="rule"><strong>自研：决定差异化</strong><span>比如 AI 数据通路、图像算法加速器、低功耗调度、专用安全架构。</span></div>
+            <div class="rule"><strong>复用：公司已有成熟资产</strong><span>上一代芯片验证过的模块通常优先复用，但仍要重新适配新工艺、新频率和新系统。</span></div>
+            <div class="rule"><strong>必须核查交付物</strong><span>RTL、验证环境、综合库、时序模型、版图宏、功耗模型、文档、许可证和 foundry 支持缺一不可。</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="verify">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Verification & Sign-off</div>
+            <h2>验证不是“跑几个测试”，Sign-off 也不是“画完版图”</h2>
+          </div>
+          <p>芯片一旦流片，修 bug 的代价极高。软件可以发补丁，芯片常常要重新投片，所以验证和 Sign-off 是行业里最重、最严肃的工程工作。</p>
+        </div>
+
+        <div class="work-grid">
+          <article class="work reveal">
+            <h3>功能验证</h3>
+            <p>证明设计满足规格。常用仿真、UVM、断言、形式验证、覆盖率、参考模型和回归测试。</p>
+            <ul>
+              <li>指令结果是否正确</li>
+              <li>总线协议是否违规</li>
+              <li>异常、中断、复位是否稳定</li>
+            </ul>
+          </article>
+          <article class="work reveal">
+            <h3>性能验证</h3>
+            <p>确认架构能达到目标吞吐、延迟和带宽。这里会跑 benchmark、压力测试和真实 workload。</p>
+            <ul>
+              <li>缓存命中率</li>
+              <li>内存带宽瓶颈</li>
+              <li>AI 算子利用率</li>
+            </ul>
+          </article>
+          <article class="work reveal">
+            <h3>低功耗验证</h3>
+            <p>检查电源域、时钟门控、休眠唤醒和状态保持。低功耗芯片很容易在唤醒边界出错。</p>
+            <ul>
+              <li>Power intent 是否正确</li>
+              <li>跨电源域信号是否安全</li>
+              <li>关电后状态是否可恢复</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="signoff" style="margin-top:16px">
+          <article class="check reveal"><h3>STA</h3><p>静态时序分析，确认所有路径在目标频率下都能按时到达。</p></article>
+          <article class="check reveal"><h3>DRC / LVS</h3><p>检查版图是否符合制造规则，以及版图连接是否等价于电路。</p></article>
+          <article class="check reveal"><h3>IR / EM</h3><p>检查电源压降和电迁移，避免芯片局部供电不足或金属线老化。</p></article>
+          <article class="check reveal"><h3>DFT / ATE</h3><p>保证晶圆厂生产出来后，测试机能快速筛出坏芯片。</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="team">
+      <div class="shell">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Who Builds It</div>
+            <h2>一款芯片背后通常是一支跨学科工程队</h2>
+          </div>
+          <p>AI Agent 可以自动化很多任务，但真实项目仍需要专家定义目标、审查风险、管理供应商、把控架构取舍，并对最终量产结果负责。</p>
+        </div>
+
+        <div class="people">
+          <div class="person reveal"><b>产品 / 系统</b><span>定义应用场景、成本、功耗、性能和软件需求。</span></div>
+          <div class="person reveal"><b>架构师</b><span>决定模块、数据流、缓存、总线和软硬件边界。</span></div>
+          <div class="person reveal"><b>前端设计</b><span>编写 RTL，接 IP，维护寄存器和接口规范。</span></div>
+          <div class="person reveal"><b>验证工程师</b><span>构建验证平台，找 bug，追覆盖率，守住功能正确性。</span></div>
+          <div class="person reveal"><b>后端 / Sign-off</b><span>完成物理实现、时序收敛、版图检查和 tape-out。</span></div>
+        </div>
+
+        <div class="quote reveal" style="margin-top:20px">
+          做芯片不是“画一个电路”，而是在成本、功耗、性能、面积、软件、供应链和制造规则之间，反复把一个想法压实成可以量产的物理产品。
+          <small>一句话记住：前端把功能讲清楚并证明它对，后端把它放进硅片并证明它能制造、能供电、能按目标频率可靠运行。</small>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">芯片设计通识网页 · 面向非专业读者 · 可作为课程、科普或行业介绍页面使用</div>
+  </footer>
+
+  <script>
+    const stages = document.querySelectorAll(".stage");
+    const detailTitle = document.getElementById("detailTitle");
+    const detailBody = document.getElementById("detailBody");
+
+    stages.forEach((stage) => {
+      stage.addEventListener("click", () => {
+        stages.forEach((item) => item.classList.remove("active"));
+        stage.classList.add("active");
+        detailTitle.textContent = stage.dataset.title;
+        detailBody.textContent = stage.dataset.body;
+      });
+    });
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) entry.target.classList.add("visible");
+      });
+    }, { threshold: 0.12 });
+
+    document.querySelectorAll(".reveal").forEach((item, index) => {
+      item.style.transitionDelay = `${Math.min(index % 6, 5) * 45}ms`;
+      observer.observe(item);
+    });
+  </script>
+</body>
+</html>
