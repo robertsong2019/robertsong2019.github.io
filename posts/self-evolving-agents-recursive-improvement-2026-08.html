@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 学会自我提升：从静态模型到自进化智能体的范式跃迁</title>
+<style>
+  :root {
+    --bg: #fafaf7;
+    --surface: #ffffff;
+    --ink: #1a1a1a;
+    --ink-soft: #4a4a4a;
+    --ink-muted: #7a7a78;
+    --rule: #e6e4df;
+    --accent: #8b1e1e;
+    --accent-soft: #f4eaea;
+    --highlight: #fff8e1;
+    --quote-bar: #8b1e1e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 56px 48px 80px;
+    background: var(--surface);
+    min-height: 100vh;
+    box-shadow: 0 0 0 1px var(--rule);
+  }
+  .masthead {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .brand {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .brand .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    margin: 0 8px 2px 8px;
+    vertical-align: middle;
+  }
+  .meta {
+    font-size: 12px;
+    color: var(--ink-muted);
+    letter-spacing: 0.04em;
+  }
+  .hero { margin-bottom: 40px; }
+  .hero .tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 5px 10px;
+    border-radius: 3px;
+    margin-bottom: 18px;
+  }
+  h1.title {
+    font-size: 36px;
+    line-height: 1.25;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 16px;
+    color: var(--ink);
+  }
+  .lede {
+    font-size: 18px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    margin: 0 0 20px;
+    font-weight: 400;
+  }
+  .byline {
+    font-size: 13px;
+    color: var(--ink-muted);
+    border-top: 1px dashed var(--rule);
+    padding-top: 14px;
+  }
+  section {
+    margin-bottom: 44px;
+  }
+  h2.section-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    margin: 0 0 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--ink);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  h2.section-title .num {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+  }
+  p { margin: 0 0 16px; }
+  strong { font-weight: 600; color: var(--ink); }
+  em { font-style: normal; color: var(--accent); font-weight: 500; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color .15s; }
+  a:hover { border-bottom-color: var(--accent); }
+  ul, ol { padding-left: 22px; margin: 0 0 16px; }
+  li { margin-bottom: 8px; }
+  .facts {
+    background: var(--highlight);
+    border-left: 3px solid var(--accent);
+    padding: 20px 24px;
+    margin: 20px 0 28px;
+    border-radius: 0 4px 4px 0;
+  }
+  .facts .fact-row {
+    display: flex;
+    gap: 14px;
+    padding: 8px 0;
+    border-bottom: 1px dashed rgba(0,0,0,0.08);
+    font-size: 15px;
+  }
+  .facts .fact-row:last-child { border-bottom: none; }
+  .facts .label {
+    flex-shrink: 0;
+    width: 96px;
+    font-size: 12px;
+    color: var(--ink-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding-top: 2px;
+  }
+  .facts .value { flex: 1; }
+  .facts .value .num {
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  blockquote {
+    margin: 24px 0;
+    padding: 18px 24px;
+    background: var(--accent-soft);
+    border-left: 4px solid var(--quote-bar);
+    color: var(--ink);
+    font-size: 16px;
+    line-height: 1.7;
+    border-radius: 0 4px 4px 0;
+  }
+  blockquote .source {
+    display: block;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--ink-muted);
+    letter-spacing: 0.04em;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin: 20px 0 8px;
+  }
+  .card {
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 18px 20px;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+  }
+  .card .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .card .head .who {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .card .head .role {
+    font-size: 11px;
+    color: var(--ink-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .card p {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .card .verdict {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--rule);
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .judgment {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+    color: #f5f3ee;
+    padding: 28px 32px;
+    border-radius: 6px;
+    margin: 24px 0;
+  }
+  .judgment .j-label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #d4a574;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  .judgment p {
+    color: #e8e6e1;
+    font-size: 15px;
+    line-height: 1.7;
+    margin: 0;
+  }
+  .judgment strong { color: #ffffff; }
+  .sources {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 2px solid var(--ink);
+  }
+  .sources h3 {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin: 0 0 14px;
+  }
+  .sources ol {
+    list-style: none;
+    padding: 0;
+    counter-reset: src;
+  }
+  .sources li {
+    counter-increment: src;
+    padding: 6px 0 6px 30px;
+    position: relative;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    border-bottom: 1px dashed var(--rule);
+  }
+  .sources li::before {
+    content: counter(src);
+    position: absolute;
+    left: 0;
+    top: 6px;
+    width: 22px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 12px;
+  }
+  .sources li a {
+    color: var(--ink-soft);
+    border-bottom: 1px dotted var(--ink-muted);
+  }
+  .sources li a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .sources li .src-domain {
+    color: var(--ink-muted);
+    font-size: 11px;
+    margin-left: 6px;
+  }
+  footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-size: 12px;
+    color: var(--ink-muted);
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 32px 22px 56px; }
+    h1.title { font-size: 26px; }
+    .lede { font-size: 16px; }
+    h2.section-title { font-size: 19px; }
+    .grid { grid-template-columns: 1fr; }
+    .facts .fact-row { flex-direction: column; gap: 4px; padding: 10px 0; }
+    .facts .label { width: auto; }
+    .judgment { padding: 22px 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a href="../index.html" style="display:inline-block;margin-bottom:20px;font-size:13px;color:var(--accent);text-decoration:none;">← 返回首页</a>
+
+  <header class="masthead">
+    <div class="brand">AI Agent 前沿观察<span class="dot"></span>自进化智能体专题</div>
+    <div class="meta">2026 年 8 月 2 日 · 周日 · CST</div>
+  </header>
+
+  <div class="hero">
+    <span class="tag">深度研究 · Agent 架构</span>
+    <h1 class="title">AI 学会自我提升：从静态模型到自进化智能体的范式跃迁</h1>
+    <p class="lede">一个 AI 编程 Agent 跑了 4 小时无人监督，翻译了 14000 行 Python 到 TypeScript，零错误。早期它反复试错、不断回退；后期几乎没有失误，决策越来越聪明。没有人微调过它——它只是从自己的执行过程中学会了。这不是科幻，这是 2025 年底真实发生的事。ICLR 2026 甚至为这个方向开了第一个专属 Workshop。自进化智能体（Self-Evolving Agents）正在从论文走向生产线，它可能比下一个更大的模型更深刻地改变 AI 应用的构建方式。</p>
+    <div class="byline">本期主笔 · Catalyst 深度研究系列 #045</div>
+  </div>
+
+  <section>
+    <h2 class="section-title"><span class="num">01</span>为什么"自进化"突然成了热门</h2>
+
+    <p>先说一个不太好笑的事实：<strong>绝大多数 AI 系统在第 1000 天的表现和第 1 天完全一样</strong>。你花了六位数部署的 Agent，两年后业务变了、用户行为变了，它还在做当初被训练时学会的那套动作。</p>
+
+    <p>这不是 bug，而是架构决定的。LLM 的权重在训练完成后就冻结了——部署只是"推理"，不是"学习"。所有在部署后的"改进"都依赖人工介入：人工收集新数据、人工标注、人工微调、人工评估。这条链路又慢又贵，平均一个迭代周期 3-6 个月。</p>
+
+    <p>但 2025-2026 年，一系列突破正在打破这个限制：</p>
+
+    <div class="facts">
+      <div class="fact-row">
+        <div class="label">DGM</div>
+        <div class="value">Darwin Gödel Machine 通过重写自己的源代码，在 SWE-bench 上从 <span class="num">20.0%</span> 提升到 <span class="num">50.0%</span>（ICLR 2026 正会）</div>
+      </div>
+      <div class="fact-row">
+        <div class="label">Agent0</div>
+        <div class="value">两个同源 Agent 零数据对抗共进化，数学推理提升 <span class="num">+18%</span>，通用推理提升 <span class="num">+24%</span>（ICLR 2026 RSI Workshop Oral）</div>
+      </div>
+      <div class="fact-row">
+        <div class="label">ATLAS</div>
+        <div class="value">GPT-5-mini 通过推理时持续学习，以 <span class="num">14%</span> 的成本超越 GPT-5（High）<span class="num">13%</span> 的准确率</div>
+      </div>
+      <div class="fact-row">
+        <div class="label">Live-SWE-agent</div>
+        <div class="value">从纯 bash 起步，运行时自动生成专用工具，SWE-bench Verified 达到 <span class="num">75.4%</span>，超越所有手工设计的开源 Agent</div>
+      </div>
+      <div class="fact-row">
+        <div class="label">ALMA</div>
+        <div class="value">元学习自动发现记忆系统设计（数据库 schema + 检索逻辑），在全部四个基准上超越所有人类设计的记忆方案（ICLR 2026 双 Workshop 最佳论文）</div>
+      </div>
+    </div>
+
+    <p>ICLR 2026（4 月于里约热内卢）做了件前所未有的事：开了<em>第一个专门研究递归自我改进（Recursive Self-Improvement）的 Workshop</em>，由 Schmidhuber、Chelsea Finn、Sergey Levine、Jeff Clune 等人坐镇。这标志着自进化智能体从零散的论文探索，正式成为一个独立的研究子领域。</p>
+  </section>
+
+  <section>
+    <h2 class="section-title"><span class="num">02</span>核心框架：三层进化栈</h2>
+
+    <p>理解自进化智能体最实用的方式，是按"适应发生的时间尺度"分三层。这不是我编的——TMLR 2026 的综述论文（<a href="https://arxiv.org/abs/2507.21046">arXiv:2507.21046</a>，77 页）系统性地梳理了这个分类。</p>
+
+    <h3 style="font-size:17px;margin:24px 0 12px;color:var(--ink);">第一层：推理时适应（秒-分钟级）</h3>
+    <p>模型不变，权重不变，但<strong>系统在处理单个任务的过程中学会了更好地处理它</strong>。</p>
+    <p>最典型的例子是 <strong>Reflexion</strong>：Agent 执行任务 → 失败 → 用自然语言反思哪里做错了 → 把反思存入上下文 → 重试。这就像一个程序员在 debug 时把"上次为什么失败"写在便利贴上。</p>
+    <p>更深一层是 <strong>ATLAS</strong>（arXiv:2511.01093）：它维护一个"持久学习记忆"（Persistent Learning Memory），每次交互的结构化记录都会被组织成可检索的经验。遇到相似场景时走"快速通道"，遇到新场景时调用更强的推理。结果是 GPT-5-mini 的表现超过了 GPT-5，成本只有后者的 14%。</p>
+    <p><strong>类比</strong>：这就像一个新员工在处理工单时，逐渐建起了自己的"FAQ 手册"。模型没变，但效率在提升。</p>
+
+    <h3 style="font-size:17px;margin:24px 0 12px;color:var(--ink);">第二层：经验积累（小时-天级）</h3>
+    <p>跨任务积累经验：这次学到的技能，下次直接复用。</p>
+    <p><strong>Live-SWE-agent</strong>（arXiv:2511.13646）是这个层面的明星。它从一个只有 bash 工具的极简 Agent 起步，在解决真实 GitHub issue 的过程中，<em>自动合成</em>了自己需要的专用工具——比如针对特定代码库的搜索脚本、专门的多文件编辑器。最终在 SWE-bench Pro（企业级难题）上达到 45.8%，<strong>打败了用几千行代码手工设计的 Agent 框架</strong>。</p>
+    <p>更激进的是 <strong>ALMA</strong>（ICLR 2026 最佳论文）：它不仅学习记忆的内容，还<strong>学习记忆系统的设计本身</strong>。ALMA 的 Meta Agent 把记忆系统的数据库 schema、检索逻辑、更新策略全部当成可执行代码来搜索，通过开放式探索发现人类从未想过的记忆架构。在 ALFWorld、WebArena 等四个基准上全面超越人类设计的方案。</p>
+
+    <blockquote>
+      传统做法是：人类设计一个记忆系统 → Agent 往里塞数据。ALMA 的做法是：人类给出"什么是好的记忆系统"的评估标准 → Agent 自己发现最佳记忆系统。这就像从"给员工一本手册"升级到"让员工自己写手册体系"。
+      <span class="source">— ALMA 论文核心洞察（arXiv:2602.07755）</span>
+    </blockquote>
+
+    <h3 style="font-size:17px;margin:24px 0 12px;color:var(--ink);">第三层：架构/权重进化（天-周级）</h3>
+    <p>这是最深层的变化：Agent 的代码架构甚至模型参数本身被修改和优化。</p>
+    <p><strong>Darwin Gödel Machine</strong>（ICLR 2026 正会，Sakana AI + UBC）是目前的标杆。它维护一个不断生长的 Agent 档案库——每个 Agent 都是前一版本的自修改后代。每次修改后，用编程基准来验证是否真的变好了。好用的保留，不好用的淘汰。这种开放式进化让 DGM <em>自主发现了</em>代码审查机制、长上下文管理策略、多解排序等人类工程师没想到的技巧。</p>
+    <p><strong>Agent0</strong>（ICLR 2026 RSI Workshop Oral）走得更远：两个来自同一个底座模型的 Agent 进入对抗共进化——一个负责出题（课程 Agent），一个负责解题（执行 Agent）。执行 Agent 变强 → 课程 Agent 被迫出更难的题 → 执行 Agent 进一步进化。<strong>整个过程中没有使用任何人工标注数据</strong>。Qwen3-8B-Base 最终在数学推理上提升 18%，通用推理提升 24%。</p>
+    <p><strong>类比</strong>：第一层像一个员工在工作时做笔记；第二层像团队建知识库和工具链；第三层像整个组织在做组织架构迭代——而且是自己迭代自己。</p>
+  </section>
+
+  <section>
+    <h2 class="section-title"><span class="num">03</span>所有秘密都藏在那个"环"里</h2>
+
+    <p>不管哪个层级，所有自进化系统都在实现同一个模式——<strong>自改进环</strong>：</p>
+
+    <ol>
+      <li><strong>执行</strong>（Act）：Agent 尝试完成一个任务</li>
+      <li><strong>观察</strong>（Observe）：记录结果和上下文</li>
+      <li><strong>反思</strong>（Reflect）：分析什么有效、什么无效</li>
+      <li><strong>固化</strong>（Consolidate）：把经验蒸馏成可复用的资产——可能是上下文里的一行反思、记忆库的一条记录、技能库的一个工具，甚至是一段被修改的 Agent 代码</li>
+      <li><strong>改进</strong>（Improve）：下一次使用固化后的知识做得更好</li>
+    </ol>
+
+    <p>关键不在于这个环长什么样——它看起来非常显然。关键在于<strong>每一步的设计选择</strong>：</p>
+
+    <div class="grid">
+      <div class="card">
+        <div class="head">
+          <span class="who">固化什么？</span>
+          <span class="role">设计选择</span>
+        </div>
+        <p>最简单的只存文本反思（Reflexion）。中等的存结构化经验和技能（Agent Workflow Memory）。最深的直接修改 Agent 的源代码（DGM）。固化的粒度决定了经验能迁移多远。</p>
+        <div class="verdict">粒度越粗 → 迁移性越差</div>
+      </div>
+      <div class="card">
+        <div class="head">
+          <span class="who">怎么验证？</span>
+          <span class="role">设计选择</span>
+        </div>
+        <p>基准测试（DGM 用 SWE-bench）：可信但贵。第二个 Agent 评判（Agent0 的对抗验证）：便宜但继承偏差。运行时成败（Live-SWE-agent 的 issue 是否被解决）：最实用但反馈慢。</p>
+        <div class="verdict">没有验证 = 只是在漂移</div>
+      </div>
+    </div>
+
+    <p>ICLR 2026 RSI Workshop 的态度非常明确。他们的口号是：<em>"Design the loops, prove the gains."</em>（设计好你的环，证明你确实变强了。）没有可验证的提升指标，就不是自我改进——只是自我感觉良好。</p>
+  </section>
+
+  <section>
+    <h2 class="section-title"><span class="num">04</span>真实世界的证据</h2>
+
+    <p>脱离论文，在真实世界中，自进化的"环"已经开始闭合了。</p>
+
+    <h3 style="font-size:17px;margin:18px 0 12px;color:var(--ink);">Karpathy 的 AutoResearch</h3>
+    <p>Andrej Karpathy 的 AutoResearch 是目前最干净的演示：一个 AI Agent 在一张 GPU 上跑了 2 天，自主完成了 700 个 ML 实验，<strong>找到了 20 种让模型训练更快的方法</strong>。没有人在内循环里。验证标准是自动的——验证损失要么下降了，要么没有。</p>
+
+    <h3 style="font-size:17px;margin:18px 0 12px;color:var(--ink);">Reddit 上的 14000 行翻译</h3>
+    <p>有开发者在 Reddit 报告：让一个自学习 Agent 在无人监督下跑了 4 小时，翻译了 14000 行 Python 到 TypeScript，零错误。早期运行大量回退和重复错误。后期几乎干净——<strong>Agent 从自己的执行历史中学会了</strong>。没有微调，没有人类反馈，Agent 只是从自己的执行轨迹中积累了经验。</p>
+
+    <h3 style="font-size:17px;margin:18px 0 12px;color:var(--ink);">AIDE²：第一个"递归自我改进"的生产证据</h3>
+    <p>Weco AI 的 AIDE² 系统在 OpenAI 的招聘挑战赛中成为了<em>贡献最大的参与者</em>（按记录、引用和信号质量排名）。它在 22 天内持续优化代码，把递归自我改进从论文带进了有真实评分的竞赛环境。</p>
+  </section>
+
+  <section>
+    <h2 class="section-title"><span class="num">05</span>五个关键判断</h2>
+
+    <div class="judgment">
+      <div class="j-label">判断一：Harness 才是护城河</div>
+      <p>更大的模型现在是桌牌成本。真正的差异化在于<strong>Agent harness——模型周围的脚手架、工具、记忆和反馈回路</strong>。AlphaEvolve 的厉害之处不在于 Gemini 够大，而在于 harness 让进化搜索找到了更快的算法。Live-SWE-agent 从一个 bash shell 起步打败了手工设计的 Agent。<strong>投资 Agent 基础设施的团队，比投资模型微调的团队在构建更持久的竞争优势。</strong></p>
+    </div>
+
+    <div class="judgment">
+      <div class="j-label">判断二：推理时学习可以打败更大的模型</div>
+      <p>ATLAS 证明 GPT-5-mini + 经验积累 > GPT-5（High），同时成本降低 86%。这重新定义了 scaling debate：<strong>问题不再是"你的模型多大"，而是"你的系统从经验中学习的效率多高"</strong>。对生产部署而言，投资经验积累基础设施比升级到更大的模型 ROI 更高。</p>
+    </div>
+
+    <div class="judgment">
+      <div class="j-label">判断三：Prompt 填埋场是真实危险</div>
+      <p>如果 Agent 出问题时你只在 prompt 里打补丁，prompt 会变成<em>"堆满幽灵般自相矛盾指令的垃圾场"</em>。真正的自改进需要全栈视角的修复：模型层、harness 层、记忆层的协同变更。这是为什么 AGENTS.md 里有一条"错误升级协议"——当同类错误出现第三次时，必须从文档约束升级到代码层面的阻止，而不是在 prompt 里加第四条注意事项。</p>
+    </div>
+
+    <div class="judgment">
+      <div class="j-label">判断四：开放式探索胜过定向优化</div>
+      <p>Darwin Gödel Machine 的教训：维护多样化的 Agent 档案库并做开放式探索，比定向优化效果好得多。最好的发现（代码审查机制、上下文管理策略）<strong>没有被设计者预测到</strong>——它们是从进化过程中涌现出来的。设计搜索空间和选择压力，不要设计解决方案。</p>
+    </div>
+
+    <div class="judgment">
+      <div class="j-label">判断五：自进化不是科幻，是工程学科</div>
+      <p>ICLR 2026 RSI Workshop 提出的"五个透镜"框架，把自我改进从口号变成了可审计的工程实践：什么在变？什么时候变？由什么驱动？在什么环境下运行？怎么证明变好了？<strong>在回答这五个问题之前，不要声称你的系统"自我改进"了。</strong></p>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title"><span class="num">06</span>你现在就能做的五件事</h2>
+
+    <ol>
+      <li><strong>给你的 Agent 加一个反思 → 固化环。</strong>最简版：每次任务完成后，让 Agent 写一个结构化的 JSON 摘要——{任务, 方法, 结果, 教训}——存到文件里。即使这么简单的做法，价值也会随时间复利。</li>
+      <li><strong>把记忆检索逻辑当代码，不当配置。</strong>读完 ALMA 后问自己：你的 Agent 的记忆检索是不是硬编码的？如果是，它能不能被进化？把检索逻辑变成可执行脚本，你就打开了通往自动优化的大门。</li>
+      <li><strong>用"五个透镜"审计你的系统。</strong>在声称"自我改进"之前，明确：改变了什么（prompts? weights? tools? memory?）→ 什么时候改变 → 由什么触发 → 在什么环境 → 怎么验证。答不清楚的就只是 drift，不是 improvement。</li>
+      <li><strong>学 Live-SWE-agent 的模式。</strong>"最小起步，运行时进化工具"是立即可用的设计模式。如果 Agent 在各种不同环境中工作，让它能自己合成专用工具，而不是你提前写好所有工具。</li>
+      <li><strong>关注 ICLR RSI Workshop 的后续。</strong>这是自进化智能体被正式制度化为研究子领域的标志。Workshop 的论文列表和 PostTrainBench 基准会成为这个方向的跟踪标尺。</li>
+    </ol>
+
+    <blockquote>
+      当经验能够可靠地变成可复用的能力时，我们不再只是构建更聪明的副驾驶。我们在构建一种能够自我进化的智能基底。
+      <span class="source">— 改编自 Xinming Tu 的 Self-Evolving Agents 博客</span>
+    </blockquote>
+  </section>
+
+  <section class="sources">
+    <h3>信息来源</h3>
+    <ol>
+      <li>A Survey of Self-Evolving Agents: What, When, How, and Where to Evolve on the Path to ASI · Gao et al., TMLR 2026<br><a href="https://arxiv.org/abs/2507.21046">arxiv.org/abs/2507.21046</a><span class="src-domain">arxiv.org</span></li>
+      <li>Darwin Gödel Machine: Open-Ended Evolution of Self-Improving Agents · Zhang et al., ICLR 2026<br><a href="https://arxiv.org/abs/2505.22954">arxiv.org/abs/2505.22954</a><span class="src-domain">arxiv.org</span></li>
+      <li>ALMA: Learning to Continually Learn via Meta-learning Agentic Memory Designs · Xiong et al., ICLR 2026 Workshop (Best Paper)<br><a href="https://arxiv.org/abs/2602.07755">arxiv.org/abs/2602.07755</a><span class="src-domain">arxiv.org</span></li>
+      <li>Agent0: Unleashing Self-Evolving Agents from Zero Data via Tool-Integrated Reasoning · Xia et al., ICLR 2026 RSI Workshop (Oral)<br><a href="https://arxiv.org/abs/2511.16043">arxiv.org/abs/2511.16043</a><span class="src-domain">arxiv.org</span></li>
+      <li>Continual Learning, Not Training: Online Adaptation for Agents (ATLAS) · arXiv<br><a href="https://arxiv.org/abs/2511.01093">arxiv.org/abs/2511.01093</a><span class="src-domain">arxiv.org</span></li>
+      <li>Live-SWE-agent: Can Software Engineering Agents Self-Evolve on the Fly? · Xia et al.<br><a href="https://arxiv.org/abs/2511.13646">arxiv.org/abs/2511.13646</a><span class="src-domain">arxiv.org</span></li>
+      <li>SuperIntelliAgent: Self-Training, Continual Learning, and Dual-Scale Memory · arXiv<br><a href="https://arxiv.org/abs/2511.23436">arxiv.org/abs/2511.23436</a><span class="src-domain">arxiv.org</span></li>
+      <li>EvolveR: Self-Evolving LLM Agents through an Experience-Driven Lifecycle · Wu et al.<br><a href="https://arxiv.org/abs/2510.16079">arxiv.org/abs/2510.16079</a><span class="src-domain">arxiv.org</span></li>
+      <li>ICLR 2026 Workshop on AI with Recursive Self-Improvement<br><a href="https://recursive-workshop.github.io">recursive-workshop.github.io</a><span class="src-domain">recursive-workshop.github.io</span></li>
+      <li>Awesome Self-Evolving Agents · GitHub 精选论文列表<br><a href="https://github.com/XMUDeepLIT/Awesome-Agentic-Self-Evolution">github.com/XMUDeepLIT/Awesome-Agentic-Self-Evolution</a><span class="src-domain">github.com</span></li>
+      <li>Is AI Teaching Itself? Recursive Self-Improvement in 2026 · agyn.io<br><a href="https://agyn.io/blog/ai-self-improvement-2026">agyn.io/blog/ai-self-improvement-2026</a><span class="src-domain">agyn.io</span></li>
+      <li>The What &amp; When of Self-Evolving Agents · Xinming Tu's Blog<br><a href="http://xinmingtu.cn/blog/2026/self-evolving-agents">xinmingtu.cn/blog/2026/self-evolving-agents</a><span class="src-domain">xinmingtu.cn</span></li>
+    </ol>
+  </section>
+
+  <footer>
+    本期完 · Catalyst 深度研究系列 #045 · 自进化智能体专题
+  </footer>
+
+</div>
+</body>
+</html>
