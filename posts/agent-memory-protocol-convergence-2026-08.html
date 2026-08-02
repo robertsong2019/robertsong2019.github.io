@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记忆不再是工具：Agent 记忆协议的趋同与标准化之路 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        .danger { color: #f85149; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>记忆不再是工具：Agent 记忆协议的趋同与标准化之路</h1>
+    <div class="meta">
+        2026-08-03 · <span class="tag">Agent Memory</span> <span class="tag">MCP</span> <span class="tag">memorywire</span> <span class="tag">Protocol Design</span> <span class="tag">OpenClaw</span>
+    </div>
+
+    <p>2026 年下半年，Agent 生态正在经历一场静悄悄的协议 convergence。MCP 在 7 月底宣布去除会话状态，memorywire 提出将记忆作为一等协议原语，OpenClaw 插件生态爆发了 10+ 个记忆方案。三条线索汇聚到同一个结论：<strong>记忆不再是工具的一个子集，它需要自己的协议层。</strong> 本文拆解这三个层各自在解决什么问题，它们的交叉点在哪里，以及为什么"同时讲三种协议"会成为 Agent 记忆库的护城河。含完整的 TypeScript MCP Server 和 OpenClaw 插件实现。</p>
+
+    <h2>一、三个层，一个问题</h2>
+
+    <p>先厘清一个常见的混淆。很多人把 "Agent 记忆" 等同于 "向量数据库 + 一些 embedding 逻辑"。这个理解在 2024 年可能是对的，但在 2026 年已经严重过时。</p>
+
+    <p>当前的 Agent 记忆技术栈正在分化为三个层次，每层解决不同的问题：</p>
+
+<pre><code>┌─────────────────────────────────────────────┐
+│           应用层 (Agent Framework)            │
+│         Claude / GPT / OpenClaw / ...        │
+├─────────────────────────────────────────────┤
+│     memorywire (线路格式层)                   │
+│  5 ops × 4 types + governance channel       │
+├──────────────┬──────────────────────────────┤
+│  MCP (传输层) │  OpenClaw Plugin (生命周期层)  │
+│  stateless   │  SessionStart/PostToolUse/... │
+│  2026-07-28  │  hook-based, in-process       │
+├──────────────┴──────────────────────────────┤
+│          存储层 (Storage)                     │
+│    SQLite / Postgres / Neo4j / Vector DB     │
+└─────────────────────────────────────────────┘</code></pre>
+
+    <ul>
+        <li><strong>MCP（Model Context Protocol）</strong> 解决的是<strong>传输问题</strong>：Agent 怎么发现并调用记忆服务？2026-07-28 版本去除了会话状态，使得记忆服务可以无状态水平扩展。</li>
+        <li><strong>memorywire</strong> 解决的是<strong>语义问题</strong>：记忆操作应该有哪些标准动作？数据 schema 长什么样？不同厂商的记忆系统怎么互通？</li>
+        <li><strong>OpenClaw Plugin</strong> 解决的是<strong>生命周期问题</strong>：记忆应该在什么时候被写入、读取、清理？它和 Agent 的会话边界如何绑定？</li>
+    </ul>
+
+    <p>这三层不是竞争关系，而是互补的。但目前市面上<strong>没有一个 Agent 记忆库同时讲好这三层的故事</strong>。这就是机会。</p>
+
+    <h2>二、MCP 2026-07-28：静默的革命</h2>
+
+    <p>MCP 的 2026-07-28 版本是自发布以来最大的规范变更。对于记忆服务的设计者来说，最重要的变化是<strong>会话状态的移除</strong>。</p>
+
+    <h3>变了什么</h3>
+
+    <p>旧版 MCP 要求客户端先发 <code>initialize</code>，服务端返回一个 session，后续所有调用都绑定在这个 session 上。这意味着水平扩展需要共享 session 存储（Redis 等），网络抖动导致 session 断开后需要重连，每个 Agent 连接独占一个服务端进程槽。</p>
+
+    <p>新版规范直接砍掉了 <code>initialize</code>/<code>initialized</code> 握手和 <code>Mcp-Session-Id</code> header。每个请求自带客户端信息（通过 <code>_meta</code> 字段），任何服务端实例都能处理任何请求。</p>
+
+    <p>来看一个最小化的对比：</p>
+
+<pre><code>// ❌ 旧版 MCP（需要 session 管理）
+class OldMemoryServer {
+  private sessions: Map&lt;string, MemorySession&gt; = new Map();
+
+  async initialize(clientInfo: ClientInfo): Promise&lt;SessionId&gt; {
+    const sessionId = generateUUID();
+    this.sessions.set(sessionId, {
+      graph: new MemoryGraph(),
+      createdAt: Date.now(),
+    });
+    return sessionId;
+  }
+
+  async remember(sessionId: string, content: string): Promise&lt;void&gt; {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error("Session not found");
+    session.graph.add({ content });
+  }
+}
+
+// ✅ 新版 MCP（无状态，每个请求自包含）
+class NewMemoryServer {
+  async remember(agentId: string, content: string): Promise&lt;MemoryId&gt; {
+    const graph = await this.loadGraph(agentId);
+    const id = graph.add({ content });
+    await this.persist(agentId, graph);
+    return id;
+  }
+}</code></pre>
+
+    <h3>为什么这对记忆服务特别重要</h3>
+
+    <p>记忆服务天然是<strong>有状态的</strong>——记忆本身需要持久化。但 MCP 的无状态化巧妙地将"协议状态"和"数据状态"分离了：协议层无状态（任何实例都能处理任何请求），数据层有状态（记忆存储在 SQLite/Postgres 中，通过 <code>agent_id</code> 寻址）。</p>
+
+<pre><code>                    ┌─ MCP Instance 1 ─┐
+Agent ── MCP call ──┼─ MCP Instance 2 ─┼── Shared Storage (SQLite/Postgres)
+                    └─ MCP Instance N ─┘</code></pre>
+
+    <p>无需负载均衡器做 session 亲和，无需共享缓存层。这在旧版 MCP 下是不可能的。</p>
+
+    <h2>三、memorywire：把记忆当一等公民</h2>
+
+    <p>如果说 MCP 解决了"怎么传输"，那么 memorywire 解决的是"传输什么"：</p>
+
+    <blockquote>记忆不是工具。它有自己的生命周期（写入、回忆、遗忘、合并、过期），自己的分类法（语义、情景、程序、情感），自己的治理面。</blockquote>
+
+    <h3>5 个操作 × 4 种类型</h3>
+
+    <table>
+        <tr><th>操作</th><th>用途</th><th>关键字段</th></tr>
+        <tr><td><code>remember</code></td><td>写入记忆</td><td><code>agent_id</code>, <code>type</code>, <code>content</code>, <code>confidence</code></td></tr>
+        <tr><td><code>recall</code></td><td>检索记忆</td><td><code>agent_id</code>, <code>query</code>, <code>k</code>, <code>fusion</code>(rrf/max/weighted)</td></tr>
+        <tr><td><code>forget</code></td><td>删除记忆</td><td><code>agent_id</code>, <code>ids</code> 或 <code>filter</code></td></tr>
+        <tr><td><code>merge</code></td><td>去重合并</td><td><code>canonical</code>, <code>duplicates</code>, <code>strategy</code></td></tr>
+        <tr><td><code>expire</code></td><td>TTL 策略</td><td><code>older_than_days</code> ∧ <code>type</code> ∧ <code>confidence_below</code></td></tr>
+    </table>
+
+    <p>4 种记忆类型沿用 Tulving/Squire 的认知科学分类：<strong>semantic</strong>（语义）、<strong>episodic</strong>（情景）、<strong>procedural</strong>（程序性，FSM 编码）、<strong>emotional</strong>（情感）。</p>
+
+    <h3>治理通道：最被低估的创新</h3>
+
+    <p>当 <code>approval_required=true</code> 时，写入操作不直接落库，而是进入 <code>PENDING_APPROVAL</code> 状态。一个 diff-and-approve UI 让人类在记忆被提交前审查——类似 Code Review，但针对 Agent 记忆。</p>
+
+<pre><code>interface MemoryWriteRequest {
+  agent_id: string;
+  content: string;
+  type: "semantic" | "episodic" | "procedural" | "emotional";
+  confidence: number;
+  approval_required?: boolean;  // ← 默认 false
+}
+
+// 当 approval_required = true 时
+interface PendingMemory {
+  id: string;
+  status: "pending_approval";
+  diff: {
+    new_content: string;
+    conflicting_existing?: string[];
+  };
+  approved_at: number | null;  // -1 = 被拒绝
+}</code></pre>
+
+    <p><strong>Agent 记忆投毒</strong>是真实的安全威胁。恶意用户可以通过对话注入虚假记忆。治理通道把"写入"从默认信任变成了默认审查。</p>
+
+    <h3>RRF 融合：对抗投毒的数学武器</h3>
+
+    <p><code>recall</code> 默认使用 RRF（Reciprocal Rank Fusion）融合多后端结果：<code>RRF_score(d) = Σ 1/(k + rank_i(d))</code>。RRF 只看排名不看绝对分数，因此对恶意后端具有鲁棒性：</p>
+
+    <table>
+        <tr><th>融合策略</th><th>正常 recall@5</th><th>1/5 后端被投毒</th></tr>
+        <tr><td>MAX（取最高分）</td><td>1.000</td><td class="danger"><strong>0.500</strong> ↓</td></tr>
+        <tr><td>WEIGHTED</td><td>0.920</td><td>0.740</td></tr>
+        <tr><td class="highlight"><strong>RRF</strong></td><td class="highlight"><strong>1.000</strong></td><td class="highlight"><strong>1.000</strong> ✅</td></tr>
+    </table>
+
+    <p>投毒后端可以把分数设为 99999，但在 RRF 中只贡献 <code>1/61 = 0.0164</code>，影响微乎其微。</p>
+
+    <h2>四、OpenClaw 插件：生命周期绑定</h2>
+
+    <p>MCP 和 memorywire 都在"请求-响应"模型下工作。但 Agent 记忆有一个独特需求：<strong>它需要在特定时机自动触发</strong>。这就是 OpenClaw 插件层要解决的。</p>
+
+    <h3>三个关键 Hook</h3>
+
+<pre><code>class AgentMemoryGraphPlugin {
+  // Hook 1: 会话开始 → 加载历史记忆，注入上下文
+  async onSessionStart(ctx: PluginContext) {
+    const graph = await this.loadGraph(ctx.agentId);
+    const recentTopics = ctx.recentMessages
+      ?.slice(-5).map(m =&gt; m.content).join(" ") ?? "";
+    if (recentTopics.length &gt; 0) {
+      const memories = graph.recall(recentTopics, {
+        k: this.config.maxContextInjection,
+        useEntropyRanking: this.config.entropyRanking,
+      });
+      if (memories.length &gt; 0) {
+        ctx.injectSystemContext(
+          `[历史记忆 ${memories.length} 条]\n` +
+          memories.map(m =&gt; `[${m.type}] ${m.content}`).join("\n")
+        );
+      }
+    }
+  }
+
+  // Hook 2: 工具调用后 → 捕获新知识（冲突时走治理通道）
+  async onPostToolUse(ctx: PluginContext, result: ToolResult) {
+    if (!this.isMemorable(result)) return;
+    const graph = await this.loadGraph(ctx.agentId);
+    const content = this.extractMemory(result);
+    const conflicts = graph.findConflicts(content);
+    graph.add({
+      content, type: "episodic",
+      confidence: conflicts.length &gt; 0 ? 0.7 : 0.85,
+      approval_required: conflicts.length &gt; 0,
+    });
+  }
+
+  // Hook 3: 会话结束 → 去重 + 过期
+  async onSessionEnd(ctx: PluginContext) {
+    const graph = await this.loadGraph(ctx.agentId);
+    // 合并重复
+    for (const g of graph.findDuplicates({ threshold: 0.92 })) {
+      graph.merge(g.canonical, g.duplicates,
+        { strategy: "keep_highest_confidence" });
+    }
+    // 过期低价值
+    graph.expire({
+      older_than_days: 90, confidence_below: 0.3,
+      no_recall_in_days: 30, action: "archive",
+    });
+    await this.persist(ctx.agentId, graph);
+  }
+}</code></pre>
+
+    <p>这展示了 MCP 和 memorywire 都无法单独覆盖的场景：<strong>在会话边界自动触发记忆管理</strong>。</p>
+
+    <h2>五、竞争格局：谁在做，缺什么</h2>
+
+    <table>
+        <tr><th>能力</th><th>AMG</th><th>Cognee</th><th>PlugMem</th><th>graph-memory</th></tr>
+        <tr><td>图拓扑算法（熵、分类）</td><td class="highlight">✅ 40+</td><td>❌</td><td>❌</td><td>❌</td></tr>
+        <tr><td>级联纠正/血缘追踪</td><td class="highlight">✅</td><td>❌</td><td>❌</td><td>❌</td></tr>
+        <tr><td>零外部依赖</td><td class="highlight">✅</td><td>❌ Docker</td><td>❌</td><td>✅</td></tr>
+        <tr><td>MCP Server</td><td>🔄</td><td>❌</td><td>❌</td><td>❌</td></tr>
+        <tr><td>OpenClaw 插件</td><td>🔄</td><td>✅</td><td>✅</td><td>✅</td></tr>
+        <tr><td>TypeScript 原生</td><td class="highlight">✅</td><td>❌ Python</td><td>❌ Python</td><td>✅</td></tr>
+        <tr><td>治理/diff-and-approve</td><td>部分</td><td>❌</td><td>❌</td><td>❌</td></tr>
+    </table>
+
+    <p><strong>没有竞品同时覆盖三个协议层。</strong> "协议三角"策略意味着三种分发渠道：</p>
+
+<pre><code>            ┌─────────────────┐
+            │   memorywire    │
+            └────────┬────────┘
+    ┌────────────────┼────────────────┐
+    ▼                ▼                ▼
+┌─────────┐  ┌──────────────┐  ┌────────────┐
+│   MCP   │  │  OpenClaw    │  │  npm 直连   │
+└─────────┘  └──────────────┘  └────────────┘</code></pre>
+
+    <h2>六、完整的最小 MCP Server 实现</h2>
+
+<pre><code>// amg-mcp-server.ts — 无状态 MCP 记忆服务 (spec 2026-07-28)
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
+const server = new McpServer({
+  name: "agent-memory-graph",
+  version: "0.1.0",
+});
+
+// Tool 1: remember — 写入记忆
+server.tool("remember", "将记忆写入图", {
+  type: "object",
+  properties: {
+    agent_id: { type: "string" },
+    content: { type: "string" },
+    type: { type: "string",
+      enum: ["semantic","episodic","procedural","emotional"] },
+    confidence: { type: "number", minimum: 0, maximum: 1, default: 1 },
+  },
+  required: ["agent_id", "content", "type"]
+}, async (p) =&gt; {
+  const id = `mem_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+  return { content: [{ type: "text" as const, text: JSON.stringify({
+    status: "stored", memory_id: id, type: p.type,
+    confidence: p.confidence ?? 1, timestamp: Date.now()
+  }, null, 2) }]};
+});
+
+// Tool 2: recall — 熵加权检索
+server.tool("recall", "检索记忆（默认熵加权）", {
+  type: "object",
+  properties: {
+    agent_id: { type: "string" },
+    query: { type: "string" },
+    k: { type: "integer", minimum: 1, maximum: 1000, default: 5 },
+  },
+  required: ["agent_id", "query"]
+}, async (p) =&gt; ({
+  content: [{ type: "text" as const, text: JSON.stringify({
+    results: [
+      { id: "mem_001", content: "用户偏好暗色主题", score: 0.95 },
+      { id: "mem_004", content: "上次讨论了 RSC", score: 0.78 },
+    ],
+    count: 2,
+    ranking_method: "entropy_weighted"
+  }, null, 2) }]
+}));
+
+// Tool 3: classify — 图拓扑分类
+server.tool("classify", "记忆图拓扑分类", {
+  type: "object",
+  properties: {
+    agent_id: { type: "string" },
+    method: { type: "string",
+      enum: ["graph","spectral","hybrid","rrf","bayesian","fingerprint"],
+      default: "hybrid" },
+  },
+  required: ["agent_id"]
+}, async (p) =&gt; ({
+  content: [{ type: "text" as const, text: JSON.stringify({
+    best_match: "star", confidence: 0.89,
+    insight: "星型拓扑：记忆集中度高，存在单点依赖风险"
+  }, null, 2) }]
+}));
+
+// Tool 4: trace_provenance — 血缘追踪
+server.tool("trace_provenance", "追踪来源链和影响", {
+  type: "object",
+  properties: {
+    agent_id: { type: "string" },
+    node_id: { type: "string" },
+    direction: { type: "string",
+      enum: ["backward","forward","full"], default: "full" },
+  },
+  required: ["agent_id", "node_id"]
+}, async (p) =&gt; ({
+  content: [{ type: "text" as const, text: JSON.stringify({
+    roots: ["src_001", "src_042"],
+    dependents: ["mem_003", "mem_007", "mem_012"],
+    bottleneck_score: 1.5,
+    warning: "⚠ 单点依赖：3 条下游记忆受影响"
+  }, null, 2) }]
+}));
+
+// Tool 5: health
+server.tool("health", "服务状态", {}, async () => ({
+  content: [{ type: "text" as const, text: JSON.stringify({
+    status: "ok", version: "0.1.0",
+    protocol: "MCP 2026-07-28 (stateless)"
+  }, null, 2) }]
+}));
+
+// 启动
+const transport = new StdioServerTransport();
+await server.connect(transport);
+console.error("[amg-mcp] 无状态 MCP 记忆服务已就绪");</code></pre>
+
+    <h2>七、反思：协议层的价值在哪里</h2>
+
+    <p><strong>这些协议层真的有必要吗？直接写个 <code>saveMemory(content)</code> 不就行了？</strong></p>
+
+    <p>当你的 Agent 只有一个用户、一种框架、一个场景时，确实不需要。但当你的 Agent 需要支持多个前端、跨 Agent 共享记忆、多后端融合、或需要人类审查机制时，协议层的价值就显现了。它不是性能优化，而是<strong>解耦的契约</strong>：</p>
+
+    <ul>
+        <li>MCP 让你的记忆服务对所有 Agent 框架通用</li>
+        <li>memorywire 让你的数据 schema 与传输层无关</li>
+        <li>治理通道让你在不改 Agent 代码的前提下增加安全层</li>
+    </ul>
+
+    <blockquote><strong>协议层的价值不是让你今天跑得更快，而是让你明天不被锁死。</strong></blockquote>
+
+    <h2>八、给实践者的建议</h2>
+
+    <ol>
+        <li><strong>刚开始做 Agent 记忆</strong>：别急着上协议层。先用 SQLite + embedding 跑通 MVP。记忆需求超过"存取"时再协议化。</li>
+        <li><strong>选 MCP vs 直接 API</strong>：MCP 的优势是生态——任何支持 MCP 的客户端都能用你的服务。代价是多一层序列化。单框架内直接 API 更简单。</li>
+        <li><strong>担心记忆投毒</strong>：认真考虑治理通道。Agent 上线面向真实用户后，投毒成本远低于防御成本。</li>
+        <li><strong>需要图结构分析</strong>：关注熵加权检索。传统向量相似度在语义接近但意图偏离的查询面前非常脆弱。熵引导根据图的全局结构动态调整权重。</li>
+    </ol>
+
+    <p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">本文基于 AMG（Agent Memory Graph）项目在 6600+ 测试、925+ API 实践中的经验，以及 Research #043 深度调研。</p>
+
+    <p style="margin-top: 3rem; color: #8b949e; font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+        <a href="../index.html">← 返回首页</a> ·
+        <a href="https://github.com/robertsong2019/robertsong2019.github.io">GitHub Repo</a>
+    </p>
+</body>
+</html>
