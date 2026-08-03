@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数学发现的民主化 · The Democratization of Mathematical Discovery</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;0,900;1,400&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #0a0a0f;
+  --bg-2: #11111a;
+  --bg-3: #181826;
+  --fg: #e8e6e0;
+  --fg-dim: #9a9890;
+  --fg-faint: #5a5850;
+  --accent: #d4a574;
+  --accent-bright: #f0c896;
+  --accent-2: #7c9eff;
+  --accent-3: #c97eff;
+  --danger: #e85d75;
+  --success: #6dd47e;
+  --border: rgba(212, 165, 116, 0.15);
+  --border-bright: rgba(212, 165, 116, 0.35);
+  --max-w: 820px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: overlay;
+}
+
+.container {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 24px;
+  position: relative;
+  z-index: 2;
+}
+
+/* ============ HERO ============ */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  padding: 80px 0;
+}
+
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.hero-bg canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.hero-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 32px;
+  opacity: 0;
+  animation: fadeUp 0.8s ease forwards 0.2s;
+}
+
+.hero-title {
+  font-family: 'Crimson Pro', serif;
+  font-weight: 900;
+  font-size: clamp(2.4rem, 6vw, 4.2rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin-bottom: 24px;
+  opacity: 0;
+  animation: fadeUp 1s ease forwards 0.4s;
+}
+
+.hero-title .em {
+  font-style: italic;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.hero-sub {
+  font-size: 1.15rem;
+  color: var(--fg-dim);
+  max-width: 620px;
+  line-height: 1.6;
+  opacity: 0;
+  animation: fadeUp 1s ease forwards 0.6s;
+}
+
+.hero-meta {
+  display: flex;
+  gap: 32px;
+  margin-top: 48px;
+  flex-wrap: wrap;
+  opacity: 0;
+  animation: fadeUp 1s ease forwards 0.8s;
+}
+
+.hero-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hero-meta-label {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.hero-meta-value {
+  font-family: 'Crimson Pro', serif;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--accent-bright);
+}
+
+.hero-scroll {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  font-family: 'JetBrains Mono', monospace;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.4; }
+  50% { transform: translateX(-50%) translateY(8px); opacity: 0.8; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============ SECTIONS ============ */
+.section {
+  padding: 100px 0;
+  position: relative;
+}
+
+.section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-label::before {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 1px;
+  background: var(--accent);
+}
+
+.section-title {
+  font-family: 'Crimson Pro', serif;
+  font-weight: 700;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  margin-bottom: 48px;
+}
+
+.section-title .em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+/* ============ COST REVOLUTION ============ */
+.cost-display {
+  text-align: center;
+  padding: 60px 0;
+  position: relative;
+}
+
+.cost-amount {
+  font-family: 'Crimson Pro', serif;
+  font-weight: 900;
+  font-size: clamp(5rem, 18vw, 12rem);
+  line-height: 1;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-bright) 50%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.04em;
+  position: relative;
+}
+
+.cost-amount::before {
+  content: '$';
+  font-size: 0.4em;
+  vertical-align: top;
+  margin-right: 0.05em;
+  color: var(--accent);
+  -webkit-text-fill-color: var(--accent);
+}
+
+.cost-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  margin-top: 16px;
+}
+
+.cost-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin-top: 64px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.cost-card {
+  background: var(--bg-2);
+  padding: 36px 32px;
+  transition: background 0.3s;
+}
+
+.cost-card:hover {
+  background: var(--bg-3);
+}
+
+.cost-card-era {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  margin-bottom: 12px;
+}
+
+.cost-card-amount {
+  font-family: 'Crimson Pro', serif;
+  font-weight: 700;
+  font-size: 2rem;
+  color: var(--fg);
+  margin-bottom: 8px;
+}
+
+.cost-card-desc {
+  font-size: 0.9rem;
+  color: var(--fg-dim);
+  line-height: 1.5;
+}
+
+.cost-card.highlight .cost-card-amount {
+  color: var(--accent);
+}
+
+/* ============ THREE PILLARS ============ */
+.pillars {
+  display: grid;
+  gap: 48px;
+  margin-top: 32px;
+}
+
+.pillar {
+  position: relative;
+  padding-left: 0;
+}
+
+.pillar-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.pillar-number {
+  font-family: 'Crimson Pro', serif;
+  font-weight: 900;
+  font-style: italic;
+  font-size: 2.5rem;
+  color: var(--accent);
+  line-height: 1;
+  opacity: 0.8;
+}
+
+.pillar-title {
+  font-family: 'Crimson Pro', serif;
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.pillar-items {
+  list-style: none;
+  padding-left: 0;
+}
+
+.pillar-item {
+  padding: 20px 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.pillar-item:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.pillar-item-icon {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  white-space: nowrap;
+  padding-top: 3px;
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+
+.pillar-item-body {
+  flex: 1;
+}
+
+.pillar-item-title {
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 6px;
+  font-size: 1.02rem;
+}
+
+.pillar-item-desc {
+  font-size: 0.92rem;
+  color: var(--fg-dim);
+  line-height: 1.6;
+}
+
+/* ============ TRAP SECTION ============ */
+.trap-section {
+  background: linear-gradient(180deg, transparent 0%, rgba(232, 93, 117, 0.03) 50%, transparent 100%);
+}
+
+.warning-box {
+  background: rgba(232, 93, 117, 0.06);
+  border: 1px solid rgba(232, 93, 117, 0.2);
+  border-radius: 4px;
+  padding: 32px 36px;
+  margin: 40px 0;
+  position: relative;
+}
+
+.warning-box::before {
+  content: '⚠';
+  position: absolute;
+  top: -12px;
+  left: 32px;
+  background: var(--bg);
+  padding: 0 12px;
+  font-size: 1rem;
+}
+
+.warning-title {
+  font-family: 'Crimson Pro', serif;
+  font-weight: 700;
+  font-size: 1.3rem;
+  color: var(--danger);
+  margin-bottom: 16px;
+}
+
+.warning-text {
+  font-size: 0.95rem;
+  color: var(--fg-dim);
+  line-height: 1.7;
+}
+
+.warning-text strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* ============ RAMANUJAN BOX ============ */
+.ramanujan-box {
+  background: var(--bg-2);
+  border-left: 3px solid var(--accent);
+  padding: 36px 40px;
+  margin: 40px 0;
+  position: relative;
+}
+
+.ramanujan-quote {
+  font-family: 'Crimson Pro', serif;
+  font-style: italic;
+  font-size: 1.15rem;
+  line-height: 1.6;
+  color: var(--fg);
+  margin-bottom: 16px;
+}
+
+.ramanujan-attrib {
+  font-size: 0.85rem;
+  color: var(--fg-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ============ SKILL STACK ============ */
+.skill-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 40px 0;
+}
+
+.skill-layer {
+  padding: 24px 32px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  transition: all 0.3s;
+  background: var(--bg-2);
+}
+
+.skill-layer:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.skill-layer:hover {
+  background: var(--bg-3);
+  border-color: var(--border-bright);
+}
+
+.skill-layer-old {
+  opacity: 0.4;
+  text-decoration: line-through;
+  text-decoration-color: var(--fg-faint);
+}
+
+.skill-layer-new {
+  background: rgba(212, 165, 116, 0.05);
+  border-color: rgba(212, 165, 116, 0.2);
+}
+
+.skill-layer-label {
+  font-family: 'Crimson Pro', serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.skill-layer-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  white-space: nowrap;
+}
+
+.skill-layer-new .skill-layer-tag {
+  color: var(--accent);
+}
+
+/* ============ TIMELINE ============ */
+.timeline {
+  position: relative;
+  padding-left: 32px;
+  margin: 40px 0;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent) 30%, var(--fg-faint) 100%);
+}
+
+.timeline-item {
+  position: relative;
+  padding-bottom: 40px;
+}
+
+.timeline-item:last-child {
+  padding-bottom: 0;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -32px;
+  top: 4px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--accent);
+}
+
+.timeline-item.dim .timeline-dot {
+  border-color: var(--fg-faint);
+}
+
+.timeline-year {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+
+.timeline-item.dim .timeline-year {
+  color: var(--fg-faint);
+}
+
+.timeline-title {
+  font-family: 'Crimson Pro', serif;
+  font-weight: 600;
+  font-size: 1.15rem;
+  margin-bottom: 6px;
+}
+
+.timeline-desc {
+  font-size: 0.9rem;
+  color: var(--fg-dim);
+  line-height: 1.5;
+}
+
+/* ============ FINAL CTA ============ */
+.final-section {
+  padding: 120px 0 80px;
+  text-align: center;
+}
+
+.final-quote {
+  font-family: 'Crimson Pro', serif;
+  font-style: italic;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  line-height: 1.4;
+  max-width: 680px;
+  margin: 0 auto 32px;
+  letter-spacing: -0.01em;
+}
+
+.final-quote .em {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.final-sub {
+  font-size: 0.95rem;
+  color: var(--fg-dim);
+  max-width: 480px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.final-divider {
+  width: 40px;
+  height: 1px;
+  background: var(--accent);
+  margin: 48px auto 32px;
+}
+
+.final-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+/* ============ PROSE ============ */
+.prose {
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: var(--fg-dim);
+  max-width: 680px;
+}
+
+.prose p {
+  margin-bottom: 1.4em;
+}
+
+.prose strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.prose em {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.prose .highlight {
+  background: linear-gradient(180deg, transparent 60%, rgba(212, 165, 116, 0.15) 60%);
+  color: var(--fg);
+  padding: 0 2px;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .cost-comparison { grid-template-columns: 1fr; }
+  .pillar-header { flex-direction: column; gap: 4px; }
+  .skill-layer { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .hero-meta { flex-direction: column; gap: 16px; }
+}
+
+/* Fade-in on scroll */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-bg">
+    <canvas id="canvas"></canvas>
+  </div>
+  <div class="container">
+    <div class="hero-tag">An Essay · August 2026</div>
+    <h1 class="hero-title">
+      数学发现的<span class="em">民主化</span><br>
+      The Democratization of<br><span class="em">Mathematical Discovery</span>
+    </h1>
+    <p class="hero-sub">
+      当 AI 做研究级数学的成本降到 $2,000，游戏规则就彻底改变了。
+      这不是关于奇点的遐想——而是关于一个更近、更实际的结构性转变。
+    </p>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Cost Threshold</span>
+        <span class="hero-meta-value">$2,000</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Historical First</span>
+        <span class="hero-meta-value">个人可及</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Impact Horizon</span>
+        <span class="hero-meta-value">Now ~ 2030</span>
+      </div>
+    </div>
+  </div>
+  <div class="hero-scroll">SCROLL ↓</div>
+</section>
+
+<!-- ============ THESIS ============ -->
+<section class="section">
+  <div class="container">
+    <div class="section-label reveal">Thesis · 核心论点</div>
+    <h2 class="section-title reveal">
+      真正的里程碑<br>不是 <span class="em">高度</span>，而是 <span class="em">成本</span>
+    </h2>
+    <div class="prose reveal">
+      <p>
+        媒体头条聚焦于 "AI 是否达到了菲尔兹奖水平"。但这是一个错误的问题。
+        <strong>单次成就的 height 并不改变世界——成本曲线的下降才改变世界。</strong>
+      </p>
+      <p>
+        当一个研究级别的数学推理从 <em>$100,000+</em> 降到 <em>$2,000</em>，
+        它跨越了一个临界点：从 "只有顶级实验室能做" 变成 <span class="highlight">"每个大学、每个研究机构、甚至每个个人都能做"</span>。
+      </p>
+      <p>
+        这不是量变。这是质变。
+      </p>
+    </div>
+
+    <div class="cost-display reveal">
+      <div class="cost-amount">2,000</div>
+      <div class="cost-label">AI Research-Grade Math · Per Instance</div>
+    </div>
+
+    <div class="cost-comparison reveal">
+      <div class="cost-card">
+        <div class="cost-card-era">2023 — Early 2025</div>
+        <div class="cost-card-amount">$100,000+</div>
+        <div class="cost-card-desc">仅在顶级 AI 实验室的能力范围内。需要大规模 RL 训练 + 专家反馈 + 巨大算力。学术界只能旁观。</div>
+      </div>
+      <div class="cost-card highlight">
+        <div class="cost-card-era">2026 — Now</div>
+        <div class="cost-card-amount">$2,000</div>
+        <div class-card-desc="">
+          <div class="cost-card-desc">单个研究级数学问题的推理成本。中型大学的科研经费可以覆盖。个人研究者众筹即可触达。</div>
+        </div>
+      </div>
+      <div class="cost-card">
+        <div class="cost-card-era">Projection · 2027-2028</div>
+        <div class="cost-card-amount">$200?</div>
+        <div class="cost-card-desc">推理成本持续指数下降。高中生的零花钱可以负担一次研究级数学实验。</div>
+      </div>
+      <div class="cost-card">
+        <div class="cost-card-era">Projection · 2029-2030</div>
+        <div class="cost-card-amount">≈ $0</div>
+        <div class="cost-card-desc">边际成本趋近于零。AI 数学推理成为基础设施——像搜索引擎一样免费且无处不在。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PILLAR 1: BOTTLENECKS REMOVED ============ -->
+<section class="section">
+  <div class="container">
+    <div class="section-label reveal">Part I · 被拆除的瓶颈</div>
+    <h2 class="section-title reveal">
+      三个世纪级别的瓶颈<br>正在被 <span class="em">同时</span> 消除
+    </h2>
+    <div class="prose reveal">
+      <p>
+        数学研究的历史瓶颈从来不是 "不够聪明"。而是三个结构性障碍，
+        每一个都足以让一个有潜力的研究者放弃。
+        <strong>AI 正在同时瓦解这三个障碍。</strong>
+      </p>
+    </div>
+
+    <div class="pillars">
+      <!-- Bottleneck 1 -->
+      <div class="pillar reveal">
+        <div class="pillar-header">
+          <span class="pillar-number">01</span>
+          <span class="pillar-title">文献壁垒：从数年到数周</span>
+        </div>
+        <ul class="pillar-items">
+          <li class="pillar-item">
+            <span class="pillar-item-icon">PAST</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">数年的跟踪才能建立 survey-level 的理解</div>
+              <div class="pillar-item-desc">
+                一个子领域可能有上千篇论文，分布在不同期刊、不同年代的会议里。
+                博士生通常需要 2-3 年才能对一个子领域形成可靠的直觉。
+                这意味着选择方向本身就是一个高风险的不可逆决策。
+              </div>
+            </div>
+          </li>
+          <li class="pillar-item">
+            <span class="pillar-item-icon">NOW</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">AI 在数周内帮你建立跨领域知识图谱</div>
+              <div class="pillar-item-desc">
+                LLM 能消化整个子领域的文献，提取关键定理、开放问题和方法论。
+                更重要的是——它能识别<span style="color: var(--accent);">跨领域的方法迁移机会</span>。
+                代数拓扑的工具可能恰好适用于你正在研究的组合问题，
+                但以前你不知道这些工具的存在。
+              </div>
+            </div>
+          </li>
+          <li class="pillar-item">
+            <span class="pillar-item-icon">IMPACT</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">方向选择的试错成本降低 10x+</div>
+              <div class="pillar-item-desc">
+                如果你可以在两周内判断一个方向是否值得投入，
+                你可以在一年内探索 10+ 个方向，而不是赌上 3 年。
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Bottleneck 2 -->
+      <div class="pillar reveal">
+        <div class="pillar-header">
+          <span class="pillar-number">02</span>
+          <span class="pillar-title">计算验证：从数月到数小时</span>
+        </div>
+        <ul class="pillar-items">
+          <li class="pillar-item">
+            <span class="pillar-item-icon">PAST</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">"这个构造对不对" 可能耗费数月</div>
+              <div class="pillar-item-desc">
+                大量研究时间不是花在 "想出新想法" 上，
+                而是花在验证已有想法的技术正确性上。
+                一个引理的反例可能藏在你没想到的边角情形里。
+                手工验证一个复杂构造可能需要写 50 页技术细节。
+              </div>
+            </div>
+          </li>
+          <li class="pillar-item">
+            <span class="pillar-item-icon">NOW</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">AI 作为不知疲倦的形式化验证伙伴</div>
+              <div class="pillar-item-desc">
+                AI 能快速执行机械化的推导验证：检查每一步推理是否严格、
+                寻找反例、生成形式化证明的骨架。
+                Lean/Coq + AI 的组合让形式化验证的效率提升了 5-10 倍。
+                <strong>研究者从 "验证工" 释放为 "猜想家"。</strong>
+              </div>
+            </div>
+          </li>
+          <li class="pillar-item">
+            <span class="pillar-item-icon">IMPACT</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">研究者的时间重新分配：80% 验证 → 20% 验证</div>
+              <div class="pillar-item-desc">
+                原来 80% 的时间花在机械验证上，现在可以压缩到 20%。
+                释放出来的 60% 可以全部投入真正创造性的工作：
+                提出猜想、设计新方法、探索新结构。
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Bottleneck 3 -->
+      <div class="pillar reveal">
+        <div class="pillar-header">
+          <span class="pillar-number">03</span>
+          <span class="pillar-title">学术孤独：从孤岛到星空</span>
+        </div>
+        <ul class="pillar-items">
+          <li class="pillar-item">
+            <span class="pillar-item-icon">PAST</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">没有讨论伙伴 = 研究死刑</div>
+              <div class="pillar-item-desc">
+                数学研究本质上是对话式的。
+                你需要一个能理解你的工作、指出你的盲点、提出你没考虑过的角度的人。
+                但世界上理解你那个子领域的人可能不超过 20 个，
+                而他们分散在不同的时区和机构里。
+                对于离开学术圈的研究者，这个问题几乎无解。
+              </div>
+            </div>
+          </li>
+          <li class="pillar-item">
+            <span class="pillar-item-icon">NOW</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">AI = 永不疲倦、跨领域的对话者</div>
+              <div class="pillar-item-desc">
+                AI 的核心价值不是 "知道答案"——而是<span style="color: var(--accent);">能持续对话</span>。
+                你可以凌晨三点提出一个疯狂的想法，AI 不会嫌你烦。
+                它能从代数几何、数论、拓扑、组合数学中各抽取工具来回应你。
+                没有人类能同时精通这些领域——AI 可以。
+              </div>
+            </div>
+          </li>
+          <li class="pillar-item">
+            <span class="pillar-item-icon">IMPACT</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">"不在学术圈" 不再等于 "没有同行"</div>
+              <div class="pillar-item-desc">
+                一个独立研究者在云南的小镇上，只要有网络连接，
+                就能拥有比 1990 年的普林斯顿教授更强大的 "讨论伙伴"。
+                地理位置不再是学术参与的门槛。
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PILLAR 2: STRUCTURAL ADVANTAGES ============ -->
+<section class="section">
+  <div class="container">
+    <div class="section-label reveal">Part II · 个人研究者的结构性优势</div>
+    <h2 class="section-title reveal">
+      当工具被民主化后<br>剩下的 <span class="em">不对称性</span> 才是真正的优势
+    </h2>
+    <div class="prose reveal">
+      <p>
+        AI 消除了 "能力差距"——但<strong>差距消除后，有些优势反而被放大了</strong>。
+        这些优势恰恰是机构研究者难以拥有的。
+      </p>
+    </div>
+
+    <div class="pillars">
+      <div class="pillar reveal">
+        <div class="pillar-header">
+          <span class="pillar-number">α</span>
+          <span class="pillar-title">时间自由：可以花 3 年啃一个深问题</span>
+        </div>
+        <ul class="pillar-items">
+          <li class="pillar-item">
+            <span class="pillar-item-icon">INSTITUTION</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">Tenure clock = 短期主义的结构性压力</div>
+              <div class="pillar-item-desc">
+                助理教授有 6 年的 tenure clock。
+                这意味着每 1-2 年必须有产出。
+                深问题（Fermat 大定理、Poincaré 猜想）通常需要 7+ 年的持续投入。
+                <strong>机构的激励结构天然地排斥深问题。</strong>
+                Andrew Wiles 在阁楼里花了 7 年——在今天的 tenure 体系下，他可能撑不过第三年的中期评审。
+              </div>
+            </div>
+          </li>
+          <li class="pillar-item">
+            <span class="pillar-item-icon">INDIVIDUAL</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">没有 deadline 的奢侈</div>
+              <div class="pillar-item-desc">
+                个人研究者可以花 3 年啃一个问题，不向任何人汇报。
+                当 AI 把文献调研和验证的边际成本降到接近零时，
+                <span style="color: var(--accent);">"耐心" 变成了最稀缺的资源</span>——
+                而个人研究者恰好拥有最多。
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="pillar reveal">
+        <div class="pillar-header">
+          <span class="pillar-number">β</span>
+          <span class="pillar-title">跨学科自由：不受院系边界约束</span>
+        </div>
+        <ul class="pillar-items">
+          <li class="pillar-item">
+            <span class="pillar-item-icon">INSTITUTION</span>
+            <div class="pillar-item-body">
+              <div class="="pillar-item-title"">学科壁垒 = 制度的化石</div>
+              <div class="pillar-item-desc">
+                大学的院系结构基本是 19 世纪的遗产。
+                你属于 "代数方向" 就不能轻易去做 "解析方向" 的问题。
+                跨学科合作需要跨院系审批、联合经费申请、共同指导协议——
+                行政成本高到让人放弃。
+              </div>
+            </div>
+          </li>
+          <li class="pillar-item">
+            <span class="pillar-item-icon">INDIVIDUAL</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">混合策略 = 个人研究者的杀手锏</div>
+              <div class="pillar-item-desc">
+                纯数学 + 物理直觉 + 计算实验的三元组合，
+                在机构里几乎找不到对应的 "位置"。
+                但历史上最深刻的突破往往来自这种交叉：
+                <em>Witten</em>（物理→拓扑）、<em>Conway</em>（组合→数论→拓扑）、
+                <em>Langlands</em>（表示论→数论）。
+                <strong>AI 让一个人拥有跨学科的 "working knowledge" 成为可能。</strong>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="pillar reveal">
+        <div class="pillar-header">
+          <span class="pillar-number">γ</span>
+          <span class="pillar-title">品味驱动：剩下拼的就是直觉和品味</span>
+        </div>
+        <ul class="pillar-items">
+          <li class="pillar-item">
+            <span class="pillar-item-icon">SHIFT</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">执行力民主化 → 品味成为关键变量</div>
+              <div class="pillar-item-desc">
+                当 AI 把计算执行力民主化后，
+                "能做" 不再是壁垒——<span style="color: var(--accent);">"知道什么值得做"</span> 才是。
+                这就像摄影：当所有人都有好相机后，
+                区分大师的不再是器材，而是眼光。
+              </div>
+            </div>
+          </li>
+          <li class="pillar-item">
+            <span class="pillar-item-icon">ADVANTAGE</span>
+            <div class="pillar-item-body">
+              <div class="pillar-item-title">数学品味 ≠ 学术政治</div>
+              <div class="pillar-item-desc">
+                在学术圈里，"什么问题重要" 部分由社区共识决定，
+                而社区共识受时尚、学派、人际关系影响。
+                个人研究者可以完全按照自己的审美选择问题——
+                <strong>如果 AI 帮你验证了你的直觉，你不需要任何人的许可。</strong>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ THE TRAP ============ -->
+<section class="section trap-section">
+  <div class="container">
+    <div class="section-label reveal" style="color: var(--danger);">Part III · 隐藏的陷阱</div>
+    <h2 class="section-title reveal">
+      最大的风险<br>不是 "不会做"，而是 <span class="em" style="color: var(--danger);">"以为自己做对了"</span>
+    </h2>
+    <div class="prose reveal">
+      <p>
+        在欢呼民主化之前，必须正视一个严肃的问题。
+        <strong>没有同行评审（peer review），个人研究者面临一个前所未有的认知陷阱。</strong>
+      </p>
+    </div>
+
+    <div class="warning-box reveal">
+      <div class="warning-title">⚠ AI 验证 ≠ 正确验证</div>
+      <div class="warning-text">
+        <p style="margin-bottom: 16px;">
+          LLM 会产生<strong>看起来合理的错误推导</strong>。这比明显的错误危险得多。
+          一个说 "2+2=5" 的 AI 很容易被发现。
+          但一个在第三步引理中悄悄假设了太强条件的 AI——
+          这可能要到两个月后才被发现，而你已经基于它构建了整个理论框架。
+        </p>
+        <p style="margin-bottom: 16px;">
+          更阴险的是 <strong>confirmation bias 的 AI 放大器效应</strong>：
+          当你相信一个方向是对的，AI 往往会 "同意" 你——
+          不是因为它验证了你的推理，而是因为它在预测你想要的回答。
+          这是一种微妙的确证偏差，即使是有经验的研究者也可能掉进去。
+        </p>
+        <p>
+          传统学术圈的同行评审虽然不完美，
+          但它提供了一个<strong>独立的、敌对的验证层</strong>——
+          审稿人的工作就是找你的错。
+          AI 默认不会这样工作。你需要刻意设计对抗性的验证流程。
+        </p>
+      </div>
+    </div>
+
+    <div class="ramanujan-box reveal">
+      <div class="ramanujan-quote">
+        "一个没有经过验证的天才只是疯子。<br>
+        Ramanujan 之所以是 Ramanujan，不仅仅因为他产生了惊人的公式——<br>
+        而是因为 Hardy 花了数年来确认这些公式是对的。"
+      </div>
+      <div class="ramanujan-attrib">
+        → 历史教训：孤立的天才需要信任的验证层
+      </div>
+    </div>
+
+    <div class="prose reveal" style="margin-top: 32px;">
+      <p>
+        所以问题的核心变成了：
+        <strong>如何构建一个不依赖学术机构的独立验证体系？</strong>
+      </p>
+      <p>
+        可能的答案包括：
+        <em>形式化验证</em>（Lean/Coq，AI 辅助）+
+        <em>对抗性 AI 审稿</em>（专门训练来找错的模型）+
+        <em>开放社区评审</em>（arXiv + 开源式的 peer review）。
+        没有一个是完美的——但组合起来可能接近传统同行评审的可靠性。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ NEW SKILL STACK ============ -->
+<section class="section">
+  <div class="container">
+    <div class="section-label reveal">Part IV · 新的能力栈</div>
+    <h2 class="section-title reveal">
+      门槛变了<br><span class="em">需要的技能也变了</span>
+    </h2>
+    <div class="prose reveal">
+      <p>
+        以前 "能不能做数学" 的门槛是<strong>学术资源</strong>。
+        现在变成了 <span class="highlight">"有没有好的数学品味 + 能不能辨别 AI 的幻觉"</span>。
+      </p>
+      <p>
+        前者是制度问题——需要名额、经费、导师、推荐信。
+        后者是能力问题——可以自学、可以训练、可以在实践中积累。
+        <strong>能力问题比制度问题可解得多。</strong>
+      </p>
+    </div>
+
+    <div class="skill-stack reveal">
+      <div class="skill-layer skill-layer-old">
+        <span class="skill-layer-label">机构 affiliation</span>
+        <span class="skill-layer-tag">OBSOLETE</span>
+      </div>
+      <div class="skill-layer skill-layer-old">
+        <span class="skill-layer-label">导师推荐与学术网络</span>
+        <span class="skill-layer-tag">OBSOLETE</span>
+      </div>
+      <div class="skill-layer skill-layer-old">
+        <span class="skill-layer-label">大规模算力与计算资源</span>
+        <span class="skill-layer-tag">COMMODITIZED</span>
+      </div>
+      <div class="skill-layer skill-layer-new">
+        <span class="skill-layer-label">数学品味：知道什么问题值得问</span>
+        <span class="skill-layer-tag">★ ESSENTIAL</span>
+      </div>
+      <div class="skill-layer skill-layer-new">
+        <span class="skill-layer-label">AI 幻觉辨别力：识别看似合理的错误推导</span>
+        <span class="skill-layer-tag">★ ESSENTIAL</span>
+      </div>
+      <div class="skill-layer skill-layer-new">
+        <span class="skill-layer-label">形式化思维：用 Lean/Coq 构建可验证的证明</span>
+        <span class="skill-layer-tag">★ ESSENTIAL</span>
+      </div>
+      <div class="skill-layer skill-layer-new">
+        <span class="skill-layer-label">跨领域直觉：看到不同数学领域之间的隐藏连接</span>
+        <span class="skill-layer-tag">★ DIFFERENTIATOR</span>
+      </div>
+      <div class="skill-layer skill-layer-new">
+        <span class="skill-layer-label">耐心与长期投入：在没有外部压力的情况下持续深耕</span>
+        <span class="skill-layer-tag">★ DIFFERENTIATOR</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TIMELINE ============ -->
+<section class="section">
+  <div class="container">
+    <div class="section-label reveal">Part V · 历史脉络</div>
+    <h2 class="section-title reveal">
+      从 <span class="em">精英专属</span> 到 <span class="em">人人可及</span><br>
+      数学的民主化简史
+    </h2>
+
+    <div class="timeline reveal">
+      <div class="timeline-item dim">
+        <div class="timeline-dot"></div>
+        <div class="timeline-year">~300 BCE</div>
+        <div class="timeline-title">欧几里得时代</div>
+        <div class="timeline-desc">
+          数学发现属于亚历山大图书馆的学者。
+          知识传播靠手抄——一份《几何原本》的价值相当于今天的豪宅。
+        </div>
+      </div>
+      <div class="timeline-item dim">
+        <div class="timeline-dot"></div>
+        <div class="timeline-year">17th Century</div>
+        <div class="timeline-title">牛顿与莱布尼茨时代</div>
+        <div class="timeline-desc">
+          微积分的发明者需要是大学教授或有贵族赞助。
+          通信靠信件——一次跨欧洲的学术交流可能需要数月。
+        </div>
+      </div>
+      <div class="timeline-item dim">
+        <div class="timeline-dot"></div>
+        <div class="timeline-year">1913</div>
+        <div class="timeline-title">Ramanujan 与 Hardy</div>
+        <div class="timeline-desc">
+          一个印度小职员的数学天才被认可，需要剑桥教授的背书。
+          没有 Hardy，Ramanujan 的笔记本只是一堆无人理解的符号。
+        </div>
+      </div>
+      <div class="timeline-item dim">
+        <div class="timeline-dot"></div>
+        <div class="timeline-year">1990s — 2000s</div>
+        <div class="timeline-title">arXiv 与互联网</div>
+        <div class="timeline-desc">
+          论文获取不再需要物理访问图书馆。
+          但 "能理解论文" 和 "能做出贡献" 仍然需要博士学位级别的训练。
+        </div>
+      </div>
+      <div class="timeline-item dim">
+        <div class="timeline-dot"></div>
+        <div class="timeline-year">2020 — 2022</div>
+        <div class="timeline-title">LLM 的初步能力</div>
+        <div class="timeline-desc">
+          GPT-3/3.5 能做本科级别的数学题，但无法处理研究级问题。
+          主要价值：文献检索和教学辅助。成本仍然不是个人可负担的。
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-year">2024 — 2025</div>
+        <div class="timeline-title">推理模型的突破</div>
+        <div class="timeline-desc">
+          o1/o3 类模型开始能处理竞赛级数学。
+          成本仍然高（$10K-$100K/问题），但能力曲线开始陡峭上升。
+          Lean 4 + AI 的形式化验证开始成熟。
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-year">2026 — NOW</div>
+        <div class="timeline-title">$2,000 临界点</div>
+        <div class="timeline-desc">
+          研究级数学推理成本降到 $2,000。
+          个人可负担。中型大学可常态化使用。
+          <strong>第一个不需要机构背书就能做前沿数学研究的时代开始了。</strong>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-year">2027 — 2028?</div>
+        <div class="timeline-title">工具链成熟期</div>
+        <div class="timeline-desc">
+          预测：专门的 "数学研究助手" AI 产品出现。
+          形式化验证工具链（Lean/Coq + AI）达到主流易用。
+          第一批 "独立数学研究者"（无机构 affiliation）发表重要成果。
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-year">2029 — 2030?</div>
+        <div class="timeline-title">基础设施化</div>
+        <div class="timeline-desc">
+          预测：AI 数学推理成本趋近于零。
+          数学研究的瓶颈完全转移到 "人类的品味和直觉"。
+          出现新的学术评价体系——不看出身，只看证明。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINAL ============ -->
+<section class="final-section">
+  <div class="container">
+    <div class="final-divider reveal"></div>
+    <p class="final-quote reveal">
+      "以前 '能不能做数学' 的门槛是<span class="em">学术资源</span>。<br>
+      现在变成了<span class="em">品味、直觉、和对真相的诚实</span>。<br><br>
+      前者是制度问题——<br>后者是能力问题。<br>
+      <span class="em">能力问题比制度问题可解得多。</span>"
+    </p>
+    <p class="final-sub reveal">
+      $2,000 的成本意味着：一个有直觉、有耐心、会用 AI 工具的人，<br>
+      不需要任何机构背书就能做前沿数学研究。<br>
+      <strong style="color: var(--accent);">这在人类历史上是第一次。</strong>
+    </p>
+    <div class="final-divider reveal" style="margin-top: 64px;"></div>
+    <div class="final-meta">An Essay on the Democratization of Mathematics · August 2026</div>
+  </div>
+</section>
+
+<script>
+// ============ Scroll Reveal ============
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// ============ Hero Canvas: Mathematical Network ============
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H, nodes = [], mouse = { x: -1000, y: -1000 };
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  W = rect.width;
+  H = rect.height;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+}
+
+function initNodes() {
+  nodes = [];
+  const count = Math.min(60, Math.floor(W * H / 18000));
+  for (let i = 0; i < count; i++) {
+    nodes.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.15,
+      vy: (Math.random() - 0.5) * 0.15,
+      r: Math.random() * 1.5 + 0.5,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function draw(t) {
+  ctx.clearRect(0, 0, W, H);
+
+  // Update positions
+  for (const n of nodes) {
+    n.x += n.vx;
+    n.y += n.vy;
+    if (n.x < 0 || n.x > W) n.vx *= -1;
+    if (n.y < 0 || n.y > H) n.vy *= -1;
+
+    // Mouse repulsion
+    const dx = n.x - mouse.x;
+    const dy = n.y - mouse.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 120) {
+      n.x += (dx / dist) * 0.5;
+      n.y += (dy / dist) * 0.5;
+    }
+  }
+
+  // Draw edges
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const dx = nodes[i].x - nodes[j].x;
+      const dy = nodes[i].y - nodes[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 140) {
+        const alpha = (1 - dist / 140) * 0.08;
+        ctx.strokeStyle = `rgba(212, 165, 116, ${alpha})`;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(nodes[i].x, nodes[i].y);
+        ctx.lineTo(nodes[j].x, nodes[j].y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Draw nodes
+  for (const n of nodes) {
+    const pulse = Math.sin(t * 0.001 + n.phase) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(212, 165, 116, ${0.3 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r * 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(240, 200, 150, ${0.6 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  requestAnimationFrame(draw);
+}
+
+window.addEventListener('resize', () => {
+  resize();
+  initNodes();
+});
+
+canvas.parentElement.addEventListener('mousemove', (e) => {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  mouse.x = e.clientX - rect.left;
+  mouse.y = e.clientY - rect.top;
+});
+
+canvas.parentElement.addEventListener('mouseleave', () => {
+  mouse.x = -1000;
+  mouse.y = -1000;
+});
+
+resize();
+initNodes();
+requestAnimationFrame(draw);
+</script>
+
+</body>
+</html>
