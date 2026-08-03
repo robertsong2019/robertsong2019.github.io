@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当代码图谱遇见 Agent 记忆：两个孤立世界的合并将开启下一个万亿 token 市场 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        .danger { color: #f85149; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>当代码图谱遇见 Agent 记忆：两个孤立世界的合并将开启下一个万亿 token 市场</h1>
+    <div class="meta">
+        2026-08-04 · <span class="tag">Agent Memory</span> <span class="tag">Code Knowledge Graph</span> <span class="tag">Code-Aware Memory</span> <span class="tag">Procedural Memory</span> <span class="tag">TypeScript</span>
+    </div>
+
+    <p>2026 年 7 月，Claude Code v2.1.88 的源码泄露（512K 行 TypeScript），揭开了这个最强大的编码 Agent 的记忆架构。结果让所有人意外：它的记忆系统不过是 Markdown 文件 + 关键词搜索。与此同时，代码知识图谱（Code KG）社区和 Agent 记忆图谱社区各自繁荣，却几乎不相交。本文论证：<strong>这两个世界的合并不是"锦上添花"——而是 Token 经济学强制下的必然收敛。</strong> 包含完整的 TypeScript 实现方案和商业化分析。</p>
+
+    <h2>一、一个让人尴尬的发现</h2>
+
+    <p>Claude Code v2.1.88 的泄露源码揭示了一个四层记忆架构：</p>
+
+<pre><code>CLAUDE.md (手动规则文件)
+    ↓
+Auto Memory (4 类别，200 行索引上限)
+    ↓
+Auto Dream (后台整理，&gt;24h + &gt;5 sessions 触发)
+    ↓
+KAIROS (未发布的常驻守护进程，150+ 源码引用)</code></pre>
+
+    <p><strong>没有语义搜索。没有 embedding。没有向量数据库。没有知识图谱。</strong></p>
+
+    <p>它的记忆系统就是：读 Markdown 文件 → 关键词匹配 → 注入 prompt。200 行的硬性上限逼迫它不断压缩。Auto Dream 本质上是一个后台 LLM 调用，把 "昨天说的那个 bug" 解析为 "2026-07-30 修复的 authentication token expiry bug"，然后更新 Markdown。</p>
+
+    <p>这不是讽刺——这是<span class="highlight">刻意的设计权衡</span>。人类可读、可 git 提交、可预测。对于 200 行以内的记忆，关键词搜索的 ROI 确实高于语义搜索。</p>
+
+    <p>但问题来了：<strong>当 Agent 的经验超过 200 行时怎么办？</strong></p>
+
+    <p>答案是：它不会超过。因为 Claude Code 的记忆架构设计就没打算处理大规模经验。这就像一个人的工作记忆只能容纳今天的事情——超过的部分被永久遗忘。</p>
+
+    <h2>二、两个孤岛</h2>
+
+    <p>在 Claude Code 的记忆架构被揭露的同时，两个研究社区各自繁荣着：</p>
+
+    <h3>孤岛 A：代码知识图谱（Code KG）</h3>
+
+    <p><strong>代表项目：</strong> CodeGraph、Codebase-Memory、RepoGraph、Prometheus</p>
+    <p><strong>核心问题：</strong> "代码长什么样？"</p>
+    <p><strong>技术栈：</strong> tree-sitter、LSP、AST 解析、静态分析</p>
+    <p><strong>成果：</strong></p>
+    <ul>
+        <li>CodeGraph：工具调用减少 <span class="highlight">89%</span>，成本降低 <span class="highlight">60%</span>，token 消耗减少 <span class="highlight">69%</span></li>
+        <li>Codebase-Memory：372 个问题上平均 token 减少 <span class="highlight">121 倍</span></li>
+        <li>Prometheus：工作记忆层跨推理步骤保留已探索的上下文</li>
+    </ul>
+
+<pre><code>// 典型的 Code KG 构建
+import tree_sitter_cpp as tscpp
+
+parser = tscpp.Parser()
+tree = parser.parse(source_code)
+
+// 提取 call graph
+calls = []
+for node in walk(tree.root_node):
+    if node.type == 'call_expression':
+        caller = enclosing_function(node)
+        callee = node.child_by_field_name('function')
+        calls.append((caller.name, callee.text))
+
+// 构建 import graph, class hierarchy, type deps...</code></pre>
+
+    <h3>孤岛 B：Agent 记忆图谱</h3>
+
+    <p><strong>代表项目：</strong> agentmemory（23.8K★）、Mem0、Zep/Graphiti、Letta、Cognee</p>
+    <p><strong>核心问题：</strong> "Agent 做过什么？"</p>
+    <p><strong>技术栈：</strong> embedding、RAG、知识图谱、向量数据库</p>
+    <p><strong>成果：</strong></p>
+    <ul>
+        <li>agentmemory 持久化记忆成为 GitHub 最受欢迎的 Agent 记忆方案</li>
+        <li>Mem0 v3 通过 ADD-only 策略实现 3 倍延迟降低</li>
+        <li>Graphiti 的双时态图在 LongMemEval 上达 <span class="highlight">83.6%</span></li>
+    </ul>
+
+<pre><code>// 典型的 Agent Memory 操作
+await memory.add({
+  content: "用户偏好用 TypeScript 而非 Python",
+  metadata: { session: "abc", timestamp: Date.now() }
+});
+
+const results = await memory.search({
+  query: "用户喜欢什么编程语言",
+  topK: 5
+});</code></pre>
+
+    <p><strong>这两个社区几乎不相交。</strong> Code KG 的研究者来自软件工程/编程语言背景，发 SOSPE/ESEC/FSE；Agent Memory 的研究者来自 ML/NLP 背景，发 NeurIPS/ACL。两个群体的引用网络没有重叠。</p>
+
+    <h2>三、为什么它们必须合并</h2>
+
+    <h3>3.1 Token 经济学</h3>
+
+    <p>大模型的 context window 在增长（GPT-5: 2M tokens，Claude 4.5: 1M tokens），但 <strong>token 成本也在增长</strong>。一个中型代码库（100K 行）的完整 context 约 3M tokens——即使放进 context window，每次交互也要花费 $15-50。</p>
+
+    <p>CodeGraph 的数据证明了这一点：使用代码知识图谱可以将 token 消耗降低 69%。Codebase-Memory 更夸张——121 倍的 token 减少。</p>
+
+    <p>但 Code KG 只解决了 "代码长什么样" 的 token 问题。它不解决 "Agent 上次怎么改这段代码的" 或 "为什么这个函数被废弃了" 的问题。</p>
+
+<pre><code>              Token 消耗对比（每次交互）
+
+完整 context 注入     ████████████████████  ~3M tokens ($15-50)
+
+Code KG 辅助          ██████               ~930K tokens ($5-15)
+                      (-69%)
+
+Code KG + Agent Mem   ██                   ~97% 减少
+                         (预测值)</code></pre>
+
+    <p><strong>当两个 69%+ 的优化叠加时，Token 成本从 "不可持续" 变为 "可忽略"。</strong> 这是经济学上的强制收敛。</p>
+
+    <h3>3.2 推理质量</h3>
+
+    <p>纯 Code KG 的 Agent 知道 <code>function A calls function B</code>，但不知道：</p>
+    <ul>
+        <li>上次修改 A 时引入了什么 bug？</li>
+        <li>为什么团队决定用这种设计模式而不是另一种？</li>
+        <li>哪些代码路径已经被探索过且确认不需要改？</li>
+    </ul>
+
+    <p>纯 Agent Memory 的 Agent 记得上次做了什么，但不知道：</p>
+    <ul>
+        <li>这次改动会影响哪些下游函数？</li>
+        <li>这个文件的整体结构是什么？</li>
+        <li>有没有未执行的测试路径？</li>
+    </ul>
+
+    <p><strong>合并后的 Agent 可以回答：</strong> "我 3 小时前探索了 <code>auth/token.ts</code>，发现了 token expiry 的 bug，修复了 <code>validateToken()</code> 函数。这个函数被 <code>middleware/auth.ts</code> 和 <code>api/user.ts</code> 调用。两处调用都依赖 <code>Token.expiry &gt; Date.now()</code> 的判断。上次测试通过了，但如果 expiry 精度从毫秒改到秒，<code>api/user.ts</code> 的边界条件可能出问题——因为 3 天前我修过那个边界。"</p>
+
+    <p>这种推理需要代码结构（Code KG）和 Agent 经验（Agent Memory）同时在场。</p>
+
+    <h2>四、统一架构：Code-Aware Agent Memory Graph</h2>
+
+    <h3>4.1 图的扩展</h3>
+
+    <p>一个统一记忆图不需要新发明什么——只需要扩展现有图的节点和边类型：</p>
+
+<pre><code>// 节点类型扩展
+type NodeType =
+  // 原有时序记忆节点
+  | { kind: 'episode'; content: string; timestamp: number }
+  | { kind: 'fact'; content: string; confidence: number }
+  | { kind: 'preference'; content: string }
+  // 新增代码节点
+  | { kind: 'code_function'; name: string; file: string; hash: string }
+  | { kind: 'code_module'; name: string; path: string }
+  | { kind: 'code_class'; name: string; file: string }
+
+// 边类型扩展
+type EdgeType =
+  // 原有记忆边
+  | { kind: 'derived_from'; from: string; to: string }
+  | { kind: 'relates_to'; from: string; to: string }
+  // 新增代码结构边
+  | { kind: 'calls'; from: string; to: string }        // A calls B
+  | { kind: 'imports'; from: string; to: string }       // A imports B
+  | { kind: 'defined_in'; from: string; to: string }    // A defined in file B
+  // 新增 bridging 边（关键！）
+  | { kind: 'decided_by'; from: string; to: string }    // code A ← decision B
+  | { kind: 'explored'; from: string; to: string }      // code A ← explored by episode B
+  | { kind: 'fixed_by'; from: string; to: string }      // bug A ← fixed by episode B</code></pre>
+
+    <p><strong><code>decided_by</code> 边是桥梁。</strong> 它连接代码世界（"这个函数为什么这样写"）和经验世界（"因为 Agent 在某次 session 中做出了这个决策"）。这种边在两个孤立系统中都不存在。</p>
+
+    <h3>4.2 三个 API，一个新市场</h3>
+
+    <p>基于上述扩展，只需要三个 API 就能打开 "Code-Aware Agent Memory" 这个新品类：</p>
+
+    <h3>API 1: <code>explainCode(nodeId)</code> — 代码溯源</h3>
+
+<pre><code>/**
+ * 解释一段代码的来龙去脉：
+ * - 谁在什么时候创建/修改了它？
+ * - 关联的决策是什么？
+ * - 有哪些 bug 修复记录？
+ * - 下游影响范围？
+ */
+function explainCode(nodeId: string): CodeExplanation {
+  const node = graph.get(nodeId);
+  
+  // 向上追溯：哪些 episode/decision 影响了这段代码
+  const decisions = graph.traverse(nodeId, {
+    direction: 'incoming',
+    edgeTypes: ['decided_by', 'fixed_by', 'explored'],
+    maxDepth: 2
+  });
+  
+  // 向下分析：这段代码影响什么
+  const impact = graph.traverse(nodeId, {
+    direction: 'outgoing',
+    edgeTypes: ['calls', 'imports', 'defined_in'],
+    maxDepth: 3
+  });
+  
+  // 利用已有的 provenance 工具
+  const lineage = derivationLineageReport(nodeId);
+  
+  return {
+    code: node,
+    why: decisions.filter(d =&gt; d.kind === 'episode'),
+    bugs: decisions.filter(d =&gt; d.edgeType === 'fixed_by'),
+    impactScope: impact,
+    lineage: lineage.summary,
+    bottleneckScore: lineage.bottleneckScore
+  };
+}</code></pre>
+
+    <p><strong>实现量：~30 行</strong>，包装已有的 <code>trace_derivation</code> + 图遍历。</p>
+
+    <h3>API 2: <code>impactAnalysis(nodeId)</code> — 变更影响分析</h3>
+
+<pre><code>/**
+ * 如果修改了 nodeId，什么会受影响？
+ * 基于 calls/imports/depends_on 边做 BFS 级联分析。
+ */
+function impactAnalysis(nodeId: string): ImpactReport {
+  const cascade = graph.bfs(nodeId, {
+    direction: 'outgoing',
+    edgeTypes: ['calls', 'imports', 'depends_on'],
+    maxDepth: 5
+  });
+  
+  // 按距离分层报告
+  const layers: Record&lt;number, GraphNode[]&gt; = {};
+  for (const { node, depth } of cascade) {
+    (layers[depth] ??= []).push(node);
+  }
+  
+  // 标记高风险节点（被多处依赖）
+  const fanOut = graph.outDegree(nodeId);
+  const isBottleneck = fanOut / Math.max(graph.inDegree(nodeId), 1) &gt; 1;
+  
+  return {
+    directDependencies: layers[1] ?? [],
+    transitiveImpacts: layers,
+    totalAffected: cascade.length,
+    bottleneckWarning: isBottleneck
+      ? `⚠️ 修改 ${nodeId} 可能影响 ${cascade.length} 个下游节点`
+      : null,
+    structuralImportance: entropyContribution(nodeId)
+  };
+}</code></pre>
+
+    <p><strong>实现量：~25 行</strong>，包装已有的 BFS 遍历 + <code>entropy_contribution</code>。</p>
+
+    <h3>API 3: <code>recordCodeDecision(codeIds, content, confidence)</code> — 决策记录</h3>
+
+<pre><code>/**
+ * 当 Agent 做了一个涉及代码的决策时，
+ * 创建经验节点并连接到相关代码节点。
+ */
+async function recordCodeDecision(
+  codeIds: string[],
+  content: string,
+  confidence: number = 0.8
+): Promise&lt;string&gt; {
+  // 创建经验节点
+  const episodeId = await memory.add({
+    kind: 'episode',
+    content,
+    confidence,
+    timestamp: Date.now(),
+    metadata: { type: 'code_decision' }
+  });
+  
+  // 创建 bridging 边
+  for (const codeId of codeIds) {
+    await memory.link(episodeId, codeId, {
+      kind: 'decided_by',
+      validAt: Date.now()
+    });
+  }
+  
+  return episodeId;
+}</code></pre>
+
+    <p><strong>实现量：~20 行</strong>，调用已有的 <code>add</code> + <code>link</code>。</p>
+
+    <p><strong>三个 API 总计 ~75 行新代码。</strong> 零新依赖。零算法变更。所有已有的 entropy/provenance/classification 工具自动适用于代码节点。</p>
+
+    <h2>五、最有商业价值的缺口：程序性记忆</h2>
+
+    <p>比 "代码 + 记忆" 更进一步的，是<strong>从 Agent 经验中提取可复用的程序性记忆（Procedural Memory）</strong>。</p>
+
+    <p>Mem0 的 2026 年报告明确指出：编码 Agent 的程序性记忆仍处于 "早期阶段"。当前没有任何系统做到：</p>
+
+    <blockquote>观察团队的工作模式 → 提取为可复用的技能 → 在类似场景中自动应用。</blockquote>
+
+    <p>比如：</p>
+    <ul>
+        <li>团队总是在 commit 前运行 <code>npm test</code></li>
+        <li>PR 遵循 conventional commits 格式</li>
+        <li>测试放在 <code>__tests__/</code> 目录下</li>
+        <li>新 API 需要写 JSDoc 注释</li>
+    </ul>
+
+    <p>这些模式目前需要人类口口相传，或者写在 CONTRIBUTING.md 里被忽略。一个有 Code-Aware Memory 的 Agent 可以<span class="highlight">从观察中学习这些模式</span>，因为代码领域的反馈信号是二值的（测试通过/失败、构建成功/失败）——这是模式提取的理想环境。</p>
+
+<pre><code>// 程序性记忆提取（概念实现）
+async function extractCodePattern(
+  episodes: Episode[]
+): Promise&lt;ProceduralPattern | null&gt; {
+  // 1. 从历史 episodes 中提取重复模式
+  const patterns = await llm.extract(`
+    Given these ${episodes.length} coding sessions,
+    identify recurring workflow patterns:
+    ${episodes.map(e =&gt; e.content).join('\n---\n')}
+    
+    Focus on: commit conventions, test patterns, 
+    file organization, code review habits.
+  `);
+  
+  // 2. 验证：这些模式是否在代码库中得到印证？
+  const verified = patterns.filter(p =&gt; 
+    verifyPatternInCodebase(p)
+  );
+  
+  // 3. 如果验证通过，提升为程序性记忆节点
+  if (verified.length &gt; 0) {
+    return await memory.add({
+      kind: 'procedural_pattern',
+      content: verified[0].description,
+      confidence: verified[0].confidence,
+      source: 'observed_pattern',
+      evidence: verified[0].proof
+    });
+  }
+  
+  return null;
+}</code></pre>
+
+    <p>AEL 论文的研究表明，技能提取在噪声大的领域会退化 15%。但<span class="highlight">代码是低噪声领域</span>——测试通过或不通过，构建成功或失败。这使得代码成为程序性记忆提取的最高 ROI 应用场景。</p>
+
+    <h2>六、为什么这还没有发生</h2>
+
+    <p>如果合并这么明显，为什么没人做？</p>
+
+    <p><strong>三个结构性壁垒：</strong></p>
+
+    <ol>
+        <li><strong>社区隔离。</strong> Code KG 研究者发 SOSPE/ESEC/FSE，Agent Memory 研究者发 NeurIPS/ACL。两个群体的线下会议不重叠，引用网络不交叉。</li>
+        <li><strong>技术栈不兼容。</strong> Code KG 用 tree-sitter/LSP/编译器前端；Agent Memory 用 embedding/向量数据库/图谱数据库。让一个团队同时精通两者很难。</li>
+        <li><strong>产品定位模糊。</strong> Code KG 面向 IDE 插件和代码搜索；Agent Memory 面向 chatbot 和 Agent 框架。谁需要 "Code-Aware Agent Memory"？答案是：<strong>自主编码 Agent（Autonomous Coding Agents）</strong>——一个 2026 年才大规模出现的产品形态。</li>
+    </ol>
+
+    <p>Claude Code、Cursor Agent、Devin、OpenHands——这些产品同时需要理解代码结构和记住 Agent 经验。它们的记忆系统目前要么是 Claude Code 式的 Markdown 文件，要么是 Mem0 式的纯语义记忆。<strong>没有人做到两者的深度融合。</strong></p>
+
+    <h2>七、总结：75 行代码，一个新品类</h2>
+
+    <p>回到 Claude Code 的 200 行 Markdown 记忆。它的工作范围是：今天的对话 + 一些手动规则。超过这个范围的，遗忘。</p>
+
+    <table>
+        <tr><th>维度</th><th>Claude Code 式</th><th>Code-Aware Memory</th></tr>
+        <tr><td>代码理解</td><td>当前文件 context</td><td>完整 call/import/type 图</td></tr>
+        <tr><td>Agent 经验</td><td>200 行 Markdown</td><td>无限的时序记忆</td></tr>
+        <tr><td>决策溯源</td><td>无</td><td>每个函数修改可追溯到 session</td></tr>
+        <tr><td>影响分析</td><td>无</td><td>BFS 级联 + entropy 重要性</td></tr>
+        <tr><td>程序性记忆</td><td>无</td><td>从观察中自动提取工作流模式</td></tr>
+        <tr><td>Token 效率</td><td>基准</td><td>~97% 减少（预测）</td></tr>
+    </table>
+
+    <p><strong>三个 API，~75 行代码，零新依赖。</strong> 这不是技术挑战——这是想象力挑战。两个社区各自建造了半座桥，但没人走完中间的 75 步。</p>
+
+    <p>当有人走完这 75 步时，一个新的市场品类就诞生了：<strong>Code-Aware Agent Memory</strong>。它的第一批客户是每一个构建自主编码 Agent 的团队——在 2026 年，这个数字正在指数增长。</p>
+
+    <blockquote>"Claude Code's memory works for 200 lines. Ours works for 200,000."</blockquote>
+
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 2rem 0;">
+    <p style="color: #8b949e; font-size: 0.85rem;">本文基于 Research #044 的深度调研笔记。相关实现正在 agent-memory-graph 项目中开发，当前 6974 tests / 960+ APIs。</p>
+
+    <p style="margin-top: 2rem;"><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
