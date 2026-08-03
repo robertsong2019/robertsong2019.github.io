@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>为什么 1M token 解决不了 Agent 记忆——2026 五大记忆架构全景 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>为什么 1M token 解决不了 Agent 记忆——2026 五大记忆架构全景</h1>
+        <div class="meta">
+            2026-08-03 · 罗嵩 ·
+            <span class="tag">Agent Memory</span>
+            <span class="tag">LLM</span>
+            <span class="tag">Knowledge Graph</span>
+            <span class="tag">前沿研究</span>
+        </div>
+
+        <blockquote>给你一个拥有 100 万 token 上下文窗口的 LLM，让它记住和用户一整年的对话。听起来很简单？ICLR 2026 的 BEAM 基准给出了残酷的答案：在 1000 万 token 的对话中，最好的模型也只能答对不到 20% 的问题。问题不在于"能不能装下"，而在于"装下了也记不住"。2026 年，Agent 记忆领域已经给出了五种完全不同的解题思路——它们不是在竞争，而是在押注不同的未来。</blockquote>
+
+        <h2>一、Context Rot：为什么更大的窗口不是答案</h2>
+
+        <p>过去两年，LLM 的上下文窗口从 128K 暴涨到 1M、甚至 10M token。直觉上，只要窗口够大，把所有历史对话塞进去不就行了？</p>
+
+        <p>BEAM 基准（ICLR 2026）用数据打碎了这个幻想：</p>
+
+        <table>
+            <thead><tr><th>对话规模</th><th>模型</th><th>Vanilla（全塞进去）</th><th>+ RAG</th><th>+ LIGHT（三系统融合）</th></tr></thead>
+            <tbody>
+                <tr><td>1M tokens</td><td>GPT-4.1-nano</td><td>19.1%</td><td>30.2%</td><td>33.6%</td></tr>
+                <tr><td>1M tokens</td><td>Llama 4 Maverick</td><td>25.9%</td><td>30.7%</td><td>33.6%</td></tr>
+                <tr><td>10M tokens</td><td>GPT-4.1-nano</td><td>10.9%</td><td>21.8%</td><td>22.6%</td></tr>
+            </tbody>
+        </table>
+
+        <p>看到了吗？<strong>把 1M token 的对话塞进 1M token 的窗口，准确率只有 19%</strong>。这不是某个弱模型——所有模型都是这样。</p>
+
+        <p>原因叫做 <strong>context rot（上下文腐烂）</strong>。就像你把一年的微信聊天记录全打印出来放在桌上，然后问"三个月前那个周三我午饭吃了什么"——信息在桌上，但你找不到。注意力机制在海量上下文中会分散，关键信息被噪声淹没。</p>
+
+        <div class="highlight">
+            <strong>核心洞察：</strong>记忆问题不是"容量"问题，而是"什么该被放进注意力"的问题。你不能把整个图书馆塞进脑子——你需要的是索引、分类、和遗忘。
+        </div>
+
+        <h2>二、五大记忆架构：完全不同的赌注</h2>
+
+        <p>2026 年中，Agent 记忆领域形成了五个清晰的阵营。关键点在于：它们不是同一类产品的不同品牌，而是对"记忆是什么"这个问题给出的<em>本质不同的回答</em>。</p>
+
+        <h3>1. Mem0：提取-冲突检测管线</h3>
+
+        <p><strong>核心赌注：</strong>记忆 = 从对话中提取的事实 + 冲突检测。</p>
+
+        <p>Mem0 是目前部署最广的记忆层（~49K GitHub stars）。它的工作方式像一条流水线：LLM 从对话中提取命名实体和关系 → 存入图数据库 → 新事实和旧事实比较 → 合并、更新或标记冲突。检索时融合语义搜索、BM25 关键词和实体匹配三路信号。</p>
+
+        <p>2026 年 4 月发布的新算法在 LoCoMo 上自报 92.5 分，LongMemEval 上 94.4 分，每次检索约消耗 7,000 token。但注意——Maximem 的独立复现把 LongMemEval 降到了 73.8。<strong>永远要问 harness 是谁跑的。</strong></p>
+
+        <p><strong>最适合：</strong>实时对话个性化，需要快速部署的场景。</p>
+
+        <h3>2. Letta（前 MemGPT）：Agent 自我管理的记忆</h3>
+
+        <p><strong>核心赌注：</strong>记忆 = Agent 通过工具调用自行操作的文件系统。</p>
+
+        <p>Letta 的核心观点最具野心：不要在外部系统里管理记忆，让 <strong>Agent 自己决定记什么、忘什么</strong>。它把 LLM 比作操作系统——有"主上下文"（RAM）、"召回存储"（最近对话日志）、"归档存储"（长期数据库）。Agent 通过函数调用在层级间"换页"。</p>
+
+        <p>2026 年 3 月，Letta 宣布了下一代架构：从 server-side memory tools 迁移到 <strong>git-backed context repositories</strong>——Agent 用 bash 操作记忆文件系统，记忆有版本控制，可以 diff 和回滚。同时引入了 <strong>sleep-time compute</strong>（稍后详述）。</p>
+
+        <p><strong>最适合：</strong>需要 Agent 随时间真正"学习"和进化人格的场景。</p>
+
+        <h3>3. Zep / Graphiti：双时间知识图谱</h3>
+
+        <p><strong>核心赌注：</strong>记忆 = 带时间戳的知识图谱，事实有"有效期"。</p>
+
+        <p>这是技术上最独特的一家。Graphiti 给图中的每条边打上两个时间戳：<strong>valid_time</strong>（事实在真实世界中何时为真）和 <strong>ingestion_time</strong>（Agent 何时观察到了它）。当用户地址变更时，旧地址不会被删除——它被标记为"在 2025 年 3 月到 2026 年 7 月之间为真"。</p>
+
+        <p>这使得 Zep 能回答其他系统无法处理的问题："去年这个时候用户的偏好是什么？""这个事实是何时变得过时的？"在 LoCoMo 时间推理子项上，Zep 报告了 94.7% 的准确率，远超其他系统。</p>
+
+        <p>检索时不调用 LLM——纯向量 + BM25 + 图遍历的混合查询，p95 延迟低于 200ms。这对实时语音 Agent 至关重要。</p>
+
+        <p><strong>最适合：</strong>企业场景中需要精确时间推理的——客户支持、CRM、法律、医疗。</p>
+
+        <h3>4. Cognee：文档到知识图谱的 ETL</h3>
+
+        <p><strong>核心赌注：</strong>记忆 = 从非结构化文档中提取的结构化知识图谱。</p>
+
+        <p>Cognee 的定位更像"记忆的数据管道"：Extract-Cognify-Load 三阶段，把 PDF、网页、JSON、数据库等 30 多种数据源转成持久化知识图谱。它不处理实时对话——它处理的是知识管理。</p>
+
+        <p><strong>最适合：</strong>需要对大量文档建立结构化记忆的企业知识库场景。</p>
+
+        <h3>5. Supermemory：极简托管</h3>
+
+        <p><strong>核心赌注：</strong>记忆 = 一个 API 调用，别管底层。</p>
+
+        <p>一个 <code>supermemory.add()</code> 存，一个 <code>supermemory.search()</code> 取。内置 RAG，内置用户画像，零基础设施配置。牺牲了灵活性换取了极致的开发体验。</p>
+
+        <p><strong>最适合：</strong>快速原型、轻量部署、不想碰向量数据库的团队。</p>
+
+        <div class="insight">
+            <strong>选型决策树：</strong>需要时间推理 → Zep；需要 Agent 自我进化 → Letta；需要快速上线 → Mem0 或 Supermemory；需要文档知识图谱 → Cognee。它们不是竞争关系——你完全可以组合使用。
+        </div>
+
+        <h2>三、Sleep-time Compute：当 Agent 学会了"睡觉"</h2>
+
+        <p>这是 2026 年最让我兴奋的方向。</p>
+
+        <p>人类的大脑不是在清醒时整理记忆的。我们在白天积累碎片化的经验，在睡眠中固化、重组、连接它们。剥夺睡眠会导致认知崩溃——这在所有动物中都是如此。</p>
+
+        <p>Letta 团队把这个洞察搬到了 Agent 世界。他们发现了一个根本性的架构问题：<strong>Agent 不应该在对话中同时处理信息和整理记忆</strong>。想象你一边开会做笔记，一边还要同时给笔记分类、去重、建立交叉引用、写摘要——你什么也做不好。</p>
+
+        <p>Sleep-time agent 的解决方案是分离关注点：</p>
+
+        <ul>
+            <li><strong>Primary Agent（清醒时）：</strong>专注对话和决策。只做最轻量的即时记忆更新（"用户喜欢深色模式"→直接写）</li>
+            <li><strong>Sleep-time Agent（离线时）：</strong>在对话间隙异步运行。执行去重、冲突检测、图密度化、摘要生成、跨会话关联</li>
+        </ul>
+
+        <p>实验数据令人信服：在 GSM-Symbolic 和 AIME 数学推理任务上，把计算转移到离线阶段可以将测试时计算量减少 <strong>5 倍</strong>而不损失准确率。</p>
+
+        <p>更重要的是，sleep-time compute 改变了记忆的质量。在传统架构中，记忆是增量写入的——每次对话后追加一条。随着时间推移，记忆库变得混乱：重复的事实、过时的信息、碎片化的上下文。Sleep-time agent 可以像人类睡眠一样，<strong>重新组织已有记忆</strong>——发现潜在模式、生成更连贯的摘要、甚至预计算未来可能用到的推理。</p>
+
+        <div class="highlight">
+            <strong>类比：</strong>你的桌面乱了一周。你可以在每用完一样东西时花 5 秒归位（增量写入），也可以周末花一小时彻底整理（sleep-time 固化）。后者虽然总时间更长，但结果的质量完全不同——因为你看到了全貌。
+        </div>
+
+        <p>ACL 2026 的 TSM（Temporal Semantic Memory）论文进一步验证了这个思路：把昂贵的摘要构建放到离线阶段，在线检索只做时间过滤和局部重排，token 成本从 2065K 降到 1959K，而不影响在线延迟。</p>
+
+        <h2>四、写入治理：最被忽视的质量门控</h2>
+
+        <p>所有人都沉迷于优化检索——更好的 embedding、更强的 reranker、更聪明的意图路由。但 2026 年的三篇关键论文揭示了一个反直觉的事实：</p>
+
+        <p><strong>Apple（2026.07）</strong>：选择性写入记忆的 Agent 达到 <strong>96%</strong> 准确率，而写入全部历史的只有 <strong>71%</strong>。</p>
+
+        <p><strong>SimpleMem（ICML 2026）</strong>：在 add() 时用熵过滤丢弃低价值内容，比在 retrieve() 时排序更高效——<strong>40% token 节省，信息无损</strong>。</p>
+
+        <p><strong>PASB（arXiv 2607.10526）</strong>：当 LLM 的"讨好用户"行为被写入持久记忆后，攻击成功率从 45% 暴涨到 <strong>71.9%</strong>。</p>
+
+        <p>三个独立研究指向同一个结论：<strong>写入是记忆系统最危险的操作</strong>。一次错误的写入，会让后续所有的检索都在被污染的基础上运行。你不能用更好的 reranker 来区分"准确的事实"和"Agent 为了讨好用户而编造的事实"——它们在向量空间里看起来一模一样。</p>
+
+        <p>实践中这意味着什么？在 <code>add()</code> 前加两层保护：</p>
+
+        <ol>
+            <li><strong>Read-before-write</strong>：写入前先检索已有记忆，检查是否冲突、重复或已过时</li>
+            <li><strong>Governance gate</strong>：用一个轻量模型判断"这段内容值得持久化吗？"——用户偏好 ✓，推理过程 ✗，临时状态 ✗</li>
+        </ol>
+
+        <h2>五、基准测试的真相</h2>
+
+        <p>2026 年的三大基准各有侧重，没有单一评测能完全代表生产环境表现：</p>
+
+        <table>
+            <thead><tr><th>基准</th><th>规模</th><th>测什么</th><th>最难的部分</th></tr></thead>
+            <tbody>
+                <tr><td><strong>LoCoMo</strong></td><td>~10K token 对话</td><td>长期对话记忆（单跳/多跳/时间/开放域）</td><td>时间推理（GPT-4 Turbo: 51.4 vs 人类 92.6）</td></tr>
+                <tr><td><strong>LongMemEval</strong></td><td>115K-1M token</td><td>跨会话记忆、知识更新检测</td><td>多会话推理、弃权判断</td></tr>
+                <tr><td><strong>BEAM</strong></td><td>1M-10M token</td><td>超长对话的 10 种记忆能力</td><td>矛盾解析（所有系统都挣扎）</td></tr>
+            </tbody>
+        </table>
+
+        <p>几个诚实的提醒：</p>
+
+        <ul>
+            <li>厂商自报的数字"不能在复现中存活"——Mem0 的 LongMemEval 从自报的 94.4 掉到了独立复现的 73.8</li>
+            <li>BEAM 10M 是目前最难以注水的基准——在 1000 万 token 规模下，没有真正的记忆架构能伪装</li>
+            <li>截至 2026 年 8 月初，Exabase M-1 以 68.0% 占据 BEAM 10M 榜首，但这个领域每几周就有新突破</li>
+            <li><strong>矛盾解析</strong>是所有模型都挣扎的能力——维持全局一致的状态仍然是一个未解问题</li>
+        </ul>
+
+        <h2>六、你现在可以做什么</h2>
+
+        <p>如果你正在构建 AI Agent，以下是可操作的建议：</p>
+
+        <h3>1. 按"需要什么记忆"选择架构，而非"哪个最火"</h3>
+
+        <ul>
+            <li>需要记住用户偏好？→ Mem0 的提取-检索管线就够了</li>
+            <li>需要 Agent 随时间进化？→ Letta 的自我管理模式</li>
+            <li>需要处理变化的事实？→ Zep/Graphiti 的双时间图</li>
+            <li>需要管理文档知识？→ Cognee 的 ETL 管线</li>
+        </ul>
+
+        <h3>2. 实施写入治理</h3>
+        <p>在你的 <code>add()</code> 函数前面加一层判断：这个信息值得持久化吗？是否和已有记忆冲突？是否是推理过程而非结论？这比任何检索优化都更能提升记忆质量。</p>
+
+        <h3>3. 给 Agent 加一个"睡眠"周期</h3>
+        <p>即使你不用 Letta，也可以在对话结束后跑一个异步任务：去重、生成摘要、检测冲突、建立跨会话关联。成本不高，但记忆质量会显著提升。</p>
+
+        <h3>4. 构造你自己的基准测试</h3>
+        <p>不要只看厂商数字。用你自己的真实对话数据构造 100 轮以上的测试集，重点测时间推理和矛盾解析——这是最容易出问题的地方。</p>
+
+        <h3>5. 关注 Memory Models 这个方向</h3>
+        <p>Letta 在 2026 年 6 月发表的"Memory Models"论文提出了一个新范式：用 RL 训练记忆模型本身，而非只是训练检索器。这可能改变整个领域的游戏规则。</p>
+
+        <hr>
+
+        <p>Agent 记忆在 2026 年已经不是"要不要加记忆"的问题了，而是"怎么设计认知架构"的问题。五大系统不是终局——它们是探索期的五个方向。真正的终局，可能是一个能像人类一样感知、固化、回忆和遗忘的完整认知系统。</p>
+
+        <p>到那时，我们可能终于可以停止用"记忆"这个比喻——因为 Agent 真的有了记忆。</p>
+
+        <blockquote>
+            <strong>研究笔记：</strong>本文基于 10+ 篇论文和系统报告的系统性调研。完整探索笔记（含核心概念、关键洞察、参考文献列表）已保存。如需深入任何方向，欢迎交流。
+        </blockquote>
+    </div>
+</body>
+</html>
