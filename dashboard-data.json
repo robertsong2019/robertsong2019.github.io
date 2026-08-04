@@ -1,93 +1,178 @@
 {
-  "lastUpdated": "2026-08-02T22:00:00Z",
-  "generatedAt": "2026-08-03 06:00 CST",
-  "system": {
-    "gateway": {
+  "lastUpdated": "2026-08-04T22:00:00Z",
+  "generatedAt": "2026-08-05 06:00 CST",
+  "activeNow": [
+    {
+      "job": "dashboard-update-morning",
       "status": "running",
-      "pid": 438250,
-      "port": 34524,
-      "bind": "lan (0.0.0.0)",
-      "dashboard": "http://10.8.0.5:34524/sponf0/",
-      "rpcProbe": "ok",
-      "nodeVersion": "v22.22.1",
-      "openclawVersion": "2026.4.14"
+      "model": "glm-5.1"
+    }
+  ],
+  "actionRequired": [],
+  "crons": [
+    {
+      "name": "dashboard-update-morning",
+      "schedule": "6:00 AM daily",
+      "id": "f38e0365",
+      "lastRun": "2026-08-04T22:00:00Z",
+      "nextRun": "2026-08-05T22:00:00Z",
+      "status": "running",
+      "errors": 0
     },
-    "host": {
-      "os": "Linux 6.8.0-71-generic (x64)",
-      "hostname": "VM-0-5-ubuntu",
-      "uptime": "102 days, 16:41",
-      "loadAverage": "0.80, 0.34, 0.12",
-      "disk": {
-        "total": "50G",
-        "used": "41G",
-        "available": "6.5G",
-        "usage": "87%"
-      },
-      "memory": {
-        "totalMB": 1935,
-        "usedMB": 1013,
-        "freeMB": 435,
-        "availableMB": 922,
-        "swapTotalMB": 10179,
-        "swapUsedMB": 818
-      }
+    {
+      "name": "github-trending-daily",
+      "schedule": "7:00 AM daily (CST)",
+      "id": "9b2a8701",
+      "lastRun": "2026-08-04T23:00:00Z",
+      "nextRun": "2026-08-05T23:00:00Z",
+      "status": "ok",
+      "errors": 0
     },
-    "model": "zai/glm-5.1"
-  },
-  "cronSummary": {
-    "total": 20,
-    "ok": 17,
-    "error": 2,
-    "running": 1,
-    "errorJobs": ["ce2fb615 (tool-development-evening)", "f0362050 (essay-generation-morning)"]
-  },
-  "cronJobs": [
-    { "id": "f38e0365", "name": "dashboard-update-morning", "schedule": "0 6 * * *", "status": "running", "lastRun": "just now" },
-    { "id": "9b2a8701", "name": "github-trending-daily", "schedule": "0 7 * * *", "status": "ok", "lastRun": "23h ago" },
-    { "id": "2c714952", "name": "github-trending-deep", "schedule": "0 8 * * *", "status": "ok", "lastRun": "22h ago" },
-    { "id": "610a8d6d", "name": "github-creative-evening", "schedule": "0 19 * * *", "status": "ok", "lastRun": "11h ago" },
-    { "id": "ad37c59a", "name": "github-creative-evening", "schedule": "0 19 * * *", "status": "ok", "lastRun": "11h ago" },
-    { "id": "265091b6", "name": "deep-exploration-evening", "schedule": "0 20 * * *", "status": "ok", "lastRun": "10h ago" },
-    { "id": "a4bf5e2a", "name": "deep-exploration-evening", "schedule": "0 20 * * *", "status": "ok", "lastRun": "10h ago" },
-    { "id": "bb46cb70", "name": "deep-exploration-evening", "schedule": "0 12 * * UTC", "status": "ok", "lastRun": "10h ago" },
-    { "id": "13a2f284", "name": "code-lab-evening", "schedule": "0 21 * * *", "status": "ok", "lastRun": "9h ago" },
-    { "id": "62bf7f3b", "name": "tool-development-evening", "schedule": "0 22 * * *", "status": "ok", "lastRun": "8h ago" },
-    { "id": "ce2fb615", "name": "tool-development-evening", "schedule": "0 22 * * *", "status": "error", "lastRun": "8h ago" },
-    { "id": "78eac6fc", "name": "key-development-1", "schedule": "0 23 * * *", "status": "ok", "lastRun": "7h ago" },
-    { "id": "88679f9e", "name": "key-development-2", "schedule": "0 0 * * *", "status": "ok", "lastRun": "6h ago" },
-    { "id": "b0fd7e8d", "name": "key-development-3", "schedule": "0 1 * * *", "status": "ok", "lastRun": "5h ago" },
-    { "id": "1ea6e3b0", "name": "knowledge-organization", "schedule": "0 2 * * *", "status": "ok", "lastRun": "4h ago" },
-    { "id": "fd0515b0", "name": "knowledge-organization", "schedule": "0 2 * * *", "status": "ok", "lastRun": "4h ago" },
-    { "id": "f7510f1f", "name": "project-testing-morning", "schedule": "0 3 * * *", "status": "ok", "lastRun": "3h ago" },
-    { "id": "77a5bcc6", "name": "documentation-morning", "schedule": "0 4 * * *", "status": "ok", "lastRun": "2h ago" },
-    { "id": "686ec55c", "name": "essay-generation-morning", "schedule": "0 5 * * *", "status": "ok", "lastRun": "1h ago" },
-    { "id": "f0362050", "name": "essay-generation-morning", "schedule": "0 5 * * *", "status": "error", "lastRun": "58m ago" }
+    {
+      "name": "github-trending-deep-dive",
+      "schedule": "8:00 AM daily (CST)",
+      "id": "2c714952",
+      "lastRun": "2026-08-05T00:00:00Z",
+      "nextRun": "2026-08-06T00:00:00Z",
+      "status": "ok",
+      "errors": 0
+    },
+    {
+      "name": "github-creative-evening",
+      "schedule": "7:00 PM daily",
+      "id": "ad37c59a",
+      "lastRun": "2026-08-04T09:00:00Z",
+      "nextRun": "2026-08-05T11:00:00Z",
+      "status": "ok",
+      "errors": 0
+    },
+    {
+      "name": "deep-exploration-evening",
+      "schedule": "8:00 PM daily (CST)",
+      "id": "a4bf5e2a",
+      "lastRun": "2026-08-04T10:00:00Z",
+      "nextRun": "2026-08-05T12:00:00Z",
+      "status": "ok",
+      "model": "glm-5.1",
+      "errors": 0
+    },
+    {
+      "name": "code-lab-evening",
+      "schedule": "9:00 PM daily",
+      "id": "13a2f284",
+      "lastRun": "2026-08-04T11:00:00Z",
+      "nextRun": "2026-08-05T13:00:00Z",
+      "status": "ok",
+      "errors": 0
+    },
+    {
+      "name": "tool-development-evening",
+      "schedule": "10:00 PM daily (CST)",
+      "id": "62bf7f3b",
+      "lastRun": "2026-08-04T12:00:00Z",
+      "nextRun": "2026-08-05T14:00:00Z",
+      "status": "ok",
+      "model": "glm-5.1",
+      "errors": 0
+    },
+    {
+      "name": "key-development-1",
+      "schedule": "11:00 PM daily",
+      "id": "78eac6fc",
+      "lastRun": "2026-08-04T13:00:00Z",
+      "nextRun": "2026-08-05T15:00:00Z",
+      "status": "ok",
+      "errors": 0
+    },
+    {
+      "name": "key-development-2",
+      "schedule": "12:00 AM daily",
+      "id": "88679f9e",
+      "lastRun": "2026-08-04T14:00:00Z",
+      "nextRun": "2026-08-05T16:00:00Z",
+      "status": "ok",
+      "errors": 0
+    },
+    {
+      "name": "key-development-3",
+      "schedule": "1:00 AM daily",
+      "id": "b0fd7e8d",
+      "lastRun": "2026-08-04T15:00:00Z",
+      "nextRun": "2026-08-05T17:00:00Z",
+      "status": "ok",
+      "errors": 0
+    },
+    {
+      "name": "knowledge-organization",
+      "schedule": "2:00 AM daily (CST)",
+      "id": "1ea6e3b0",
+      "lastRun": "2026-08-04T16:00:00Z",
+      "nextRun": "2026-08-05T18:00:00Z",
+      "status": "ok",
+      "model": "glm-5.1",
+      "errors": 0
+    },
+    {
+      "name": "project-testing-morning",
+      "schedule": "3:00 AM daily",
+      "id": "f7510f1f",
+      "lastRun": "2026-08-04T17:00:00Z",
+      "nextRun": "2026-08-05T19:00:00Z",
+      "status": "ok",
+      "errors": 0
+    },
+    {
+      "name": "documentation-morning",
+      "schedule": "4:00 AM daily",
+      "id": "77a5bcc6",
+      "lastRun": "2026-08-04T18:00:00Z",
+      "nextRun": "2026-08-05T20:00:00Z",
+      "status": "ok",
+      "errors": 0
+    },
+    {
+      "name": "essay-generation-morning",
+      "schedule": "5:00 AM daily (CST)",
+      "id": "f0362050",
+      "lastRun": "2026-08-04T19:00:00Z",
+      "nextRun": "2026-08-05T21:00:00Z",
+      "status": "ok",
+      "model": "glm-5.1",
+      "errors": 0
+    }
   ],
   "sessions": {
-    "total": 42,
-    "active24h": 42,
-    "notable": [
-      { "type": "main", "lastActive": "13m ago", "model": "glm-5", "context": "156k/200k (78%)" },
-      { "type": "feishu", "lastActive": "9h ago", "model": "glm-5.1", "context": "81k/205k (39%)" },
-      { "type": "cron (essay)", "lastActive": "54m ago", "model": "glm-5.1", "context": "69k/205k (34%)" },
-      { "type": "cron (essay)", "lastActive": "58m ago", "model": "glm-5.1", "context": "69k/205k (34%)" },
-      { "type": "cron (documentation)", "lastActive": "2h ago", "model": "glm-5.1", "context": "53k/205k (26%)" },
-      { "type": "cron (testing)", "lastActive": "3h ago", "model": "glm-5.1", "context": "57k/205k (28%)" },
-      { "type": "cron (knowledge)", "lastActive": "4h ago", "model": "glm-5.1", "context": "51k/205k (25%)" },
-      { "type": "cron (key-dev-1)", "lastActive": "7h ago", "model": "glm-5.1", "context": "35k/205k (17%)" },
-      { "type": "cron (tool-dev)", "lastActive": "8h ago", "model": "glm-5.1", "context": "55k/205k (27%)" },
-      { "type": "cron (code-lab)", "lastActive": "9h ago", "model": "glm-5.1", "context": "92k/205k (45%)" }
+    "total": 57,
+    "active24h": 28,
+    "mainSession": {
+      "model": "glm-5",
+      "tokens": "64k/200k",
+      "contextPct": 32,
+      "lastActive": "13m ago"
+    },
+    "recentCronSessions": [
+      {"model": "glm-5.1", "tokens": "35k/205k", "contextPct": 17, "age": "just now", "job": "dashboard-update-morning"},
+      {"model": "glm-5.1", "tokens": "74k/205k", "contextPct": 36, "age": "49m ago", "job": "essay-generation-morning"},
+      {"model": "glm-5.1", "tokens": "46k/205k", "contextPct": 23, "age": "1h ago", "job": "documentation-morning"},
+      {"model": "glm-5.1", "tokens": "69k/205k", "contextPct": 34, "age": "2h ago", "job": "project-testing-morning"},
+      {"model": "glm-5.1", "tokens": "43k/205k", "contextPct": 21, "age": "3h ago", "job": "knowledge-organization"},
+      {"model": "glm-5.1", "tokens": "72k/205k", "contextPct": 35, "age": "4h ago", "job": "key-development-3"},
+      {"model": "glm-5.1", "tokens": "67k/205k", "contextPct": 33, "age": "5h ago", "job": "key-development-2"},
+      {"model": "glm-5.1", "tokens": "71k/205k", "contextPct": 35, "age": "6h ago", "job": "key-development-1"},
+      {"model": "glm-5.1", "tokens": "53k/205k", "contextPct": 26, "age": "7h ago", "job": "tool-development-evening"},
+      {"model": "glm-5.1", "tokens": "59k/205k", "contextPct": 29, "age": "8h ago", "job": "code-lab-evening"},
+      {"model": "glm-5.1", "tokens": "97k/205k", "contextPct": 47, "age": "10h ago", "job": "deep-exploration-evening"},
+      {"model": "glm-5.1", "tokens": "92k/205k", "contextPct": 45, "age": "10h ago", "job": "github-creative-evening"},
+      {"model": "glm-5-turbo", "tokens": "74k/205k", "contextPct": 36, "age": "11h ago", "job": "github-trending-deep-dive"},
+      {"model": "glm-5.1", "tokens": "27k/205k", "contextPct": 13, "age": "23h ago", "job": "github-trending-daily"}
     ]
   },
-  "git": {
-    "repo": "robertsong2019/openclaw-workspace",
-    "lastCommit": "61cf738 docs: documentation report 2026-08-03",
-    "recentCommits": [
-      "61cf738 docs: documentation report 2026-08-03",
-      "fada2e5 docs: agent-memory-graph Cycles 339-341 — topology stats, noise robustness test",
-      "fc880b8 fix: UnboundLocalError when max_iterations=0 + 22 agent edge case tests",
-      "fcc1c17 feat: classification_noise_test() — noise robustness evaluation (Cycle 341)",
-      "a47ec3c fix: classification_benchmark prediction extraction (Cycle 340)"
-    ]
+  "systemHealth": {
+    "host": "VM-0-5-ubuntu",
+    "os": "Linux 6.8.0-71-generic",
+    "node": "v22.22.1",
+    "model": "glm-5.1",
+    "channel": "feishu",
+    "configWarning": "plugins.entries.memory-tencentdb: plugin not found (stale config, harmless)"
   }
 }
