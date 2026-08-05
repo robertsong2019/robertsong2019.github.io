@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图遍历即推理：Agent 记忆从向量检索到多跳推理的范式跃迁 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+.tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+.ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+</style>
+</head>
+<body>
+<div class="container">
+<a href="../index.html" class="back-link">← 返回首页</a>
+
+<h1>图遍历即推理：Agent 记忆从向量检索到多跳推理的范式跃迁</h1>
+<div class="meta">
+2026-08-06 · 罗嵩 ·
+<span class="tag">GraphRAG</span>
+<span class="tag">Agent Memory</span>
+<span class="tag">多跳推理</span>
+<span class="tag">PageRank</span>
+</div>
+
+<blockquote>当你问 Agent "上次研究者发现的根因和执行者的修复之间有什么关联？"时，向量检索会失效——每一跳都会稀释 embedding 信号。真正能回答这个问题的，是图遍历。本文展示如何用 30 行 numpy 实现 Personalized PageRank 激活扩散，以及 BFS 证据路径收集——把 Agent 记忆从"检索相似 chunk"升级为"遍历推理链"。</blockquote>
+
+<h2>向量检索的天花板</h2>
+
+<p>先说一个反直觉的发现：Claude Code 团队在 2026 年初公开承认，他们抛弃了向量数据库，转而使用 grep + glob + agentic exploration。Boris Cherny 的原话是：<strong>"Agentic search generally works better than RAG."</strong></p>
+
+<p>这对代码场景成立——因为代码有明确的文件路径和符号引用，grep 天然就是结构化搜索。但对于 <strong>通用 Agent 记忆</strong>（实体、事件、因果关系），纯粹的向量相似度也会遇到同样的瓶颈：</p>
+
+<div class="ascii-art">用户提问："研究者发现的根因和执行者的修复有什么关联？"
+
+向量检索 top-5:
+  [0.91] 研究者 agent 分析了数据库超时问题
+  [0.87] 执行者 agent 重启了连接池
+  [0.84] 数据库超时影响了支付服务
+  [0.80] 连接池配置上限是 50
+  [0.78] 监控告警在 3:00 AM 触发
+
+→ 五条结果都"相似"，但没有一条能拼出因果链。</div>
+
+<p>问题出在哪里？<strong>向量相似度衡量的是语义距离，而不是因果距离。</strong> 研究者的发现和执行者的修复在语义上很近（都涉及数据库），但它们的因果关系需要穿越 3-4 跳：researcher → root_cause → connection_pool_exhaustion → resolved_by → pool_restart → executor。</p>
+
+<p>每一跳的 embedding 相似度都会衰减。3 跳之后，向量距离已经和噪声无法区分了。</p>
+
+<h2>范式转换：从检索到推理</h2>
+
+<p>2025-2026 年的研究趋势非常明确：GraphRAG 正在从"检索增强"进化为"推理增强"。我在调研了 HippoRAG2 (ICML 2025)、GFM-RAG (NeurIPS 2025)、A-MEM (NeurIPS 2025)、PathRAG、LogicRAG (AAAI 2026) 后，提炼出三个核心范式：</p>
+
+<h3>范式一：Personalized PageRank —— 激活扩散</h3>
+
+<p>HippoRAG2 的核心思路来自神经科学：人类的 hippocampus 不是通过精确匹配来检索记忆的，而是通过<strong>激活扩散</strong>（spreading activation）。一个记忆被触发时，与之关联的记忆会按连接强度依次被激活。</p>
+
+<p>这就是 Personalized PageRank（PPR）—— 从种子节点出发，沿着边按权重传播激活值，最终每个节点都有一个稳态的激活强度。</p>
+
+<p>核心实现只需要 30 行 numpy：</p>
+
+<pre><code>import numpy as np
+
+def personalized_pagerank(
+    nodes: list[str],
+    edges: list[tuple[str, str, float]],
+    seeds: list[str],
+    damping: float = 0.85,
+    tol: float = 1e-6,
+    max_iter: int = 100,
+) -> dict[str, float]:
+    """从种子节点出发，沿边传播激活值。
+    返回每个节点的稳态激活强度。
+    """
+    n = len(nodes)
+    idx = {nid: i for i, nid in enumerate(nodes)}
+
+    # 构建转移矩阵
+    adj = np.zeros((n, n))
+    for src, dst, w in edges:
+        adj[idx[src], idx[dst]] = w
+    row_sums = adj.sum(axis=1, keepdims=True)
+    row_sums[row_sums == 0] = 1.0
+    P = adj / row_sums
+
+    # 种子向量（均匀分配）
+    p = np.zeros(n)
+    for s in seeds:
+        p[idx[s]] = 1.0
+    p /= p.sum()
+
+    # 幂迭代
+    v = p.copy()
+    for _ in range(max_iter):
+        v_new = damping * P.T @ v + (1 - damping) * p
+        if np.linalg.norm(v_new - v, 1) < tol:
+            break
+        v = v_new
+
+    return {nodes[i]: v[i] for i in range(n)}</code></pre>
+
+<p><strong>为什么 PPR 比 BFS 好？</strong>因为 BFS 是二值的（访问过/没访问过），而 PPR 是连续的——激活强度自然形成了排序信号。距离种子近且连接强的节点得分高，远且弱的节点得分低。HippoRAG2 论文报告：比迭代检索便宜 10-30 倍，快 6-13 倍。</p>
+
+<h3>范式二：BFS 证据路径收集</h3>
+
+<p>PPR 给你的是"哪些节点相关"，但<strong>没有告诉你为什么相关</strong>。StepChain GraphRAG 提出了一个干净的方案：在 BFS 的同时收集路径本身作为证据。</p>
+
+<pre><code>from collections import deque
+from dataclasses import dataclass, field
+
+@dataclass
+class EvidencePath:
+    nodes: list[str] = field(default_factory=list)
+    edges: list[str] = field(default_factory=list)
+    confidence: float = 1.0
+
+    def summary(self) -> str:
+        result = self.nodes[0]
+        for i, edge in enumerate(self.edges):
+            result += f" --{edge}--> {self.nodes[i + 1]}"
+        return f"[{result}] conf={self.confidence:.2f}"
+
+def multi_hop_search(graph, seeds, max_depth=3):
+    """BFS 收集所有证据路径，按置信度排序。"""
+    results = []
+    queue = deque()
+    for seed in seeds:
+        queue.append((seed, EvidencePath(nodes=[seed]), frozenset({seed})))
+
+    while queue:
+        node, path, visited = queue.popleft()
+        if len(path.nodes) > 1:
+            results.append(path)
+        if len(path.nodes) - 1 >= max_depth:
+            continue
+        for neighbor, label, weight in graph.get(node, []):
+            if neighbor not in visited:
+                new_path = EvidencePath(
+                    nodes=path.nodes + [neighbor],
+                    edges=path.edges + [label],
+                    confidence=path.confidence * weight,
+                )
+                queue.append((neighbor, new_path, visited | {neighbor}))
+
+    results.sort(key=lambda p: p.confidence, reverse=True)
+    return results</code></pre>
+
+<p>输出长这样：</p>
+
+<pre><code>#1: [researcher --identified--> root_cause --caused_by--> pool_exhaustion] conf=0.86
+#2: [executor --executed_fix--> pool_restart --resolves--> pool_exhaustion] conf=0.81
+#3: [researcher --identified--> root_cause --affected--> payment_service] conf=0.76</code></pre>
+
+<p>看到 <code>pool_exhaustion</code> 作为<strong>桥接节点</strong>出现在两条路径中了吗？这就是图推理的核心价值——<strong>发现非显然的连接</strong>。</p>
+
+<h3>范式三：自组织记忆（A-MEM 模式）</h3>
+
+<p>A-MEM（NeurIPS 2025，930 stars）带来了第三个洞察：记忆不需要预定义 schema。每条新记忆写入时，系统自动分析已有记忆，生成双向链接。更关键的是——<strong>新记忆可以触发对旧记忆的回溯性更新</strong>。</p>
+
+<p>这意味着：当 Agent 学到一个新事实时，它会自动"回头看"相关的历史记忆，补充新的上下文。就像人类回忆时不是简单地"读取"，而是"重构"——每一次回忆都在重塑记忆网络。</p>
+
+<p>实现上只需要一个 <code>enrich_node()</code> API：</p>
+
+<pre><code>def enrich_node(self, node_id, new_metadata, provenance="auto"):
+    """回溯性富化已有节点的元数据。
+    只追加，不覆盖——保留完整的知识演进历史。
+    """
+    node = self.nodes.get(node_id)
+    if node is None:
+        return False
+
+    if not hasattr(node, "_enrichments"):
+        node._enrichments = []
+    node._enrichments.append({
+        "metadata": new_metadata,
+        "provenance": provenance,
+        "timestamp": time.time(),
+    })
+    # 不覆盖原始 data，只追加 enrichment 层
+    return True</code></pre>
+
+<h2>生产实践的三个建议</h2>
+
+<div class="highlight">
+<strong>建议一：混合堆叠，不要二选一。</strong>生产团队的趋势是 vector search 先缩小候选集（快速召回 top-50），然后 PPR 或 BFS 在子图上做多跳推理（精确排序 top-5）。这比纯向量检索或纯图遍历都好。
+</div>
+
+<div class="highlight">
+<strong>建议二：路径就是产品。</strong>不要只返回检索结果，要返回<strong>到达结果的路径</strong>。EvidencePath 是可解释性的载体——当 Agent 回答"因为连接池耗尽导致支付超时"时，用户可以追溯完整的推理链。这种透明度在 enterprise 场景中不是可选项。
+</div>
+
+<div class="highlight">
+<strong>建议三：增量更新，不要全量重建。</strong>Agent 记忆是写密集型工作负载——每一轮对话都在修改图。使用 FINGER 框架（ICML 2019），你可以把图熵的计算从 O(n³) 降到 O(Δ)——每次边更新只花常数时间。这意味着你可以实时监控记忆图的"健康度"，而不是每天离线批处理一次。
+</div>
+
+<h2>独到观点：GraphRAG 不是 RAG 的升级，而是 Agent 的认知架构</h2>
+
+<p>很多讨论把 GraphRAG 看成"RAG 的一个变体"——检索策略从余弦相似度换成图遍历。我认为这个框架低估了它的意义。</p>
+
+<p>向量 RAG 的心智模型是<strong>图书馆</strong>：文档存在架子上，检索就是找到最相似的那几本书。它本质上是静态的、只读的。</p>
+
+<p>GraphRAG 的心智模型是<strong>大脑</strong>：记忆是动态网络，每次写入都会重塑连接，每次检索都是在网络上跑一次推理过程。PPR 模拟海马体的激活扩散，A-MEM 模拟记忆巩固，BFS 证据路径模拟有意识的推理链。</p>
+
+<p>这不是检索策略的变化，而是<strong>认知架构的变化</strong>。当你开始把 Agent 记忆当成"需要推理的图"而非"需要检索的文档库"时，你的系统设计会完全不同：</p>
+
+<ul>
+<li>写入时关注<strong>关系质量</strong>而非 chunk 大小</li>
+<li>检索时关注<strong>路径完整性</strong>而非 top-k 相似度</li>
+<li>维护时关注<strong>图健康度</strong>（熵、聚类系数、直径）而非索引新鲜度</li>
+<li>评估时关注<strong>推理准确率</strong>而非召回率</li>
+</ul>
+
+<p>2025 年 GraphRAG 的成本从 $33K 降到了 $33（LazyGraphRAG），技术门槛已经不存在了。真正的门槛在<strong>认知转变</strong>——从"检索思维"到"推理思维"。</p>
+
+<p>你的 Agent 不是需要更多记忆。它需要的是把已有的记忆<strong>连接起来</strong>。</p>
+
+<hr>
+
+<p><strong>参考资料：</strong></p>
+<ul>
+<li>HippoRAG2 — ICML 2025. Personalized PageRank for memory retrieval.</li>
+<li>GFM-RAG — NeurIPS 2025 / ICLR 2026. 34M param graph foundation model for zero-shot reasoning.</li>
+<li>A-MEM — NeurIPS 2025. Zettelkasten-style self-organizing agent memory.</li>
+<li>StepChain GraphRAG — arXiv:2510.02827. Question decomposition + BFS evidence chains.</li>
+<li>PathRAG — Feb 2025. Flow-based path pruning for GraphRAG.</li>
+<li>FINGER — Chen et al., ICML 2019. Fast incremental von Neumann graph entropy.</li>
+<li>Claude Code engineering — Boris Cherny, Jan 2026. "Agentic search > RAG for code."</li>
+</ul>
+
+<p><a href="../index.html">← 返回首页</a></p>
+</div>
+</body>
+</html>
