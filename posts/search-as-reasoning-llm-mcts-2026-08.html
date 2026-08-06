@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>搜索即推理：当大模型学会像 AlphaGo 一样思考 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        .danger { color: #f85149; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>搜索即推理：当大模型学会像 AlphaGo 一样思考</h1>
+    <div class="meta">
+        2026-08-06 · <span class="tag">LLM Reasoning</span> <span class="tag">MCTS</span> <span class="tag">Process Reward Models</span> <span class="tag">Inference Scaling</span> <span class="tag">AlphaProof</span>
+    </div>
+
+    <blockquote>2016 年，AlphaGo 用蒙特卡洛树搜索（MCTS）击败了李世石。十年后的 2025 年，DeepMind 用同样的搜索框架加上大语言模型，在国际数学奥林匹克（IMO）中拿下金牌。这不是巧合——这标志着 LLM 推理正在从"线性思考链"进化为"树状搜索空间"。但每一次推理搜索的代价是普通查询的 100 倍。这场从"模型越大越强"到"搜索越深越准"的范式转变，正在重塑每一个 AI Agent 系统的设计逻辑。</blockquote>
+
+    <h2>一、从"想一步"到"想很多步"</h2>
+
+    <p>2023 年，Chain-of-Thought（思维链）横空出世。让 LLM "一步步想"，推理能力就大幅提升。但 CoT 有个致命限制：它是<strong>线性的</strong>。模型沿着一条路走到底，走错了就回不来。</p>
+
+    <p>想象你在一个迷宫里。CoT 就像蒙着眼睛一直往前走——碰到死胡同就只能撞墙。但真正的推理不是这样的。人类解数学题时，会尝试一种方法，走不通就退回来试另一条路。国际象棋大师在脑子里展开一棵博弈树，评估多个分支后选择最优解。</p>
+
+    <p>这就是 <strong>LLM Tree Search</strong> 的核心思想：把推理过程建模成一棵树，在树的空间中搜索，而不是沿着一条链走到底。</p>
+
+    <p>2025 年 Wei 等人的综述论文将这个领域统一为三个组件：</p>
+
+    <ul>
+        <li><strong>搜索机制</strong>：MCTS、Beam Search、Best-of-N、Tree of Thoughts</li>
+        <li><strong>奖励函数</strong>：外部验证器（编译器、测试套件、形式证明器）或内部评估（LLM 自评、PRM）</li>
+        <li><strong>转移函数</strong>：每步操作——自然语言推理步骤、代码执行、工具调用</li>
+    </ul>
+
+    <p>听起来很学术？其实你已经见过它了。当你让 GPT-5 "再想想"然后它给出了更好的答案——那就是最简单的 Best-of-N 搜索。当 Claude 的 extended thinking 在回答前花 30 秒"思考"——那也是推理计算的一种形式。整个 2025 年的 AI 突破，从 DeepSeek-R1 到 OpenAI o3，本质上都是在回答同一个问题：<strong>怎样在推理时花更多计算，来换取更好的结果？</strong></p>
+
+    <h2>二、AlphaProof：完美的证明</h2>
+
+    <p>要理解这个范式的威力，没有比 AlphaProof 更好的例子了。</p>
+
+    <p>2024 年 7 月，DeepMind 的 AlphaProof 在国际数学奥林匹克（IMO）中达到银牌水平。2025 年，它升级到金牌水平。2025 年 11 月，核心论文发表在 <em>Nature</em> 上。</p>
+
+    <p>AlphaProof 的架构是"搜索 + 验证"的教科书级实现：</p>
+
+    <ol>
+        <li><strong>自动形式化</strong>：Gemini LLM 将自然语言数学题翻译成 Lean 形式语言代码</li>
+        <li><strong>AlphaZero 式搜索</strong>：MCTS 在 Lean tactic 空间中展开搜索树</li>
+        <li><strong>完美验证</strong>：Lean 编译器即时验证每个步骤——错误的分支被自动剪枝</li>
+        <li><strong>专家迭代</strong>：成功的证明被用来强化策略网络，让它下一轮更强</li>
+    </ol>
+
+    <p>关键洞察在这里：<strong>Lean 从不接受一个错误的证明</strong>。这意味着模型可以大胆"猜测"，错误的猜测会被验证器 100% 过滤掉。在传统 NLP 推理中，LLM 可以生成"看起来合理但实际错误"的中间步骤（hallucination）。但在 AlphaProof 中，幻觉是不可能的——Lean 编译器就是一面照妖镜。</p>
+
+    <p>这就是为什么 AlphaProof 可以解决 IMO 级别的问题：不是因为它比 GPT-4 聪明 100 倍，而是因为它有<strong>一个从不犯错的裁判</strong>。LLM 提供"直觉"（走哪个方向可能对），MCTS 提供"探索"（系统地试多个方向），Lean 提供"真相"（立即告诉你对不对）。</p>
+
+    <p>更令人兴奋的是 2025 年的 AlphaProof Nexus 框架——它结合了进化算法和子代理协调，在单次运行中解决了 <strong>9 个 Erdős 开放问题</strong>。这是真正的前沿数学研究，不是竞赛题的重复。</p>
+
+    <h2>三、Process Reward Models：给每一步打分</h2>
+
+    <p>AlphaProof 有一个特权：Lean 是完美验证器。但大多数任务没有这种奢侈——你写一段代码、做一个分析、生成一个方案，没有编译器能 100% 判断"对不对"。</p>
+
+    <p>于是 <strong>Process Reward Models（过程奖励模型，PRM）</strong>登场了。</p>
+
+    <p>传统的方法只看最终答案——对了给 1 分，错了给 0 分。这叫 <strong>Outcome Reward Model（ORM）</strong>。问题在于：一个正确的答案可能来自错误的中间步骤（运气好），一个错误的答案可能前几步完全正确（最后一步算错了）。ORM 无法区分这两种情况。</p>
+
+    <p>PRM 不一样。它对推理链的<strong>每一步</strong>打分：</p>
+
+    <pre><code>问题：求 x² + 5x + 6 = 0 的解
+步骤 1：x² + 5x + 6 = (x+2)(x+3)    ← PRM: 0.95 ✓
+步骤 2：所以 x+2=0 或 x+3=0          ← PRM: 0.92 ✓  
+步骤 3：x = -2 或 x = -3             ← PRM: 0.98 ✓</code></pre>
+
+    <p>这就像有一个老师站在你身后，每写一步都点一下头或摇一下头。这种密集反馈信号的价值在 2025 年被反复验证：</p>
+
+    <ul>
+        <li><strong>GenPRM-7B</strong>：用自然语言推理 + 代码验证来打分，7B 参数模型在 ProcessBench 上超越 72B 的判别式 PRM</li>
+        <li><strong>Math-Shepherd</strong>：通过 MCTS rollout 自动生成步骤标签，不需要人工标注</li>
+        <li><strong>AgentPRM</strong>：专为 agent 场景设计的 PRM，评估 agent 的每一步决策质量</li>
+        <li><strong>DataPRM</strong>（2026）：将 PRM 扩展到数据分析领域</li>
+    </ul>
+
+    <p>截至 2026 年中，GitHub 上的 <em>Awesome-Process-Reward-Models</em> 仓库已经收录了 <strong>50+ 个开源 PRM</strong>，覆盖数学、代码、多模态、Web 导航、SQL 生成等领域。PRM 正在成为推理系统的标准基础设施。</p>
+
+    <h2>四、Reward Hacking：PRM 的阴暗面</h2>
+
+    <p>故事到这里似乎很完美：PRM 给每一步打分，搜索找到最优路径。但当你试图用 PRM 来<strong>训练</strong>模型时，事情就变复杂了。</p>
+
+    <p>2025 年 NeurIPS 的一篇论文揭示了问题的严重性。Cheng 等人在论文 <em>"Stop Summation"</em> 中指出：用 PRM 做强化学习训练时，标准的 <strong>summation-form credit assignment</strong>（将未来所有步骤的奖励加权和作为当前步骤的价值）会导致严重的 reward hacking。</p>
+
+    <p>翻译成人话：如果模型发现某一步可以获得很高的 PRM 分数，它就会疯狂优化那一步，哪怕其他步骤质量很差——因为总和还是很高。这就像一个学生发现期末考试占总分 60%，就把所有时间花在期末考试上，平时作业全抄——总分很好看，但实际什么都没学到。</p>
+
+    <p>PURE 的解决方案优雅而简洁：用 <strong>min-form</strong> 替代 summation-form。</p>
+
+    <pre><code>// Summation-form (传统)
+V(s) = Σ γᵗ · R(sₜ)    // 所有未来奖励的加权和
+
+// Min-form (PURE)  
+V(s) = min(R_future)    // 未来所有步骤奖励中的最小值</code></pre>
+
+    <p>Min-form 的直觉是经典的 <strong>"木桶效应"</strong>：一条推理链的质量不取决于最强的一步，而取决于最弱的一步。模型想要获得高价值，不能只优化某一步——它必须保证每一步都不差。</p>
+
+    <p>效果：PURE-PRM+VR（以过程奖励为主 + 少量可验证奖励）在 AMC23 上达到 83.9% 准确率，全面超越纯 RLVR baseline。更重要的是，reward hacking 几乎消失。</p>
+
+    <p><strong>核心教训：训练目标和推理使用方式必须对齐。</strong> 推理时我们用 PRM 来选择最优路径（通常取平均或投票），训练时就不能用与推理不一致的累加公式。PURE 的 min-form 更接近推理时的选择逻辑。</p>
+
+    <h2>五、推理的成本：100 倍的代价</h2>
+
+    <p>现在谈谈不那么光鲜的一面。</p>
+
+    <p>推理搜索不是免费的。事实上，它的代价呈<strong>指数级</strong>膨胀：</p>
+
+    <table>
+        <tr><th>场景</th><th>计算量 vs 普通查询</th><th>典型延迟</th></tr>
+        <tr><td>标准 LLM 调用</td><td>1x</td><td>1-3 秒</td></tr>
+        <tr><td>Chain-of-Thought</td><td>3-5x</td><td>5-10 秒</td></tr>
+        <tr><td>Extended Thinking (o3/R1)</td><td>10-100x</td><td>30 秒 - 数分钟</td></tr>
+        <tr><td>MCTS (树搜索)</td><td>100-1000x</td><td>数分钟 - 数小时</td></tr>
+    </table>
+
+    <p>2024 年，OpenAI 在推理上的花费达到 <strong>23 亿美元</strong>——是 GPT-4 训练成本的 15 倍。Jensen Huang 说下一代推理模型需要"100 倍以上的计算资源"。分析师预测到 2030 年，推理将占全部 AI 计算的 75%。</p>
+
+    <p>但这笔钱花得值吗？Best-of-N 的 scaling law 给出了可预测的答案：</p>
+
+    <blockquote>Pass@k = 1 - (1-p)^k</blockquote>
+
+    <p>其中 p 是模型单次通过的概率，k 是采样次数。如果一个模型的单次通过率是 30%，采样 10 次的通过率就是 1-(0.7)^10 ≈ 97%。但收益递减：从 1 次到 10 次提升 67 个百分点，从 10 次到 100 次只提升不到 3 个百分点。</p>
+
+    <p>这意味着<strong>最优策略不是对所有问题都暴力搜索</strong>，而是根据问题难度动态分配计算资源。</p>
+
+    <h2>六、自适应推理：不是每步都需要深思</h2>
+
+    <p>2026 年最有实践价值的趋势是 <strong>Adaptive Reasoning（自适应推理）</strong>。</p>
+
+    <p>核心观察：在生产 agent 系统中，大约只有 <strong>5-20% 的步骤</strong>真正需要深度推理。其余步骤——查个文件、调用个 API、格式化输出——用快速模型就够了。</p>
+
+    <p>一个生动的成本算术：以 Claude Opus 4.6 的输出价格（$60/M tokens）计算，如果一个 15 步的 agent 循环每步生成 10,000 个推理 token，光"思考"的成本就是 <strong>$9</strong>——还没算实际输出。如果只有 4 步真正需要深度推理，你就浪费了 $5。</p>
+
+    <p>2026 年的解决方案是 <strong>多模型级联 + 推理分级路由</strong>：</p>
+
+    <ul>
+        <li><strong>CogRouter</strong>（2026 年 2 月）：训练一个路由器，根据步骤复杂度分配到不同模型</li>
+        <li><strong>ARES</strong>（2026 年 3 月）：自适应推理效率框架，减少 50-62% 的 token 消耗</li>
+        <li><strong>AgentTTS</strong>（2026）：用 LLM agent 自动搜索最优计算分配方案</li>
+    </ul>
+
+    <p>主流 API 也跟上了这个趋势。OpenAI 的 o3 提供 <code>reasoning.effort</code> 参数（low/medium/high），Anthropic 的 Claude 支持 <code>budget_tokens</code> 控制，Google 的 Gemini Flash 有 thinking budget。</p>
+
+    <p>但自适应推理也带来了一个微妙的风险：<strong>Overthinking</strong>。</p>
+
+    <h2>七、想太多的危险</h2>
+
+    <p>推理模型有一个反直觉的特性：<strong>在简单问题上，推理越多反而越差</strong>。</p>
+
+    <p>OpenAI 自己的文档显示，o3 和 o4-mini 在简单事实查询上的表现不如 GPT-4o。原因很有趣：模型"想太多了"——从正确的直觉出发，经过多步推理后，反而被中间步骤的不确定性带到了错误答案。</p>
+
+    <p>2026 年对 agent overthinking 的系统研究定义了三种模式：</p>
+
+    <ol>
+        <li><strong>分析瘫痪</strong>：agent 从"执行下一步"切换到"规划整个未来"，然后在规划中迷失</li>
+        <li><strong> rogue actions</strong>：agent 生成一长串相互依赖的步骤，不等待环境反馈——就像蒙着眼睛连续转弯</li>
+        <li><strong>过早退出</strong>：agent 基于内部推理判定"任务完成了"，但实际还没完成——它"说服"了自己</li>
+    </ol>
+
+    <p>更令人担忧的是，<strong>小模型更容易 overthink</strong>。研究表明，10B 以下参数的模型几乎无法从 CoT 中获益——它们缺乏足够的容量来准确评估多步推理中每一步的上下文，反而更容易被推理链中的噪声带偏。</p>
+
+    <p>这给我们的启示是：<strong>推理不是越多越好，而是在正确的地方做正确深度的推理</strong>。就像开车——高速公路上可以自动驾驶，但到了复杂路口需要人类接手。你需要一个能判断"这个路口复杂不复杂"的路由器。</p>
+
+    <h2>八、对你的 Agent 系统意味着什么</h2>
+
+    <p>如果你正在构建 AI Agent 系统——无论是编程助手、数据分析 agent 还是自动化工作流——以下是可以立刻应用的建议：</p>
+
+    <h3>1. 实施"推理分级路由"</h3>
+
+    <p>这是最高 ROI 的优化。在你的 agent 循环中，加入一个复杂度评估步骤：</p>
+
+    <ul>
+        <li><strong>简单步骤</strong>（文件读写、格式化、简单查询）→ 快速模型，关闭 extended thinking</li>
+        <li><strong>中等步骤</strong>（代码生成、分析、多条件判断）→ 标准模型，中等 reasoning effort</li>
+        <li><strong>复杂步骤</strong>（架构设计、debugging、多步规划）→ 推理模型，高 reasoning effort</li>
+    </ul>
+
+    <p>参考实现：监控每个步骤的推理 token 数与产出质量的关系，找到你的"帕累托最优点"。大多数系统会在 5-20% 的步骤需要深度推理时达到最优成本/质量平衡。</p>
+
+    <h3>2. 用 PRM 做 Best-of-N，而非训练</h3>
+
+    <p>如果你不在做 RL 训练，PRM 仍然极有价值。在推理时使用 PRM 对多条候选路径打分、选择最优——这避免了训练时的 reward hacking 问题，同时获得了 step-level 评估的精度。</p>
+
+    <p>开源选择：Math-Shepherd-PRM-7B（数学）、GenPRM-7B（通用推理）、AgentPRM（agent 决策）。推理成本增加 K 倍（K = 候选路径数），但质量提升往往超过成本增加。</p>
+
+    <h3>3. 寻找你的"验证器"</h3>
+
+    <p>AlphaProof 的成功核心不是 LLM，而是 Lean 验证器。问自己：你的领域中有没有类似 Lean 的东西？</p>
+
+    <ul>
+        <li><strong>代码生成</strong>：编译器 + 单元测试就是验证器</li>
+        <li><strong>数据分析</strong>：SQL 执行结果 + 数据校验就是验证器</li>
+        <li><strong>文档生成</strong>：有没有事实核查 API？有没有可校验的格式规范？</li>
+        <li><strong>决策系统</strong>：有没有模拟器可以测试决策的后果？</li>
+    </ul>
+
+    <p>一旦你找到了验证器，就可以实现"LLM 直觉 + 搜索 + 验证"的 AlphaProof 式架构。验证器质量越高，搜索能放大的"直觉"就越强。</p>
+
+    <h3>4. 设置 token budget 和 overthinking 检测</h3>
+
+    <p>在 agent 循环中加入硬限制：</p>
+
+    <ul>
+        <li>每步推理 token 上限（触发降级到快速模型）</li>
+        <li>连续 N 步无环境反馈时强制暂停（防止 rogue actions）</li>
+        <li>推理 token / 输出 token 比率监控（比率过高可能是 overthinking）</li>
+    </ul>
+
+    <p>2026 年的生产模式是"在决策点推理，不是每步都推理"。大部分步骤用快速模型即可，只在复杂子任务检测、重复失败、或用户明确要求深度思考时才升级到推理模型。</p>
+
+    <h2>结语：搜索是新的 scaling</h2>
+
+    <p>Sebastian Raschka 在 2025 年末的总结中说了一句精准的话：</p>
+
+    <blockquote>LLM 的很多基准进步将来自改进的工具和推理时计算扩展，而非来自训练或核心模型本身。看起来 LLM 在变强，但主要是因为围绕它的应用在变好。</blockquote>
+
+    <p>2025-2026 年的范式转变可以总结为一句话：<strong>从"更大的模型"到"更深的搜索"</strong>。</p>
+
+    <p>DeepSeek-R1 用 GRPO + 可验证奖励，不需要任何 SFT 就涌现出推理能力。AlphaProof 用 MCTS + Lean 验证，在 IMO 中拿到金牌。GenPRM 用 7B 参数超越了 72B 的判别式 PRM。ARES 用自适应路由减少 60% 的计算——这些突破没有一个是因为"模型更大了"。</p>
+
+    <p>它们都是因为<strong>更聪明地使用了搜索</strong>。</p>
+
+    <p>但搜索的代价是真实的。100 倍的计算膨胀、指数级的成本增长、推理模型在简单问题上的"想太多"——这些都是工程实践中必须面对的 tradeoff。</p>
+
+    <p>最终，构建好的 AI Agent 系统就像是做一个好的棋手：不是每步都想 20 步以后——那会超时。而是在<strong>关键时刻深入计算</strong>，在简单局面快速落子。你的 agent 需要的不是最大的推理预算，而是<strong>一个聪明的路由器</strong>，告诉它什么时候该深思、什么时候该快走。</p>
+
+    <p>AlphaGo 当年也是这么赢的——不是每步都搜索到底，而是在正确的位置展开搜索。</p>
+
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 2rem 0;">
+    <p style="color: #8b949e; font-size: 0.85rem;">
+        <strong>参考文献：</strong><br>
+        [1] Hubert, T. et al. (2025). "Olympiad-Level Formal Mathematical Reasoning with Reinforcement Learning." Nature 651, 607-613.<br>
+        [2] Wei et al. (2025). "Unifying Tree Search Algorithm and Reward Design for LLM Reasoning: A Survey." arXiv:2510.09988.<br>
+        [3] Cheng, J. et al. (2025). "Stop Summation: Min-Form Credit Assignment Is All Process Reward Model Needs for Reasoning (PURE)." NeurIPS 2025.<br>
+        [4] Zhao et al. (2025). "GenPRM: Generative Process Reward Models."<br>
+        [5] Guo et al. (2025). "DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning."<br>
+        [6] Snell et al. (2024). "Scaling LLM Test-Time Compute Optimally."<br>
+        [7] AgentPRM (2025). "Process Reward Models for LLM Agents: Practical Framework and Directions." arXiv:2502.<br>
+        [8] DataPRM (2026). "Rewarding the Scientific Process: Process-Level Reward Modeling for Agentic Data Analysis." arXiv:2604.24198.<br>
+        [9] Pronesti et al. (2026). "Beyond Outcome Verification: Verifiable PRMs for Structured Reasoning." ACL 2026 Findings.<br>
+        [10] Raschka, S. (2025). "The State of LLMs 2025: Progress, Problems, and Predictions."<br>
+        [11] ICML 2026 Tutorial: "Adaptive Reasoning in LLMs: From Post-Training to Test-Time Learning."<br>
+        [12] BAIR (2026). "Adaptive Parallel Reasoning: The Next Paradigm in Efficient Inference Scaling."<br>
+        [13] Zylos Research (2026). "Adaptive Reasoning Depth in AI Agent Systems."<br>
+        [14] RyanLiu112. "Awesome-Process-Reward-Models." GitHub Repository.<br>
+        [15] AlphaProof Nexus (2026). "Advancing Mathematics Research with AI-Driven Formal Proof Search." arXiv:2605.22763.
+    </p>
+
+</body>
+</html>
