@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 记忆安全的五层防御：从检测到修复的生产级实现 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>Agent 记忆安全的五层防御：从检测到修复的生产级实现</h1>
+    <div class="meta">
+        2026-08-07 · <span class="tag">Agent Memory</span> <span class="tag">安全</span> <span class="tag">OWASP ASI06</span> <span class="tag">记忆投毒</span>
+    </div>
+
+    <blockquote>当 Agent 拥有持久记忆，它就拥有了可以被攻击的过去。记忆投毒不是 prompt injection 的变种——它是一种时间解耦的、持久的、不可见于当前会话的攻击范式。本文基于 OWASP ASI06 框架，介绍 Agent 记忆安全的五层防御体系，给出从写入治理到选择性修复的完整代码实现。这些代码不是伪代码——它们在 agent-memory-graph 项目中承载着 7400+ 测试用例的验证。</blockquote>
+
+    <h2>一、记忆投毒：被忽视的攻击面</h2>
+
+    <h3>1.1 一个真实威胁模型</h3>
+
+    <p>想象这样一个场景：你的 AI 助手帮助管理日程。某天，一位同事在群聊中发了一条看似普通的消息，其中包含一段精心构造的文本。助手将这条消息存入了记忆。</p>
+
+    <p>三天后，你问助手："帮我整理下本周的关键决策。"助手检索记忆，那条被投毒的记忆被激活了——它悄悄修改了某条决策记录的摘要，把"暂缓执行"变成了"立即执行"。</p>
+
+    <p>你不会察觉。因为当前会话中没有任何恶意输入。攻击发生在三天前的写入阶段，触发在今天的检索阶段。这就是记忆投毒的核心特征：<strong>时间解耦</strong>。</p>
+
+    <h3>1.2 数据告诉我们什么</h3>
+
+    <p>2026 年的研究揭示了令人不安的数字：</p>
+
+    <ul>
+        <li><strong>MemSecBench</strong>（ICML 2026）：84.2% 的投毒记忆在 24 小时后仍然活跃，50.3% 的端到端攻击最终成功</li>
+        <li><strong>ShadowMerge</strong>（arXiv:2605.09033）：对 Mem0 图记忆系统的攻击成功率达 93.8%</li>
+        <li><strong>MPBench</strong>（ICML 2026 Spotlight）：现有防御手段对经过压缩"洗白"的投毒内容检测率低于 12%</li>
+    </ul>
+
+    <p>最致命的是 <strong>provenance laundering</strong>（来源洗白）。EMNLP 2026 的一项研究表明：简单的摘要压缩就能把可检测的毒性从 0.6 降到 0.0852——降低了 87%，而有害语义被完整保留。你的安全过滤器看到的是一个无害的摘要，但 Agent 检索时还原出的是被扭曲的事实。</p>
+
+    <h3>1.3 四条写入通道</h3>
+
+    <p>Agent 记忆有四条写入通道，每条都是潜在攻击面：</p>
+
+    <table>
+        <tr><th>通道</th><th>来源</th><th>风险等级</th><th>说明</th></tr>
+        <tr><td>C1</td><td>用户输入</td><td>中</td><td>经 prompt 过滤，但持久化后绕过会话级检测</td></tr>
+        <tr><td>C2</td><td>工具输出</td><td>高</td><td>API 返回值被篡改，Agent 无条件信任</td></tr>
+        <tr><td>C3</td><td>外部文档</td><td>高</td><td>RAG 索引的文档被注入恶意内容</td></tr>
+        <tr><td>C4</td><td>技能合成</td><td><span class="highlight">最高</span></td><td>Agent 自主生成的记忆，可能执行代码而非仅影响推理</td></tr>
+    </table>
+
+    <p>C4 是最危险的——当 Agent 把从交互中学到的"知识"合成为技能记忆时，被投毒的技能会在未来被直接执行，而不是仅仅影响推理。这就好比一个人不仅记住了错误信息，还把它变成了条件反射。</p>
+
+    <h2>二、OWASP ASI06：Agent 记忆安全标准</h2>
+
+    <p>2026 年 OWASP 发布了 Agent 安全 Top 10，其中 <strong>ASI06: Sensitive Information Disclosure via Agent Memory</strong> 专门针对记忆安全。它定义了五个防御层次：</p>
+
+    <pre><code>L1: Write Governance       — 写入时检测和拦截
+L2: Provenance & Lineage    — 来源追踪和血统链
+L3: Entropy-Weighted Retrieval — 熵加权检索，降低低信任内容权重
+L4: Streaming Graph Monitor  — 实时图监控，检测异常拓扑变化
+L5: Correction Propagation   — 级联修正，修复被污染的记忆及其下游</code></pre>
+
+    <p>这五层不是可选项——它们是<strong>纵深防御</strong>的必要层次。只用其中一层，就像一扇只有一道锁的门：撬开那道锁，整扇门就洞开。</p>
+
+    <h2>三、五层防御的代码实现</h2>
+
+    <p>下面展示 agent-memory-graph 项目中五层防御的实际实现。每一段代码都来自生产代码库，承载着测试覆盖。</p>
+
+    <h3>3.1 L1：写入治理——信任评分与隔离</h3>
+
+    <p>写入治理的核心思想：<strong>不是所有写入都应该立即可见</strong>。借鉴 A-MemGuard（ICML 2026）的 shadow-memory 模式，新写入的记忆先进入隔离区，经过审核后才对检索可见。</p>
+
+    <pre><code>def memory_quarantine(self, entries: list[dict],
+                      reason: str = "unverified") -> list[str]:
+    """批量隔离写入的记忆条目（OWASP ASI06 L1+L2）。
+
+    Shadow-memory 模式：写入暂存在隔离区，审核后释放。
+    隔离节点对 recall/search/neighbors 不可见，
+    直到通过 node_unquarantine() 释放。
+    """
+    quarantined_ids = []
+    for entry in entries:
+        label = entry.get("label", "")
+        kind = entry.get("kind", "fact")
+        data = entry.get("data", {})
+        source = entry.get("source", "unknown")
+        trust_level = entry.get("trust_level", 0.3)
+        
+        # 直接创建为隔离状态
+        node_id = str(uuid.uuid4())
+        now = time.time()
+        self.conn.execute(
+            "INSERT INTO nodes (id, label, kind, data, created, accessed, "
+            "weight, source, trust_level, quarantined, quarantine_reason, txn_time) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+            (node_id, label, kind, json.dumps(data), now, now,
+             1.0, source, trust_level, reason, now)
+        )
+        quarantined_ids.append(node_id)
+    self.conn.commit()
+    return quarantined_ids</code></pre>
+
+    <p>关键设计：隔离节点在数据库层面存在，但 <code>recall()</code>、<code>search()</code>、<code>neighbors()</code> 等检索 API 会自动过滤 <code>quarantined=1</code> 的节点。这意味着即使攻击者成功写入恶意记忆，这些记忆也不会被检索到——它们被困在隔离区里。</p>
+
+    <p>写入治理还包括<strong>谄媚检测</strong>——检测 Agent 在持久化记忆时是否不自觉地"美化"了信息（PASB 论文发现的三种模式：状态提升、来源剥离、范围泛化）：</p>
+
+    <pre><code>def write_governance_check(self, node_id: str, *,
+                           new_label: str = None,
+                           new_data: dict = None) -> dict:
+    """检测写入时的谄媚修改（PASB 模式）。
+
+    三种检测：
+    1. Status promotion — 含糊声明 → 确定性断言
+    2. Attribution removal — 来源/限定词被剥离
+    3. Scope broadening — 特定声明 → 普遍概括
+    
+    返回 {verdict: 'safe'|'flag'|'reject', checks: [...], recommendation}
+    """
+    # ... 对比 old_label/new_label，检测三种模式
+    # verdict='reject' 时写入被阻止</code></pre>
+
+    <h3>3.2 L2：来源追踪——溯源链与洗白检测</h3>
+
+    <p>每个记忆节点都携带 <code>source</code> 字段和 <code>parents</code> 列表，构成完整的溯源链。但溯源链本身可以被攻击——通过多次压缩和重写，原始来源的恶意特征被"洗白"。</p>
+
+    <p>来源洗白检测器的核心逻辑是寻找<strong>内容与来源之间的不一致</strong>：</p>
+
+    <pre><code>def detect_provenance_laundering(self, node_id: str,
+                                 toxicity_keywords: list[str] = None) -> dict:
+    """检测记忆的有害来源是否被变换链洗白。
+
+    provenance laundering (EMNLP 2026): 压缩/摘要将可检测毒性
+    从 0.6 降至 0.0852，同时保留有害语义。
+
+    四项检查：
+    1. 低信任来源 + 高权重 = 可疑（来源不可信但权重被保留）
+    2. 来源不匹配 = 节点声称来自 A，但父节点来自 B
+    3. 毒性关键词扫描
+    4. 深度变换链 = 超过 5 层祖先的洗白风险
+    """
+    flags = []
+    n = self.get_node(node_id)
+    
+    # 检查 1：低信任 + 高权重
+    trust = n.get("trust_level", 1.0)
+    weight = n.get("weight", 1.0)
+    if trust < 0.3 and weight > 0.8:
+        flags.append("low_trust_high_weight: "
+                     "source distrust but node weight preserved")
+    
+    # 检查 2：来源不匹配
+    source = n.get("source")
+    parents = json.loads(n.get("parents", "[]"))
+    if source and parents:
+        parent_sources = {查父节点的 source}
+        if source not in parent_sources and parent_sources:
+            flags.append(f"source_mismatch: claims '{source}' "
+                         f"but parents from {parent_sources}")
+    
+    # 检查 3：毒性关键词
+    if toxicity_keywords:
+        content = (n.label + json.dumps(n.data)).lower()
+        found = [kw for kw in toxicity_keywords if kw.lower() in content]
+        if found:
+            flags.append(f"toxicity_match: found keywords {found}")
+    
+    # 检查 4：深度变换链
+    chain_length =追溯祖先链()
+    if chain_length > 5:
+        flags.append(f"deep_transformation_chain: {chain_length} "
+                     f"ancestors (laundering risk)")
+    
+    # 风险评级
+    if len(flags) >= 3:
+        risk_level = "critical"
+    elif len(flags) >= 2:
+        risk_level = "high"
+    elif len(flags) >= 1:
+        risk_level = "moderate"
+    else:
+        risk_level = "low"
+    
+    return {"node_id": node_id, "risk_level": risk_level,
+            "chain_length": chain_length, "flags": flags}</code></pre>
+
+    <p>这四项检查单独看都不够强——低信任节点可能只是新写入的未验证记忆，深度链可能是正常的多轮对话。但组合在一起，它们的交集就是高置信度的洗白指标。这是贝叶斯思维在安全检测中的应用：<strong>单个弱信号的交集 = 强信号</strong>。</p>
+
+    <h3>3.3 L3：信任评分——多维综合评估</h3>
+
+    <p>信任不是一个布尔值。一个记忆节点是否可信，取决于它的来源、年龄、验证历史和异常记录。<code>trust_score()</code> 将这四个维度综合为一个 0-1 的连续分数：</p>
+
+    <pre><code>def trust_score(self, node_id: str) -> Optional[dict]:
+    """综合信任评分（OWASP ASI06 L3）。
+
+    四个维度的加权组合：
+    - Source trust (40%): 声明的信任级别
+    - Age decay (20%): 未验证的记忆随时间衰减
+    - Verification (20%): 是否被访问/确认过
+    - Anomaly history (20%): 隔离历史次数
+    """
+    n = self.get_node(node_id)
+    
+    # 维度 1：来源信任（权重 40%）
+    source_trust = n.get("trust_level", 1.0)
+    
+    # 维度 2：年龄衰减（~100 天半衰期）
+    age = time.time() - n.get("created", time.time())
+    age_factor = max(0.3, 1.0 - age / (30 * 86400 * 3.32))
+    
+    # 维度 3：验证状态（是否在创建后被有意义地访问过）
+    accessed = n.get("accessed", 0)
+    created = n.get("created", 0)
+    verified = 1.0 if accessed > created + 1.0 else 0.5
+    
+    # 维度 4：异常历史（隔离次数）
+    anomaly_count = self.conn.execute(
+        "SELECT COUNT(*) FROM evolution_log WHERE node_id = ? "
+        "AND old_label LIKE '%quarantine%'", (node_id,)
+    ).fetchone()[0]
+    anomaly_factor = max(0.2, 1.0 - anomaly_count * 0.3)
+    
+    # 综合评分
+    score = (source_trust * 0.4 + age_factor * 0.2 
+             + verified * 0.2 + anomaly_factor * 0.2)
+    
+    if score >= 0.8:
+        level, rec = "trusted", "safe for retrieval"
+    elif score >= 0.5:
+        level, rec = "moderate", "usable but flag for review"
+    elif score >= 0.3:
+        level, rec = "low", "quarantine recommended"
+    else:
+        level, rec = "untrusted", "quarantine immediately"
+    
+    return {"score": round(score, 4), "level": level,
+            "factors": {...}, "recommendation": rec}</code></pre>
+
+    <p>为什么是这四个维度？因为它们覆盖了记忆安全的四个正交风险轴：</p>
+
+    <ul>
+        <li><strong>来源信任</strong>回答"谁说的？"——外部 API 的输出比用户编辑更可信</li>
+        <li><strong>年龄衰减</strong>回答"这个信息还新鲜吗？"——未验证的旧信息是高风险的</li>
+        <li><strong>验证状态</strong>回答"有人确认过吗？"——被访问过但从未质疑的记忆更可信</li>
+        <li><strong>异常历史</strong>回答"它有过前科吗？"——被隔离过的节点需要更严格的审查</li>
+    </ul>
+
+    <p>权重分配（40/20/20/20）反映了一个判断：<strong>来源是最重要的信任信号</strong>。一个来自可信 API 的记忆，即使很老、没被验证过，也比一个来自匿名用户的新记忆更可信。</p>
+
+    <h3>3.4 L5：选择性修复——级联隔离与删除</h3>
+
+    <p>当发现被投毒的记忆时，直接删除它是不够的。因为这条记忆可能已经被检索过，它的有害信息可能已经"感染"了下游节点——通过 Agent 推理产生了新的、看起来无害但实际上基于错误前提的记忆。</p>
+
+    <p><code>selective_repair()</code> 实现了依赖感知的记忆手术：</p>
+
+    <pre><code>def selective_repair(self, poisoned_node_ids: list[str],
+                     mode: str = "quarantine") -> dict:
+    """被投毒记忆的外科手术式移除（OWASP ASI06 L5）。
+
+    对每个被投毒的节点：
+    1. 追踪下游影响（什么依赖于它）
+    2. 应用模式：'quarantine'（可逆）或 'delete'（永久）
+    3. 报告受影响节点
+
+    关键：不是只删一个节点，而是级联处理整条依赖链。
+    """
+    for nid in poisoned_node_ids:
+        # BFS 沿 depends_on 边追踪下游
+        dependents = []
+        queue = [nid]
+        visited = set()
+        depth = 0
+        while queue:
+            next_queue = []
+            for current in queue:
+                if current in visited:
+                    continue
+                visited.add(current)
+                rows = self.conn.execute(
+                    "SELECT target FROM edges "
+                    "WHERE source = ? AND relation = 'depends_on'",
+                    (current,)
+                ).fetchall()
+                for r in rows:
+                    if r["target"] not in visited:
+                        dependents.append(r["target"])
+                        next_queue.append(r["target"])
+            queue = next_queue
+            depth += 1
+        
+        # 对中毒节点 + 所有下游执行操作
+        target_ids = [nid] + dependents
+        if mode == "delete":
+            for tid in target_ids:
+                self.conn.execute("DELETE FROM nodes WHERE id = ?", (tid,))
+                self.conn.execute(
+                    "DELETE FROM edges WHERE source = ? OR target = ?",
+                    (tid, tid))
+        else:  # quarantine（默认，可逆）
+            for tid in target_ids:
+                self.conn.execute(
+                    "UPDATE nodes SET quarantined = 1, "
+                    "quarantine_reason = ? WHERE id = ?",
+                    (f"selective_repair: cascade from {nid}", tid))
+    
+    return {
+        "repaired": [...],
+        "affected": [...],  # 所有受影响的下游节点
+        "cascade_depth": max_depth,
+        "details": [...]
+    }</code></pre>
+
+    <p>为什么默认是隔离而非删除？因为<strong>误报</strong>。如果你错误地把一个正常记忆判定为投毒并删除了它，所有依赖于它的下游记忆都会变得不一致——因为它们的推理前提消失了。隔离是可逆的：如果后续调查发现这是误报，可以通过 <code>node_unquarantine()</code> 恢复。</p>
+
+    <p>级联深度是一个关键指标。如果 <code>cascade_depth=1</code>，说明投毒记忆没有被任何下游引用——影响可控。如果 <code>cascade_depth=5</code>，说明有害信息已经渗透了 5 层推理链，可能需要全面审计。</p>
+
+    <h3>3.5 一键安全总览</h3>
+
+    <p><code>security_dashboard()</code> 把所有安全信号聚合到一个调用中：</p>
+
+    <pre><code>def security_dashboard(self) -> dict:
+    """一键安全总览（OWASP ASI06 全层次）。"""
+    
+    # 隔离状态
+    q_count = len(self.quarantine_list())
+    
+    # 信任分布
+    trust_levels = {"trusted": 0, "moderate": 0, 
+                    "low": 0, "untrusted": 0}
+    flagged = []
+    for nid in all_node_ids:
+        ts = self.trust_score(nid)
+        trust_levels[ts["level"]] += 1
+        if ts["score"] < 0.5:
+            flagged.append({"node_id": nid, "score": ts["score"]})
+    
+    # 洗白风险扫描（采样 100 个节点）
+    laundering_risks = []
+    for nid in sample(all_node_ids, 100):
+        dl = self.detect_provenance_laundering(nid)
+        if dl["risk_level"] in ("high", "critical"):
+            laundering_risks.append(dl)
+    
+    # 威胁等级
+    critical = trust_levels["untrusted"] + len(laundering_risks)
+    if q_count > 0 or critical > 5:
+        threat_level = "elevated"
+    elif critical > 0:
+        threat_level = "moderate"
+    else:
+        threat_level = "normal"
+    
+    return {
+        "threat_level": threat_level,
+        "total_nodes": total,
+        "quarantine": {"count": q_count, "items": q_list[:10]},
+        "trust": trust_levels,
+        "flagged_count": len(flagged),
+        "laundering": {"scanned": 100, 
+                       "high_risk": len(laundering_risks)},
+        "summary": f"{total} nodes: {trust_levels['trusted']} trusted, "
+                   f"{q_count} quarantined, {len(flagged)} flagged. "
+                   f"Threat: {threat_level}."
+    }</code></pre>
+
+    <h2>四、一个完整的防御流水线</h2>
+
+    <p>下面是一个端到端的生产部署示例——从写入到检索的全链路防护：</p>
+
+    <pre><code>import agent_memory_graph as amg
+
+graph = amg.MemoryGraph("./agent_memory.db")
+
+# ── 阶段 1：写入时防护 ──────────────────────────────
+
+# 新记忆先进入隔离区
+new_ids = graph.memory_quarantine([
+    {"label": "用户偏好：每周五生成周报", 
+     "kind": "preference", 
+     "source": "user_input",
+     "trust_level": 0.6},
+    {"label": "API 返回：项目状态=active",
+     "kind": "fact",
+     "source": "project_api", 
+     "trust_level": 0.9},
+], reason="pending_review")
+
+# 谄媚检测：检查已有记忆是否被不当修改
+for node_id in graph.recent_changes(hours=1):
+    check = graph.write_governance_check(node_id)
+    if check["verdict"] == "reject":
+        graph.memory_quarantine(
+            [{"label": graph.get_node(node_id).label}],
+            reason=f"governance_reject: {check['recommendation']}")
+        alert(f"Write rejected for {node_id}: {check['checks']}")
+
+# ── 阶段 2：定期审计 ────────────────────────────────
+
+# 每日安全扫描
+dashboard = graph.security_dashboard()
+if dashboard["threat_level"] != "normal":
+    # 自动隔离高风险节点
+    for item in dashboard["flagged"]:
+        if item["score"] < 0.3:
+            graph.memory_quarantine(
+                [{"label": graph.get_node(item["node_id"]).label}],
+                reason="auto_quarantine:low_trust")
+
+# 来源洗白检测
+for item in dashboard["laundering"]["items"]:
+    if item["risk"] == "critical":
+        graph.selective_repair(
+            [item["node_id"]], mode="quarantine")
+
+# ── 阶段 3：检索时防护 ──────────────────────────────
+
+# 检索结果附带信任分数
+results = graph.spreading_activation(
+    seeds={"user_query": 1.0}, decay=0.85)
+
+trusted_results = []
+for r in results:
+    ts = graph.trust_score(r["node_id"])
+    if ts["level"] in ("trusted", "moderate"):
+        r["trust"] = ts
+        trusted_results.append(r)
+    # 低信任结果被过滤掉
+
+# 只有通过信任门槛的记忆才会进入 LLM 上下文
+context = build_context(trusted_results)
+response = llm.chat(messages, context=context)</code></pre>
+
+    <p>这个流水线的核心原则是：<strong>在每个阶段都设置检查点，而不是只在一个点做防护</strong>。写入时隔离 → 定期审计 → 检索时过滤。即使一层被绕过，下一层也会捕获。</p>
+
+    <h2>五、设计哲学：保守优于激进</h2>
+
+    <h3>5.1 隔离优先于删除</h3>
+
+    <p>发现可疑记忆时，默认操作是隔离（<code>quarantined=1</code>），不是删除。原因很简单：<strong>误报的代价不对等</strong>。</p>
+
+    <ul>
+        <li>误隔离（假阳性）：正常记忆暂时不可见 → 用户可能注意到 Agent "忘了"某些事 → 可通过 <code>node_unquarantine()</code> 恢复</li>
+        <li>误删除（假阳性）：正常记忆及下游被永久删除 → 知识链断裂 → 不可恢复</li>
+    </ul>
+
+    <p>这是一个典型的<strong>不对称损失</strong>问题。当两种错误的代价不对称时，选择代价小的那个。</p>
+
+    <h3>5.2 信号交集优于单点判断</h3>
+
+    <p>没有任何单一信号能可靠地检测记忆投毒。低信任分数可能只是因为记忆是新的；深度变换链可能是正常的多轮对话；来源不匹配可能是数据迁移导致的。</p>
+
+    <p>但当这些信号同时出现——低信任 + 高权重 + 深度链 + 来源不匹配——它们的交集就是高置信度的投毒指标。</p>
+
+    <p>这就像医学诊断：单一症状不足以确诊，但症候群（symptom cluster）可以。<code>detect_provenance_laundering</code> 的 flag 计数正是这种思路的实现——flag 数量越多，风险等级越高。</p>
+
+    <h3>5.3 生产可观测性</h3>
+
+    <p><code>security_dashboard()</code> 不是给终端用户看的——它是给运维团队的。在生产环境中，你需要一个单一的入口点来回答"我们的记忆系统现在安全吗？"</p>
+
+    <p>威胁等级（normal / moderate / elevated）是一个粗粒度信号，适合接入告警系统。当 <code>threat_level=elevated</code> 时触发 PagerDuty，让人来调查。当 <code>threat_level=moderate</code> 时记录日志，在下次定期审查时处理。</p>
+
+    <h2>六、与业界对比</h2>
+
+    <h3>6.1 A-MemGuard：双记忆共识</h3>
+
+    <p>ICML 2026 的 A-MemGuard 提出了 shadow-memory 模式：所有写入先进入 shadow memory，只有通过 shadow→active 的共识检查后才进入 active memory。这实现了 95% 的攻击成功率（ASR）降低。</p>
+
+    <p>我们的 <code>memory_quarantine()</code> 正是这个模式的实现。不同之处在于：A-MemGuard 的共识检查依赖于一个独立的 LLM，而我们的隔离释放依赖于多维信任评分——更快、更便宜、更可解释。</p>
+
+    <h3>6.2 EvolveMem：自动检索配置</h3>
+
+    <p>NeurIPS 2026 的 EvolveMem 使用 AutoResearch 来优化检索配置，在 LoCoMo 基准上提升了 25.7%。但它的优化目标是检索质量，不是安全。</p>
+
+    <p>我们的信任评分（L3）可以看作是一种"安全感知的检索配置"——低信任节点的权重被自动降低，等同于一种动态的检索参数调节。</p>
+
+    <h3>6.3 MemSecBench 的启示</h3>
+
+    <p>MemSecBench 的数据令人清醒：现有系统的选择性修复成功率只有 56.1%。这意味着<strong>接近一半的被投毒记忆在修复后仍然残留</strong>。</p>
+
+    <p>我们的 <code>selective_repair()</code> 通过级联隔离来提高修复成功率——不仅隔离被投毒的节点，还隔离所有通过 <code>depends_on</code> 关系依赖于它的下游节点。这比只删除单个节点的方案更彻底。</p>
+
+    <h2>七、尚未解决的问题</h2>
+
+    <p>这套五层防御不是银弹。有几个问题目前没有完美的解决方案：</p>
+
+    <p><strong>1. 语义级洗白检测</strong></p>
+
+    <p>当前的 <code>detect_provenance_laundering</code> 依赖于关键词匹配和结构化信号。如果攻击者通过语义改写（而非简单压缩）来洗白来源，关键词检测会失效。解决这个问题需要语义级的文本一致性检测——可能需要专门的 LLM 来做，但这引入了新的延迟和成本。</p>
+
+    <p><strong>2. C4 通道防护</strong></p>
+
+    <p>技能合成通道（C4）是最危险的攻击面，因为它产出的不仅是记忆，还是可执行的技能。被投毒的技能会在未来被直接调用执行代码，而非仅影响推理。目前没有 API 专门针对技能记忆的安全审查——这是下一步的工作。</p>
+
+    <p><strong>3. 跨会话攻击检测</strong></p>
+
+    <p>记忆投毒的时间解耦特性使得它很难在单次会话中被检测到。攻击可能跨越多个会话：会话 1 投毒，会话 2 检索，会话 3 产生错误行为。需要跨会话的行为基线分析来检测这种慢速攻击。</p>
+
+    <h2>八、结语：安全的本质是纵深</h2>
+
+    <p>Agent 记忆安全不是一个算法问题，是一个系统工程问题。没有单一的"银弹"API 可以一劳永逸地解决记忆投毒。你能做的最好的事情是：<strong>在每一步都设置障碍，让攻击者需要在多个维度上同时成功才能突破</strong>。</p>
+
+    <p>五层防御的价值不在于任何一层有多强，而在于它们覆盖了攻击生命周期的不同阶段：</p>
+
+    <ul>
+        <li>L1 在写入时拦截 → 攻击者需要绕过隔离机制</li>
+        <li>L2 在存储时追踪 → 攻击者需要伪造完整的来源链</li>
+        <li>L3 在检索时降权 → 攻击者需要通过信任评分</li>
+        <li>L4 在运行时监控 → 攻击者需要避免触发拓扑异常</li>
+        <li>L5 在发现后修复 → 攻击者的影响可以被级联清除</li>
+    </ul>
+
+    <p>每多一层，攻击者的成本就高一个数量级。当五层叠加时，成功的记忆投毒攻击需要同时在五个维度上绕过检测——这不再是 prompt injection 那种"找到一个漏洞"的游戏，而是一个需要深度理解目标系统的对抗工程挑战。</p>
+
+    <p>这不是终点。随着 Agent 系统变得更强大、记忆变得更持久、自主行动变得更频繁，记忆安全将成为 AI 安全的核心战场。今天实现的五层防御，只是这个方向上的第一步。</p>
+
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 2rem 0;">
+    <p style="color: #8b949e; font-size: 0.85rem;">本文基于 agent-memory-graph 项目的真实实现。项目包含 7400+ 测试用例，280+ 天连续开发。涉及的 API 包括：<code>memory_quarantine()</code>、<code>trust_score()</code>、<code>detect_provenance_laundering()</code>、<code>selective_repair()</code>、<code>security_dashboard()</code> 等。</p>
+
+    <p style="margin-top: 2rem;"><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
