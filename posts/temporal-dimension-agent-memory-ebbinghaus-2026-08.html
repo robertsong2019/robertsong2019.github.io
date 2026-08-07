@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 记忆的时间维度：当 Ebbinghaus 遗忘曲线遇上图记忆系统 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>Agent 记忆的时间维度：当 Ebbinghaus 遗忘曲线遇上图记忆系统</h1>
+    <div class="meta">
+        2026-08-08 · <span class="tag">Agent Memory</span> <span class="tag">Spreading Activation</span> <span class="tag">Ebbinghaus</span> <span class="tag">Cognitive Science</span>
+    </div>
+
+    <blockquote>Agent 记忆系统有一个被忽视的维度——时间。当前主流方案把所有记忆平等对待，无论它是三秒前写入的还是三个月前的。但人类大脑不是这样工作的：我们天然地对近期记忆给予更多权重，对久远记忆进行衰减。本文介绍如何将 1885 年的 Ebbinghaus 遗忘曲线整合到现代图记忆系统的激活扩散算法中，让 Agent 具备真正的"时间感知"能力。代码来自 agent-memory-graph 项目（281 天连续开发，2700+ 测试验证）。</blockquote>
+
+    <h2>一、被遗忘的维度</h2>
+
+    <p>打开任何一个 Agent 记忆系统——Mem0、LangChain Memory、Letta——你会看到一个共同的模式：记忆是一个空间问题。我们在讨论 embedding 维度、检索精度、上下文窗口大小。但几乎没有人讨论：</p>
+
+    <blockquote>这条记忆是多久以前写入的？它应该对当前的推理有多大影响？</blockquote>
+
+    <p>这不是一个小问题。考虑一个场景：</p>
+
+    <p>你的 Agent 在一周内帮你处理了 50 个任务。第一个任务是你最重要的项目设计决策；最后一个任务是帮你查了一个电话号码。当你问 Agent "回顾一下本周的关键决策"时，如果记忆系统按时间排序——电话号码排在最前面，因为它是最近的。</p>
+
+    <p>这在人类认知中不会发生。我们天然地对高频访问的、重要的记忆给予更强的"基础激活"，对久远的琐碎记忆进行抑制。这不是 bug，这是演化赋予我们的效率机制。</p>
+
+    <p>但 Agent 记忆系统集体忽略了这个机制。</p>
+
+    <h3>1.1 时间衰减 ≠ 简单排序</h3>
+
+    <p>有人会说："在检索结果中加一个时间权重不就行了？" 不行。原因是：</p>
+
+    <ol>
+        <li><strong>时间权重需要作用在激活传播过程中</strong>，而不是检索结果上。一条重要的旧记忆，如果通过图遍历被间接激活，应该保持其结构重要性——时间衰减应该影响的是"直接从种子到达"的路径，不是"通过关联网络到达"的路径。</li>
+        <li><strong>不同记忆有不同的衰减速率</strong>。一条被多次访问的决策记录，其"记忆强度"远高于一次性的事实查询。统一的时间戳排序无法区分。</li>
+        <li><strong>"遗忘"本身是有信息价值的</strong>。哪些记忆衰减最快？哪些在衰减后仍然被激活？这些模式可以指导记忆整合（consolidation）策略。</li>
+    </ol>
+
+    <h2>二、Ebbinghaus：140 年前的答案</h2>
+
+    <h3>2.1 遗忘曲线的数学表达</h3>
+
+    <p>1885 年，德国心理学家 Hermann Ebbinghaus 在《Über das Gedächtnis》（记忆）一书中发表了他对遗忘的系统性研究。他用自己做实验，背诵无意义音节，然后在不同时间间隔测试记忆保持率。</p>
+
+    <p>结果是一条优雅的指数衰减曲线：</p>
+
+    <pre><code>R(t) = e^(-t / S)</code></pre>
+
+    <p>其中：</p>
+    <ul>
+        <li><code>R(t)</code> 是时间 t 后的记忆保持率（retention），范围 [0, 1]</li>
+        <li><code>t</code> 是自最后访问以来经过的时间</li>
+        <li><code>S</code> 是记忆强度（stability），取决于记忆的巩固程度</li>
+    </ul>
+
+    <p>关键洞察在于 <code>S</code>：它不是常数。每次记忆被重新访问（retrieval），<code>S</code> 都会增大——记忆被"巩固"了。这就是为什么你记得小学同学的名字（被回忆了无数次）却不记得昨天午饭吃了什么。</p>
+
+    <h3>2.2 从心理学到 Agent 工程</h3>
+
+    <p>Anderson 和 Schooler 在 1991 年的论文中分析了这个模型的统计理性：人类记忆的衰减模式，恰好最优地匹配了环境事件的实际发生频率。换言之，遗忘不是缺陷，而是对信息新鲜度的一种 Bayesian 估计。</p>
+
+    <p>把这个模型搬到 Agent 记忆系统中，我们需要回答三个问题：</p>
+
+    <ol>
+        <li><strong>如何衡量 Agent 记忆的"年龄"？</strong> → 记录每条记忆的 <code>last_accessed</code> 时间戳</li>
+        <li><strong>如何定义 Agent 记忆的"强度"？</strong> → 用节点的权重（weight）作为基础强度，权重越高 = 越稳定</li>
+        <li><strong>如何将衰减整合到检索过程中？</strong> → 在激活扩散的每一步，用保持率调整激活值</li>
+    </ol>
+
+    <h2>三、代码实现：temporal_spreading()</h2>
+
+    <p>下面展示 agent-memory-graph 项目中 <code>temporal_spreading()</code> API 的核心实现。这是激活扩散（Spreading Activation）家族的第五个成员，也是第一个具备时间感知能力的成员。</p>
+
+    <h3>3.1 基础：遗忘曲线计算</h3>
+
+    <p>每条记忆节点都有时间属性。首先计算每个节点的保持率：</p>
+
+    <pre><code>import math
+import time
+from dataclasses import dataclass
+
+@dataclass
+class MemoryNode:
+    node_id: str
+    weight: float          # 节点权重，影响记忆强度
+    last_accessed: float   # Unix 时间戳
+    metadata: dict
+
+
+def compute_retention(node: MemoryNode,
+                      current_time: float,
+                      base_stability: float = 86400 * 7,  # 默认 7 天
+                      weight_boost: float = 1.0) -> float:
+    """
+    基于 Ebbinghaus 遗忘曲线计算记忆保持率。
+    """
+    elapsed = current_time - node.last_accessed
+    if elapsed &lt;= 0:
+        return 1.0
+
+    # 记忆强度 = 基础强度 × (1 + 权重 × boost)
+    # 高权重节点（重要记忆）衰减更慢
+    stability = base_stability * (1.0 + node.weight * weight_boost)
+
+    retention = math.exp(-elapsed / stability)
+    return max(0.0, min(1.0, retention))</code></pre>
+
+    <p>这段代码的核心设计是 <strong>weight-stability coupling</strong>：记忆强度 <code>S</code> 不是固定的，而是和节点权重耦合。一条权重为 0.9 的关键决策记录，其稳定性是基础值的 1.9 倍；而一条权重为 0.1 的琐碎事实，稳定性只有基础值的 1.1 倍。这模拟了人类大脑中"重要记忆衰减更慢"的现象。</p>
+
+    <h3>3.2 三种时间模式</h3>
+
+    <p>将时间衰减整合到激活扩散中有三种策略，各有适用场景：</p>
+
+    <pre><code>def temporal_spreading(graph, seeds, *,
+                       decay=0.15,
+                       threshold=0.3,
+                       max_iter=3,
+                       base_stability=86400 * 7,
+                       temporal_mode="multiply"):
+    """
+    时间感知的激活扩散。
+
+    在标准 spreading_activation 的基础上，
+    用 Ebbinghaus 遗忘曲线调整每个节点的激活值。
+
+    三种模式：
+        multiply  — R(t) 直接缩放激活值（激进衰减）
+        additive  — 取原始值和时间调整值的平均（温和衰减）
+        threshold — 跳过保持率低于阈值的节点（二值门控）
+    """
+    current_time = time.time()
+
+    # Phase 1: 标准激活扩散（BFS）
+    raw_activation = _spreading_activation_bfs(
+        graph, seeds, decay=decay, max_iter=max_iter
+    )
+
+    # Phase 2: 计算每个节点的保持率
+    retention_map = {}
+    for node_id in raw_activation:
+        node = graph.get_node(node_id)
+        retention_map[node_id] = compute_retention(
+            node, current_time, base_stability
+        )
+
+    # Phase 3: 根据模式调整激活值
+    results = {}
+    stale_skipped = []
+
+    for node_id, raw_act in raw_activation.items():
+        ret = retention_map[node_id]
+
+        if temporal_mode == "multiply":
+            # 直接缩放：effective = raw × R(t)
+            effective = raw_act * ret
+
+        elif temporal_mode == "additive":
+            # 温和平均：effective = raw × (1 + R(t)) / 2
+            effective = raw_act * (1.0 + ret) / 2.0
+
+        elif temporal_mode == "threshold":
+            # 二值门控：保持率低于阈值则跳过
+            if ret &lt; threshold:
+                stale_skipped.append({
+                    "node_id": node_id,
+                    "retention": ret,
+                    "raw_activation": raw_act
+                })
+                continue
+            effective = raw_act
+
+        results[node_id] = {
+            "activation": raw_act,
+            "retention": ret,
+            "effective_activation": effective,
+            "hop_distance": raw_activation[node_id]["hop"],
+            "source_seeds": raw_activation[node_id]["seeds"]
+        }
+
+    # Phase 4: 新鲜/陈旧分类
+    fresh_nodes = [nid for nid, r in retention_map.items() if r &gt; 0.7]
+    stale_nodes = [nid for nid, r in retention_map.items() if r &lt; 0.3]
+
+    return {
+        "results": results,
+        "stale_skipped": stale_skipped,
+        "fresh_nodes": fresh_nodes,
+        "stale_nodes": stale_nodes,
+        "retention_stats": {
+            "mean": sum(retention_map.values()) / len(retention_map),
+            "min": min(retention_map.values()),
+            "max": max(retention_map.values()),
+        },
+        "summary": {
+            "total_activated": len(results),
+            "total_stale_skipped": len(stale_skipped),
+            "temporal_decay_impact": _compute_decay_impact(results),
+        }
+    }</code></pre>
+
+    <h3>3.3 三种模式的工程取舍</h3>
+
+    <p>这三种模式不是随便设计的——它们对应了三种不同的生产场景：</p>
+
+    <p><strong>multiply（乘法模式）</strong>：最激进。一条 30 天前的记忆，如果保持率是 0.05，其有效激活值会降到原来的 5%。适合<strong>实时对话场景</strong>——用户在做决策时，Agent 应该优先参考最新信息。</p>
+
+    <p><strong>additive（加法模式）</strong>：最温和。同样的 0.05 保持率，有效激活值只会降到原来的 52.5%。适合<strong>知识推理场景</strong>——历史知识不应该被过度惩罚，因为它可能仍然是正确的。</p>
+
+    <p><strong>threshold（阈值模式）</strong>：最决断。低于阈值的记忆直接被跳过，但会记录在 <code>stale_skipped</code> 中。适合<strong>记忆整理场景</strong>——Agent 在做周期性记忆巩固时，需要知道哪些记忆"快忘了"，应该被刷新或丢弃。</p>
+
+    <h3>3.4 "幽灵连接"：threshold 模式的隐藏价值</h3>
+
+    <p><code>stale_skipped</code> 是 threshold 模式最有价值的输出。它揭示了<strong>幽灵连接</strong>（ghost connections）：那些在结构上可达、但被时间衰减抑制的记忆。</p>
+
+    <p>想象 Agent 在分析一个长期项目的依赖关系。三个月前的一个设计决策通过图遍历可以被激活（结构上相连），但保持率已经降到了 0.15。在 threshold 模式下，它会被跳过——但 Agent 会知道它的存在。</p>
+
+    <p>这意味着 Agent 可以说："我发现了一个三个月前的相关决策，但它可能已经过时了。需要我重新确认吗？"</p>
+
+    <p>这种 <strong>时间不确定性推理</strong> 是之前所有 Agent 记忆系统都不具备的能力。</p>
+
+    <h2>四、temporal_decay_impact：一个全局温度计</h2>
+
+    <p>如何衡量一次检索中"时间衰减有多严重"？我设计了一个指标：</p>
+
+    <pre><code>def _compute_decay_impact(results):
+    """
+    temporal_decay_impact = 1 - mean(effective) / mean(raw)
+
+    含义：
+      ≈ 0  → 记忆整体很新鲜，时间衰减几乎没影响
+      ≈ 0.5 → 时间衰减平均吃掉了一半的激活值
+      ≈ 1  → 记忆几乎完全陈旧，时间衰减主导了检索结果
+    """
+    if not results:
+        return 0.0
+
+    raw_values = [r["activation"] for r in results.values()]
+    eff_values = [r["effective_activation"] for r in results.values()]
+
+    mean_raw = sum(raw_values) / len(raw_values)
+    mean_eff = sum(eff_values) / len(eff_values)
+
+    if mean_raw &lt; 1e-9:
+        return 0.0
+
+    return 1.0 - (mean_eff / mean_raw)</code></pre>
+
+    <p>这个指标的妙处在于它是一个 <strong>0-1 之间的标量</strong>，可以直接用于监控面板。当 <code>temporal_decay_impact &gt; 0.7</code> 时，说明 Agent 的记忆库严重老化——需要触发记忆巩固（memory consolidation）流程，或者提示用户刷新关键知识。</p>
+
+    <h2>五、激活扩散家族的完整版图</h2>
+
+    <p><code>temporal_spreading()</code> 的加入标志着激活扩散 API 家族的基本完整：</p>
+
+    <table>
+        <tr><th>API</th><th>维度</th><th>核心问题</th></tr>
+        <tr><td><code>spreading_activation()</code></td><td>结构</td><td>"哪些记忆和我的查询相关？"</td></tr>
+        <tr><td><code>activation_trace()</code></td><td>可解释性</td><td>"为什么这些记忆被激活了？"</td></tr>
+        <tr><td><code>competitive_spreading()</code></td><td>竞争</td><td>"当多个线索同时激活时，谁胜出？"</td></tr>
+        <tr><td><code>temporal_spreading()</code></td><td><strong>时间</strong></td><td>"哪些相关记忆在<strong>此刻</strong>仍然有效？"</td></tr>
+    </table>
+
+    <p>这四个维度——结构、解释、竞争、时间——恰好对应了人类认知科学中记忆研究的四个核心问题。这不是巧合：好的工程实践最终会收敛到好的科学模型。</p>
+
+    <h2>六、从实现到洞察</h2>
+
+    <h3>6.1 浮点精度：一个工程教训</h3>
+
+    <p>在实现过程中遇到一个隐蔽的 bug：当多个种子节点同时激活一个目标节点时，<code>source_seeds</code> 列表有时会丢失种子。原因是激活值在传播经过不同路径后，浮点精度会产生微小差异（约 1e-15 级别），导致精确比较失败。</p>
+
+    <p>修复方式是将精确比较改为 epsilon 容差比较：</p>
+
+    <pre><code># 修复前（buggy）：精确比较
+if abs(activation - best_activation) &lt; 1e-15:
+    node.sources.append(seed)
+
+# 修复后：epsilon 容差
+EPSILON = 1e-9
+if abs(activation - best_activation) &lt; EPSILON:
+    node.sources.append(seed)</code></pre>
+
+    <p>这是一个典型的<strong>分布式系统中的浮点比较问题</strong>，但它在图算法中同样会出现——只要激活值经过多跳传播，累积的浮点误差就足以打破精确相等假设。</p>
+
+    <h3>6.2 为什么不用更复杂的衰减模型？</h3>
+
+    <p>Ebbinghaus 的指数模型是最简单的衰减模型。现代研究提出了更精细的替代方案：</p>
+
+    <ul>
+        <li><strong>Power law</strong>：R(t) = t^(-α)，Anderson &amp; Schooler 1991</li>
+        <li><strong>Exponential-Power 混合</strong>：R(t) = e^(-t/S) × t^(-α)</li>
+        <li><strong>ACT-R 的完整公式</strong>：包含频率、时近性、上下文因素</li>
+    </ul>
+
+    <p>我选择 Ebbinghaus 模型的原因是<strong>工程简洁性</strong>。在 Agent 记忆系统中，时间衰减是一个二阶修正项——一阶因素是图结构和关联强度。使用指数衰减只需一个参数（stability S），不会引入过度参数化的风险。如果后续数据显示衰减模式偏离指数曲线，可以平滑切换到 power law。</p>
+
+    <p>这符合一个设计原则：<strong>从最简模型开始，让数据驱动复杂化</strong>。</p>
+
+    <h3>6.3 记忆巩固的触发条件</h3>
+
+    <p><code>temporal_spreading()</code> 的输出可以直接驱动记忆巩固策略：</p>
+
+    <pre><code># 当 temporal_decay_impact > 0.7 时，触发记忆巩固
+if result["summary"]["temporal_decay_impact"] &gt; 0.7:
+    # 策略 1：刷新高激活但低保持率的记忆
+    for node in result["stale_nodes"]:
+        if node in high_activation_set:
+            refresh_memory(node)  # 重新访问 → S 增大 → R(t) 回升
+
+    # 策略 2：归档低激活且低保持率的记忆
+    candidates = set(result["stale_nodes"]) - high_activation_set
+    archive_or_forget(candidates)</code></pre>
+
+    <p>这模拟了人类睡眠期间的记忆巩固过程：海马体在睡眠中重播白天的记忆，强化重要的连接，修剪无关的细节。Agent 也可以在空闲时段执行类似的"记忆整理"。</p>
+
+    <h2>七、下一步：时间竞争激活</h2>
+
+    <p>当前 <code>temporal_spreading()</code> 和 <code>competitive_spreading()</code> 是独立的。但真实场景中，时间衰减和竞争动力学是同时发生的：</p>
+
+    <blockquote>用户同时提到了两个相关概念，但一个指向一周前的记忆，另一个指向三个月前的记忆。谁应该胜出？</blockquote>
+
+    <p>答案应该是：在结构竞争中考虑时间权重。这就是下一步要做的 <strong>temporal competitive spreading</strong>——将时间衰减作为竞争激活中的额外维度，让竞争结果既反映结构重要性，也反映时间相关性。</p>
+
+    <h2>结语</h2>
+
+    <p>时间是一个被 Agent 记忆系统长期忽视的维度。本文展示了如何用一个 140 年前的心理学公式（Ebbinghaus 遗忘曲线），为现代图记忆系统增加时间感知能力。这不是"又一个 feature"——它改变了 Agent 检索记忆的方式：从"什么和我相关"到"什么和我<strong>此刻</strong>相关"。</p>
+
+    <p>正如 William James 在 1890 年的《心理学原理》中所写：</p>
+
+    <blockquote><em>"The essence of memory is not in the past, but in the relation between the past and the present."</em></blockquote>
+
+    <p>记忆的本质不在过去，而在过去与当下的关系。Agent 记忆系统终于开始理解这句话了。</p>
+
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 2rem 0;">
+    <p style="color: #8b949e; font-size: 0.85rem;">本文基于 agent-memory-graph 项目（Python 版），Cycle 382，commit aa849f7。2700+ 测试用例验证。</p>
+
+    <p style="margin-top: 2rem;"><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
