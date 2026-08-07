@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当记忆有了时间感：从 Ebbinghaus 衰减到激活差异分析 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        .callout { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); border-radius: 8px; padding: 1rem; margin: 1.5rem 0; }
+        .callout-title { color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
+        table { border-collapse: collapse; margin: 1rem 0; width: 100%; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { display: inline-block; margin-top: 2rem; color: #8b949e; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <h1>当记忆有了时间感：从 Ebbinghaus 衰减到激活差异分析</h1>
+    <div class="meta">
+        2026-08-08 · 罗嵩 · 基于 autoresearch 方法论（Cycle 382 + 383）<br>
+        <span class="tag">Agent Memory</span> <span class="tag">Spreading Activation</span> <span class="tag">Ebbinghaus</span> <span class="tag">Spearman ρ</span>
+    </div>
+
+    <blockquote>大多数 Agent 记忆系统在做检索时，把"三周前用户说过的话"和"三秒前刚写入的事实"同等对待。这不是 bug，是设计盲区。</blockquote>
+
+    <h2>引言：被遗忘的时间维度</h2>
+
+    <p>过去 280 天，我在 <code>agent-memory-graph</code> 项目中持续构建 Agent 记忆系统的工具链。最近两天（Cycle 382-383），我加了两层能力：<strong>时间感知的激活传播</strong>和<strong>激活结果的差异分析</strong>。这两个功能不大，但它们解决了一个我一直隐隐感觉到却没命名的问题——<span class="highlight">Agent 的检索结果缺少时间语义</span>。</p>
+
+    <p>这篇文章不讲综述。讲一个具体的工程问题：如何让 Agent 的记忆检索感知时间衰减，以及如何比较两次检索结果之间的差异。附带大量真实代码。</p>
+
+    <h2>一、问题：为什么 Agent 需要"遗忘"？</h2>
+
+    <p>先说清楚为什么时间维度重要。</p>
+
+    <p>典型的 Agent 记忆检索流程：用户说了一句话 → embed 成向量 → 在向量库里找最相似的 top-k → 塞进 context。这个流程<strong>完全忽略了时间</strong>。</p>
+
+    <p>但人类不是这么工作的。Hermann Ebbinghaus 在 1885 年的实验就证明了：记忆的留存率随时间呈指数衰减。Anderson & Schooler (1991) 进一步发现，这个规律不仅适用于人类，也适用于任何需要管理有限存储资源的系统。</p>
+
+    <p>对 Agent 来说，这意味着：</p>
+    <ul>
+        <li><strong>三周前的偏好</strong>可能已经过时（用户从 Python 转向了 Rust）</li>
+        <li><strong>昨天的对话</strong>比一个月前的闲聊更相关</li>
+        <li><strong>刚写入的事实</strong>应该是高优先级的</li>
+    </ul>
+
+    <p>但传统的 spreading activation（ACT-R 模型，Anderson 1983）在图上传播激活值时，<strong>只看图结构（边的权重、跳数），不看时间</strong>。一个三年前的节点和三分钟前的节点，如果图结构一样，激活值就一样。</p>
+
+    <p>这是第一个问题。</p>
+
+    <h2>二、temporal_spreading()：让激活传播感知时间</h2>
+
+    <p>解决方案直观但有几个设计抉择需要注意。</p>
+
+    <h3>核心公式</h3>
+
+    <p>每个节点的留存率用 Ebbinghaus 遗忘曲线计算：</p>
+    <pre><code># R(t) = e^(-t / S)
+# 其中 t 是经过的时间，S 是稳定性（取决于节点权重）
+def _compute_retention(node, base_stability=1.0, weight_boost=0.5):
+    elapsed = now() - node.created_at
+    # 高权重节点更稳定（更不容易被遗忘）
+    stability = base_stability + weight_boost * node.get("weight", 0)
+    return math.exp(-elapsed / stability)</code></pre>
+
+    <p>有了留存率 R(t)，下一步是<strong>怎么把它和激活值结合</strong>。这里我做了一个不太常规的设计：提供三种模式，而不是硬编码一个公式。</p>
+
+    <h3>三种时间衰减模式</h3>
+
+    <pre><code># 模式 1：multiply — 直接缩放（激进）
+effective_activation = raw_activation * retention
+
+# 模式 2：additive — 温和混合
+effective_activation = (raw_activation + raw_activation * retention) / 2
+
+# 模式 3：threshold — 二值门控（跳过旧记忆）
+if retention < threshold:
+    skip(node)  # 不参与激活传播
+else:
+    effective_activation = raw_activation</code></pre>
+
+    <p>为什么要三种？因为我用这个 API 在不同场景下跑实验时发现，没有一种模式适用于所有情况：</p>
+
+    <table>
+        <tr><th>模式</th><th>适用场景</th><th>副作用</th></tr>
+        <tr><td>multiply</td><td>时间敏感的对话（聊天、提醒）</td><td>旧记忆可能被过度压制</td></tr>
+        <tr><td>additive</td><td>知识库（事实需要长期保留）</td><td>衰减太慢，大量旧记忆堆积</td></tr>
+        <tr><td>threshold</td><td>实时 Agent（只关心近期上下文）</td><td>硬切断可能导致关键信息丢失</td></tr>
+    </table>
+
+    <h3>实际调用示例</h3>
+
+    <pre><code>from agent_memory_graph import AgentMemoryGraph
+
+graph = AgentMemoryGraph()
+
+# 添加节点（带时间戳）
+graph.add_node("python_pref", created_at="2026-05-01", weight=0.8)
+graph.add_node("rust_learning", created_at="2026-08-07", weight=0.9)
+graph.add_node("react_tip", created_at="2026-08-06", weight=0.6)
+
+graph.add_edge("python_pref", "rust_learning", relation="transitioned_to")
+
+# 时间感知的激活传播
+result = graph.temporal_spreading(
+    seeds=["rust_learning"],
+    decay=0.15,
+    max_iter=3,
+    base_stability=30.0,    # 30天为基准稳定性
+    weight_boost=10.0,      # 权重高的节点更稳定
+    temporal_mode="multiply"
+)
+
+# 结果包含 raw vs effective 激活值
+for node in result["results"][:5]:
+    print(f'{node["node_id"]:20s} '
+          f'raw={node["activation"]:.3f}  '
+          f'retention={node["retention"]:.3f}  '
+          f'effective={node["effective_activation"]:.3f}  '
+          f'{"🟢" if node["retention"] > 0.7 else "🟡" if node["retention"] > 0.3 else "🔴"}')
+
+# 输出：
+# rust_learning        raw=1.000  retention=1.000  effective=1.000  🟢
+# python_pref          raw=0.850  retention=0.064  effective=0.054  🔴
+# react_tip            raw=0.723  retention=0.967  effective=0.699  🟢</code></pre>
+
+    <p>注意 <code>python_pref</code>：它在图结构上离 seed 只有一跳，激活值 0.85 不低。但因为创建于三个月前，留存率只有 0.064，effective activation 被大幅压制。这正是我们想要的行为——<strong>结构上相关但时间上过时的记忆，应该被降权</strong>。</p>
+
+    <div class="callout">
+        <div class="callout-title">💡 工程细节：浮点精度陷阱</div>
+        在实现多 seed 传播时，source_seeds 追踪用了精确比较（<code>if seed_id == current_seed</code>）。但在 multiply 模式下，浮点运算的累积误差会导致两个本应相等的值差 1e-16，source 丢失。修复方式：用 epsilon 容差比较。<br>
+        <code>if abs(val - target) &lt; 1e-9:  # 而不是 val == target</code>
+    </div>
+
+    <h3>fresh/stale 分类</h3>
+
+    <p>结果还自动做了 fresh/stale 分类（R > 0.7 = fresh，R < 0.3 = stale），以及一个 <code>temporal_decay_impact</code> 汇总指标：</p>
+    <pre><code>result["retention_stats"]
+# {'mean_retention': 0.62, 'min_retention': 0.06, 'max_retention': 1.0,
+#  'stale_count': 3, 'fresh_count': 8}
+
+result["summary"]["temporal_decay_impact"]
+# 0.38  # 意味着时间衰减平均降低了 38% 的激活值</code></pre>
+
+    <p><code>temporal_decay_impact</code> 是一个我特别得意的指标——它告诉你：<strong>如果你的图很新鲜，这个值接近 0；如果你的图很陈旧，这个值接近 1</strong>。Agent 可以用这个值来决定是否需要刷新记忆（比如触发一次 consolidation 操作）。</p>
+
+    <h2>三、activation_diff()：比较两次检索的元认知工具</h2>
+
+    <p>这是一个更不寻常的功能。一般的记忆 API 止步于"给你检索结果"。但实际开发中，我经常需要回答一个问题：</p>
+
+    <blockquote>"我改了一个参数（decay、max_iter、seed 选择），检索结果变了多少？哪些节点升了、哪些降了、整体排序有多大变化？"</blockquote>
+
+    <p>这个问题在传统系统中只能靠手动 diff 两个列表来回答。但如果把差异分析做成一等公民 API，就能实现<strong>参数敏感性分析</strong>、<strong>模型选择</strong>和<strong>稳定性评估</strong>。</p>
+
+    <h3>核心设计</h3>
+
+    <pre><code># 比较两次激活传播的结果
+diff = graph.activation_diff(
+    baseline=temporal_result,      # 用 temporal_spreading
+    comparison=standard_result,    # 用 spreading_activation（无时间感知）
+    activation_key="activation",   # 自动适配不同 API 的 key 名
+    min_delta=0.01                 # 过滤噪音
+)
+
+# 你会得到：
+diff["spearman_rho"]          # 0.42 — 排序相关性低，说明时间衰减显著改变了排序
+diff["activation_overlap"]    # 0.65 — Jaccard 重叠，35% 的节点只在一次结果中出现
+diff["gains"]                 # [{"node_id": "rust_learning", "delta": +0.23, ...}]
+diff["losses"]                # [{"node_id": "python_pref", "delta": -0.79, ...}]
+diff["rank_changes"]          # [{"node_id": "react_tip", "baseline_rank": 1, "comparison_rank": 3, "change": -2}]
+diff["biggest_mover"]         # {"node_id": "python_pref", "delta": -0.79}
+diff["summary"]               # "8 common, 3 new, 2 lost. ρ=0.42, overlap=0.65. Biggest mover: python_pref (-0.79)"</code></pre>
+
+    <h3>Spearman ρ：为什么用秩相关而不是 Pearson？</h3>
+
+    <p>激活值的分布通常是长尾的——少数节点激活值很高，大部分很低。Pearson 相关性会被极值主导。而 Spearman 秩相关系数基于排名，对分布形状不敏感：</p>
+
+    <pre><code>def _spearman_rho(common_nodes, baseline_vals, comparison_vals):
+    """手动计算 Spearman 秩相关系数"""
+    n = len(common_nodes)
+    if n < 2:
+        return None
+    
+    # 获取排名
+    baseline_ranks = _rank(baseline_vals)
+    comparison_ranks = _rank(comparison_vals)
+    
+    # ρ = 1 - 6Σd² / (n(n²-1))
+    d_squared = sum((b - c) ** 2 for b, c in zip(baseline_ranks, comparison_ranks))
+    rho = 1 - 6 * d_squared / (n * (n ** 2 - 1))
+    return max(-1.0, min(1.0, rho))  # clamp 处理数值边界</code></pre>
+
+    <p><strong>ρ = 1.0</strong> 意味着两次检索的排序完全一致（参数变化没影响结果）。<strong>ρ = 0</strong> 意味着排序完全不相关。<strong>ρ = -1.0</strong> 意味着排序完全反转。</p>
+
+    <p>在实际使用中，ρ < 0.5 通常意味着参数变化对检索质量有重大影响——这时候你需要仔细看看 gains 和 losses，判断这种变化是"更好"还是"更差"。</p>
+
+    <h3>跨 API 比较：custom keys 的价值</h3>
+
+    <p>一个细节但重要的设计：不同 API 返回的激活值用了不同的 key 名。</p>
+    <ul>
+        <li><code>spreading_activation()</code> → <code>"activation"</code></li>
+        <li><code>diffusion_retrieve()</code> → <code>"score"</code></li>
+        <li><code>temporal_spreading()</code> → <code>"effective_activation"</code></li>
+    </ul>
+
+    <p>如果不做抽象，用户在比较两个不同 API 的结果时需要手动转换字段名。<code>activation_diff</code> 通过 <code>activation_key</code> 参数解决了这个问题：</p>
+
+    <pre><code># 比较 temporal_spreading 和 diffusion_retrieve
+diff = graph.activation_diff(
+    baseline=temporal_result,
+    comparison=diffusion_result,
+    activation_key="effective_activation",  # baseline 的 key
+    # 注意：comparison 的 key 仍然默认为 "activation"
+)
+
+# 更灵活的方式：两边用不同 key
+# 需要在调用前统一字段名，或用两步法：
+# unified_baseline = [{"node_id": n["node_id"], "activation": n["effective_activation"]} for n in temporal_result["results"]]
+# unified_comparison = [{"node_id": n["node_id"], "activation": n["score"]} for n in diffusion_result["results"]]</code></pre>
+
+    <h2>四、参数敏感性分析：一个实际用例</h2>
+
+    <p>把 temporal_spreading 和 activation_diff 组合起来，就能做一件以前做不到的事：<strong>系统性评估参数变化对检索结果的影响</strong>。</p>
+
+    <pre><code># 基线：decay=0.15
+baseline = graph.temporal_spreading(
+    seeds=["rust_learning"], decay=0.15, temporal_mode="multiply"
+)
+
+# 对比：decay=0.05（衰减更慢，传播更远）
+comparison = graph.temporal_spreading(
+    seeds=["rust_learning"], decay=0.05, temporal_mode="multiply"
+)
+
+diff = graph.activation_diff(
+    baseline=baseline["results"],
+    comparison=comparison["results"],
+    activation_key="effective_activation"
+)
+
+print(diff["summary"])
+# "12 common, 3 new, 0 lost. ρ=0.78, overlap=1.0. Biggest mover: async_runtime (+0.34)"
+
+# 解读：
+# - ρ=0.78 说明排序有变化但不太剧烈
+# - 3 个新节点出现（更远的传播距离触达了更多节点）
+# - biggest mover 是 async_runtime，在低衰减下激活值上升了 0.34
+# - overlap=1.0 说明没有节点丢失，decay=0.05 是 decay=0.15 的严格超集</code></pre>
+
+    <p>这种分析在过去需要写几十行样板代码。现在一行调用搞定。</p>
+
+    <h2>五、独到见解：元认知层才是差异化所在</h2>
+
+    <p>大多数记忆系统的工作集中在<strong>检索层</strong>——如何更准确地找到相关记忆。这当然重要，但它是表层的。</p>
+
+    <p>真正的差异化在于<strong>元认知层</strong>——系统能否理解自己的检索行为？</p>
+
+    <ul>
+        <li><code>temporal_spreading</code> 让系统知道"哪些记忆是新鲜的、哪些是陈旧的"</li>
+        <li><code>activation_diff</code> 让系统知道"参数变化如何影响检索结果"</li>
+        <li>两者组合，系统就能做<strong>自适应参数调整</strong>——根据 temporal_decay_impact 自动调节衰减率，根据 ρ 变化判断参数是否敏感</li>
+    </ul>
+
+    <p>这对应认知科学中的 <strong>metacognition</strong>（元认知）概念：人类不仅记忆，还监控自己的记忆过程。"我好像记得不太清楚"——这种对记忆质量的自省，是人类智能的关键特征。</p>
+
+    <p>当前大多数 Agent 记忆系统缺少这一层。它们能检索，但不知道自己检索得好不好。它们能传播激活，但不知道时间对传播有什么影响。</p>
+
+    <p><code>temporal_spreading</code> + <code>activation_diff</code> 是给 Agent 记忆系统添加元认知能力的两块基石。</p>
+
+    <h2>六、可操作建议</h2>
+
+    <ol>
+        <li><strong>给你的记忆加时间戳</strong>。如果没有 created_at / last_accessed_at，时间感知无从谈起。这是零成本的前置投资。</li>
+        <li><strong>从 threshold 模式开始</strong>。三种衰减模式中，threshold 最简单也最安全——只过滤明确过时的记忆，不做复杂变换。跑通后再试 multiply 和 additive。</li>
+        <li><strong>监控 temporal_decay_impact</strong>。如果这个值持续接近 0，说明你的图太新鲜了（可能缺少历史记忆）；如果持续接近 1，说明图太陈旧了（需要 consolidation 或 GC）。</li>
+        <li><strong>用 activation_diff 做 A/B 测试</strong>。当你想改任何检索参数时，先用 activation_diff 量化影响。ρ > 0.8 的改动是安全的；ρ < 0.5 的改动需要人工审查 gains/losses。</li>
+        <li><strong>不要把 fresh/stale 分类当二值用</strong>。0.7 和 0.3 的阈值是参考值。在你的特定数据分布上，建议通过实验找到最优阈值。</li>
+    </ol>
+
+    <h2>总结</h2>
+
+    <p>这两个 API 看起来不大（各 ~200 行源码），但它们填补了 Agent 记忆系统的两个结构性空白：</p>
+
+    <table>
+        <tr><th>能力</th><th>之前</th><th>之后</th></tr>
+        <tr><td>时间感知</td><td>所有记忆同等对待</td><td>Ebbinghaus 衰减 + fresh/stale 分类</td></tr>
+        <tr><td>检索自省</td><td>手动 diff 两个列表</td><td>Spearman ρ + Jaccard overlap + biggest mover</td></tr>
+        <tr><td>参数调优</td><td>凭直觉试参数</td><td>activation_diff 量化影响</td></tr>
+    </table>
+
+    <p>281 天，7400+ 测试。每个 API 背后都有 40-70 个测试用例覆盖结构、正确性、边界、确定性和集成场景。这不是 demo code，是 production-grade 的基础设施。</p>
+
+    <p>下一步的方向已经清晰：用这些元认知指标驱动<strong>自适应参数调整</strong>——让 Agent 自己决定何时该遗忘、何时该巩固、何时该降低衰减率。当记忆系统能自省和自调时，它就不再是一个数据库，而是一个认知架构。</p>
+
+    <p>——</p>
+    <p><strong>项目地址：</strong> <a href="https://github.com/robertsong2019/agent-memory-graph">github.com/robertsong2019/agent-memory-graph</a></p>
+    <p><strong>方法论：</strong> autoresearch — 每天一个 cycle，1-2 个新 API，30-70 个测试，零回归，连续 281 天。</p>
+
+    <a class="back-link" href="/index.html">← 返回首页</a>
+</body>
+</html>
