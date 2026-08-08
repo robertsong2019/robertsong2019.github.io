@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph RAG 的真实图景：$33,000 到 $33 的 18 个月，谁赢了谁死了 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        .warning { background: #fdecea; padding: 15px; border-radius: 4px; border-left: 4px solid #e74c3c; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>Graph RAG 的真实图景：$33,000 到 $33 的 18 个月，谁赢了谁死了</h1>
+        <div class="meta">
+            2026-08-08 · 罗嵩 ·
+            <span class="tag">Graph RAG</span>
+            <span class="tag">Knowledge Graph</span>
+            <span class="tag">Agent Memory</span>
+            <span class="tag">RAG</span>
+        </div>
+
+        <blockquote>2024 年 4 月，Microsoft 发布了 GraphRAG，用知识图谱取代向量数据库做检索增强。整个 AI 社区兴奋了——"向量搜索已死，图才是未来"。两年后回头看，这个故事比任何人预想的都复杂：成本暴跌了 1000 倍，好几个曾经的明星方案已经死了，而最有效的替代品可能根本不需要图。</blockquote>
+
+        <h2>一、先说结论：Graph RAG 没有赢，也没有输——它分化了</h2>
+
+        <p>如果你在 2026 年还在讨论"Graph RAG 好不好"，你问的是个错误的问题。真正的答案是：<strong>取决于你做什么</strong>。</p>
+
+        <p>过去 18 个月，Graph RAG 从一个单一的架构方案（Microsoft 原版），分裂成了至少 5 个独立的技术流派，各自解决不同问题、服务于不同场景。有些流派赢了，有些悄悄死了，有些以没人预料到的方式重生。</p>
+
+        <p>这篇文章是我花了两天时间梳理 40+ 篇论文、benchmark 和生产案例后的总结。不堆论文摘要，只说判断。</p>
+
+        <h2>二、$33,000 的问题：为什么原始 GraphRAG 不可用</h2>
+
+        <p>先理解 Microsoft 原版 GraphRAG 到底做了什么。它的管线是：</p>
+
+        <div class="ascii-art">文档 → LLM 抽取实体 → LLM 抽取关系 → 构建知识图谱
+     → Leiden 算法做社区检测 → LLM 生成社区摘要
+     → 查询时用社区摘要做全局检索</div>
+
+        <p>问题出在哪？<strong>每一步都调 LLM</strong>。实体抽取是 LLM 调用，关系抽取是 LLM 调用，社区摘要是 LLM 调用。一篇 5GB 的法律文档，索引成本高达 $33,000。同期向量 RAG 索引同样数据只需要几美元。</p>
+
+        <p>10,000 倍的成本差距。这在任何预算评审中都是直接否决的数字。</p>
+
+        <p>但成本还不是唯一问题。2025 年的研究揭示了更深层的缺陷：</p>
+
+        <ul>
+            <li><strong>噪声传播</strong>：LLM 抽取实体时出错（幻觉），错误沿着图的边传播，越查越歪</li>
+            <li><strong>冗余检索</strong>：PathRAG 的论文证明，GraphRAG 的核心问题不是"检索不够"，而是"检索了太多噪声"</li>
+            <li><strong>在很多任务上不如 vanilla RAG</strong>：不是打平，是输——Microsoft 自己的研究也承认了</li>
+        </ul>
+
+        <div class="warning"><strong>判断：</strong>Microsoft GraphRAG 原版架构在 2026 年已不推荐用于新项目。它的历史贡献是证明了"图可以增强 LLM 推理"，但它的工程实现代价太高。所有有价值的能力都已经被后续系统以更低成本继承。</div>
+
+        <h2>三、18 个月，1000 倍成本下降：LazyGraphRAG 的关键洞察</h2>
+
+        <p>2024 年底，Microsoft 自己提出了 LazyGraphRAG，做了一件非常聪明的事：</p>
+
+        <p><strong>把 LLM 推理从索引阶段推迟到查询阶段。</strong></p>
+
+        <p>原版 GraphRAG 在建索引时就做完整的实体摘要和社区报告。LazyGraphRAG 说：索引阶段只做名词短语抽取（不调 LLM），社区检测也只做结构层面的聚类。等用户真正问问题了，再去相关社区做 LLM 推理。</p>
+
+        <p>结果：</p>
+
+        <table>
+            <thead><tr><th>指标</th><th>原版 GraphRAG</th><th>LazyGraphRAG</th></tr></thead>
+            <tbody>
+                <tr><td>索引成本（100K tokens）</td><td>$2-5</td><td>~$0.02-0.05</td></tr>
+                <tr><td>索引成本（5GB 语料）</td><td>~$33,000</td><td>~$33</td></tr>
+                <tr><td>查询质量（全局问题）</td><td>72-83% comprehensiveness</td><td>相当或更好</td></tr>
+                <tr><td>成本降低</td><td>—</td><td>1000x</td></tr>
+            </tbody>
+        </table>
+
+        <p>这是一个改变游戏规则的时刻。$33,000 → $33，意味着 Graph RAG 从"只有大企业用得起"变成了"和小团队用向量 RAG 一样的成本"。</p>
+
+        <div class="insight"><strong>关键洞察：</strong>LazyGraphRAG 的哲学是"按需推理"——不是所有信息都值得在索引阶段用 LLM 处理。大部分查询只需要图的结构信息，不需要完整的 LLM 摘要。把昂贵的 LLM 调用留到真正需要的时候，这是一个简单但被忽视了两年多的道理。</div>
+
+        <h2>四、六个赢家：每个解决了不同问题</h2>
+
+        <h3>1. HippoRAG2：模仿大脑海马体的检索</h3>
+
+        <p>ICML 2025 上，HippoRAG2 带来了一个优雅的思路：模仿人类海马体的记忆索引机制。</p>
+
+        <p>人类大脑不是把所有记忆都存成向量然后做相似度搜索。海马体做的是<strong>关联索引</strong>——通过 Personalized PageRank 算法在海马体构建的图上传播激活信号，让相关记忆自动浮现。</p>
+
+        <p>数字说话：比迭代检索方法便宜 10-30 倍、快 6-13 倍。索引成本只有 GraphRAG 的 1/10（3.2M tokens vs 37.1M tokens）。</p>
+
+        <p><strong>最佳场景：多跳问答。</strong>"A 的妻子的雇主总部在哪个城市？"这种需要跨文档串联事实的查询，是 HippoRAG2 的杀手锏。</p>
+
+        <h3>2. PathRAG：解决图噪声的关键论文</h3>
+
+        <p>PathRAG（2025.02）提出了一个非常精准的诊断：Graph RAG 的问题不是"检索不够"，而是"检索了太多无关路径"。</p>
+
+        <p>它的解法是<strong>流式路径剪枝</strong>——在图上做检索时，不是返回整个子图，而是只保留从查询实体到答案实体的最相关路径，用基于信息流的算法剪掉噪声分支。</p>
+
+        <p>结果：在 6 个数据集上全面超越 GraphRAG 和 LightRAG。</p>
+
+        <h3>3. LazyGraphRAG：成本之王</h3>
+
+        <p>上文已详述。补充一点：<strong>LazyGraphRAG 是批量分析场景的最佳选择</strong>。如果你的用户期望"问一个问题等几秒没关系，但答案要全面"，LazyGraphRAG 的查询预算参数让你精确控制成本-质量权衡。</p>
+
+        <h3>4. Graphiti / Zep：Agent 记忆的时序杀手锏</h3>
+
+        <p>这是 2026 年最让我兴奋的系统。</p>
+
+        <p>想象你的 AI Agent 去年记住了一个用户"单身"。今年用户结婚了，Agent 更新了状态。但如果你问 Agent "去年 6 月这个用户的婚姻状态是什么"，传统系统会崩溃——它只知道"现在"，不知道"曾经"。</p>
+
+        <p>Graphiti（Zep 的开源引擎）用<strong>双时序模型</strong>解决这个问题：每条事实都有两个时间戳——valid time（事实在现实世界中何时为真）和 transaction time（系统何时记录了这个事实）。</p>
+
+        <p>这不仅仅是理论上的优雅。Zep 在 LoCoMo benchmark 上达到 94.7% 准确率，在 LongMemEval 上 90.2%——远超 Mem0（68.44%）和 MemGPT/Letta（74.0%）。</p>
+
+        <div class="highlight"><strong>为什么时序是 Agent 记忆的关键维度？</strong>因为 Agent 不是在查文档，而是在查"一段不断变化的历史"。文档库里的知识是静态的，但 Agent 的记忆是活的——人会换工作、会搬家、会改变偏好。没有时序感知的 Agent 记忆系统，就像一个只会覆盖旧日记的人，永远只记得今天。</div>
+
+        <h3>5. Agentic Search：Claude Code 的"反 RAG"哲学</h3>
+
+        <p>2026 年 1 月，Claude Code 的创建者 Boris Cherny 公开说了一段在整个 RAG 社区引起地震的话：</p>
+
+        <blockquote>"Claude Code 早期版本用了 vector RAG。但我们发现 agentic search 的效果明显更好。所以我们移除了向量数据库。"</blockquote>
+
+        <p>Claude Code 现在用的是 <code>grep</code> 和 <code>glob</code>——就是 Unix 最基础的搜索工具。让 LLM Agent 自主决定搜索什么、怎么搜索、什么时候搜索够了。</p>
+
+        <p>这听起来很"原始"，但它揭示了一个深刻的道理：<strong>如果你有一个足够聪明的 Agent，给它搜索工具可能比预建索引更好。</strong>因为 Agent 可以根据推理状态动态调整搜索策略，而预建的索引是静态的。</p>
+
+        <h3>6. DCI（Direct Corpus Interaction）：零索引范式</h3>
+
+        <p>Contextual AI 把 Agentic Search 推到了极致：不构建任何索引——不用向量数据库、不用知识图谱——Agent 直接通过终端工具（<code>rg</code>、<code>find</code>、<code>sed</code>）与原始语料交互。</p>
+
+        <p>在 BRIGHT benchmark 上，DCI 比 ColBERT-v2 和 BGE-M3 高出 12%，且<strong>零离线索引成本</strong>。</p>
+
+        <p>这意味着什么？对于很多用例，你可能根本不需要 RAG。你需要的只是一个能搜索文件的 Agent。</p>
+
+        <h2>五、三个输家：什么死了</h2>
+
+        <h3>1. "LangChain + Neo4j = Graph RAG"的教程式管线</h3>
+
+        <p>2025 年每个 AI 博主（包括一些大 V）都在教你怎么用 LangChain + Neo4j 搭 Graph RAG。2026 年回头看，这些教程的价值主要在教学演示。生产环境中，这套管线的实体抽取质量高度依赖你用的 LLM——而 LLM 出错时，错误会沿着图传播。Atlan 的分析报告指出，LlamaIndex 的 PropertyGraphIndex 甚至存在"静默吞掉异常"的问题（issue #22194），直到有人提交了 <code>raise_on_error</code> 修复。</p>
+
+        <h3>2. Mem0 的图变体</h3>
+
+        <p>这是一个重要的反面案例。Mem0 在 v3 开源重写中<strong>移除了图存储层</strong>，改用 spaCy 做实体链接 + 向量检索。为什么？因为他们自己的论文数据显示：</p>
+
+        <table>
+            <thead><tr><th>指标</th><th>Mem0（纯向量）</th><th>Mem0g（图变体）</th></tr></thead>
+            <tbody>
+                <tr><td>LOCOMO 总分</td><td>66.88</td><td>68.44</td></tr>
+                <tr><td>搜索速度</td><td>1x</td><td>~3x 慢</td></tr>
+                <tr><td>Token 消耗</td><td>1x</td><td>~2x</td></tr>
+            </tbody>
+        </table>
+
+        <p>图的收益只有 1.5 分，但代价是 3 倍慢、2 倍贵。<strong>这说明图不是万能药——在很多场景，复杂度的代价远超收益。</strong></p>
+
+        <h3>3. "纯向量 RAG 够用了"的幻觉</h3>
+
+        <p>虽然 Agentic Search 和 DCI 在某些场景证明了不需要传统 RAG，但这不意味着纯向量 RAG 就够了。在多跳推理（"连接多个文档中的事实"）和全局主题分析（"这个语料库的主要主题是什么"）上，向量 RAG 系统性地落后于图增强方案。HippoRAG2 在多跳 QA 上的表现证明了这一点。</p>
+
+        <h2>六、FactConsolidation：所有系统都过不了的新基准</h2>
+
+        <p>2026 年 6 月，一篇 arxiv 论文悄悄发表，但它的结果值得所有人注意。作者提出了 FactConsolidation benchmark——测试系统在<strong>事实冲突</strong>时的表现。</p>
+
+        <p>场景很简单：先告诉系统"A 公司的 CEO 是张三"，再告诉它"A 公司的 CEO 是李四"。然后问"A 公司的 CEO 是谁？"</p>
+
+        <p>结果令人震惊：</p>
+
+        <table>
+            <thead><tr><th>系统</th><th>单跳准确率</th></tr></thead>
+            <tbody>
+                <tr><td>HippoRAG2（最强）</td><td>54.0%</td></tr>
+                <tr><td>MemGPT/Letta</td><td>28.0%</td></tr>
+                <tr><td>Cognee</td><td>28.0%</td></tr>
+                <tr><td>GraphRAG</td><td>~21%</td></tr>
+                <tr><td>Graphiti/Zep</td><td>7.0%</td></tr>
+                <tr><td>Mem0</td><td>18.0%</td></tr>
+            </tbody>
+        </table>
+
+        <p>多跳版本更惨：<strong>所有系统都是 0-7%。</strong></p>
+
+        <p>论文的核心发现是：架构复杂度并不能解决事实冲突。知识图谱系统反而更差——因为 LLM 驱动的实体/关系抽取在写入时就引入了噪声，冲突发生时噪声被放大而不是被解决。</p>
+
+        <div class="warning"><strong>这对所有 Agent 记忆系统都是一记警钟。</strong>你的 Agent 记忆系统可能在 benchmark 上表现很好，但在真实世界的信息变更面前完全失灵。如果你在构建 Agent，请把 FactConsolidation 加入你的评估维度。</div>
+
+        <h2>七、2026 年的正确决策树</h2>
+
+        <p>别再问"Graph RAG 好不好"了。问自己：</p>
+
+        <div class="ascii-art">你的查询类型是什么？
+│
+├─ 单点事实查询（"公司的地址是什么？"）
+│  └─→ 向量 RAG + BM25 混合搜索
+│      成本最低，效果足够
+│
+├─ 多跳推理（"A 的合伙人的母校在哪里？"）
+│  └─→ HippoRAG2 或 PathRAG
+│      图的收益真实存在
+│
+├─ 全局主题分析（"这个语料库的核心争论是什么？"）
+│  └─→ LazyGraphRAG
+│      索引成本 = 向量 RAG，质量远超
+│
+├─ Agent 长期记忆（"用户上次提到这个是什么时候？"）
+│  └─→ Graphiti / Zep
+│      时序维度是刚需，不是可选
+│
+├─ 代码/文档搜索（"这个函数在哪里被调用？"）
+│  └─→ Agentic Search（grep + glob + LLM 多轮）
+│      不需要预建索引
+│
+└─ 小语料（&lt;100K tokens）
+   └─→ 跳过 RAG，直接全塞上下文窗口
+      你可能根本不需要检索</div>
+
+        <h2>八、你可以立刻做的 5 件事</h2>
+
+        <ol>
+            <li><strong>审计你现有的 RAG 系统。</strong>如果你在用原版 Microsoft GraphRAG，评估迁移到 LazyGraphRAG 的成本。索引成本会降低 1000 倍，质量不降反升。</li>
+            <li><strong>给 Agent 记忆加时序维度。</strong>不管你用什么向量数据库，如果 Agent 需要跟踪变化的状态（用户信息、项目进度、业务规则），时序感知不是 nice-to-have，是 must-have。先试 Graphiti。</li>
+            <li><strong>做个 Agentic Search 的对比实验。</strong>在你最复杂的查询场景上，让 LLM Agent 直接搜索原始文档（用 grep/find + LLM 判断），对比你当前 RAG 系统的结果。你可能会惊讶。</li>
+            <li><strong>用 FactConsolidation 测试你的系统。</strong>写入两条冲突信息，看系统怎么处理。如果准确率低于 50%，你需要重新设计记忆更新策略。</li>
+            <li><strong>别再追求"通用 RAG 架构"。</strong>2026 年的教训是：<strong>不同查询类型需要不同架构</strong>。与其花三个月搭一个大而全的系统，不如花一周搭一个精准匹配你核心查询类型的简单系统。</li>
+        </ol>
+
+        <h2>尾声：图的价值没有消失，但它不再是卖点</h2>
+
+        <p>2024 年，"我们用了 Graph RAG"是一个技术亮点。2026 年，它只是说明你做了技术选型。图的真正价值——多跳推理、关系建模、全局视图——依然不可替代，但实现方式已经从"砸钱建索引"变成了"按需推理、智能查询、时序感知"。</p>
+
+        <p>用 Andrej Karpathy 的话说：<strong>添加功能的时机是你需要它的时候，而不是你觉得可能需要的时候。</strong>Graph RAG 在 2026 年终于听到了这句话。</p>
+
+        <hr>
+
+        <p><strong>参考资料：</strong></p>
+        <ul style="font-size: 0.85em; color: #666;">
+            <li>Edge et al., "From Local to Global: A Graph RAG Approach to Query-Focused Summarization" (Microsoft, 2024)</li>
+            <li>LazyGraphRAG (Microsoft Research, 2024.12) — 索引成本降低 1000x</li>
+            <li>Gutiérrez et al., "HippoRAG2: From RAG to Memory" (ICML 2025)</li>
+            <li>Guo et al., "LightRAG: Simple and Fast Retrieval-Augmented Generation" (2025)</li>
+            <li>PathRAG (2025.02) — 流式路径剪枝</li>
+            <li>Rasmussen et al., "Zep: A Temporal Knowledge Graph Architecture for Agent Memory" (2025.01)</li>
+            <li>FactConsolidation Benchmark (arxiv 2606.01435, 2026.06)</li>
+            <li>Contextual AI, "An Agentic Alternative to GraphRAG" (2026)</li>
+            <li>Awesome-GraphRAG: github.com/DEEP-PolyU/Awesome-GraphRAG</li>
+            <li>Mem0 Paper (arxiv 2504.19413, 2025.04) — 图 vs 向量实证对比</li>
+            <li>TG-RAG (arxiv 2510.13590) — 时序敏感 Graph RAG</li>
+            <li>LinearRAG (ICLR 2026) — 无关系抽取的轻量图 RAG</li>
+        </ul>
+    </div>
+</body>
+</html>
