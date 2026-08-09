@@ -1,6 +1,6 @@
 {
-  "lastUpdated": "2026-08-08T22:00:56Z",
-  "generatedAt": "2026-08-09 06:00 CST",
+  "lastUpdated": "2026-08-09T22:00:00Z",
+  "generatedAt": "2026-08-10 06:00 CST",
   "system": {
     "gateway": {
       "status": "running",
@@ -14,8 +14,8 @@
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "108 days, 16:41",
-      "loadAverage": "0.60, 0.28, 0.16",
+      "uptime": "109 days, 16:40",
+      "loadAverage": "0.39, 0.10, 0.03",
       "disk": {
         "total": "50G",
         "used": "43G",
@@ -24,22 +24,24 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1287,
-        "freeMB": 297,
-        "availableMB": 648,
+        "usedMB": 957,
+        "freeMB": 563,
+        "availableMB": 977,
         "swapTotalMB": 10179,
-        "swapUsedMB": 1136
+        "swapUsedMB": 576
       }
     },
     "model": "zai/glm-5.1"
   },
   "cronSummary": {
     "total": 21,
-    "ok": 20,
-    "error": 1,
+    "ok": 17,
+    "error": 3,
     "running": 1,
     "errorJobs": [
-      "84707ade (ai-neuroscience-research)"
+      "13a2f284 (code-lab-evening)",
+      "84707ade (ai-neuroscience-research)",
+      "686ec55c (essay-generation-morning)"
     ]
   },
   "cronJobs": [
@@ -103,7 +105,7 @@
       "id": "13a2f284",
       "name": "code-lab-evening",
       "schedule": "0 21 * * *",
-      "status": "ok",
+      "status": "error",
       "lastRun": "9h ago"
     },
     {
@@ -180,7 +182,7 @@
       "id": "686ec55c",
       "name": "essay-generation-morning",
       "schedule": "0 5 * * *",
-      "status": "ok",
+      "status": "error",
       "lastRun": "1h ago"
     },
     {
@@ -188,7 +190,7 @@
       "name": "essay-generation-morning",
       "schedule": "0 5 * * *",
       "status": "ok",
-      "lastRun": "58m ago"
+      "lastRun": "49m ago"
     }
   ],
   "sessions": {
@@ -199,73 +201,68 @@
         "type": "main",
         "lastActive": "13m ago",
         "model": "glm-5",
-        "context": "130k/200k (65%)"
+        "context": "75k/200k (38%)"
       },
       {
         "type": "cron (dashboard)",
         "lastActive": "just now",
         "model": "glm-5.1",
-        "context": "36k/205k (18%)"
+        "context": "39k/205k (19%)"
       },
       {
         "type": "cron (essay-gen)",
-        "lastActive": "59m ago",
+        "lastActive": "49m ago",
         "model": "glm-5.1",
-        "context": "52k/205k (25%)"
+        "context": "81k/205k (40%)"
       },
       {
         "type": "cron (documentation)",
         "lastActive": "2h ago",
         "model": "glm-5.1",
-        "context": "48k/205k (23%)"
+        "context": "44k/205k (22%)"
       },
       {
         "type": "cron (knowledge-org)",
         "lastActive": "4h ago",
         "model": "glm-5.1",
-        "context": "112k/205k (55%)"
+        "context": "73k/205k (36%)"
       },
       {
         "type": "cron (key-dev-1)",
         "lastActive": "7h ago",
         "model": "glm-5.1",
-        "context": "49k/205k (24%)"
+        "context": "53k/205k (26%)"
       },
       {
         "type": "cron (tool-dev)",
         "lastActive": "8h ago",
         "model": "glm-5.1",
-        "context": "73k/205k (36%)"
+        "context": "69k/205k (34%)"
       },
       {
         "type": "cron (ai-neuroscience)",
         "lastActive": "8h ago",
         "model": "glm-5.1",
-        "context": "58k/205k (28%)"
+        "context": "71k/205k (35%)"
       },
       {
         "type": "cron (code-lab)",
-        "lastActive": "9h ago",
-        "model": "glm-5.1",
-        "context": "51k/205k (25%)"
+        "lastActive": "11h ago",
+        "model": "glm-5-turbo",
+        "context": "110k/205k (53%)"
       },
       {
         "type": "cron (deep-exploration)",
         "lastActive": "10h ago",
         "model": "glm-5.1",
-        "context": "70k/205k (34%)"
+        "context": "73k/205k (36%)"
       }
     ]
   },
   "git": {
     "repo": "robertsong2019/openclaw-workspace",
-    "lastCommit": "9d5ff7f docs: documentation report 2026-08-09",
     "recentCommits": [
-      "9d5ff7f docs: documentation report 2026-08-09",
-      "3dec13f docs: README Cycles 374-392 — OTel遥测、图诊断报告、时序分析、社区熵、韧性分析",
-      "9856e91 Update experiments.tsv: Cycle 392",
-      "742486b Cycle 392: community_entropy_profile() — per-community entropy analysis",
-      "6c659f0 Update experiments.tsv: Cycle 391"
+      "Latest docs and experiment commits from automated cycles"
     ]
   }
 }
