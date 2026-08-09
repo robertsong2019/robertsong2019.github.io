@@ -397,7 +397,7 @@
                 <span class="stat-label">个月份</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number" id="latestDate">2026-08-06</span>
+                <span class="stat-number" id="latestDate">2026-08-10</span>
                 <span class="stat-label">最近更新</span>
             </div>
         </div>
@@ -420,6 +420,13 @@
     <script>
         // Posts data
         const posts = [
+            {
+                date: '2026-08-10',
+                title: 'Agent 需要"睡觉"：记忆整合与离线重放的工程实现',
+                excerpt: 'Agent 记忆系统有一个从未被正面解决的工程问题：写入的记忆从不被"消化"。人类大脑每天花 8 小时睡觉进行记忆整合，Agent 却被期望 24/7 不间断运行。本文提出 NREM/REM 双阶段整合模型——先压缩相似记忆提取摘要（含零成本压缩残差），再发现跨域关联。整合 > 编码，4 倍 ROI。含完整 Python 实现：consolidate() 调度器、代际标记、Copy-on-Write 安全模式。',
+                tags: ['Agent Memory', 'Consolidation', 'NREM/REM', 'Neuroscience'],
+                url: 'posts/agent-memory-consolidation-sleep-2026-08.html'
+            },
             {
                 date: '2026-08-06',
                 title: '激活扩散：当40年前的认知科学成为Agent记忆的检索引擎',
@@ -1599,6 +1606,7 @@
             renderPosts();
         });
     </script>
+<div class="essay-item"><h3><a href="posts/agent-memory-consolidation-sleep-2026-08.html">Agent 需要"睡觉"：记忆整合与离线重放的工程实现</a></h3><p class="essay-date">2026-08-10</p><p>Agent 记忆系统有一个从未被正面解决的工程问题：写入的记忆从不被"消化"。本文提出 NREM/REM 双阶段整合模型——先压缩相似记忆提取摘要，再发现跨域关联。整合 > 编码，4 倍 ROI。含完整 Python 实现。</p></div>
 <div class="essay-item"><h3><a href="posts/attention-gini-agent-memory-2026-08.html">Agent 记忆的基尼系数：用经济学诊断 AI 的注意力不平等</a></h3><p class="essay-date">2026-08-10</p><p>如果你的 Agent 运行了三个月，它的记忆系统可能已有严重的"注意力贫富分化"——5% 的节点占据 60% 的注意力。本文介绍如何用基尼系数、Shannon 熵和盲点检测来诊断这个问题，给出五个注意力区域的分类系统和三个可操作的治疗策略。代码来自 agent-memory-graph 项目 7926 测试验证。</p></div>
 <div class="essay-item"><h3><a href="posts/graph-rag-cost-cliff-decision-tree-2026-08.html">Graph RAG 的成本悬崖与决策树：2026 年你该选什么</a></h3><p class="essay-date">2026-08-09</p><p>用 Graph RAG 索引 5GB 数据从 $33,000 降到 $33，18 个月下降 1000 倍。这不是优化，是成本悬崖。Microsoft GraphRAG 原版架构被证明过度设计，Mem0 从图退回向量，Claude Code 用 grep 超越 vector RAG。本文用一张决策树告诉你该选什么架构，以及为什么图的收益取决于场景而非热度。</p></div>
 <div class="essay-item"><h3><a href="posts/silent-benchmark-bug-noise-robustness-2026-08.html">你的基准测试在撒谎：一个让所有分类算法都看起来只有 17% 准确率的静默 Bug</a></h3><p class="essay-date">2026-08-03</p><p>你的基准测试覆盖率 100%，但它可能在静默撒谎。两个隐蔽 bug 让 8 种图分类算法全部表现为 ~17% 准确率，而真实值是 ~100%。修复后通过 noise robustness 测试揭示 RRF 最鲁棒、tree 拓扑最脆弱。附确定性 RNG 设计和 SQLite rowid 排序的踩坑实录。</p></div>
