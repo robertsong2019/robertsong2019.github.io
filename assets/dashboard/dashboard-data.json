@@ -1,6 +1,6 @@
 {
-  "lastUpdated": "2026-08-06T22:01:27Z",
-  "generatedAt": "2026-08-07 06:01 CST",
+  "lastUpdated": "2026-08-10T22:01:37Z",
+  "generatedAt": "2026-08-11 06:01 CST",
   "system": {
     "gateway": {
       "status": "running",
@@ -14,33 +14,31 @@
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "106 days, 16:41",
-      "loadAverage": "0.63, 0.20, 0.07",
+      "uptime": "110 days, 16:41",
+      "loadAverage": "1.13, 0.44, 0.16",
       "disk": {
         "total": "50G",
-        "used": "42G",
-        "available": "5.5G",
-        "usage": "89%"
+        "used": "43G",
+        "available": "4.2G",
+        "usage": "92%"
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1168,
-        "freeMB": 421,
-        "availableMB": 767,
+        "usedMB": 935,
+        "freeMB": 749,
+        "availableMB": 1000,
         "swapTotalMB": 10179,
-        "swapUsedMB": 975
+        "swapUsedMB": 1031
       }
     },
     "model": "zai/glm-5.1"
   },
   "cronSummary": {
     "total": 21,
-    "ok": 18,
-    "error": 3,
+    "ok": 19,
+    "error": 1,
     "running": 1,
     "errorJobs": [
-      "686ec55c (essay-generation-morning)",
-      "f0362050 (essay-generation-morning)",
       "84707ade (ai-neuroscience-research)"
     ]
   },
@@ -182,15 +180,15 @@
       "id": "686ec55c",
       "name": "essay-generation-morning",
       "schedule": "0 5 * * *",
-      "status": "error",
+      "status": "ok",
       "lastRun": "1h ago"
     },
     {
       "id": "f0362050",
       "name": "essay-generation-morning",
       "schedule": "0 5 * * *",
-      "status": "error",
-      "lastRun": "57m ago"
+      "status": "ok",
+      "lastRun": "59m ago"
     }
   ],
   "sessions": {
@@ -199,45 +197,45 @@
     "notable": [
       {
         "type": "main",
-        "lastActive": "13m ago",
+        "lastActive": "14m ago",
         "model": "glm-5",
-        "context": "107k/200k (53%)"
+        "context": "96k/200k (48%)"
       },
       {
         "type": "cron (dashboard)",
         "lastActive": "just now",
         "model": "glm-5.1",
-        "context": "45k/205k (22%)"
+        "context": "36k/205k (18%)"
       },
       {
         "type": "cron (essay-gen)",
-        "lastActive": "52m ago",
+        "lastActive": "56m ago",
         "model": "glm-5.1",
-        "context": "70k/205k (34%)"
+        "context": "48k/205k (24%)"
       },
       {
         "type": "cron (documentation)",
         "lastActive": "2h ago",
         "model": "glm-5.1",
-        "context": "54k/205k (26%)"
+        "context": "46k/205k (22%)"
       },
       {
         "type": "cron (knowledge-org)",
         "lastActive": "4h ago",
         "model": "glm-5.1",
-        "context": "82k/205k (40%)"
+        "context": "93k/205k (45%)"
       },
       {
         "type": "cron (key-dev-1)",
         "lastActive": "7h ago",
         "model": "glm-5.1",
-        "context": "54k/205k (26%)"
+        "context": "40k/205k (20%)"
       },
       {
         "type": "cron (tool-dev)",
         "lastActive": "8h ago",
         "model": "glm-5.1",
-        "context": "65k/205k (32%)"
+        "context": "63k/205k (31%)"
       },
       {
         "type": "cron (ai-neuroscience)",
@@ -249,25 +247,25 @@
         "type": "cron (code-lab)",
         "lastActive": "9h ago",
         "model": "glm-5.1",
-        "context": "74k/205k (36%)"
+        "context": "69k/205k (34%)"
       },
       {
         "type": "cron (deep-exploration)",
         "lastActive": "10h ago",
         "model": "glm-5.1",
-        "context": "101k/205k (49%)"
+        "context": "96k/205k (47%)"
       }
     ]
   },
   "git": {
     "repo": "robertsong2019/openclaw-workspace",
-    "lastCommit": "cb8a5c3 docs: documentation improvement report 2026-08-07",
+    "lastCommit": "59ef8de docs: documentation report 2026-08-11",
     "recentCommits": [
-      "cb8a5c3 docs: documentation improvement report 2026-08-07",
-      "a07ea41 docs: README — Cycles 367-373 (OWASP security, benchmark, MCP expansion, activation trace, competitive spreading)",
-      "3221faa knowledge-org: fix prompt-mgr test count (134→196), update total to ~20000",
-      "abbaba8 feat: competitive_spreading() — lateral inhibition & reinforcement (Cycle 373)",
-      "78ad5ba Update experiments.tsv: Cycle 372"
+      "59ef8de docs: documentation report 2026-08-11",
+      "8ef7d53 docs: README — Cycles 405→407 补全",
+      "8d94711 test: add 15 tests for utils/logger.py",
+      "8968b4b experiments: log attention_rebalance_plan cycle 407",
+      "95db7bd attention_rebalance_plan() — action-oriented companion"
     ]
   }
 }
