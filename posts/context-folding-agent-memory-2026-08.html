@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>为什么你的 AI 助手做了三步就忘了第一步？Context Folding 正在解决 Agent 的记忆危机 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        .danger { color: #f85149; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>为什么你的 AI 助手做了三步就忘了第一步？Context Folding 正在解决 Agent 的记忆危机</h1>
+    <div class="meta">
+        2026-08-11 · <span class="tag">Context Folding</span> <span class="tag">Long-Horizon Agents</span> <span class="tag">RL</span> <span class="tag">Agent Memory</span>
+    </div>
+
+    <p>想象你请了一个研究助手，帮你调研一个复杂课题。他先搜了十篇论文，读了三个小时，做了二十页笔记。然后你问他："刚才第三篇论文的核心方法是什么？"——他一脸茫然。不是因为没看到，而是因为<strong>他脑子里的"工作记忆"已经装不下了</strong>，新的信息不断涌入，旧的细节被挤到了看不见的角落。</p>
+
+    <p>这正是今天 LLM Agent 面临的真实困境。2026 年，Agent 已经能自主搜索网页、写代码、操作软件——但一旦任务变长（几十步甚至上百步的交互），它们就会像那个健忘的研究助手一样，<strong>在第三十步忘了第三步的关键发现</strong>。</p>
+
+    <p>解决方案不是更大的上下文窗口，而是一种全新的能力：<strong>Context Folding——让 Agent 学会"做完子任务后，把过程折叠成结论"</strong>。这项技术在 2025 年底至 2026 年初迎来了爆发，三篇重量级论文分别被 ICML 2026、ICLR 2026 和 NeurIPS 2025 接收。本文拆解它解决什么问题、怎么工作、以及为什么它可能是 2026 年 Agent 领域最重要的范式转变。</p>
+
+    <h2>一、上下文饱和：比你想的更严重</h2>
+
+    <p>先理解问题的严重性。当前主流的 Agent 架构（ReAct 模式）是这样工作的：每一步交互——不管是搜索结果、工具输出还是 Agent 自己的推理——都被<strong>原封不动地追加</strong>到上下文窗口里。100 步交互后，上下文可能膨胀到 50K-100K token。</p>
+
+    <p>你可能会说：现在的模型不是支持 128K 甚至 1M token 吗？问题不大吧？</p>
+
+    <p>问题很大。原因有三：</p>
+
+    <p><strong>第一，注意力不是均匀的。</strong>研究反复表明，LLM 在长上下文中存在"lost in the middle"效应——开头和结尾的信息记得清楚，中间的容易被忽略。100 步交互中，第 30-70 步的关键决策恰好落在注意力的盲区。</p>
+
+    <p><strong>第二，成本随上下文线性增长。</strong>Transformer 的注意力计算是 O(n²) 复杂度。128K context 的推理成本是 8K context 的 256 倍。更关键的是，KV cache（存储已计算注意力值的缓存）在 128K 时会占掉 GPU 70-90% 的显存。这意味着<strong>长上下文不仅仅是质量问题，更是经济问题</strong>。</p>
+
+    <p><strong>第三，噪声淹没信号。</strong>每一步工具调用都产生大量格式化输出（JSON、HTML、日志）。Agent 真正需要的信息——"这个网页的答案是 X"——被淹没在几百行 HTML 标签里。上下文越长，信噪比越低。</p>
+
+    <p>2025 年的一篇综述论文将这个现象命名为 <strong>context saturation（上下文饱和）</strong>。它不是 bug，而是 ReAct 范式的结构性缺陷。</p>
+
+    <h2>二、人类怎么解决？答案在认知科学里</h2>
+
+    <p>在谈论技术方案之前，先看看人类是怎么处理类似问题的。</p>
+
+    <p>你正在做一道复杂的数学题。中间需要查一个公式、做一个辅助计算、验证一个假设。做完这些辅助步骤后，你的大脑会怎么做？——<strong>你会忘掉查公式的具体过程，只记住"公式是 F=ma"</strong>。你不会把翻书的每一页都记在脑子里，然后一边解题一边回顾翻书的过程。</p>
+
+    <p>这就是认知科学中的<strong>工作记忆（working memory）</strong>模型。人类的工作记忆容量极小（经典的 7±2 模型），但我们能处理极其复杂的任务，靠的是<strong>主动管理</strong>工作记忆：</p>
+
+    <ul>
+        <li><strong>分段处理：</strong>把大任务拆成小步骤，每步完成后只保留结论</li>
+        <li><strong>回顾性整合：</strong>定期回顾和压缩已完成的工作，提炼出更高层的理解</li>
+        <li><strong>遗忘策略：</strong>主动丢弃不再相关的细节</li>
+    </ul>
+
+    <p>Context Folding 的核心洞察就是：<strong>Agent 也需要这种能力——不是被动记录一切，而是主动雕塑自己的"认知工作区"</strong>。</p>
+
+    <h2>三、Context Folding：让 Agent 学会折叠</h2>
+
+    <h3>基本机制：Branch 和 Fold</h3>
+
+    <p>Context Folding 最重要的思想来自 ByteDance/CMU 的论文（ICML 2026）。它给 Agent 增加了两个核心操作：</p>
+
+    <p><strong>Branch（分支）：</strong>当 Agent 遇到一个子任务（比如"查一下这个函数的文档"），它可以创建一个<strong>临时的子轨迹</strong>来处理。这个子轨迹有自己独立的工作上下文，不占用主上下文的空间。</p>
+
+    <p><strong>Fold/Return（折叠/返回）：</strong>子任务完成后，Agent 不把中间步骤带回主上下文，而是<strong>将整个过程"折叠"成一句摘要</strong>。</p>
+
+    <p>打个比方：就像函数调用。你调用一个函数 <code>search_documentation("torch.compile")</code>，函数内部可能做了 20 步操作，但返回给你的只有一行结果。你不需要知道函数内部怎么实现的，你只需要那个返回值。</p>
+
+    <pre><code>主上下文：
+  [系统提示] → [用户问题] → [Agent: 需要查文档]
+    → Branch: [搜索 torch.compile → 阅读 5 个页面 → 总结用法]
+    → Fold: 返回 "torch.compile 支持 mode='reduce-overhead'..."
+  → [Agent: 继续推理...]
+
+// 子轨迹的 20 步被折叠为 1 步摘要
+// 主上下文始终保持精简</code></pre>
+
+    <p>结果是什么？Agent 用 32K 的活跃上下文（10 个折叠槽位），在 BrowseComp-Plus 上达到 62.0% 的准确率——而 GPT-5 用完整的 327K 上下文是 79.3%。一个 36B 的开源模型，用 1/10 的上下文，达到了 GPT-5（推测参数量远超 100B）约 78% 的水平。</p>
+
+    <h3>多尺度折叠：AgentFold 的精细设计</h3>
+
+    <p>阿里巴巴 Qwen 团队的 AgentFold（ICLR 2026）进一步提出了<strong>多尺度折叠</strong>——不是所有折叠都一样粗粒度。它设计了两种操作：</p>
+
+    <ul>
+        <li><strong>细粒度凝聚（Granular Condensation）：</strong>只折叠最近一步。适合上下文还没太满、但需要控制增长速度的情况。就像你做完一步后顺手在笔记上浓缩一下。</li>
+        <li><strong>深度合并（Deep Consolidation）：</strong>把多个步骤甚至整个子任务合并成一段摘要。适合上下文已经接近饱和、需要大幅压缩的情况。就像你完成一个章节后，回头写一段总结。</li>
+    </ul>
+
+    <p>Agent 在每一步都可以<strong>自主选择</strong>折叠粒度。这种"元认知"决策本身也是通过训练学到的——Agent 学会了感知"我的上下文快满了"和"这个子任务已经可以收尾了"这样的信号。</p>
+
+    <p>AgentFold 的结果令人印象深刻：一个 30B 参数的模型，在 256+ 轮交互的长程任务上，匹敌 OpenAI o4-mini 的表现，而活跃上下文始终保持在 ~20K token 以下。</p>
+
+    <h2>四、让折叠成为可学习的能力：RL 训练的突破</h2>
+
+    <p>早期的 Agent 系统用手动规则做摘要——"每 10 步总结一次"、"只保留最近 5 步"。这些规则是脆弱的：不同任务需要不同的压缩策略。</p>
+
+    <p>2025-2026 年的关键突破是：<strong>用强化学习（RL）训练 Agent 学会何时折叠、如何折叠</strong>。</p>
+
+    <h3>FoldGRPO：过程奖励的群体相对策略优化</h3>
+
+    <p>ByteDance 的 FoldGRPO 在标准 GRPO 基础上增加了<strong>分离的 process reward</strong>：</p>
+
+    <ul>
+        <li><strong>任务完成奖励：</strong>子任务是否正确完成</li>
+        <li><strong>折叠质量奖励：</strong>摘要是否准确、是否保留了关键信息</li>
+        <li><strong>上下文效率奖励：</strong>是否有效控制了上下文增长</li>
+    </ul>
+
+    <p>这三个奖励信号让 Agent 同时学会了"做对事"和"高效地做对事"。</p>
+
+    <h3>FoldAct：解决三大训练难题</h3>
+
+    <p>但 RL 训练折叠策略远比想象的难。2025 年底的 FoldAct 论文揭示了三个根本性挑战：</p>
+
+    <p><strong>挑战一：梯度稀释。</strong>在一个典型的 agent 轨迹中，action token（工具调用、推理步骤）占了 95% 以上，而折叠/摘要 token 只占 5% 不到。标准的 PPO loss 会把训练信号均匀分配给所有 token，导致折叠决策几乎得不到学习信号。FoldAct 的解法是<strong>分离 loss</strong>——为 action token 和 summary token 分别计算 PPO 目标，各自有独立的 advantage 和 importance ratio。</p>
+
+    <p><strong>挑战二：自我条件化。</strong>一旦 Agent 在第 N 步写了一个摘要，第 N+1 步的状态就依赖于这个摘要。这意味着<strong>观测分布本身是策略依赖的</strong>，违反了 PPO 的重要性采样假设。FoldAct 加入了一个<strong>全上下文一致性损失</strong>——用未压缩的完整历史作为参考，约束压缩后的策略不偏离太多。</p>
+
+    <p><strong>挑战三：计算成本。</strong>每次折叠都产生唯一的、被压缩的上下文，Transformer 无法复用之前的 KV cache。FoldAct 的解法是<strong>选择性段训练</strong>——每个 rollout 只随机采样部分轮次计算梯度，大幅减少计算量。训练速度从 933s/step 降到 ~180s/step。</p>
+
+    <h2>五、另一个角度：常数级内存的 Agent</h2>
+
+    <p>MIT 和 NUS 的 MEM1（NeurIPS 2025 Workshop 最佳论文）从另一个角度切入同样的问题。<strong>与其折叠上下文，不如让 Agent 维护一个紧凑的内部状态</strong>，每一步只更新这个状态。</p>
+
+    <p>MEM1 的做法更像人类的长期记忆+工作记忆模型：</p>
+
+    <ul>
+        <li>Agent 有一个<strong>紧凑的内部状态</strong>（而不是完整的交互历史）</li>
+        <li>每一步，Agent 用 RL 学到的策略<strong>更新这个状态</strong>：整合新观察、丢弃过时信息</li>
+        <li>状态同时服务于<strong>记忆巩固和推理</strong>——不是先记忆再推理，而是两者协同</li>
+    </ul>
+
+    <p>结果是：一个 7B 参数的 MEM1 Agent，在 16 个子问题的复杂 QA 任务上，<strong>超越了一个 14B 参数的模型</strong>，而 peak memory 只用了后者的 27.1%。这不是渐进改进——这是数量级的效率提升。</p>
+
+    <p>MEM1 的核心贡献在于它证明了一个反直觉的结论：<strong>上下文管理是比模型规模更重要的 scaling 维度</strong>。给一个 7B 模型好的记忆管理策略，胜过给一个 14B 模型更大的窗口。</p>
+
+    <h2>六、不需要训练 Agent 也能做：ACON 的优雅方案</h2>
+
+    <p>如果你不想用 RL 训练 Agent（毕竟需要大量 GPU 和数据），微软的 ACON（ICML 2026）提供了一个完全不同的思路：<strong>不动 Agent，优化压缩策略本身</strong>。</p>
+
+    <p>ACON 的做法非常巧妙：</p>
+
+    <ol>
+        <li>用<strong>完整的上下文</strong>运行 Agent，记录成功轨迹</li>
+        <li>用<strong>压缩后的上下文</strong>运行同样的任务，找到失败的案例</li>
+        <li>对比成功和失败，找出<strong>压缩时丢失了什么关键信息</strong></li>
+        <li>用 LLM 自动更新<strong>自然语言压缩指南</strong>（"压缩时必须保留 URLs 和数值结果"）</li>
+        <li>迭代上述过程</li>
+    </ol>
+
+    <p>这本质上是<strong>在 prompt 空间做优化</strong>，而不是在参数空间。好处是：完全模型无关，适用于 GPT-4、Claude、DeepSeek 等任何 API 模型。ACON 在 AppWorld 和 OfficeBench 上将峰值 token 减少 26-54%，同时保持 95%+ 的准确率。更惊人的是，蒸馏后的小压缩模型甚至能让<strong>小 Agent 的性能提升 46%</strong>——因为压缩去掉了噪声，Agent 反而看得更清楚。</p>
+
+    <h2>七、技术全景图</h2>
+
+    <p>将 2025-2026 年的主要工作放在一张图上：</p>
+
+    <pre><code>               Context Folding 技术分类
+                     │
+    ┌────────────────┼────────────────┐
+    │                │                │
+  内部化            外部化           预算感知
+ (Agent 自学)    (独立管理器)      (按预算分配)
+    │                │                │
+ ├ FoldGRPO      ├ ACON           ├ ContextBudget
+ ├ AgentFold     ├ AdaCoM         ├ SAM
+ ├ MEM1          ├ ContextCurator
+ ├ FoldAct       ├ ReSum
+ └ U-Fold</code></pre>
+
+    <p><strong>内部化</strong>路线把折叠能力训练进 Agent 自身——通用性最强，但训练成本高。  
+    <strong>外部化</strong>路线保持 Agent 不变，训练独立的压缩器——更实用，但可能不够灵活。  
+    <strong>预算感知</strong>路线根据 token 预算动态调整压缩策略——适合生产环境。</p>
+
+    <p>这三条路线不是互斥的。未来的 Agent 系统很可能会同时采用：内部 RL 训练 + 外部压缩器 + 预算感知策略。</p>
+
+    <h2>八、这对实践者意味着什么</h2>
+
+    <p>说了这么多研究，如果你正在构建 Agent 系统，今天能做什么？</p>
+
+    <p><strong>第一，检查你的 Agent 是否有上下文饱和问题。</strong>一个简单的方法：在一个长会话（50+ 轮）中，在第 5 轮放一个关键信息，然后在第 45 轮问 Agent 那个信息。如果它答不上来，你就有了上下文饱和问题。</p>
+
+    <p><strong>第二，实现最简版的"folding"。</strong>在 tool call 完成后，不要保留原始输出。取而代之，用 Agent 自己（或一个简单的摘要 prompt）将工具输出压缩为一两句结构化摘要，替换掉原始内容。这一步就能大幅减少上下文增长。</p>
+
+    <p><strong>第三，引入子任务分支机制。</strong>让 Agent 可以"fork"出一个临时子任务——有独立的消息历史——完成后只返回一个结构化结果。这比在主上下文里混入所有中间步骤要高效得多。</p>
+
+    <p><strong>第四，考虑预算感知。</strong>为 Agent 设定一个 token 预算。当上下文接近预算时，自动触发更激进的压缩策略。这不需要复杂的 RL 训练——一个简单的 if-else 加上不同粒度的摘要 prompt 就能生效。</p>
+
+    <p><strong>第五，关注 KV cache 优化。</strong>在推理层面，DeepSeek 的 MLA（Multi-head Latent Attention）可以将 KV cache 压缩 7-14 倍。FP8 KV cache 在精度损失 <1% 的情况下减半内存。这些底层优化和上层的 folding 策略是乘法关系——两者叠加可以实现 40-100 倍的效率提升。</p>
+
+    <h2>九、更大的图景：从"更多上下文"到"更好的上下文"</h2>
+
+    <p>2024 年，Agent 领域的主旋律是"扩大上下文窗口"——从 32K 到 128K 到 1M。2025 年，KV cache 技术让 1M token 成为可能。但 2026 年的共识正在转变：<strong>更大的窗口不是答案，更聪明的管理才是。</strong></p>
+
+    <p>Context Folding 代表了一个深层的范式转变：从"给 Agent 看更多"到"让 Agent 知道该看什么"。这与认知科学的发现一致——人类之所以聪明，不是因为大脑容量大（相比鲸鱼，人脑很小），而是因为<strong>我们有极其高效的注意力管理和遗忘机制</strong>。</p>
+
+    <p>更深层地说，Context Folding 揭示了一个关于智能的真理：<strong>忘记什么和记住什么同样重要。甚至更重要。</strong>一个什么都记住的系统（全量上下文）会被噪声淹没；一个什么都遗忘的系统（只看最近几步）会失去关键背景。真正的智能在于<strong>知道什么该保留、什么该丢弃、什么时候该回头整合</strong>。</p>
+
+    <p>这不仅仅是一个技术问题——这是关于智能本质的洞察。而 2026 年的 Agent 研究正在把这个洞察变成可以训练、可以测量、可以工程化的能力。</p>
+
+    <h2>参考资源</h2>
+
+    <ul>
+        <li>Sun et al. "Scaling Long-Horizon LLM Agent via Context-Folding" — <a href="https://context-folding.github.io">项目主页</a>（ICML 2026）</li>
+        <li>Ye et al. "AgentFold: Long-Horizon Web Agents with Proactive Context Management" — <a href="https://arxiv.org/abs/2510.24699">arXiv:2510.24699</a>（ICLR 2026）</li>
+        <li>Zhou et al. "MEM1: Learning to Synergize Memory and Reasoning for Efficient Long-Horizon Agents" — <a href="https://mit-mi.github.io/mem1-site">项目主页</a>（NeurIPS 2025 Workshop Best Paper）</li>
+        <li>Kang et al. "ACON: Optimizing Context Compression for Long-horizon LLM Agents" — <a href="https://arxiv.org/abs/2510.00615">arXiv:2510.00615</a>（ICML 2026）</li>
+        <li>Shao et al. "FoldAct: Efficient and Stable Context Folding for Long-Horizon Search Agents"（2025）</li>
+    </ul>
+
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 2rem 0;">
+    <p style="color: #8b949e; font-size: 0.85rem;">本文基于 2025-2026 年的公开论文和技术报告撰写。如有遗漏或错误，欢迎指正。</p>
+</body>
+</html>
