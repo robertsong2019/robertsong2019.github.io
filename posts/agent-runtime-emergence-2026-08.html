@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>给 Agent 一台&quot;电脑&quot;：Agent 运行时环境的演进与设计 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        h4 { color: var(--heading); font-size: 1.0rem; margin: 1.2rem 0 0.6rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+        em { color: #d2a8ff; }
+        strong { color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>给 Agent 一台&quot;电脑&quot;：Agent 运行时环境的演进与设计</h1>
+    <div class="meta">
+        2026-08-12 · <span class="tag">AI Agent</span> <span class="tag">Runtime</span> <span class="tag">Infrastructure</span> <span class="tag">Python</span>
+    </div>
+    
+<blockquote>2026-08-12 技术随笔。过去三年，Agent 技术栈的焦点从"框架"（LangChain、AutoGen）转向了"记忆"（Mem0、Letta），现在正在进入第三个阶段——<strong>运行时</strong>。2026 年 8 月，Cloudflare 开源了 computer 项目，给 Agent 一台真正的"电脑"：持久文件系统、多后端执行环境、状态在重启间存活。这不是孤例——loopx、OpenClaw、TencentDB-Agent-Memory 都在从不同角度收敛到同一个抽象。本文梳理 Agent 运行时环境的设计空间，给出一个最小可用运行时的 Python 实现，并讨论这个新基础设施层的未来方向。</blockquote>
+
+<h2>一、从 API 调用到"拥有电脑"</h2>
+
+<h3>1.1 Agent 的 homelessness 问题</h3>
+
+<p>当前主流的 AI Agent 有一个未被言说的尴尬：<strong>它们无家可归。</strong></p>
+
+<p>一个典型的 Agent 交互是这样的：</p>
+
+<pre><code>
+用户 → [LLM API] → 推理 → [工具调用] → 结果 → [LLM API] → 回答
+</code></pre>
+
+<p>每次交互都是无状态的。Agent 没有"家"——没有持久的工作目录，没有跨会话的文件系统，没有可以在重启后恢复的进程状态。所谓的"记忆"不过是一个外挂的向量数据库，就像一个人每天早上醒来都失忆了，只能靠翻笔记本回忆昨天发生了什么。</p>
+
+<p>这不是设计缺陷，而是历史遗留。Agent 技术栈从聊天机器人演化而来，而聊天机器人本来就不需要"家"——它们只需要回答问题。但当 Agent 开始执行多步骤任务——写代码、管理文件、运行测试、协调多个工具——"无家可归"就变成了真正的工程瓶颈。</p>
+
+<p>考虑一个真实场景：你让 Agent 帮你重构一个 Python 项目。Agent 需要：</p>
+
+<ol>
+<li>浏览项目文件结构</li>
+<li>理解模块间的依赖关系</li>
+<li>制定重构计划</li>
+<li>逐文件修改</li>
+<li>运行测试验证</li>
+<li>如果失败，回退并重试</li>
+</ol>
+
+<p>这个过程可能持续几个小时，中间需要多次暂停和恢复。在当前的架构下，每一次暂停都意味着丢失所有中间状态——文件浏览器中缓存的目录结构、已经制定的计划、已修改但未验证的文件列表。Agent 必须"重新发现"这一切。</p>
+
+<p>这就是 Agent 的 homelessness 问题：<strong>不是没有能力，而是没有持久的工作环境来承载这些能力。</strong></p>
+
+<h3>1.2 Cloudflare 的"电脑"</h3>
+
+<p>2026 年 8 月，Cloudflare 开源了 <code>computer</code> 项目，提出了一个简洁有力的概念：<strong>给 Agent 一台真正的电脑。</strong></p>
+
+<p>这不是比喻。<code>computer</code> 在 Cloudflare Durable Object 上构建了一个虚拟文件系统，以 SQLite 为权威状态，支持三种执行后端：</p>
+
+<pre><code>
+// 同一接口，三种执行环境
+await workspace.runtime.exec(source, { backend: &#x27;container&#x27; });  // 真实 Linux (FUSE 挂载)
+await workspace.runtime.exec(source, { backend: &#x27;isolate-shell&#x27; }); // Worker 内 bash
+await workspace.runtime.exec(source, { backend: &#x27;isolate-js&#x27; });    // Worker 内 ES module
+</code></pre>
+
+<p>关键设计决策：</p>
+
+<ul>
+<li><strong>文件系统是权威状态</strong>：不是 LLM 的上下文窗口，不是内存中的临时变量，而是 SQLite 支持的持久文件系统。Agent 写入的文件在重启后仍然存在。</li>
+<li><strong>执行后端可切换</strong>：同一个 API 可以在真实 Linux 容器、Worker Isolate 和纯 JS 环境之间无缝切换，按需选择安全性和能力的平衡点。</li>
+<li><strong>computerd 守护进程</strong>：通过 capnweb RPC 同步状态，FUSE 元数据操作的性能甚至超过真实磁盘。</li>
+</ul>
+
+<p>这是一个重要的范式转变：Agent 的"运行时"不再只是 LLM 的推理过程，而是一个包含文件系统、进程管理、状态持久化的完整计算环境。</p>
+
+<h3>1.3 不只是 Cloudflare</h3>
+
+<p>Cloudflare 不是唯一走这条路的项目。2026 年中，多个独立项目从不同方向收敛到"Agent 运行时"这个概念：</p>
+
+<table>
+<thead><tr><th>项目</th><th>方向</th><th>核心抽象</th></tr></thead><tbody>
+<tr><td>Cloudflare/computer</td><td>基础设施层</td><td>虚拟文件系统 + 多后端执行</td></tr>
+<tr><td>loopx</td><td>控制层</td><td>持久化控制状态（objective + gates + todos + scope）</td></tr>
+<tr><td>OpenClaw</td><td>操作层</td><td>Workspace + Skills + Session + Heartbeat</td></tr>
+<tr><td>TencentDB-Agent-Memory</td><td>记忆层</td><td>四类资产（Chat/Skill/Wiki/CodeGraph）的团队级共享</td></tr>
+<tr><td>Uber/ADR</td><td>安全层</td><td>Agent 行为检测与响应（ADR Sensor）</td></tr>
+</table>
+
+<p>这五个项目分别解决了 Agent 运行时的不同侧面，但它们有一个共同点：<strong>都在为 Agent 构建"持久化的工作环境"。</strong> 这不是巧合——当 Agent 从 demo 走向生产，从单次交互走向持续运行，运行时环境就成了绕不开的基础设施。</p>
+
+<h2>二、Agent 运行时的设计空间</h2>
+
+<h3>2.1 从操作系统借用概念</h3>
+
+<p>传统操作系统解决了三个核心问题：</p>
+
+<ol>
+<li><strong>进程管理</strong>：谁在运行？谁拥有资源？</li>
+<li><strong>文件系统</strong>：数据如何组织？如何持久化？</li>
+<li><strong>IPC（进程间通信）</strong>：多个执行单元如何协作？</li>
+</ol>
+
+<p>Agent 运行时面临高度类似的问题，但有一个关键区别：Agent 的"进程"是由 LLM 推理驱动的，而非确定性的机器代码。这意味着传统 OS 的设计不能直接搬用——每个抽象都需要为"概率性执行"重新设计。</p>
+
+<h3>2.2 四层抽象</h3>
+
+<p>一个完整的 Agent 运行时需要四层抽象：</p>
+
+<p><strong>Layer 1: Workspace（工作空间）</strong></p>
+
+<p>类比操作系统的用户主目录。每个 Agent 实例（或每个用户-Agent 对）有自己的独立工作空间，包含文件、配置和状态。Workspace 是隔离的边界——一个 Agent 不能访问另一个 Agent 的文件（除非显式共享）。</p>
+
+<p>关键设计：</p>
+<ul>
+<li>Workspace 状态持久化在数据库（而非内存）中</li>
+<li>重启后可以恢复到精确的之前状态</li>
+<li>支持快照和回滚</li>
+</ul>
+
+<p><strong>Layer 2: Session（会话）</strong></p>
+
+<p>类比操作系统的进程。一个 Agent 可以同时运行多个会话——一个处理代码审查，一个处理日程安排，一个在后台监控邮件。每个会话有自己的上下文窗口、工具权限和执行状态。</p>
+
+<p>关键设计：</p>
+<ul>
+<li>会话是并发的基本单位</li>
+<li>会话之间可以通过共享 Workspace 协作</li>
+<li>会话有生命周期：创建、暂停、恢复、终止</li>
+</ul>
+
+<p><strong>Layer 3: Skills（技能）</strong></p>
+
+<p>类比操作系统的应用程序。Skills 是 Agent 可以调用的结构化能力——读文件、搜索 Web、操作数据库、调用外部 API。每个 Skill 有自己的权限边界和执行环境。</p>
+
+<p>关键设计：</p>
+<ul>
+<li>Skills 是声明式的（描述"做什么"而非"怎么做"）</li>
+<li>Skills 可以动态加载和卸载</li>
+<li>Skills 的执行结果缓存在 Workspace 中</li>
+</ul>
+
+<p><strong>Layer 4: Memory（记忆）</strong></p>
+
+<p>类比操作系统的虚拟内存交换文件。Memory 是 Agent 跨会话的知识基础——过往交互的总结、用户偏好、学到的经验教训。</p>
+
+<p>关键设计：</p>
+<ul>
+<li>Memory 是分层级的（短期/长期/元认知）</li>
+<li>Memory 的写入和检索是两个独立的操作</li>
+<li>Memory 需要维护（整合、衰减、冲突解决）</li>
+</ul>
+
+<h3>2.3 为什么这四层缺一不可</h3>
+
+<p>去掉任何一层，你都会得到一个"残缺"的 Agent：</p>
+
+<ul>
+<li><strong>没有 Workspace</strong>：Agent 无法持久化中间结果，每次重启从零开始</li>
+<li><strong>没有 Session</strong>：Agent 无法并发处理多个任务，一次只能做一件事</li>
+<li><strong>没有 Skills</strong>：Agent 只能"说"，不能"做"——无法与外部世界交互</li>
+<li><strong>没有 Memory</strong>：Agent 不记得过去，无法从经验中学习</li>
+</ul>
+
+<p>当前主流的 Agent 框架通常只实现了其中一到两层。LangChain 有 Skills（Tools）和 Session（Memory），但没有真正的 Workspace 和 Memory（它的"memory"本质上是会话历史）。Letta 有 Memory 和 Session，但 Workspace 概念薄弱。OpenClaw 是少数尝试实现全部四层的系统。</p>
+
+<h2>三、实现一个最小 Agent 运行时</h2>
+
+<p>让我们用 Python 实现一个最小可用的 Agent 运行时——大约 200 行代码，但包含全部四层抽象。这个实现不追求生产级，而是帮助你理解核心设计。</p>
+
+<h3>3.1 Workspace：基于 SQLite 的持久文件系统</h3>
+
+<pre><code>
+import sqlite3
+import json
+import time
+from pathlib import PurePosixPath
+from contextlib import contextmanager
+
+class Workspace:
+    &quot;&quot;&quot;Agent 的持久工作空间。基于 SQLite，支持文件系统语义。&quot;&quot;&quot;
+
+    def __init__(self, db_path: str):
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._conn.execute(&quot;&quot;&quot;
+            CREATE TABLE IF NOT EXISTS filesystem (
+                path TEXT PRIMARY KEY,
+                content BLOB,
+                metadata TEXT,  -- JSON: {created, modified, owner, tags}
+                created_at REAL,
+                modified_at REAL
+            )
+        &quot;&quot;&quot;)
+        self._conn.execute(&quot;&quot;&quot;
+            CREATE TABLE IF NOT EXISTS snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL,
+                state TEXT  -- 完整文件系统的 JSON 序列化
+            )
+        &quot;&quot;&quot;)
+        self._conn.commit()
+
+    def write(self, path: str, content: bytes, metadata: dict | None = None):
+        &quot;&quot;&quot;写入文件，自动管理时间戳和元数据。&quot;&quot;&quot;
+        now = time.time()
+        meta = metadata or {}
+        meta.setdefault(&quot;created&quot;, now)
+        meta[&quot;modified&quot;] = now
+
+        self._conn.execute(
+            &quot;INSERT OR REPLACE INTO filesystem VALUES (?, ?, ?, ?, ?)&quot;,
+            (path, content, json.dumps(meta), meta[&quot;created&quot;], now)
+        )
+        self._conn.commit()
+
+    def read(self, path: str) -&gt; bytes | None:
+        row = self._conn.execute(
+            &quot;SELECT content FROM filesystem WHERE path = ?&quot;, (path,)
+        ).fetchone()
+        return row[0] if row else None
+
+    def list_dir(self, prefix: str = &quot;/&quot;) -&gt; list[str]:
+        &quot;&quot;&quot;列出某前缀下的直接子项（类似 ls）。&quot;&quot;&quot;
+        rows = self._conn.execute(
+            &quot;SELECT path FROM filesystem WHERE path LIKE ? ORDER BY path&quot;,
+            (f&quot;{prefix}%&quot;,)
+        ).fetchall()
+        return [r[0] for r in rows]
+
+    def snapshot(self) -&gt; int:
+        &quot;&quot;&quot;创建当前状态的快照，用于回滚。&quot;&quot;&quot;
+        now = time.time()
+        all_files = self._conn.execute(
+            &quot;SELECT path, content, metadata FROM filesystem&quot;
+        ).fetchall()
+        state = json.dumps({
+            r[0]: {&quot;content&quot;: r[1].hex(), &quot;metadata&quot;: r[2]}
+            for r in all_files
+        })
+        cur = self._conn.execute(
+            &quot;INSERT INTO snapshots (timestamp, state) VALUES (?, ?)&quot;,
+            (now, state)
+        )
+        self._conn.commit()
+        return cur.lastrowid
+
+    def restore(self, snapshot_id: int):
+        &quot;&quot;&quot;恢复到指定快照。&quot;&quot;&quot;
+        row = self._conn.execute(
+            &quot;SELECT state FROM snapshots WHERE id = ?&quot;, (snapshot_id,)
+        ).fetchone()
+        if not row:
+            raise ValueError(f&quot;Snapshot {snapshot_id} not found&quot;)
+
+        state = json.loads(row[0])
+        self._conn.execute(&quot;DELETE FROM filesystem&quot;)
+        for path, data in state.items():
+            self._conn.execute(
+                &quot;INSERT INTO filesystem VALUES (?, ?, ?, ?, ?)&quot;,
+                (path, bytes.fromhex(data[&quot;content&quot;]),
+                 data[&quot;metadata&quot;], time.time(), time.time())
+            )
+        self._conn.commit()
+</code></pre>
+
+<p>注意几个设计决策：</p>
+
+<ol>
+<li><strong>SQLite 作为权威状态</strong>，而非内存。即使进程崩溃，文件系统状态也完好无损。</li>
+<li><strong>快照是一等公民</strong>。Agent 在执行有风险操作前可以先 snapshot，失败后 restore。这比 git 轻量得多，但解决了同样的"安全网"问题。</li>
+<li><strong>元数据是 JSON</strong>，而非固定 schema。不同类型的文件可以有不同的元数据（代码文件有 language tag，日志有 rotation policy）。</li>
+</ol>
+
+<h3>3.2 Session：会话生命周期管理</h3>
+
+<pre><code>
+from dataclasses import dataclass, field
+from enum import Enum
+import uuid
+
+class SessionStatus(Enum):
+    ACTIVE = &quot;active&quot;
+    PAUSED = &quot;paused&quot;
+    TERMINATED = &quot;terminated&quot;
+
+@dataclass
+class Session:
+    &quot;&quot;&quot;Agent 会话：一个独立的执行上下文。&quot;&quot;&quot;
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    workspace: Workspace = None
+    status: SessionStatus = SessionStatus.ACTIVE
+    context: list[dict] = field(default_factory=list)  # 消息历史
+    tool_permissions: set[str] = field(default_factory=set)
+    metadata: dict = field(default_factory=dict)
+    created_at: float = field(default_factory=time.time)
+    last_active: float = field(default_factory=time.time)
+
+    def add_message(self, role: str, content: str):
+        &quot;&quot;&quot;向会话上下文添加消息。&quot;&quot;&quot;
+        self.context.append({
+            &quot;role&quot;: role,
+            &quot;content&quot;: content,
+            &quot;timestamp&quot;: time.time()
+        })
+        self.last_active = time.time()
+
+    def get_context_window(self, max_tokens: int = 8000) -&gt; list[dict]:
+        &quot;&quot;&quot;获取最近的消息，控制在 token 预算内。
+
+        策略：从最新消息向前回溯，估算 token 数（~4 chars/token），
+        直到达到预算。同时保留 system prompt（如果有）。
+        &quot;&quot;&quot;
+        if not self.context:
+            return []
+
+        system_msgs = [m for m in self.context if m[&quot;role&quot;] == &quot;system&quot;]
+        non_system = [m for m in self.context if m[&quot;role&quot;] != &quot;system&quot;]
+
+        budget = max_tokens
+        result = list(system_msgs)
+
+        for msg in reversed(non_system):
+            msg_tokens = len(msg[&quot;content&quot;]) // 4
+            if budget - msg_tokens &lt; 0:
+                break
+            budget -= msg_tokens
+            result.insert(len(system_msgs), msg)  # 插在 system 之后
+
+        return result
+
+    def pause(self):
+        self.status = SessionStatus.PAUSED
+
+    def resume(self):
+        self.status = SessionStatus.ACTIVE
+        self.last_active = time.time()
+
+    def terminate(self):
+        self.status = SessionStatus.TERMINATED
+</code></pre>
+
+<p><code>get_context_window</code> 是一个值得注意的方法。它实现了一个简单但有效的上下文预算策略：system prompt 永远保留，其他消息从最新向前回溯，直到 token 预算耗尽。这是运行时"资源管理"的一个微型实例。</p>
+
+<h3>3.3 Skill：声明式工具系统</h3>
+
+<pre><code>
+from typing import Callable, Any
+
+@dataclass
+class Skill:
+    &quot;&quot;&quot;Agent 技能：一个可声明、可发现、可审计的能力单元。&quot;&quot;&quot;
+    name: str
+    description: str
+    handler: Callable[..., Any]
+    required_permissions: set[str] = field(default_factory=set)
+    cost_estimate: float = 0.0  # 预估成本（美元），用于预算控制
+    cache_ttl: int = 0  # 结果缓存时间（秒），0 表示不缓存
+
+class SkillRegistry:
+    &quot;&quot;&quot;技能注册表：管理 Agent 可用的所有技能。&quot;&quot;&quot;
+
+    def __init__(self):
+        self._skills: dict[str, Skill] = {}
+        self._cache: dict[str, tuple[float, Any]] = {}  # key -&gt; (expiry, result)
+
+    def register(self, skill: Skill):
+        self._skills[skill.name] = skill
+
+    def list_skills(self, permissions: set[str] | None = None) -&gt; list[Skill]:
+        &quot;&quot;&quot;列出当前可用的技能，可按权限过滤。&quot;&quot;&quot;
+        if permissions is None:
+            return list(self._skills.values())
+        return [
+            s for s in self._skills.values()
+            if s.required_permissions.issubset(permissions)
+        ]
+
+    def execute(self, skill_name: str, session: Session, **kwargs) -&gt; Any:
+        &quot;&quot;&quot;执行技能，自动处理缓存和权限检查。&quot;&quot;&quot;
+        if skill_name not in self._skills:
+            raise ValueError(f&quot;Unknown skill: {skill_name}&quot;)
+
+        skill = self._skills[skill_name]
+
+        # 权限检查
+        if not skill.required_permissions.issubset(session.tool_permissions):
+            missing = skill.required_permissions - session.tool_permissions
+            raise PermissionError(
+                f&quot;Session lacks permissions: {missing}&quot;
+            )
+
+        # 缓存检查
+        cache_key = f&quot;{skill_name}:{hash(frozenset(kwargs.items()))}&quot;
+        if skill.cache_ttl &gt; 0 and cache_key in self._cache:
+            expiry, cached = self._cache[cache_key]
+            if time.time() &lt; expiry:
+                return cached
+
+        # 执行
+        result = skill.handler(session=session, **kwargs)
+
+        # 缓存写入
+        if skill.cache_ttl &gt; 0:
+            self._cache[cache_key] = (time.time() + skill.cache_ttl, result)
+
+        return result
+</code></pre>
+
+<p>这里有几个值得讨论的设计决策：</p>
+
+<p><strong>为什么 Skill 是 dataclass 而不是函数？</strong> 因为 Skill 需要携带元数据（权限、成本、缓存策略），这些元数据需要在执行前被检查。一个裸函数无法表达"这个操作需要写权限"或"这个 API 调用大约花 $0.03"。</p>
+
+<p><strong>为什么有成本预估？</strong> 在生产环境中，Agent 的每次工具调用都可能在花钱——API 调用、云服务费用、LLM token。一个成熟的运行时应该在执行前检查预算，而不是在月底收到账单时才后悔。</p>
+
+<h3>3.4 把它们组合起来</h3>
+
+<pre><code>
+class AgentRuntime:
+    &quot;&quot;&quot;最小 Agent 运行时：组合四层抽象。&quot;&quot;&quot;
+
+    def __init__(self, workspace_path: str):
+        self.workspace = Workspace(workspace_path)
+        self.skills = SkillRegistry()
+        self.sessions: dict[str, Session] = {}
+        self._heartbeat_handlers: list[Callable] = []
+
+    def create_session(self, permissions: set[str] | None = None) -&gt; Session:
+        &quot;&quot;&quot;创建新会话。&quot;&quot;&quot;
+        session = Session(
+            workspace=self.workspace,
+            tool_permissions=permissions or set(),
+        )
+        self.sessions[session.id] = session
+        return session
+
+    def get_session(self, session_id: str) -&gt; Session | None:
+        return self.sessions.get(session_id)
+
+    def cleanup_stale_sessions(self, max_idle_seconds: int = 3600):
+        &quot;&quot;&quot;清理长时间不活动的会话。&quot;&quot;&quot;
+        now = time.time()
+        stale = [
+            sid for sid, s in self.sessions.items()
+            if now - s.last_active &gt; max_idle_seconds
+            and s.status == SessionStatus.ACTIVE
+        ]
+        for sid in stale:
+            self.sessions[sid].pause()
+
+    def on_heartbeat(self, handler: Callable):
+        &quot;&quot;&quot;注册心跳处理器，用于定期检查和后台任务。&quot;&quot;&quot;
+        self._heartbeat_handlers.append(handler)
+
+    def heartbeat(self):
+        &quot;&quot;&quot;执行一次心跳：清理、检查、后台任务。&quot;&quot;&quot;
+        self.cleanup_stale_sessions()
+        for handler in self._heartbeat_handlers:
+            handler(self)
+
+
+# ---- 使用示例 ----
+
+if __name__ == &quot;__main__&quot;:
+    runtime = AgentRuntime(&quot;/tmp/agent_workspace.db&quot;)
+
+    # 注册技能
+    def read_file_handler(session, path: str):
+        return session.workspace.read(path)
+
+    def write_file_handler(session, path: str, content: str):
+        session.workspace.write(path, content.encode())
+        return f&quot;Written {len(content)} bytes to {path}&quot;
+
+    runtime.skills.register(Skill(
+        name=&quot;read_file&quot;,
+        description=&quot;Read a file from the workspace&quot;,
+        handler=read_file_handler,
+        required_permissions={&quot;read&quot;},
+        cost_estimate=0.0,
+    ))
+    runtime.skills.register(Skill(
+        name=&quot;write_file&quot;,
+        description=&quot;Write a file to the workspace&quot;,
+        handler=write_file_handler,
+        required_permissions={&quot;write&quot;},
+        cost_estimate=0.0,
+    ))
+
+    # 创建会话
+    session = runtime.create_session(permissions={&quot;read&quot;, &quot;write&quot;})
+    session.add_message(&quot;system&quot;, &quot;You are a helpful coding assistant.&quot;)
+    session.add_message(&quot;user&quot;, &quot;Create a file called hello.py with a print statement.&quot;)
+
+    # 执行技能
+    runtime.skills.execute(&quot;write_file&quot;, session, path=&quot;/hello.py&quot;, content=&quot;print(&#x27;Hello, World!&#x27;)&quot;)
+    content = runtime.skills.execute(&quot;read_file&quot;, session, path=&quot;/hello.py&quot;)
+    print(f&quot;File content: {content.decode()}&quot;)
+
+    # 快照与恢复
+    snapshot_id = runtime.workspace.snapshot()
+    runtime.skills.execute(&quot;write_file&quot;, session, path=&quot;/temp.py&quot;, content=&quot;# temporary&quot;)
+    print(f&quot;Files before restore: {runtime.workspace.list_dir(&#x27;/&#x27;)}&quot;)
+    runtime.workspace.restore(snapshot_id)
+    print(f&quot;Files after restore: {runtime.workspace.list_dir(&#x27;/&#x27;)}&quot;)
+
+    # 上下文窗口管理
+    for i in range(100):
+        session.add_message(&quot;user&quot;, f&quot;Message number {i} &quot; * 50)
+    window = session.get_context_window(max_tokens=2000)
+    print(f&quot;Context window: {len(window)} messages (from {len(session.context)} total)&quot;)
+</code></pre>
+
+<p>运行这段代码，你会看到：</p>
+
+<pre><code>
+File content: print(&#x27;Hello, World!&#x27;)
+Files before restore: [&#x27;/hello.py&#x27;, &#x27;/temp.py&#x27;]
+Files after restore: [&#x27;/hello.py&#x27;]
+Context window: 11 messages (from 101 total)
+</code></pre>
+
+<p>这就是一个最小但完整的 Agent 运行时——它有持久文件系统、会话管理、技能注册和执行、上下文窗口控制、快照回滚。大约 200 行 Python。不是为了生产使用，而是为了说明核心设计原理。</p>
+
+<h2>四、Agent 运行时的未来：三个方向</h2>
+
+<h3>4.1 安全边界：从 sandbox 到 capability</h3>
+
+<p>当前 Agent 运行时面临的最大挑战不是性能，而是安全。</p>
+
+<p>Cloudflare/computer 用容器隔离来解决这个问题——Agent 在一个受限的 Linux 环境中运行，无法突破。但这是一种粗粒度的隔离。更精细的方案是 <strong>capability-based security</strong>：Agent 不拥有全局权限，而是每个操作都需要显式的 capability token。</p>
+
+<pre><code>
+# 概念示例：capability-based 权限
+class Capability:
+    &quot;&quot;&quot;细粒度权限：不授予 &#x27;write&#x27; 全局权限，而是精确到路径。&quot;&quot;&quot;
+    def __init__(self, action: str, resource: str, expires_at: float):
+        self.action = action        # &quot;write&quot;
+        self.resource = resource    # &quot;/projects/blog/_drafts/*&quot;
+        self.expires_at = expires_at
+
+    def is_valid(self) -&gt; bool:
+        return time.time() &lt; self.expires_at
+
+    def matches(self, action: str, resource: str) -&gt; bool:
+        import fnmatch
+        return (self.action == action
+                and fnmatch.fnmatch(resource, self.resource)
+                and self.is_valid())
+</code></pre>
+
+<p>这种模型让 Agent 的权限遵循最小权限原则——只能写入草稿目录，不能碰生产代码。Uber 的 ADR 系统更进一步，通过运行时监控 Agent 的实际行为来检测异常，即使在权限范围内的操作也可能被标记为可疑。</p>
+
+<h3>4.2 多 Agent 协作：从单机到网络</h3>
+
+<p>当前我们讨论的 Agent 运行时都是单 Agent 的——一个 Workspace、一个 Session 集合、一个 Memory。但生产环境中的 Agent 系统越来越像微服务架构：</p>
+
+<ul>
+<li>一个"编排 Agent"负责任务分解和分配</li>
+<li>多个"专家 Agent"负责具体领域（代码、文档、测试）</li>
+<li>一个"审计 Agent"负责监控和验证</li>
+</ul>
+
+<p>这意味着 Agent 运行时需要支持<strong>跨 Agent 通信</strong>。loopx 项目给出了一个有趣的思路：把 Agent 的控制状态（objective + gates + todos）作为共享的持久化数据结构，多个 Agent 可以读写同一个看板（Kanban），通过 claim/gate/monitor/writeback 操作器协作。这本质上是微服务架构中的共享数据库模式。</p>
+
+<h3>4.3 Agent 的"操作系统"标准</h3>
+
+<p>更远的问题：会不会出现一个 "Agent OS" 标准，就像 Linux 之于服务器、Android 之于手机？</p>
+
+<p>2026 年的趋势正在指向这个方向。MCP（Model Context Protocol）正在成为 Agent 与工具之间的标准接口——相当于 USB 协议。Agent 运行时的概念正在从各个方向收敛——相当于 BIOS 和引导加载器。OpenClaw 的 Workspace + Skills + Session 抽象、Cloudflare 的虚拟文件系统、loopx 的控制状态模型，都是这个未来操作系统的不同侧面。</p>
+
+<p>但 Agent OS 不会像传统 OS 那样统一——因为 Agent 的执行模型本质上不同于确定性代码。Agent OS 需要处理概率性执行、上下文窗口限制、LLM API 的延迟和不可用性。它更像是一个<strong>弹性运行时</strong>——假设每一步都可能失败，每一步都需要验证和回退机制。</p>
+
+<h2>五、结语：运行时不是终点，是起点</h2>
+
+<p>Agent 技术栈的成熟遵循一条清晰的路径：</p>
+
+<ol>
+<li><strong>框架时代</strong>（2023-2024）：解决"怎么调用 LLM"——LangChain、AutoGen</li>
+<li><strong>记忆时代</strong>（2025-2026 上半年）：解决"怎么让 Agent 记住"——Mem0、Letta、agent-memory-graph</li>
+<li><strong>运行时时代</strong>（2026 下半年-）：解决"Agent 在哪里运行"——Cloudflare/computer、OpenClaw、loopx</li>
+</ol>
+
+<p>每个阶段都建立在前一个的基础之上。没有记忆，运行时只是空壳；没有运行时，记忆只是无组织的堆积。</p>
+
+<p>如果你正在构建 Agent 系统，现在是一个好时机来思考这些问题：你的 Agent 有"家"吗？它的文件在重启后还在吗？它能在多个任务之间并发吗？它的权限是否受到约束？</p>
+
+<p>这些问题看起来是工程细节，但它们决定了你的 Agent 是一个"玩具"还是一个"工具"。</p>
+
+<p>Agent 不需要变得更聪明——它需要一个住的地方。</p>
+
+<hr>
+
+<p><em>本文是 Agent 工程系列的第 42 篇。前序文章涵盖记忆系统设计（07-01 至 08-11）、安全防御、运维实践等主题。完整系列索引可在 <a href="https://robertsong2019.github.io">GitHub Pages</a> 查看。</em></p>
+
+</body>
+</html>

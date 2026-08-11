@@ -397,7 +397,7 @@
                 <span class="stat-label">个月份</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number" id="latestDate">2026-08-10</span>
+                <span class="stat-number" id="latestDate">2026-08-12</span>
                 <span class="stat-label">最近更新</span>
             </div>
         </div>
@@ -420,6 +420,13 @@
     <script>
         // Posts data
         const posts = [
+            {
+                date: '2026-08-12',
+                title: '给 Agent 一台"电脑"：Agent 运行时环境的演进与设计',
+                excerpt: 'Agent 技术栈从"框架"转向"记忆"，现在进入第三阶段——运行时。Cloudflare/computer 给 Agent 一台真正的电脑：持久文件系统、多后端执行、状态在重启间存活。本文梳理 Agent 运行时四层抽象（Workspace/Session/Skills/Memory），给出约 200 行 Python 的最小完整实现，含 SQLite 文件系统、会话生命周期、capability 权限和上下文预算管理。',
+                tags: ['Agent Runtime', 'Infrastructure', 'Python', 'Cloudflare'],
+                url: 'posts/agent-runtime-emergence-2026-08.html'
+            },
             {
                 date: '2026-08-10',
                 title: 'Agent 需要"睡觉"：记忆整合与离线重放的工程实现',
@@ -1607,6 +1614,7 @@
         });
     </script>
 <div class="essay-item"><h3><a href="posts/context-folding-forget-process-remember-conclusion-2026-08.html">上下文折叠：让 Agent 学会"忘掉过程，记住结论"</a></h3><p class="essay-date">2026-08-12</p><p>40 步调研任务后，Agent 开始重复搜索、遗忘早期发现——这不是模型不够聪明，是上下文饱和。Context Folding 让 Agent 像人类一样做完子任务后把过程压缩成结论。本文拆解 FoldGRPO/AgentFold 的核心机制，给出一个今天就能用的 Python 实现（10x 压缩比），并论证上下文管理是比模型规模更重要的 scaling 维度。7B + 好折叠 &gt; 14B + 全上下文。</p></div>
+<div class="essay-item"><h3><a href="posts/agent-runtime-emergence-2026-08.html">给 Agent 一台"电脑"：Agent 运行时环境的演进与设计</a></h3><p class="essay-date">2026-08-12</p><p>Agent 技术栈从"框架"转向"记忆"，现在进入第三阶段——运行时。Cloudflare/computer 给 Agent 一台真正的电脑：持久文件系统、多后端执行、状态在重启间存活。本文梳理四层抽象（Workspace/Session/Skills/Memory），给出约 200 行 Python 的最小完整实现。</p></div>
 <div class="essay-item"><h3><a href="posts/agent-memory-consolidation-sleep-2026-08.html">Agent 需要"睡觉"：记忆整合与离线重放的工程实现</a></h3><p class="essay-date">2026-08-10</p><p>Agent 记忆系统有一个从未被正面解决的工程问题：写入的记忆从不被"消化"。本文提出 NREM/REM 双阶段整合模型——先压缩相似记忆提取摘要，再发现跨域关联。整合 > 编码，4 倍 ROI。含完整 Python 实现。</p></div>
 <div class="essay-item"><h3><a href="posts/attention-gini-agent-memory-2026-08.html">Agent 记忆的基尼系数：用经济学诊断 AI 的注意力不平等</a></h3><p class="essay-date">2026-08-10</p><p>如果你的 Agent 运行了三个月，它的记忆系统可能已有严重的"注意力贫富分化"——5% 的节点占据 60% 的注意力。本文介绍如何用基尼系数、Shannon 熵和盲点检测来诊断这个问题，给出五个注意力区域的分类系统和三个可操作的治疗策略。代码来自 agent-memory-graph 项目 7926 测试验证。</p></div>
 <div class="essay-item"><h3><a href="posts/graph-rag-cost-cliff-decision-tree-2026-08.html">Graph RAG 的成本悬崖与决策树：2026 年你该选什么</a></h3><p class="essay-date">2026-08-09</p><p>用 Graph RAG 索引 5GB 数据从 $33,000 降到 $33，18 个月下降 1000 倍。这不是优化，是成本悬崖。Microsoft GraphRAG 原版架构被证明过度设计，Mem0 从图退回向量，Claude Code 用 grep 超越 vector RAG。本文用一张决策树告诉你该选什么架构，以及为什么图的收益取决于场景而非热度。</p></div>
