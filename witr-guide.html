@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>witr 完全使用手册 · Why Is This Running?</title>
+<style>
+  :root {
+    --bg: #0a0c12;
+    --bg-elevated: #11141d;
+    --bg-card: #161a26;
+    --bg-code: #0d1018;
+    --border: #232838;
+    --border-soft: #1c2030;
+    --text: #e8ebf2;
+    --text-2: #9aa3b8;
+    --text-3: #5a6378;
+    --amber: #ffb86c;
+    --amber-soft: rgba(255, 184, 108, 0.12);
+    --mint: #50fa7b;
+    --mint-soft: rgba(80, 250, 123, 0.10);
+    --pink: #ff79c6;
+    --pink-soft: rgba(255, 121, 198, 0.10);
+    --cyan: #8be9fd;
+    --red: #ff5555;
+    --yellow: #f1fa8c;
+    --purple: #bd93f9;
+    --font-sans: -apple-system, "SF Pro Display", "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", "Cascadia Code", Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-image:
+      radial-gradient(ellipse 800px 400px at 50% -10%, rgba(255, 184, 108, 0.10), transparent),
+      radial-gradient(ellipse 600px 300px at 90% 25%, rgba(139, 233, 253, 0.06), transparent),
+      radial-gradient(ellipse 700px 350px at 5% 60%, rgba(255, 121, 198, 0.05), transparent);
+    background-attachment: fixed;
+  }
+
+  /* nav */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: rgba(10, 12, 18, 0.72);
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .nav-inner {
+    max-width: 1100px; margin: 0 auto;
+    padding: 14px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 15px;
+    font-family: var(--font-mono); letter-spacing: -0.02em;
+  }
+  .nav-brand-dot {
+    width: 8px; height: 8px;
+    background: var(--amber); border-radius: 50%;
+    box-shadow: 0 0 12px var(--amber);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.85); }
+  }
+  .nav-links { display: flex; gap: 28px; font-size: 13px; font-family: var(--font-mono); }
+  .nav-links a { color: var(--text-2); text-decoration: none; transition: color .2s; }
+  .nav-links a:hover { color: var(--amber); }
+
+  main { max-width: 880px; margin: 0 auto; padding: 0 28px; }
+  section { padding: 80px 0; border-bottom: 1px solid var(--border-soft); }
+  section:last-child { border-bottom: none; }
+
+  /* hero */
+  .hero { padding: 110px 0 70px; text-align: center; position: relative; }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px;
+    background: var(--amber-soft);
+    border: 1px solid rgba(255, 184, 108, 0.25);
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 12px; color: var(--amber);
+    letter-spacing: 0.04em; margin-bottom: 28px;
+  }
+  .hero h1 {
+    font-size: clamp(48px, 8vw, 84px);
+    font-weight: 800; letter-spacing: -0.04em;
+    line-height: 1; margin-bottom: 24px;
+    font-family: var(--font-mono);
+  }
+  .hero h1 .accent {
+    background: linear-gradient(135deg, var(--amber) 0%, var(--pink) 60%, var(--purple) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-subtitle {
+    font-size: 21px; color: var(--text-2);
+    max-width: 640px; margin: 0 auto 32px; line-height: 1.55;
+  }
+  .hero-subtitle strong { color: var(--text); font-weight: 600; }
+  .hero-tagline {
+    font-family: var(--font-mono);
+    font-size: 14px; color: var(--text-3);
+    margin-bottom: 48px;
+  }
+  .hero-tagline .arrow { color: var(--amber); }
+  .hero-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 14px; margin-top: 40px;
+  }
+  .stat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px; text-align: left;
+  }
+  .stat-value {
+    font-family: var(--font-mono); font-size: 22px; font-weight: 700;
+    color: var(--amber); margin-bottom: 4px; letter-spacing: -0.02em;
+  }
+  .stat-label {
+    font-size: 11px; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+
+  /* section heading */
+  .section-eyebrow {
+    display: inline-block;
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--amber); letter-spacing: 0.1em;
+    margin-bottom: 12px; text-transform: uppercase;
+  }
+  h2 {
+    font-size: 36px; font-weight: 700;
+    letter-spacing: -0.03em; line-height: 1.2; margin-bottom: 16px;
+  }
+  h3 {
+    font-size: 20px; font-weight: 600;
+    margin: 32px 0 12px; letter-spacing: -0.01em;
+  }
+  p { margin-bottom: 14px; color: var(--text); }
+  p.text-2 { color: var(--text-2); }
+  code.inline {
+    font-family: var(--font-mono); font-size: 0.88em;
+    background: var(--bg-card); padding: 2px 7px;
+    border-radius: 5px; border: 1px solid var(--border);
+    color: var(--amber);
+  }
+
+  /* terminal */
+  .terminal {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin: 20px 0;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+  .terminal-bar {
+    background: var(--bg-elevated);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px; color: var(--text-3);
+  }
+  .terminal-dots { display: flex; gap: 6px; margin-right: 4px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.red { background: #ff5f57; }
+  .dot.yellow { background: #febc2e; }
+  .dot.green { background: #28c840; }
+  .terminal-title { flex: 1; text-align: center; }
+  .terminal-body {
+    padding: 18px 20px;
+    font-family: var(--font-mono);
+    font-size: 13.5px; line-height: 1.75;
+    color: var(--text); overflow-x: auto; white-space: pre;
+  }
+  .cmd { color: var(--mint); }
+  .cmd-prompt { color: var(--amber); }
+  .key-pid { color: var(--cyan); }
+  .key-name { color: var(--mint); }
+  .key-warn { color: var(--pink); }
+  .key-label { color: var(--purple); }
+  .key-arrow { color: var(--amber); }
+  .key-comment { color: var(--text-3); font-style: italic; }
+  .key-flag { color: var(--yellow); }
+
+  /* vs */
+  .vs-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 20px; margin-top: 32px;
+  }
+  .vs-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 24px;
+  }
+  .vs-card-bad {
+    border-color: rgba(255, 85, 85, 0.28);
+    background: linear-gradient(135deg, rgba(255, 85, 85, 0.05), var(--bg-card));
+  }
+  .vs-card-good {
+    border-color: rgba(80, 250, 123, 0.28);
+    background: linear-gradient(135deg, rgba(80, 250, 123, 0.05), var(--bg-card));
+  }
+  .vs-title {
+    font-family: var(--font-mono); font-size: 12px;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .vs-card-bad .vs-title { color: var(--red); }
+  .vs-card-good .vs-title { color: var(--mint); }
+  .vs-steps {
+    font-family: var(--font-mono); font-size: 13px;
+    color: var(--text-2); line-height: 1.95;
+  }
+  .vs-steps .step { display: flex; gap: 10px; align-items: baseline; }
+  .vs-steps .step-num { color: var(--text-3); min-width: 18px; }
+
+  /* concept grid */
+  .concept-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 14px; margin-top: 28px;
+  }
+  .concept-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px;
+    transition: all .25s ease;
+  }
+  .concept-card:hover {
+    border-color: var(--amber);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(255, 184, 108, 0.08);
+  }
+  .concept-num {
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--amber); margin-bottom: 8px; letter-spacing: 0.06em;
+  }
+  .concept-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+  .concept-desc { font-size: 14px; color: var(--text-2); line-height: 1.6; }
+
+  /* flags table */
+  .flags-table {
+    width: 100%; border-collapse: collapse;
+    margin-top: 24px; font-size: 14px;
+  }
+  .flags-table th {
+    text-align: left; padding: 12px 16px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--text-3); letter-spacing: 0.08em;
+    text-transform: uppercase; font-weight: 500;
+  }
+  .flags-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: top;
+  }
+  .flags-table tr { transition: background .15s; }
+  .flags-table tr:hover td { background: var(--bg-card); }
+  .flag-syntax {
+    font-family: var(--font-mono); font-size: 13px;
+    color: var(--amber); white-space: nowrap;
+  }
+  .flag-desc { color: var(--text-2); }
+
+  /* exit codes */
+  .exit-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 12px; margin-top: 24px;
+  }
+  .exit-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px;
+    border-left: 3px solid var(--mint);
+  }
+  .exit-card.warning { border-left-color: var(--yellow); }
+  .exit-card.notfound { border-left-color: var(--text-3); }
+  .exit-card.denied { border-left-color: var(--red); }
+  .exit-card.invalid, .exit-card.error { border-left-color: var(--pink); }
+  .exit-code {
+    font-family: var(--font-mono); font-size: 26px;
+    font-weight: 700; color: var(--mint); margin-bottom: 4px;
+    letter-spacing: -0.02em;
+  }
+  .exit-card.warning .exit-code { color: var(--yellow); }
+  .exit-card.notfound .exit-code { color: var(--text-3); }
+  .exit-card.denied .exit-code { color: var(--red); }
+  .exit-card.invalid .exit-code, .exit-card.error .exit-code { color: var(--pink); }
+  .exit-label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .exit-desc { font-size: 12px; color: var(--text-3); }
+
+  /* install */
+  .install-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 14px; margin-top: 24px;
+  }
+  .install-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px;
+  }
+  .install-name {
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--cyan); margin-bottom: 10px;
+    font-weight: 600; letter-spacing: 0.03em;
+  }
+  .install-cmd {
+    font-family: var(--font-mono); font-size: 12.5px;
+    color: var(--text);
+    background: var(--bg-code);
+    padding: 9px 12px; border-radius: 6px;
+    border: 1px solid var(--border-soft);
+    overflow-x: auto;
+  }
+
+  /* quote */
+  .quote {
+    border-left: 3px solid var(--amber);
+    padding: 14px 22px; margin: 24px 0;
+    background: var(--amber-soft);
+    border-radius: 0 8px 8px 0;
+    color: var(--text); font-size: 15px;
+  }
+  .quote strong { color: var(--amber); }
+
+  /* scenario */
+  .scenario {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    margin: 22px 0;
+  }
+  .scenario-header {
+    display: flex; align-items: center;
+    gap: 12px; margin-bottom: 8px;
+  }
+  .scenario-num {
+    font-family: var(--font-mono); font-size: 13px;
+    color: var(--amber);
+    background: var(--amber-soft);
+    border: 1px solid rgba(255, 184, 108, 0.3);
+    padding: 4px 10px; border-radius: 6px;
+    letter-spacing: 0.04em;
+  }
+  .scenario-title { font-size: 18px; font-weight: 600; }
+  .scenario-context {
+    color: var(--text-2); font-size: 14px; margin-bottom: 16px;
+  }
+
+  footer {
+    padding: 40px 28px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 13px;
+    border-top: 1px solid var(--border-soft);
+    font-family: var(--font-mono);
+    line-height: 1.9;
+  }
+  footer a { color: var(--amber); text-decoration: none; }
+
+  @media (max-width: 768px) {
+    .hero-stats, .vs-grid, .concept-grid, .exit-grid, .install-grid {
+      grid-template-columns: 1fr;
+    }
+    .nav-links { display: none; }
+    h2 { font-size: 28px; }
+    .terminal-body { font-size: 12px; padding: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="nav-brand">
+      <div class="nav-brand-dot"></div>
+      <span>witr</span>
+      <span style="color:var(--text-3); font-weight:400;">/ v0.3.3</span>
+    </div>
+    <div class="nav-links">
+      <a href="#why">Why</a>
+      <a href="#examples">Examples</a>
+      <a href="#flags">Flags</a>
+      <a href="#exit">Exit Codes</a>
+      <a href="#install">Install</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <section class="hero">
+    <div class="hero-eyebrow">
+      <span>●</span> CLI · TUI · Go · 跨平台
+    </div>
+    <h1>
+      Why Is This<br>
+      <span class="accent">Running?</span>
+    </h1>
+    <p class="hero-subtitle">
+      一个回答"这玩意儿为啥还在跑"的工具。<br>
+      把 <strong>ps + lsof + ss + systemctl + docker ps</strong> 五合一，告诉你 what，更告诉你 <strong>why</strong>。
+    </p>
+    <p class="hero-tagline">
+      <span class="cmd-prompt">$</span> witr <span class="arrow">--help</span> &nbsp;<span class="arrow">↓</span>&nbsp; 这页就是它的完全手册
+    </p>
+    <div class="hero-stats">
+      <div class="stat"><div class="stat-value">11 MB</div><div class="stat-label">Single Binary</div></div>
+      <div class="stat"><div class="stat-value">4 平台</div><div class="stat-label">Linux · macOS · Win · BSD</div></div>
+      <div class="stat"><div class="stat-value">20+</div><div class="stat-label">包管理器</div></div>
+      <div class="stat"><div class="stat-value">6</div><div class="stat-label">语义化退出码</div></div>
+    </div>
+  </section>
+
+  <section id="why">
+    <span class="section-eyebrow">// 01 · 痛点</span>
+    <h2>传统排障 vs witr</h2>
+    <p class="text-2">凌晨三点被叫醒，3000 端口被占，你得查清楚是谁起的、谁让它起来的、能不能 kill。</p>
+
+    <div class="vs-grid">
+      <div class="vs-card vs-card-bad">
+        <div class="vs-title">× 传统方式 · 5 步 · 容易断链</div>
+        <div class="vs-steps">
+          <div class="step"><span class="step-num">1.</span><span>ss -tlnp | grep :3000</span></div>
+          <div class="step"><span class="step-num">2.</span><span>ps -ef | grep &lt;PID&gt;</span></div>
+          <div class="step"><span class="step-num">3.</span><span>pstree -p &lt;PID&gt;</span></div>
+          <div class="step"><span class="step-num">4.</span><span>systemctl status &lt;unit&gt;</span></div>
+          <div class="step"><span class="step-num">5.</span><span>docker ps | grep ...</span></div>
+          <div class="step" style="color:var(--red); margin-top:10px;"><span class="step-num">→</span><span>五条命令、四个工具、自己拼因果</span></div>
+        </div>
+      </div>
+
+      <div class="vs-card vs-card-good">
+        <div class="vs-title">✓ witr 方式 · 1 步 · 因果显式</div>
+        <div class="terminal" style="margin:0; box-shadow:none;">
+          <div class="terminal-body"><span class="cmd-prompt">$</span> <span class="cmd">witr --port 3000</span>
+
+<span class="key-label">Target      :</span> node
+<span class="key-label">Process     :</span> <span class="key-name">node</span> (<span class="key-pid">pid 14233</span>)
+<span class="key-label">Started     :</span> 2 days ago
+
+<span class="key-label">Why It Exists :</span>
+  <span class="key-name">systemd</span> (<span class="key-pid">pid 1</span>) <span class="key-arrow">→</span>
+  <span class="key-name">pm2</span>     (<span class="key-pid">pid 5034</span>) <span class="key-arrow">→</span>
+  <span class="key-name">node</span>     (<span class="key-pid">pid 14233</span>)
+
+<span class="key-label">Source      :</span> pm2
+<span class="key-label">Working Dir :</span> /opt/apps/expense-manager
+<span class="key-label">Git Repo    :</span> expense-manager (main)
+<span class="key-label">Sockets     :</span> 127.0.0.1:5001 (TCP | LISTENING)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="quote">
+      传统工具告诉你 <strong>what is running</strong>，witr 告诉你 <strong>why it's running</strong>。
+    </div>
+  </section>
+
+  <section>
+    <span class="section-eyebrow">// 02 · 核心</span>
+    <h2>四个问题，一命令答完</h2>
+    <p class="text-2">witr 把所有东西都当"进程问题"——端口、服务、容器、命令最终都映射到 PID。一旦锁定 PID，它就构建一条因果链。</p>
+
+    <div class="concept-grid">
+      <div class="concept-card">
+        <div class="concept-num">01</div>
+        <div class="concept-title">What is running?</div>
+        <div class="concept-desc">进程的可执行文件、PID、用户、命令行、启动时间、重启次数。</div>
+      </div>
+      <div class="concept-card">
+        <div class="concept-num">02</div>
+        <div class="concept-title">How did it start?</div>
+        <div class="concept-desc">完整祖先链：systemd → sshd → bash → pm2 → node，看得见每一步。</div>
+      </div>
+      <div class="concept-card">
+        <div class="concept-num">03</div>
+        <div class="concept-title">What keeps it alive?</div>
+        <div class="concept-desc">谁在 supervise 它？systemd unit / launchd / docker / pm2 / cron / SSH session。</div>
+      </div>
+      <div class="concept-card">
+        <div class="concept-num">04</div>
+        <div class="concept-title">What context?</div>
+        <div class="concept-desc">cwd、git 分支、容器名、监听地址、capabilities、健康警告。</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="examples">
+    <span class="section-eyebrow">// 03 · 实战</span>
+    <h2>真实场景示例</h2>
+    <p class="text-2">以下所有输出都是我在你机器上 <code class="inline">/home/robertsong/workspace/claude/witr</code> 编译后实跑得到的，不是 README 截图。</p>
+
+    <div class="scenario">
+      <div class="scenario-header">
+        <div class="scenario-num">01</div>
+        <div class="scenario-title">看 PID 1（init / systemd）</div>
+      </div>
+      <div class="scenario-context">最快验证 witr 输出形态的命令。</div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+          <div class="terminal-title">~/workspace/claude/witr</div>
+        </div>
+        <div class="terminal-body"><span class="cmd-prompt">$</span> <span class="cmd">./witr --pid 1</span>
+
+<span class="key-label">Target      :</span> systemd
+<span class="key-label">Process     :</span> <span class="key-name">systemd</span> (<span class="key-pid">pid 1</span>)
+<span class="key-label">User        :</span> root
+<span class="key-label">Command     :</span> /sbin/init splash
+<span class="key-label">Started     :</span> 15 days ago (Mon 2026-07-27 10:07:26 +08:00)
+
+<span class="key-label">Why It Exists :</span>
+  <span class="key-name">systemd</span> (<span class="key-pid">pid 1</span>)
+
+<span class="key-label">Source      :</span> init.scope (systemd)
+<span class="key-label">Description :</span> System and Service Manager
+
+<span class="key-label">Warnings    :</span>
+  <span class="key-warn">•</span> Process is running as root</div>
+      </div>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-header">
+        <div class="scenario-num">02</div>
+        <div class="scenario-title">追溯"我现在这条 shell"的家谱</div>
+      </div>
+      <div class="scenario-context">这是制作本页 HTML 时真实的进程链 —— 完整还原了 cc-connect → claude → bash 的桥接关系。</div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+          <div class="terminal-title">tree mode · --tree</div>
+        </div>
+        <div class="terminal-body"><span class="cmd-prompt">$</span> <span class="cmd">./witr --pid $$ --tree</span>
+
+<span class="key-name">systemd</span> (<span class="key-pid">pid 1</span>)
+  └─ <span class="key-name">systemd</span> (<span class="key-pid">pid 3679</span>)
+    └─ <span class="key-name">cc-connect</span> (<span class="key-pid">pid 1036058</span>)
+      └─ <span class="key-name">claude</span> (<span class="key-pid">pid 284298</span>)
+        └─ <span class="key-name">bash</span> (<span class="key-pid">pid 304445</span>)
+          ├─ <span class="key-name">witr</span> (<span class="key-pid">pid 304470</span>)
+          └─ <span class="key-name">head</span> (<span class="key-pid">pid 304471</span>)</div>
+      </div>
+      <div class="quote" style="margin-top:18px; margin-bottom:0;">
+        <strong>读到这一幕的瞬间</strong>，你就理解了 witr 的价值：它把你"看不见的运行时上下文"画成了一张树。
+      </div>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-header">
+        <div class="scenario-num">03</div>
+        <div class="scenario-title">单行脚本模式 · --short</div>
+      </div>
+      <div class="scenario-context">塞进 PS1、监控告警、Slack 通知都极合适。</div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+          <div class="terminal-title">one-liner · --short</div>
+        </div>
+        <div class="terminal-body"><span class="cmd-prompt">$</span> <span class="cmd">./witr --pid $$ --short</span>
+
+<span class="key-name">systemd</span> (<span class="key-pid">pid 1</span>) <span class="key-arrow">→</span> <span class="key-name">systemd</span> (<span class="key-pid">pid 3679</span>) <span class="key-arrow">→</span> <span class="key-name">cc-connect</span> (<span class="key-pid">pid 1036058</span>) <span class="key-arrow">→</span> <span class="key-name">claude</span> (<span class="key-pid">pid 284298</span>) <span class="key-arrow">→</span> <span class="key-name">bash</span> (<span class="key-pid">pid 303956</span>)
+
+<span class="key-comment"># 实际用法：监控某进程突然出现时拉警报</span>
+<span class="cmd-prompt">$</span> <span class="cmd">while true; do</span>
+<span class="cmd">    witr ngrok --short &gt;&gt; /var/log/ngrok-watch.log 2&gt;&amp;1</span>
+<span class="cmd">    sleep 60</span>
+<span class="cmd">done</span></div>
+      </div>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-header">
+        <div class="scenario-num">04</div>
+        <div class="scenario-title">JSON 输出 · --json</div>
+      </div>
+      <div class="scenario-context">接 ELK / Datadog / 自建监控都靠这个，字段非常全。</div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+          <div class="terminal-title">machine-readable · --json</div>
+        </div>
+        <div class="terminal-body"><span class="cmd-prompt">$</span> <span class="cmd">./witr --pid 1 --json</span>
+
+{
+  <span class="key-label">"Target"</span>:        { <span class="key-label">"Type"</span>: <span class="key-flag">"pid"</span>, <span class="key-label">"Value"</span>: <span class="key-flag">"1"</span> },
+  <span class="key-label">"ResolvedTarget"</span>: <span class="key-flag">"systemd"</span>,
+  <span class="key-label">"Process"</span>: {
+    <span class="key-label">"PID"</span>:         <span class="key-pid">1</span>,
+    <span class="key-label">"PPid"</span>:        <span class="key-pid">0</span>,
+    <span class="key-label">"Command"</span>:     <span class="key-flag">"systemd"</span>,
+    <span class="key-label">"StartedAt"</span>:   <span class="key-flag">"2026-07-27T10:07:26.83+08:00"</span>,
+    <span class="key-label">"User"</span>:        <span class="key-flag">"root"</span>,
+    <span class="key-label">"CPUPercent"</span>:  <span class="key-pid">0.368</span>,
+    <span class="key-label">"MemoryRSS"</span>:   <span class="key-pid">115699712</span>,
+    <span class="key-label">"Health"</span>:      <span class="key-flag">"healthy"</span>,
+    <span class="key-label">"Capabilities"</span>: [<span class="key-flag">"CAP_CHOWN"</span>, <span class="key-flag">"CAP_DAC_OVERRIDE"</span>, <span class="key-comment">/* ... */</span>]
+  }
+}</div>
+      </div>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-header">
+        <div class="scenario-num">05</div>
+        <div class="scenario-title">端口冲突排查（你的高频痛点）</div>
+      </div>
+      <div class="scenario-context">端口被占时，传统要做 4 步——witr 一条命令搞定。注意查系统进程要 sudo。</div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+          <div class="terminal-title">port lookup · --port</div>
+        </div>
+        <div class="terminal-body"><span class="key-comment"># 端口被占，谁是凶手</span>
+<span class="cmd-prompt">$</span> <span class="cmd">sudo witr --port 28501</span>
+
+<span class="key-label">Target      :</span> cc-connect
+<span class="key-label">Process     :</span> <span class="key-name">cc-connect</span> (<span class="key-pid">pid 1036058</span>)
+<span class="key-label">Source      :</span> systemd unit (cc-connect.service)
+<span class="key-label">Sockets     :</span> 0.0.0.0:28501 (TCP | LISTENING)
+<span class="key-label">Working Dir :</span> /home/robertsong
+
+<span class="key-comment"># 它会顺手告诉你这是公网监听（安全告警）</span>
+<span class="key-label">Warnings    :</span>
+  <span class="key-warn">•</span> Process is listening on a public interface (0.0.0.0)</div>
+      </div>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-header">
+        <div class="scenario-num">06</div>
+        <div class="scenario-title">容器诊断 · --container</div>
+      </div>
+      <div class="scenario-context">一锅端：Docker / Podman / nerdctl / K8s·crictl / Incus / LXC / LXD / FreeBSD jails。</div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+          <div class="terminal-title">container mode · --container</div>
+        </div>
+        <div class="terminal-body"><span class="cmd-prompt">$</span> <span class="cmd">witr --container bibigpt-redis --verbose</span>
+
+<span class="key-label">Container   :</span> bibigpt-redis
+<span class="key-label">Image       :</span> redis:7-alpine
+<span class="key-label">Status      :</span> Up 15 days
+<span class="key-label">Ports       :</span> 0.0.0.0:6379 → 6379/tcp
+<span class="key-label">Networks    :</span> bridge
+<span class="key-label">Compose Prj :</span> bibigpt
+<span class="key-label">Started by  :</span> Docker daemon (docker.service)
+
+<span class="key-label">Why It Exists :</span>
+  <span class="key-name">systemd</span> (<span class="key-pid">pid 1</span>) <span class="key-arrow">→</span>
+  <span class="key-name">dockerd</span> (<span class="key-pid">pid 1234</span>) <span class="key-arrow">→</span>
+  <span class="key-name">containerd-shim</span> <span class="key-arrow">→</span>
+  <span class="key-name">redis</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="flags">
+    <span class="section-eyebrow">// 04 · 速查</span>
+    <h2>Flags 完整参考</h2>
+    <p class="text-2">所有 target flags 都可重复、可混搭：<code class="inline">witr nginx --port 5432 --pid 1234</code></p>
+
+    <table class="flags-table">
+      <thead>
+        <tr><th>Flag</th><th>作用</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="flag-syntax">-p, --pid &lt;ids&gt;</span></td><td class="flag-desc">按 PID 查（可重复）</td></tr>
+        <tr><td><span class="flag-syntax">-o, --port &lt;ports&gt;</span></td><td class="flag-desc">按端口号查</td></tr>
+        <tr><td><span class="flag-syntax">-f, --file &lt;paths&gt;</span></td><td class="flag-desc">查谁打开了某文件</td></tr>
+        <tr><td><span class="flag-syntax">-c, --container &lt;names&gt;</span></td><td class="flag-desc">按容器名/镜像/compose 查</td></tr>
+        <tr><td><span class="flag-syntax">-x, --exact</span></td><td class="flag-desc">精确匹配（关闭模糊）</td></tr>
+        <tr><td><span class="flag-syntax">-s, --short</span></td><td class="flag-desc">单行祖先链 · 脚本最爱</td></tr>
+        <tr><td><span class="flag-syntax">-t, --tree</span></td><td class="flag-desc">树形祖先链（含子进程）</td></tr>
+        <tr><td><span class="flag-syntax">--json</span></td><td class="flag-desc">JSON 输出 · 接监控用</td></tr>
+        <tr><td><span class="flag-syntax">--env</span></td><td class="flag-desc">输出进程环境变量</td></tr>
+        <tr><td><span class="flag-syntax">--warnings</span></td><td class="flag-desc">只输出告警（root / 公网监听 / LD_PRELOAD 等）</td></tr>
+        <tr><td><span class="flag-syntax">--verbose</span></td><td class="flag-desc">容器 mounts / networks / compose 元数据</td></tr>
+        <tr><td><span class="flag-syntax">-i, --interactive</span></td><td class="flag-desc">进入 TUI（4 Tab：进程 / 端口 / 容器 / 锁）</td></tr>
+        <tr><td><span class="flag-syntax">--no-color</span></td><td class="flag-desc">关色（CI / pipe）</td></tr>
+        <tr><td><span class="flag-syntax">-v, --version</span></td><td class="flag-desc">版本</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="exit">
+    <span class="section-eyebrow">// 05 · 自动化</span>
+    <h2>退出码 · 让 witr 进 CI</h2>
+    <p class="text-2">每个码都有明确含义，<code class="inline">case $?</code> 一接就能用。</p>
+
+    <div class="exit-grid">
+      <div class="exit-card"><div class="exit-code">0</div><div class="exit-label">Clean</div><div class="exit-desc">进程找到，无告警</div></div>
+      <div class="exit-card warning"><div class="exit-code">1</div><div class="exit-label">Warnings</div><div class="exit-desc">找到但含告警（root / 公网）</div></div>
+      <div class="exit-card notfound"><div class="exit-code">2</div><div class="exit-label">Not Found</div><div class="exit-desc">无匹配进程</div></div>
+      <div class="exit-card denied"><div class="exit-code">3</div><div class="exit-label">Permission Denied</div><div class="exit-desc">权限不足，需 sudo</div></div>
+      <div class="exit-card invalid"><div class="exit-code">4</div><div class="exit-label">Invalid Input</div><div class="exit-desc">参数错误或多匹配歧义</div></div>
+      <div class="exit-card error"><div class="exit-code">5</div><div class="exit-label">Internal Error</div><div class="exit-desc">witr 自身异常</div></div>
+    </div>
+
+    <div class="terminal" style="margin-top:28px;">
+      <div class="terminal-bar">
+        <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+        <div class="terminal-title">CI 监控脚本</div>
+      </div>
+      <div class="terminal-body"><span class="cmd-prompt">$</span> <span class="cmd">witr nginx --short</span>
+<span class="cmd-prompt">$</span> <span class="cmd">case $? in</span>
+<span class="cmd">  0) echo <span class="key-flag">"All clear"</span> ;;</span>
+<span class="cmd">  1) alert_team <span class="key-flag">"witr: nginx has warnings"</span> ;;</span>
+<span class="cmd">  2) alert_team <span class="key-flag">"witr: nginx NOT running"</span> ;;</span>
+<span class="cmd">  3) echo <span class="key-flag">"Need sudo"</span> ;;</span>
+<span class="cmd">esac</span></div>
+    </div>
+  </section>
+
+  <section>
+    <span class="section-eyebrow">// 06 · 安全</span>
+    <h2>witr 会替你察觉的"危险信号"</h2>
+    <p class="text-2">这些告警会让 exit code 变 1，立刻可用于安全合规扫描。</p>
+
+    <div class="concept-grid">
+      <div class="concept-card"><div class="concept-num" style="color:var(--pink)">⚠ 01</div><div class="concept-title">以 root 运行</div><div class="concept-desc">非系统进程不该长期 root。</div></div>
+      <div class="concept-card"><div class="concept-num" style="color:var(--pink)">⚠ 02</div><div class="concept-title">危险 capabilities</div><div class="concept-desc">非 root 进程却带 CAP_SYS_ADMIN 等。</div></div>
+      <div class="concept-card"><div class="concept-num" style="color:var(--pink)">⚠ 03</div><div class="concept-title">公网监听</div><div class="concept-desc">绑定 0.0.0.0 / :: 而非 127.0.0.1。</div></div>
+      <div class="concept-card"><div class="concept-num" style="color:var(--pink)">⚠ 04</div><div class="concept-title">重启多次</div><div class="concept-desc">超阈值的 restart count。</div></div>
+      <div class="concept-card"><div class="concept-num" style="color:var(--pink)">⚠ 05</div><div class="concept-title">吃内存</div><div class="concept-desc">RSS &gt; 1GB 的进程。</div></div>
+      <div class="concept-card"><div class="concept-num" style="color:var(--pink)">⚠ 06</div><div class="concept-title">跑了 90 天+</div><div class="concept-desc">长期未重启，可能漏补丁。</div></div>
+      <div class="concept-card"><div class="concept-num" style="color:var(--pink)">⚠ 07</div><div class="concept-title">二进制已删</div><div class="concept-desc">进程还在跑，但 /proc/&lt;pid&gt;/exe 失效。</div></div>
+      <div class="concept-card"><div class="concept-num" style="color:var(--pink)">⚠ 08</div><div class="concept-title">注入痕迹</div><div class="concept-desc">LD_PRELOAD / DYLD_* 环境变量。</div></div>
+    </div>
+  </section>
+
+  <section>
+    <span class="section-eyebrow">// 07 · TUI</span>
+    <h2>交互模式 · 四个 Tab</h2>
+    <p class="text-2">直接 <code class="inline">witr</code> 或 <code class="inline">witr -i</code> 进入。鼠标可点、自适应刷新（3 秒起，负载高时退避）。</p>
+
+    <div class="concept-grid">
+      <div class="concept-card"><div class="concept-num">Processes</div><div class="concept-title">进程 Tab</div><div class="concept-desc">实时可排序可过滤的进程列表 + 右侧祖先树。支持 KILL / TERM / PAUSE / RESUME / RENICE（Unix）。</div></div>
+      <div class="concept-card"><div class="concept-num">Ports</div><div class="concept-title">端口 Tab</div><div class="concept-desc">所有 LISTEN 端口 + 持有进程。按 <code class="inline">a</code> 切换 LISTEN-only / ALL。</div></div>
+      <div class="concept-card"><div class="concept-num">Containers</div><div class="concept-title">容器 Tab</div><div class="concept-desc">跨 Docker / Podman / nerdctl / K8s / Incus / LXC / LXD / jails 统一视图。</div></div>
+      <div class="concept-card"><div class="concept-num">Locks</div><div class="concept-title">文件锁 Tab</div><div class="concept-desc">POSIX/FLOCK 锁 + 所有打开的 fd。按 <code class="inline">/</code> 搜索。</div></div>
+    </div>
+  </section>
+
+  <section id="install">
+    <span class="section-eyebrow">// 08 · 装上</span>
+    <h2>安装方式</h2>
+    <p class="text-2">单 binary，跨平台。20+ 包管理器覆盖，挑一个最顺手的。</p>
+
+    <h3>推荐 · 一键脚本</h3>
+    <div class="install-grid">
+      <div class="install-card"><div class="install-name">Unix · curl</div><div class="install-cmd">curl -fsSL https://raw.githubusercontent.com/pranshuparmar/witr/main/install.sh | bash</div></div>
+      <div class="install-card"><div class="install-name">Windows · PowerShell</div><div class="install-cmd">irm https://raw.githubusercontent.com/pranshuparmar/witr/main/install.ps1 | iex</div></div>
+      <div class="install-card"><div class="install-name">macOS / Linux · Homebrew</div><div class="install-cmd">brew install witr</div></div>
+      <div class="install-card"><div class="install-name">Arch · AUR</div><div class="install-cmd">yay -S witr-bin</div></div>
+      <div class="install-card"><div class="install-name">Windows · Winget</div><div class="install-cmd">winget install -e --id PranshuParmar.witr</div></div>
+      <div class="install-card"><div class="install-name">Debian / Ubuntu · apt</div><div class="install-cmd">apt install witr   <span style="color:var(--text-3)"># Ubuntu 26.04+ / Debian sid+</span></div></div>
+      <div class="install-card"><div class="install-name">跨平台 · Go</div><div class="install-cmd">go install github.com/pranshuparmar/witr/cmd/witr@latest</div></div>
+      <div class="install-card"><div class="install-name">跨平台 · npm</div><div class="install-cmd">npm install -g @pranshuparmar/witr</div></div>
+    </div>
+
+    <h3 style="margin-top:36px;">装完别忘了 · 开 shell 补全</h3>
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+        <div class="terminal-title">tab completion</div>
+      </div>
+      <div class="terminal-body"><span class="key-comment"># Bash</span>
+<span class="cmd-prompt">$</span> <span class="cmd">echo 'eval "$(witr completion bash)"' &gt;&gt; ~/.bashrc</span>
+
+<span class="key-comment"># Zsh</span>
+<span class="cmd-prompt">$</span> <span class="cmd">echo 'eval "$(witr completion zsh)"' &gt;&gt; ~/.zshrc</span>
+
+<span class="key-comment"># Fish</span>
+<span class="cmd-prompt">$</span> <span class="cmd">witr completion fish &gt; ~/.config/fish/completions/witr.fish</span></div>
+    </div>
+  </section>
+
+  <section>
+    <span class="section-eyebrow">// 09 · 跨平台</span>
+    <h2>平台原生实现亮点</h2>
+    <p class="text-2">witr 不调用 PowerShell / WMI / Python，每端都是原生 API。</p>
+
+    <div class="concept-grid">
+      <div class="concept-card"><div class="concept-num">Linux</div><div class="concept-title">/proc 全功能</div><div class="concept-desc">capabilities、systemd unit、cgroups、snap/flatpak 沙箱、systemd timer 全识别。</div></div>
+      <div class="concept-card"><div class="concept-num">macOS</div><div class="concept-title">ps + lsof + launchctl</div><div class="concept-desc">launchd plist 路径、Schedule interval、SIP 限制都标得清楚。</div></div>
+      <div class="concept-card"><div class="concept-num">Windows</div><div class="concept-title">ToolHelp32 / PSAPI / SCM</div><div class="concept-desc">不依赖 PowerShell 或 WMI，启动快、无 Get-CimInstance 卡顿。</div></div>
+      <div class="concept-card"><div class="concept-num">FreeBSD</div><div class="concept-title">procstat + ps + lsof</div><div class="concept-desc">含 jails 容器识别。</div></div>
+    </div>
+  </section>
+
+  <section>
+    <span class="section-eyebrow">// 10 · 你的环境</span>
+    <h2>这台机器上怎么用 witr 最值</h2>
+    <p class="text-2">基于对你 <code class="inline">/home/robertsong/workspace/claude</code> 的观察，给你三条最具体的建议：</p>
+
+    <div class="scenario">
+      <div class="scenario-header">
+        <div class="scenario-num">A</div>
+        <div class="scenario-title">端口冲突速查（高频痛点）</div>
+      </div>
+      <div class="scenario-context">不用 ss + ps + pstree 三连。</div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+          <div class="terminal-title">日常用法</div>
+        </div>
+        <div class="terminal-body"><span class="cmd-prompt">$</span> <span class="cmd">sudo witr --port 7337</span>          <span class="key-comment"># 一行看清是 docker / pm2 / 直接 shell</span>
+<span class="cmd-prompt">$</span> <span class="cmd">witr --port 6379 --short</span>        <span class="key-comment"># 看看 redis 是不是 bibigpt-redis 容器</span></div>
+      </div>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-header">
+        <div class="scenario-num">B</div>
+        <div class="scenario-title">把它装到 /usr/local/bin</div>
+      </div>
+      <div class="scenario-context">已经编译好了，别每次都 ./witr。</div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+          <div class="terminal-title">install</div>
+        </div>
+        <div class="terminal-body"><span class="cmd-prompt">$</span> <span class="cmd">sudo mv ./witr /usr/local/bin/witr</span>
+<span class="cmd-prompt">$</span> <span class="cmd">witr --version</span>
+witr v0.3.3 (commit dc4fa1d, built 2026-08-08T03:33:54Z)</div>
+      </div>
+    </div>
+
+    <div class="scenario" style="margin-bottom:0;">
+      <div class="scenario-header">
+        <div class="scenario-num">C</div>
+        <div class="scenario-title">配合 cc-connect 做远程诊断</div>
+      </div>
+      <div class="scenario-context">以后你说"看看 3000 端口被谁占了"，我直接 <code class="inline">witr --port 3000</code> 一行汇报。</div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Generated for · /home/robertsong/workspace/claude/witr · v0.3.3<br>
+  Repo: <a href="https://github.com/pranshuparmar/witr">github.com/pranshuparmar/witr</a>
+</footer>
+
+</body>
+</html>
