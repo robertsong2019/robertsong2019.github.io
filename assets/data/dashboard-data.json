@@ -1,6 +1,6 @@
 {
-  "lastUpdated": "2026-08-10T22:01:37Z",
-  "generatedAt": "2026-08-11 06:01 CST",
+  "lastUpdated": "2026-08-11T22:01:29Z",
+  "generatedAt": "2026-08-12 06:01 CST",
   "system": {
     "gateway": {
       "status": "running",
@@ -14,32 +14,35 @@
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "110 days, 16:41",
-      "loadAverage": "1.13, 0.44, 0.16",
+      "uptime": "111 days, 16:41",
+      "loadAverage": "0.50, 0.15, 0.05",
       "disk": {
         "total": "50G",
-        "used": "43G",
-        "available": "4.2G",
-        "usage": "92%"
+        "used": "31G",
+        "available": "17G",
+        "usage": "66%"
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 935,
-        "freeMB": 749,
-        "availableMB": 1000,
+        "usedMB": 1135,
+        "freeMB": 380,
+        "availableMB": 800,
         "swapTotalMB": 10179,
-        "swapUsedMB": 1031
+        "swapUsedMB": 1004
       }
     },
     "model": "zai/glm-5.1"
   },
   "cronSummary": {
     "total": 21,
-    "ok": 19,
-    "error": 1,
+    "ok": 17,
+    "error": 3,
     "running": 1,
     "errorJobs": [
-      "84707ade (ai-neuroscience-research)"
+      "62bf7f3b (tool-development-evening)",
+      "84707ade (ai-neuroscience-research)",
+      "686ec55c (essay-generation-morning)",
+      "f0362050 (essay-generation-morning)"
     ]
   },
   "cronJobs": [
@@ -110,7 +113,7 @@
       "id": "62bf7f3b",
       "name": "tool-development-evening",
       "schedule": "0 22 * * *",
-      "status": "ok",
+      "status": "error",
       "lastRun": "8h ago"
     },
     {
@@ -180,15 +183,15 @@
       "id": "686ec55c",
       "name": "essay-generation-morning",
       "schedule": "0 5 * * *",
-      "status": "ok",
+      "status": "error",
       "lastRun": "1h ago"
     },
     {
       "id": "f0362050",
       "name": "essay-generation-morning",
       "schedule": "0 5 * * *",
-      "status": "ok",
-      "lastRun": "59m ago"
+      "status": "error",
+      "lastRun": "57m ago"
     }
   ],
   "sessions": {
@@ -197,45 +200,45 @@
     "notable": [
       {
         "type": "main",
-        "lastActive": "14m ago",
+        "lastActive": "13m ago",
         "model": "glm-5",
-        "context": "96k/200k (48%)"
+        "context": "112k/200k (56%)"
       },
       {
         "type": "cron (dashboard)",
         "lastActive": "just now",
         "model": "glm-5.1",
-        "context": "36k/205k (18%)"
+        "context": "38k/205k (18%)"
       },
       {
         "type": "cron (essay-gen)",
-        "lastActive": "56m ago",
+        "lastActive": "57m ago",
         "model": "glm-5.1",
-        "context": "48k/205k (24%)"
+        "context": "60k/205k (29%)"
       },
       {
         "type": "cron (documentation)",
         "lastActive": "2h ago",
         "model": "glm-5.1",
-        "context": "46k/205k (22%)"
+        "context": "94k/205k (46%)"
       },
       {
         "type": "cron (knowledge-org)",
         "lastActive": "4h ago",
         "model": "glm-5.1",
-        "context": "93k/205k (45%)"
+        "context": "86k/205k (42%)"
       },
       {
         "type": "cron (key-dev-1)",
         "lastActive": "7h ago",
         "model": "glm-5.1",
-        "context": "40k/205k (20%)"
+        "context": "52k/205k (25%)"
       },
       {
         "type": "cron (tool-dev)",
         "lastActive": "8h ago",
-        "model": "glm-5.1",
-        "context": "63k/205k (31%)"
+        "model": "glm-5-turbo",
+        "context": "55k/205k (27%)"
       },
       {
         "type": "cron (ai-neuroscience)",
@@ -247,25 +250,25 @@
         "type": "cron (code-lab)",
         "lastActive": "9h ago",
         "model": "glm-5.1",
-        "context": "69k/205k (34%)"
+        "context": "102k/205k (50%)"
       },
       {
         "type": "cron (deep-exploration)",
         "lastActive": "10h ago",
         "model": "glm-5.1",
-        "context": "96k/205k (47%)"
+        "context": "81k/205k (39%)"
       }
     ]
   },
   "git": {
     "repo": "robertsong2019/openclaw-workspace",
-    "lastCommit": "59ef8de docs: documentation report 2026-08-11",
+    "lastCommit": "e82f934 dashboard: update data 2026-08-11 06:01 CST",
     "recentCommits": [
-      "59ef8de docs: documentation report 2026-08-11",
-      "8ef7d53 docs: README — Cycles 405→407 补全",
-      "8d94711 test: add 15 tests for utils/logger.py",
-      "8968b4b experiments: log attention_rebalance_plan cycle 407",
-      "95db7bd attention_rebalance_plan() — action-oriented companion"
+      "e82f934 dashboard: update data 2026-08-11 06:01 CST",
+      "924ee31 新文章：Agent 注意力健康管理——从诊断到行动的工程实现",
+      "ba689c0 essay: 第10轮对话——长上下文vs记忆系统的成本交叉点",
+      "c1c0ac1 新博文：Multi-Agent Debate 的承诺与现实",
+      "a6a821c dashboard: update 2026-08-10 06:00 CST"
     ]
   }
 }
