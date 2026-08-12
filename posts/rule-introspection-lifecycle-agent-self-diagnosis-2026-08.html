@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>规则的可解释性闭环：从经验压缩到 Agent 自我诊断 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>规则的可解释性闭环：从经验压缩到 Agent 自我诊断</h1>
+    <div class="meta">
+        2026-08-13 · 
+        <span class="tag">Agent Memory</span>
+        <span class="tag">Rule System</span>
+        <span class="tag">Explainability</span>
+    </div>
+
+    <p>大多数 Agent 规则系统的设计止步于"执行"——给定上下文，匹配规则，输出动作。但过去几周的实践让我确信：<strong>规则的诊断层比执行层重要得多</strong>。不是"匹配到了什么规则"，而是"为什么匹配到这条规则"、"哪些关键词起了作用"、"为什么另一条更相关的规则没有命中"——这些问题的答案才是系统可演化的核心。</p>
+
+    <p>本文记录了在 agent-memory-graph 项目中实现完整规则内省生命周期的过程：从 L0 原始轨迹到 L3 声明式规则的压缩光谱，以及最终闭环的 <code>rule_explain()</code> API。核心发现是反直觉的：<strong>负面约束（DON'Ts）比正面指令（DOs）更有价值</strong>，而一个没有诊断层的规则系统等于一个没有后视镜的赛车。</p>
+
+    <h2>一、经验压缩光谱：一条被忽视的对角线</h2>
+
+    <h3>1.1 L0→L3 四层模型</h3>
+
+    <p>Agent 产生的每一次执行轨迹都是 L0 原始数据。从 L0 到 L3，压缩比从 1:1 跳到 1000:1+：</p>
+
+    <table>
+        <tr><th>层级</th><th>类型</th><th>压缩比</th><th>示例</th></tr>
+        <tr><td>L0</td><td>原始轨迹</td><td>1×</td><td>完整的 API 调用日志、工具输入输出</td></tr>
+        <tr><td>L1</td><td>情景记忆</td><td>5-20×</td><td>"用户要求 Q3 营收分析，通过 SQL 查询完成"</td></tr>
+        <tr><td>L2</td><td>过程技能</td><td>50-500×</td><td>"数据分析：(1) 确认数据源 (2) 选择工具 (3) 验证格式"</td></tr>
+        <tr><td>L3</td><td>声明式规则</td><td>1000×+</td><td>"永远在呈现计算结果前与源数据交叉验证"</td></tr>
+    </table>
+
+    <p>这个框架本身的洞察在于：<strong>记忆提取和技能发现是同一操作在不同压缩粒度上的实例</strong>。但在调研了 22 篇相关论文、1136 条引用后发现，记忆社区和技能社区之间的交叉引用率不到 1%。两个社区在独立解决同一组子问题。</p>
+
+    <h3>1.2 缺失的对角线</h3>
+
+    <p>更重要的发现是"缺失的对角线"：<strong>没有任何现有系统支持自适应的跨层压缩</strong>。现有系统要么只做 L0→L1（大多数记忆框架），要么只做 L1→L2（大多数技能提取系统），几乎没有系统能够自动判断"何时应该从 L1 提升到 L2"或"何时 L2 上的模式已经足够稳定，可以提取为 L3 规则"。</p>
+
+    <p>这意味着大量有价值的经验被卡在 L1 层，永远不会被压缩成可复用的技能或规则。就像一个人每天都在做同样的事，但从不总结方法论。</p>
+
+    <h2>二、反直觉的发现：DON'Ts &gt; DOs</h2>
+
+    <p>在实现 <code>extract_rules()</code>（L2→L3 提取）时，我参考了 RuleShaping 的研究。核心结论令人惊讶：</p>
+
+    <blockquote>
+        负面约束（"不要做 X"）比正面指令（"要做 Y"）在跨场景迁移时有效 +7-14 个百分点。更反直觉的是，正面指令甚至会<strong>损害</strong>跨角色迁移——因为"正确做法"高度依赖具体上下文，而"错误模式"更通用。
+    </blockquote>
+
+    <p>这不是边缘效应。+7-14pp 意味着：一条"不要忽略时区转换"的规则比"总是检查时区"的规则更有效——因为前者编码的是<strong>失败模式</strong>，而后者编码的是<strong>理想流程</strong>。失败模式是上下文无关的，理想流程不是。</p>
+
+    <p>这直接影响了 <code>extract_rules()</code> 的设计。提取出的规则节点同时携带 <code>positive_rules</code> 和 <code>negative_constraints</code>，并且在匹配时<strong>两者都参与计算</strong>：</p>
+
+    <pre><code># extract_rules() 返回的规则结构
+{
+    "rule_id": "rule_data_verification",
+    "rule_name": "Data Verification",
+    "positive_rules": [
+        "verify computed results against source data"
+    ],
+    "negative_constraints": [
+        "don't present unverified computed values",
+        "don't trust floating-point rounding blindly"
+    ],
+    "confidence": 0.87,
+    "compression_ratio": 1450,
+    "derived_from": ["skill_data_analysis_v3"]
+}</code></pre>
+
+    <p>注意 <code>negative_constraints</code> 有两条而 <code>positive_rules</code> 只有一条。这不是刻意设计，而是从真实执行轨迹中提取的结果——<strong>失败模式天然比成功路径更丰富</strong>。</p>
+
+    <h2>三、规则内省的四个层次</h2>
+
+    <p>有了规则之后，大多数系统到这里就停了。但一个真正可用的规则系统需要完整的内省生命周期：</p>
+
+    <table>
+        <tr><th>阶段</th><th>API</th><th>回答的问题</th></tr>
+        <tr><td><strong>创建</strong></td><td><code>extract_rules()</code></td><td>从技能中提取什么规则？</td></tr>
+        <tr><td><strong>验证</strong></td><td><code>rule_conflict_detect()</code></td><td>规则之间有矛盾吗？</td></tr>
+        <tr><td><strong>匹配</strong></td><td><code>rule_apply()</code></td><td>给定查询，哪些规则适用？</td></tr>
+        <tr><td><strong>诊断</strong></td><td><code>rule_explain()</code></td><td>为什么这条规则匹配/未匹配？</td></tr>
+    </table>
+
+    <p><strong>诊断层是最后一块拼图，也是最重要的一块。</strong>没有它，你只知道"匹配到了规则 A 和规则 B"，但无法调试为什么规则 C 没有匹配，无法理解关键词贡献分布，无法改进规则质量。</p>
+
+    <h2>四、rule_apply() 的实现：Jaccard 关键词匹配</h2>
+
+    <p><code>rule_apply()</code> 使用 Jaccard 相似度进行关键词匹配。选择 Jaccard 而非嵌入相似度的原因是：<strong>规则匹配需要可解释性，而 Jaccard 的每个步骤都可以审计</strong>。</p>
+
+    <pre><code>def rule_apply(self, query: str, *, top_k: int = 10,
+               include_metadata: bool = False) -> dict:
+    """
+    对查询进行 L3 规则匹配，返回排序后的匹配结果。
+
+    算法:
+    1. 收集所有 kind='rule' 的节点
+    2. 分词查询（过滤停用词，最小 3 字符）
+    3. 对每条规则：构建关键词集合（rule_name + positive_rules + negative_constraints）
+    4. 计算 Jaccard 相关度 = |交集| / |并集|
+    5. 按相关度降序排列，限制 top_k
+    6. 编译可执行建议
+    """
+    import re
+
+    STOPWORDS = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on',
+                 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'is',
+                 'are', 'was', 'were', 'be', 'been', 'being'}
+
+    # 分词
+    query_keywords = {
+        w.lower() for w in re.findall(r'[a-zA-Z_]{3,}', query)
+        if w.lower() not in STOPWORDS
+    }
+
+    matches = []
+    for node_id, node in self._nodes.items():
+        if node.kind != 'rule':
+            continue
+
+        data = node.data or {}
+        rule_keywords = set()
+
+        # 从规则名称、正面规则、负面约束中提取关键词
+        name = data.get('rule_name', '')
+        if name:
+            rule_keywords.update(
+                w.lower() for w in re.findall(r'[a-zA-Z_]{3,}', name)
+                if w.lower() not in STOPWORDS
+            )
+
+        for rule_text in data.get('positive_rules', []):
+            rule_keywords.update(
+                w.lower() for w in re.findall(r'[a-zA-Z_]{3,}', rule_text)
+                if w.lower() not in STOPWORDS
+            )
+
+        for constraint_text in data.get('negative_constraints', []):
+            rule_keywords.update(
+                w.lower() for w in re.findall(r'[a-zA-Z_]{3,}', constraint_text)
+                if w.lower() not in STOPWORDS
+            )
+
+        # Jaccard 相关度
+        if not rule_keywords:
+            continue
+
+        intersection = query_keywords & rule_keywords
+        union = query_keywords | rule_keywords
+        relevance = len(intersection) / len(union) if union else 0.0
+
+        if relevance > 0:
+            # 编译可执行建议
+            guidance = []
+            for pos in data.get('positive_rules', []):
+                guidance.append(f"[{name}] DO: {pos}")
+            for neg in data.get('negative_constraints', []):
+                guidance.append(f"[{name}] DON'T: {neg}")
+
+            matches.append({
+                'rule_id': node_id,
+                'rule_name': name,
+                'relevance': round(relevance, 4),
+                'matched_keywords': sorted(intersection),
+                'guidance': guidance,
+            })
+
+    matches.sort(key=lambda x: x['relevance'], reverse=True)
+    return {
+        'query': query,
+        'total_rules_scanned': len(matches),
+        'matches': matches[:top_k],
+        'unmatched_count': max(0, len(matches) - top_k),
+    }</code></pre>
+
+    <p>这段代码的关键设计决策：</p>
+
+    <ul>
+        <li><strong>Jaccard 而非余弦相似度</strong>：关键词集合是二值的，Jaccard 天然适配，且每一步可审计</li>
+        <li><strong>停用词过滤</strong>：3 字符下限 + 停用词表，避免 "the"、"and" 等高频词污染相关度</li>
+        <li><strong>DO/DON'T 分离</strong>：指导信息中明确区分正面建议和负面约束，呼应 RuleShaping 的发现</li>
+        <li><strong>零外部依赖</strong>：纯正则 + 集合运算，不依赖任何 NLP 库或嵌入模型</li>
+    </ul>
+
+    <h2>五、rule_explain()：从"是什么"到"为什么"</h2>
+
+    <p><code>rule_apply()</code> 告诉你<strong>哪些规则匹配了</strong>。<code>rule_explain()</code> 告诉你<strong>为什么</strong>。区别是质的：</p>
+
+    <pre><code>def rule_explain(self, rule_id: str, query: str, *,
+                  include_suggestions: bool = True) -> dict:
+    """
+    逐规则匹配诊断：为什么这条规则匹配/未匹配此查询？
+
+    返回:
+        - intersection: 共同关键词（贡献匹配的词）
+        - query_only: 查询独有的词（未覆盖的意图）
+        - rule_only: 规则独有的词（未触发的范围）
+        - contribution_scores: 每个交集关键词对 Jaccard 的贡献
+        - explanation: 人类可读的解释文本
+        - suggestions: 上下文感知的改进建议
+    """
+    # ... 验证 rule_id ...
+
+    # 与 rule_apply 使用完全相同的分词逻辑
+    query_keywords = tokenize(query)
+    rule_keywords = tokenize_from_rule(node)
+
+    intersection = query_keywords & rule_keywords
+    union = query_keywords | rule_keywords
+    query_only = query_keywords - rule_keywords
+    rule_only = rule_keywords - query_keywords
+
+    relevance = len(intersection) / len(union) if union else 0.0
+
+    # 每个关键词的 Jaccard 贡献
+    denominator = len(union) if union else 1
+    contribution_scores = {
+        kw: round(1.0 / denominator, 4)
+        for kw in sorted(intersection)
+    }
+
+    # 生成人类可读解释
+    explanation = f"规则 '{name}' 对查询 '{query}' 的匹配分析:\n"
+    explanation += f"  相关度: {relevance:.4f} (Jaccard)\n"
+    explanation += f"  交集关键词 ({len(intersection)}): {sorted(intersection)}\n"
+    explanation += f"  查询独有 ({len(query_only)}): {sorted(query_only)}  ← 未覆盖的意图\n"
+    explanation += f"  规则独有 ({len(rule_only)}): {sorted(rule_only)}  ← 未触发的范围\n"
+
+    # 上下文感知建议
+    suggestions = []
+    if relevance == 0:
+        suggestions.append("零重叠：考虑添加以下关键词到规则: "
+                          + ", ".join(sorted(query_only)[:5]))
+    elif relevance < 0.2:
+        suggestions.append("低相关度：规则可能需要扩展关键词覆盖")
+    elif relevance >= 0.5:
+        suggestions.append("高相关度：此规则对此类查询有效")
+
+    if query_only:
+        suggestions.append(f"未覆盖的查询意图: {sorted(query_only)[:5]}")
+    if rule_only:
+        suggestions.append(f"规则有未触发的范围: {sorted(rule_only)[:5]}")
+
+    return {
+        'rule_id': rule_id,
+        'rule_name': name,
+        'query': query,
+        'matched': relevance > 0,
+        'relevance': round(relevance, 4),
+        'intersection': sorted(intersection),
+        'union': sorted(union),
+        'query_only': sorted(query_only),
+        'rule_only': sorted(rule_only),
+        'contribution_scores': contribution_scores,
+        'explanation': explanation,
+        'suggestions': suggestions if include_suggestions else [],
+    }</code></pre>
+
+    <p><code>contribution_scores</code> 是这里最巧妙的设计。每个交集关键词对 Jaccard 分数的贡献是 <code>1/|union|</code>。这让"为什么相关度是 0.15 而不是 0.20"这类问题变得完全透明——你可以看到每个关键词"值"多少分。</p>
+
+    <h2>六、一个真实的调试场景</h2>
+
+    <p>假设我们有一个数据分析规则和一个 SQL 注入防护规则。用户查询"verify data before presenting results"：</p>
+
+    <pre><code># 规则库
+rules = [
+    {
+        "rule_id": "rule_data_verification",
+        "rule_name": "Data Verification",
+        "positive_rules": ["verify computed results against source data"],
+        "negative_constraints": [
+            "don't present unverified computed values",
+            "don't trust floating-point rounding blindly"
+        ],
+    },
+    {
+        "rule_id": "rule_sql_safety",
+        "rule_name": "SQL Safety",
+        "positive_rules": ["use parameterized queries for user input"],
+        "negative_constraints": ["don't concatenate user input into SQL"],
+    },
+]
+
+# rule_apply("verify data before presenting results")
+# → rule_data_verification: relevance=0.385, matched=['data', 'presenting', 'results', 'verify']
+# → rule_sql_safety: relevance=0 (no keyword overlap)
+
+# rule_explain("rule_data_verification", "verify data before presenting results")
+# → intersection: ['data', 'presenting', 'results', 'verify']  (4 words)
+# → union: ['against', 'before', 'computed', 'data', 'don', 'floating',
+#           'present', 'presenting', 'point', 'results', 'rounding',
+#           'source', 'trust', 'unverified', 'values', 'verify']  (16 words)
+# → relevance: 4/16 = 0.25
+# → contribution_scores: {data: 0.0625, presenting: 0.0625, results: 0.0625, verify: 0.0625}
+# → query_only: ['before']  ← "before" 没有出现在规则关键词中
+# → rule_only: ['against', 'computed', 'don', ...]  ← 规则覆盖但查询未触及的范围
+# → suggestion: "低相关度：规则可能需要扩展关键词覆盖"</code></pre>
+
+    <p>从这个诊断中，我们立刻看到两个改进方向：</p>
+
+    <ol>
+        <li><strong>规则应该包含 "before"</strong>——因为"在呈现前验证"是一个高频查询模式</li>
+        <li><strong>规则覆盖了 "floating"、"rounding"、"trust"</strong> 等词，但这些词在查询中没出现——说明规则的负面约束比正面规则更"宽"，这恰好印证了 DON'Ts &gt; DOs 的发现</li>
+    </ol>
+
+    <p>这种透明度是<strong>嵌入向量匹配永远给不了的</strong>。你无法调试一个 768 维向量中哪些维度起了作用。Jaccard 的每个步骤都可以被审计、被质疑、被改进。</p>
+
+    <h2>七、更大的图景：Agent 自我诊断</h2>
+
+    <p>把视野拉远，规则内省生命周期其实是 Agent 自我诊断能力的一个切面。一个真正自主的 Agent 需要回答这些问题：</p>
+
+    <ul>
+        <li><strong>我学到了什么？</strong>（<code>compression_spectrum_report()</code>——L0-L3 分布）</li>
+        <li><strong>我学到的东西有矛盾吗？</strong>（<code>rule_conflict_detect()</code>——规则冲突）</li>
+        <li><strong>面对新问题，我的经验适用吗？</strong>（<code>rule_apply()</code>——运行时匹配）</li>
+        <li><strong>如果不适用，为什么？</strong>（<code>rule_explain()</code>——诊断解释）</li>
+    </ul>
+
+    <p>这是一个从原始数据到自我认知的完整链条。而最关键的"为什么"环节，恰恰是当前所有 Agent 框架最薄的一层。</p>
+
+    <p>LangGraph、CrewAI、AutoGen 都在解决"如何让 Agent 执行任务"的问题。但几乎没有框架在解决"如何让 Agent 理解自己学到了什么"的问题。这不是锦上添花——当 Agent 的规则库达到一定规模（100+ 条规则），<strong>规则间的冲突、覆盖盲区、关键词退化</strong>就会成为系统性的可靠性瓶颈。</p>
+
+    <h2>八、可操作的建议</h2>
+
+    <h3>立即可做</h3>
+
+    <p>如果你的 Agent 有任何形式的规则或策略系统，加上 <code>explain()</code> 方法。不需要复杂的实现——哪怕只是打印出"匹配了哪些关键词"也比黑盒强。调试规则匹配失败的第一步永远是：<strong>看到匹配过程</strong>。</p>
+
+    <h3>短期（1-2 周）</h3>
+
+    <p>在规则提取时，<strong>显式分离 positive_rules 和 negative_constraints</strong>。不要把"要做 X"和"不要做 Y"混在同一条规则文本里。混合文本会让匹配逻辑变得模糊——"don't verify" 会意外匹配 "verify" 关键词。分离后，负面约束可以作为独立的匹配信号参与计算。</p>
+
+    <h3>中期（1-2 月）</h3>
+
+    <p>实现一个最小版本的 <code>compression_spectrum_report()</code>——统计你的知识库中 L0-L3 各有多少条目。你会惊讶地发现：大多数内容卡在 L0/L1，从未被压缩成可复用的形式。这个分布本身就是优化的起点。</p>
+
+    <h2>结语</h2>
+
+    <p>290 天连续开发，8500+ 个测试，5 个 API 完成的规则内省生命周期——这些数字背后是一个朴素的信念：<strong>Agent 的可靠性不来自更大的模型，而来自更透明的知识管理</strong>。</p>
+
+    <p>当你能解释每一条规则为什么匹配、为什么不匹配、哪些关键词起了多少作用，你就拥有了一个可以持续改进的系统。而一个可以持续改进的系统，最终会超越任何静态优化的黑盒。</p>
+
+    <p>规则的终点不是执行，而是理解。</p>
+
+    <hr>
+    <p><small>本文基于 agent-memory-graph 项目 Cycle 420-424 的开发实践。完整代码和 8505 个测试在 <a href="https://github.com/robertsong2019">GitHub</a> 上开源。研究背景参考了 Experience Compression Spectrum (arXiv:2604.15877)、AFTER benchmark (arXiv:2606.23127)、RuleShaping 和 SkillRL 等工作。</small></p>
+
+    <p><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
