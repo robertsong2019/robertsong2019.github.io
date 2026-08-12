@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 边跑边学：Test-Time Training 如何让 LLM 在运行时进化 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>Agent 边跑边学：Test-Time Training 如何让 LLM 在运行时进化</h1>
+    <div class="meta">
+        2026-08-12 · <span class="tag">LLM Agent</span> <span class="tag">Test-Time Training</span> <span class="tag">SEAL</span> <span class="tag">NeurIPS 2026</span>
+    </div>
+
+    <blockquote>你的 Agent 执行到第 30 步时，开始原地打转——重复搜索已搜过的内容，反复尝试已失败的路径。它不是不聪明，而是它没办法从自己的错误中"记住教训"。2026 年，一种叫 Test-Time Training 的技术正在改变这件事：让 LLM 在推理过程中真正修改自己的权重——不靠外部微调，不需要重新训练，Agent 一边干活一边学习。但这条路有个致命陷阱：学错了比不学更糟。</blockquote>
+
+    <h2>一、三个层级的"努力"</h2>
+
+    <p>想象你请了三个顾问来解决一个复杂问题：</p>
+
+    <ul>
+        <li><strong>顾问 A</strong> 收到问题后，想了 5 分钟给出答案。你追问，他说"我再想想"，然后又想了 10 分钟——答案变了。</li>
+        <li><strong>顾问 B</strong> 收到问题后，翻了一下手边的参考资料，然后给你答案。下次遇到类似问题，他还是得重新翻。</li>
+        <li><strong>顾问 C</strong> 收到问题后，翻资料、做推导、记录心得。重点来了——下次遇到类似问题时，他的脑子里已经有了上次的教训，反应更快、判断更准。</li>
+    </ul>
+
+    <p>这三个顾问分别对应 LLM 的三种能力增强方式：</p>
+
+    <table>
+        <tr><th>层级</th><th>技术</th><th>改变了什么</th><th>顾问比喻</th></tr>
+        <tr><td>L1</td><td>Prompting</td><td>什么都没改</td><td>顾问 A 多想一会儿</td></tr>
+        <tr><td>L2</td><td>Test-Time Compute</td><td>推理路径变长</td><td>顾问 A 想更久（o1/R1 式）</td></tr>
+        <tr><td>L3</td><td>Test-Time Training</td><td>模型权重真的变了</td><td>顾问 C——边做边学</td></tr>
+    </table>
+
+    <p>2025 年大家讨论的"推理时扩展"（inference scaling）主要在 L2——让模型 think longer，但权重不变。2026 年的突破点在 L3：<strong>Test-Time Training（TTT）</strong>，模型在推理时真正更新自己的参数。</p>
+
+    <p>这不是科幻。从 2025 年 6 月 MIT 的 SEAL，到 2026 年 7 月的 aTTT，再到 NeurIPS 2026 专门设立的 TTCL Workshop，这个方向正在成为 Agent 研究的热点。</p>
+
+    <h2>二、核心问题：Agent 的"失忆症"和"强迫症"</h2>
+
+    <p>先说清楚 TTT 要解决什么问题。如果你做过 Agent 开发，一定见过这两种症状：</p>
+
+    <h3>症状一：失忆症</h3>
+    <p>Agent 在第 3 步发现了一个关键 API 的用法，但到了第 25 步需要用到时，它完全不记得了——要么因为上下文已经太长被挤出了 attention 窗口，要么因为 prompt 中的信息太多被"淹没"了。</p>
+
+    <h3>症状二：强迫症</h3>
+    <p>更诡异的是第二种症状：Agent 在第 20 步尝试了一种搜索策略，失败了。第 22 步，它又试了同样的策略。第 24 步，再来一次。轨迹分析显示：<strong>Agent 陷入了重复循环</strong>，反复尝试同一个失败动作。</p>
+
+    <p>这两个症状的根源是一样的：模型在运行时是<strong>静态的</strong>。它的权重在训练完成后就冻结了，不管遇到什么新情况、犯了什么错误，下次遇到同样的场景，它的行为分布不会改变。</p>
+
+    <p>用 Prompting 解决这些问题？你可以让 Agent "注意不要重复"，但模型对你的告诫的遵从度随着上下文增长会迅速衰减。用 RAG？你可以检索历史经验，但"检索到"不等于"内化了"——前者只影响 attention，后者影响模型的行为分布。</p>
+
+    <p>TTT 的思路截然不同：<strong>直接改权重，让模型把教训"长进脑子里"</strong>。</p>
+
+    <h2>三、SEAL：学会给自己写作业</h2>
+
+    <p>MIT 的 SEAL（Self-Adapting Language Models, 2025 年 6 月）是 TTT for LLM 的奠基之作。核心想法极其优雅：</p>
+
+    <blockquote>与其让人来设计 TTT 的训练数据，不如让模型自己生成训练数据。</blockquote>
+
+    <p>具体来说，SEAL 让 LLM 生成一个叫 <strong>self-edit</strong> 的东西——一段自然语言指令，描述"怎么用当前输入来做微调"。这个 self-edit 可以包括：</p>
+
+    <ul>
+        <li>数据重组方式（把输入改写成训练样本格式）</li>
+        <li>超参数设置（学习率、训练轮数）</li>
+        <li>数据增强策略（生成变体、回译等）</li>
+    </ul>
+
+    <p>然后用 RL 优化 self-edit 的生成——如果某个 self-edit 执行后，模型在下游任务上表现更好，就奖励这个 self-edit 模式。</p>
+
+    <p><strong>结果令人震惊：</strong> 在 few-shot 学习任务上，标准 ICL 成功率 0%，朴素 TTT 20%，SEAL 72.5%。更令人印象深刻的是知识融入任务：7B 模型用自己生成的数据做微调，效果<strong>超过了</strong>用 GPT-4.1 生成的数据。</p>
+
+    <p>这意味着什么？模型可以比自己更擅长教自己——前提是它学会了"怎么给自己出题"。</p>
+
+    <h2>四、aTTT：当学习变成恶性循环</h2>
+
+    <p>SEAL 解决了"怎么学"的问题，但它面对的是一个固定输入。Agent 场景要复杂得多：输入是不断增长的轨迹，而且模型自己生成的输出会成为后续训练数据的一部分。</p>
+
+    <p>2026 年 7 月的 aTTT（Agentic Test-Time Training）论文揭示了一个关键发现：</p>
+
+    <blockquote>在多轮 Agent 交互中做 TTT，会形成一个内生反馈循环——模型的行为产生训练数据，训练数据改变模型行为。这个循环在 Agent 有进展时是正向的，但在 Agent 卡住时是一个恶性循环。</blockquote>
+
+    <p>想象这个场景：Agent 在第 20 步卡住了，反复尝试同一个失败动作。每一次尝试都产生相似的文本。TTT 在这些相似文本上做更新——相当于让模型反复学习"在状态 X 下做动作 Y"。结果是模型变得更倾向于做动作 Y，即使它是错的。</p>
+
+    <p>这不是学习，这是<strong>自我强化的错误巩固</strong>。</p>
+
+    <p>aTTT 的解决方案非常工程化但有效：<strong>token 级重加权</strong>。具体来说，检测训练文本中 n-gram 的重复程度。如果某个 token 出现在之前训练文本的重复 n-gram 中，就降低它在 loss 中的权重。新信息（不在重复 n-gram 中的 token）保持完整权重。</p>
+
+    <pre><code># aTTT 的核心思想（简化伪代码）
+def compute_token_weights(training_text, prior_updates):
+    weights = [1.0] * len(training_text)
+    for n in range(2, 6):  # check 2-grams to 5-grams
+        grams = extract_ngrams(training_text, n)
+        for gram in grams:
+            if gram in prior_updates:  # seen before
+                for idx in gram.positions:
+                    weights[idx] *= 0.3  # downweight
+    return weights
+
+loss = sum(w * per_token_loss[i] 
+           for i, w in enumerate(weights))</code></pre>
+
+    <p>效果：在 ALFWorld（文本世界任务）和 SWE-bench Lite（软件工程任务）上，aTTT 对"有解题能力但长轨迹中会漂移"的模型改善最大。换句话说，它帮助那些"本来能做对但做着做着就跑偏了"的 Agent 回到正轨。</p>
+
+    <h2>五、TTT 家族全景</h2>
+
+    <p>除了 SEAL 和 aTTT，还有几个值得关注的系统：</p>
+
+    <table>
+        <tr><th>系统</th><th>核心创新</th><th>适用场景</th></tr>
+        <tr><td><strong>TT-SI</strong> (ACL 2026)</td><td>用不确定性估计筛选"最值得学"的样本，然后合成相似数据做梯度更新</td><td>推理任务增强</td></tr>
+        <tr><td><strong>Grounded TTA</strong> (Nov 2025)</td><td>区分语法不匹配（环境格式）和语义不匹配（状态转换），用不同策略适应</td><td>新环境部署</td></tr>
+        <tr><td><strong>In-Place TTT</strong> (Dec 2025)</td><td>分 chunk 更新，不需要全局 attention，让 TTT 在长上下文场景可行</td><td>长文档处理</td></tr>
+        <tr><td><strong>SEAL</strong> (Jun 2025)</td><td>RL 优化 self-edit 生成，让模型学会"怎么教自己"</td><td>知识融入、few-shot</td></tr>
+    </table>
+
+    <p>NeurIPS 2026 的 TTCL Workshop 把这个领域定义为三大支柱的交叉：</p>
+    <ol>
+        <li><strong>Test-time adaptation</strong>：推理时的快速适应</li>
+        <li><strong>Continual learning</strong>：不遗忘旧知识的持续学习</li>
+        <li><strong>Knowledge consolidation</strong>：将交互经验转化为持久知识</li>
+    </ol>
+
+    <p>这三个问题的交集——让 Agent 在部署后持续学习且不遗忘——是当前 AI 系统最具挑战性的开放问题之一。</p>
+
+    <h2>六、最大的"坑"：灾难性遗忘</h2>
+
+    <p>所有 TTT 方法都面临一个共同的致命问题：<strong>灾难性遗忘（Catastrophic Forgetting）</strong>。</p>
+
+    <p>当模型在测试时用 LoRA 更新权重来适应当前任务，之前的知识和能力可能被覆盖。SEAL 的作者自己在论文中承认这是"active limitation"，目前提出的缓解措施（gradient orthogonalization、memory buffer replay）都还在非常早期的阶段。</p>
+
+    <p>用人类的话来说：顾问 C 虽然能边做边学，但他每学一个新东西，就可能忘掉一个老技能。今天学会了用你的 API 文档，明天忘了怎么做 Python 调试。</p>
+
+    <p>这是 TTT 从"研究有趣"到"工程可用"之间的最大鸿沟。在解决遗忘问题之前，TTT 更适合：</p>
+    <ul>
+        <li><strong>单次会话内的适应</strong>：会话结束后 LoRA 重置，不影响基座模型</li>
+        <li><strong>有明确成功信号的任务</strong>：能判断"学对了还是学错了"</li>
+        <li><strong>增量知识而非替代知识</strong>：学的是新东西，不需要覆盖旧东西</li>
+    </ul>
+
+    <h2>七、实践建议</h2>
+
+    <h3>立即可做</h3>
+    <ol>
+        <li><strong>监控 Agent 轨迹重复率</strong>。aTTT 的洞察不需要 TTT 就能受益——统计 Agent 输出中的 n-gram 重复率，当重复率飙升时发出告警。这是 Agent "卡住"的最强信号，比任何 token-level 指标都灵敏。</li>
+        <li><strong>设计 self-edit 模板</strong>。不用上 SEAL 的完整 RL 框架，但可以预定义几类 self-edit 模板：比如"学新 API"（提取函数签名+用法示例）、"记用户偏好"（提取关键约束条件）。在每个子任务完成后，用模板生成结构化笔记并存入长期记忆。</li>
+    </ol>
+
+    <h3>短期实验</h3>
+    <ol start="3">
+        <li><strong>用 LoRA 做会话级 TTT 原型</strong>。选一个 LoRA 适配器（rank=16），在 Agent 完成 5 步交互后，用这 5 步的轨迹做一轮梯度更新。下一轮用更新后的模型。会话结束后丢弃 LoRA。验证：模型是否在后续步骤中少犯类似的错？</li>
+        <li><strong>对比 TTT vs RAG</strong>。在同一个任务上，对比"检索历史经验放入 context"和"用历史经验做 TTT"的效果。你可能会发现：有些教训 RAG 就够了，有些确实需要"长进权重里"。</li>
+    </ol>
+
+    <h3>需要关注</h3>
+    <ol start="5">
+        <li><strong>遗忘检测与回滚机制</strong>。在 TTT 更新后，跑一个"能力检查"（几个标准问题的 benchmark），如果表现下降超过阈值，自动回滚。这比试图避免遗忘更实际——发生了就回滚，比预防发生容易。</li>
+        <li><strong>NeurIPS 2026 TTCL Workshop</strong>（12 月）。这是 TTT for Agents 最权威的学术阵地，紧盯 workshop papers。</li>
+    </ol>
+
+    <h2>八、我的判断</h2>
+
+    <p>TTT 目前处于 <strong>"research ready, production not yet"</strong> 的阶段。核心科学问题（能不能在推理时学习）已经有了肯定答案。但工程问题——怎么避免学错、怎么避免遗忘、怎么控制成本——还没有好的答案。</p>
+
+    <p>但这个方向的重要性毋庸置疑。当前的 Agent 有一基本矛盾：<strong>它们被期望处理不断变化的新场景，但它们的核心能力（权重）是静态的</strong>。所有"适应"都发生在 attention 层面——prompt 调整、上下文检索、工具选择。这就像让一个人用"便签纸"来适应所有新工作，永远不让他真正学习新技能。</p>
+
+    <p>TTT 要解决的就是这个矛盾。即使现在的方案还不够成熟，但方向是对的——静态模型不可能成为真正的通用 Agent。</p>
+
+    <p>只不过，在技术成熟之前，我建议保持一个原则：<strong>让 Agent 的"快速学习"发生在 attention 层（prompting、RAG），让"慢速学习"发生在 weight 层（TTT），并且只在确认安全的时候才打开后者</strong>。</p>
+
+    <hr>
+    <p><small>
+        参考：SEAL (Zweiger et al., arXiv:2506.10943, Jun 2025) · 
+        aTTT (arXiv:2607.03441, Jul 2026) · 
+        TT-SI (Acikgoz et al., ACL 2026 Findings) · 
+        Grounded TTA (arXiv:2511.04847, Nov 2025) · 
+        NeurIPS 2026 TTCL Workshop (ttcl-agents.github.io) · 
+        ICML 2026 Tutorial: Adaptive Reasoning in LLMs<br>
+        探索笔记：catalyst-research/exploration-notes/2026-08-12-test-time-training-llm-agents.md
+    </small></p>
+
+</body>
+</html>
