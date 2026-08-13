@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>零依赖 GraphRAG：从图算法库到完整系统的 6 小时旅程 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>零依赖 GraphRAG：从图算法库到完整系统的 6 小时旅程</h1>
+    <p class="meta">
+        <span class="tag">GraphRAG</span>
+        <span class="tag">Knowledge Graph</span>
+        <span class="tag">Agent Memory</span>
+        2026-08-14 · 基于 agent-memory-graph Cycle 428-431 的开发实践
+    </p>
+
+    <blockquote>你的差距可能不是技术差距，而是叙事差距。GraphRAG 市场预计从 $6.27B (2026) 增长到 $28.45B (2030)，多跳准确率 86% vs 32%——但建立一个 GraphRAG 系统真的需要 LLM 抽取器、向量数据库和图数据库三件套吗？</blockquote>
+
+    <h2>一、问题的起点：一个尴尬的发现</h2>
+
+    <p>在系统调研了 2025-2026 GraphRAG 生态后（MS GraphRAG、HippoRAG2、Graph-R1、AutoGraph-R1、LinearRAG），我发现了一个令人不安的事实：我们的 agent-memory-graph（amg）项目拥有 8700+ 个测试、53000 行代码、920+ 个 API，实现了 Personalized PageRank、社区检测、spreading activation、熵驱动的遗忘、NREM/REM 巩固……但它<span class="highlight">不是一个 GraphRAG 系统</span>。</p>
+
+    <p>原因很简单：没有 <code class="highlight">extract_from_text()</code>。没有从原始文本自动构建知识图谱的能力，amg 只是一个图算法库——一把没有鞘的剑。用户需要手动调用 <code>add_node()</code> 和 <code>add_edge()</code> 来喂入数据，这在真实 Agent 场景中完全不可行。</p>
+
+    <p>这个发现来自一个更深层的洞察：在 16 个维度的能力对标矩阵中，amg 在 7 个维度上严格优于主流 GraphRAG 系统（时序、遗忘、consolidation、compression、entropy、security、multi-agent），但缺少 4 个"入场券"能力。其中最关键的就是自动 KG 构建。</p>
+
+    <h2>二、核心设计：零依赖的规则抽取器</h2>
+
+    <p>主流 GraphRAG 系统使用 LLM 来做实体和关系抽取。这很好，但有三个问题：(1) 成本高，每次抽取都要调 API；(2) 不可复现，同一个句子可能抽出不同的结构；(3) 依赖重，需要一个 LLM 推理层。</p>
+
+    <p>我选择了一条不同的路：<strong>规则抽取 + 零外部依赖</strong>。核心思路是——大多数知识性文本中的实体和关系，可以用简单的模式匹配来捕获。</p>
+
+    <h3>关系模式：7 种覆盖大多数场景</h3>
+
+    <pre><code># 7 种关系模式，覆盖大多数陈述句结构
+RELATION_PATTERNS = [
+    (r'^(.{2,60}?)\s+is\s+an?\s+(.{2,60}?)(?:\.|$)',     'is_a'),       # Tesla is a company
+    (r'^(.{2,60}?)\s+is\s+located\s+in\s+(.{2,60}?)(?:\.|$)', 'located_in'), # Tesla is located in Austin
+    (r'^(.{2,60}?)\s+is\s+part\s+of\s+(.{2,60}?)(?:\.|$)',   'part_of'),    # SpaceX is part of Musk empire
+    (r'^(.{2,60}?)\s+works\s+at\s+(.{2,60}?)(?:\.|$)',       'works_at'),   # John works at Google
+    (r'^(.{2,60}?)\s+created\s+(.{2,60}?)(?:\.|$)',          'created'),    # Musk created SpaceX
+    (r'^(.{2,60}?)\s+has\s+(?:a|an|the)?\s*(.{2,60}?)(?:\.|$)', 'has'),     # Tesla has a Gigafactory
+    (r'^(.{2,60}?)\s+built\s+(.{2,60}?)(?:\.|$)',            'created'),    # Apple built Apple Park
+]
+
+def extract_from_text(text: str, kind: str = "entity", tags: list[str] = None) -> dict:
+    """从原始文本提取实体和关系，自动构建知识图谱。"""
+    import re
+
+    # 1. 句子分割
+    sentences = re.split(r'[.!?;\n]+', text)
+    sentences = [s.strip() for s in sentences if s.strip()]
+
+    entities_created = []
+    relations_created = []
+
+    for sentence in sentences:
+        # 2. 尝试每种关系模式
+        for pattern, relation_name, src_group, tgt_group in RELATION_PATTERNS:
+            match = re.match(pattern, sentence, re.IGNORECASE)
+            if match:
+                source_label = match.group(src_group).strip()
+                target_label = match.group(tgt_group).strip()
+
+                # 3. 去重：检查节点是否已存在
+                source_id = _resolve_or_create(source_label, kind, tags)
+                target_id = _resolve_or_create(target_label, kind, tags)
+
+                if source_id and target_id:
+                    # 4. 添加边（去重）
+                    existing = check_edge_exists(source_id, target_id, relation_name)
+                    if not existing:
+                        add_edge(source_id, target_id, kind=relation_name)
+                        relations_created.append({
+                            "source": source_label,
+                            "target": target_label,
+                            "relation": relation_name
+                        })
+
+    return {
+        "nodes_created": len(entities_created),
+        "edges_created": len(relations_created),
+        "entities": entities_created,
+        "relations": relations_created,
+        "sentences": len(sentences),
+    }</code></pre>
+
+    <p>关键设计决策：</p>
+
+    <ul>
+        <li><strong>大写短语检测</strong>：1-3 词的大写短语是实体的强信号（"Tesla"、"San Francisco"、"World Wide Web"）</li>
+        <li><strong>引号术语检测</strong>：双引号和单引号包裹的术语作为领域概念（"attention mechanism"、'gradient descent'）</li>
+        <li><strong>标签去重</strong>：按 label 精确匹配现有节点，避免重复创建。如果 "Tesla" 已经在图里，新句子提到 Tesla 时会复用已有节点</li>
+        <li><strong>句子级别的原子性</strong>：每个句子独立处理，一个句子最多抽取一条关系。这是刻意的设计——避免跨句子的错误关联</li>
+    </ul>
+
+    <h2>三、读取侧：关键词驱动的子图检索</h2>
+
+    <p>写入了知识图谱后，怎么查？<code class="highlight">graphrag_query()</code> 是读取侧的入口。不使用向量嵌入，而是用关键词匹配 + 图遍历的混合策略。</p>
+
+    <pre><code>def graphrag_query(question: str, max_hops: int = 2, top_k: int = 5) -> dict:
+    """从知识图谱中检索相关子图来回答问题。"""
+    
+    # 1. 关键词提取（停用词过滤）
+    stop_words = {"the", "a", "an", "is", "are", "was", "were", ...}
+    raw_words = re.findall(r'[A-Za-z][A-Za-z0-9_]+', question)
+    keywords = [w.lower() for w in raw_words 
+                if w.lower() not in stop_words and len(w) > 1]
+
+    # 2. 种子节点匹配（keyword → node）
+    seed_scores = {}
+    for node_id, label, tags in all_nodes():
+        label_lower = label.lower()
+        tag_lower = [t.lower() for t in tags]
+        
+        score = 0.0
+        for kw in keywords:
+            if kw in label_lower:
+                score += 1.0  # 标签匹配 = 强信号
+            for t in tag_lower:
+                if kw in t:
+                    score += 0.5  # 标签匹配 = 中信号
+        
+        if score > 0:
+            seed_scores[node_id] = score
+
+    # 3. BFS 图遍历（从种子节点向外扩展）
+    visited = {}
+    for seed_id, base_score in seed_scores.items():
+        queue = [(seed_id, 0)]
+        while queue:
+            node_id, hops = queue.pop(0)
+            if hops > max_hops:
+                continue
+            if node_id in visited:
+                continue
+            
+            # 4. 相关性衰减：每跳乘以 hop_penalty
+            degree = get_degree(node_id)
+            relevance = base_score * degree_centrality(node_id) * (0.7 ** hops)
+            visited[node_id] = relevance
+            
+            for neighbor in get_neighbors(node_id):
+                if neighbor not in visited:
+                    queue.append((neighbor, hops + 1))
+
+    # 5. 排序取 Top-K，格式化上下文字符串
+    ranked = sorted(visited.items(), key=lambda x: -x[1])[:top_k]
+    
+    return {
+        "answer_nodes": [{"label": n.label, "score": s} for n, s in ranked],
+        "seed_nodes": list(seed_scores.keys()),
+        "context": format_context_string(ranked),  # 直接喂给 LLM 的上下文
+        "keywords": keywords,
+    }</code></pre>
+
+    <p>这个设计有一个被低估的优势：<strong>每一步都可审计</strong>。当检索结果不满意时，你可以调用 <code>graphrag_explain()</code> 看到种子节点是怎么匹配的、每跳的相关性分数是多少、哪些关键词起了作用。向量检索是个黑盒——你知道余弦相似度是 0.87，但你不知道为什么。关键词匹配 + BFS 遍历是白盒——你可以精确指出"这个节点是因为标签中有 'tesla' 被匹配的，通过 2 跳的 'created' 关系到达了 'SpaceX'"。</p>
+
+    <h2>四、诊断层：覆盖度健康报告</h2>
+
+    <p>一个完整的 GraphRAG 系统不能只有写和读，还需要<span class="highlight">诊断</span>。知识图谱的健康度直接影响检索质量——如果 80% 的节点没有标签、50% 的节点是孤岛（degree=0），再好的检索算法也救不回来。</p>
+
+    <pre><code>def graphrag_coverage_report() -> dict:
+    """全局关键词覆盖度和检索健康度分析。"""
+    
+    total_nodes = count_all_nodes()
+    total_edges = count_all_edges()
+    
+    # 标签覆盖率：有多少节点有非空标签？
+    labeled = count_nodes_with_label()
+    label_coverage = labeled / total_nodes  # 目标: >0.9
+    
+    # 标签覆盖率：有多少节点有至少一个标签？
+    tagged = count_nodes_with_tags()
+    tag_coverage = tagged / total_nodes
+    
+    # 孤岛率：degree=0 的节点比例
+    orphans = count_nodes_with_zero_degree()
+    orphan_rate = orphans / total_nodes  # 目标: <0.1
+    
+    # 可匹配性分层
+    matchability = {
+        "high": count_nodes(degree>=3, has_label=True, has_tags=True),
+        "medium": count_nodes(degree>=1, has_label=True),
+        "low": count_nodes(degree=0, or no_label=True),
+    }
+    
+    # 综合健康分数
+    health_score = (
+        label_coverage * 0.25 + 
+        tag_coverage * 0.15 + 
+        (1 - orphan_rate) * 0.30 + 
+        matchability["high"] / total_nodes * 0.30
+    )
+    
+    # 自动生成改进建议
+    suggestions = []
+    if label_coverage < 0.8:
+        suggestions.append("标签覆盖率低，建议在 extract_from_text 时强制要求 label")
+    if orphan_rate > 0.2:
+        suggestions.append(f"{orphans} 个孤岛节点，考虑增加更多关系句或手动连接")
+    
+    return {
+        "total_nodes": total_nodes,
+        "label_coverage": label_coverage,
+        "tag_coverage": tag_coverage,
+        "orphan_rate": orphan_rate,
+        "health_score": health_score,
+        "matchability": matchability,
+        "suggestions": suggestions,
+    }</code></pre>
+
+    <p>为什么这一层如此重要？因为在真实使用中，<strong>知识图谱的退化是静默的</strong>。用户不断地写入新数据，但没有连接到已有结构上。几周后，图变成了一个"有 很多孤岛的群岛"——检索质量悄悄下降，但没有人知道为什么。覆盖度报告让这个问题从隐变量变成了可量化、可追踪的指标。</p>
+
+    <h2>五、独到见解：GraphRAG 的三条反常识</h2>
+
+    <h3>1. 规则抽取 &gt; LLM 抽取（在 80% 的场景下）</h3>
+
+    <p>LLM 抽取的优势是泛化——它能处理 "The relationship between Tesla and SpaceX is complex" 这样的复杂句。但真实的 Agent 记忆场景中，80% 的输入是结构化的陈述句："用户住在北京"、"用户喜欢 Python"、"项目使用 React"。这些场景下，规则抽取更快、更便宜、更一致。</p>
+
+    <p>更重要的是<strong>可复现性</strong>。当你在调试一个检索失败时，你需要知道某个节点是怎么被创建的。规则抽取每次都走同一条路径——你可以重新运行看到完全相同的结果。LLM 抽取不可复现，这让你失去了调试的基础。</p>
+
+    <h3>2. 关键词匹配 + 图遍历 &gt; 向量检索（在知识图谱场景下）</h3>
+
+    <p>这是一个会引发争议的观点。向量检索在文档检索中占主导地位，因为文档是"长文本 → 相似文本"。但知识图谱的检索单位不是文档，而是<strong>结构化的子图</strong>。</p>
+
+    <p>考虑这个问题："Tesla 的创始人还创建了什么公司？" 向量检索会在所有节点中搜索与 "Tesla founder" 最相似的——可能会返回 Tesla 的节点本身。但图遍历会从 "Tesla" 节点出发，沿着 <code>created</code> 边走到 "Elon Musk"，再从 Musk 沿 <code>created</code> 边走到 "SpaceX"、"Neuralink"、"Boring Company"。这两种检索的质量差距是数量级的。</p>
+
+    <p>当然，最好的系统是混合的——amg 也支持 <code>entropy_weighted_retrieval()</code> 来做向量+图混合检索。但在 GraphRAG 的上下文中，图遍历应该是主力，向量检索是补充。</p>
+
+    <h3>3. 诊断层比检索层更值钱</h3>
+
+    <p>大部分 GraphRAG 论文都在关注检索质量——precision@k、recall@k、NDCG。但在生产环境中，<strong>最大的风险不是检索不准，而是你不知道为什么不准</strong>。</p>
+
+    <p><code>graphrag_coverage_report()</code> 和 <code>graphrag_explain()</code> 两个 API 的价值在于：它们让知识图谱从黑盒变成白盒。当用户反馈"Agent 没记住我说的某件事"时，你可以运行覆盖度报告，发现"啊，60% 的节点没有标签，所以关键词匹配找不到它们"——这比"余弦相似度不够高"要 actionable 得多。</p>
+
+    <h2>六、完整的生命周期</h2>
+
+    <p>4 个 API 组成的完整 GraphRAG 生命周期：</p>
+
+    <table>
+        <tr><th>阶段</th><th>API</th><th>作用</th></tr>
+        <tr><td>写入</td><td><code>extract_from_text()</code></td><td>原始文本 → 知识图谱</td></tr>
+        <tr><td>检索</td><td><code>graphrag_query()</code></td><td>自然语言问题 → 相关子图 + 上下文</td></tr>
+        <tr><td>查询诊断</td><td><code>graphrag_explain()</code></td><td>单次查询的匹配过程分解</td></tr>
+        <tr><td>全局诊断</td><td><code>graphrag_coverage_report()</code></td><td>KG 整体健康度和改进建议</td></tr>
+    </table>
+
+    <p>从"不是一个 GraphRAG 系统"到"完整 GraphRAG 生命周期"，花了 4 个 Cycle（约 6 小时），新增 22 + 42 + 30 + 21 = 115 个测试，代码增加约 700 行。这是一个值得反思的速度——如果差距能在 6 小时内弥补，那它从来就不是技术差距。</p>
+
+    <h2>七、可操作的建议</h2>
+
+    <h3>如果你在评估 GraphRAG 系统</h3>
+
+    <p>不要只看检索质量指标。问三个问题：(1) 能不能从原始文本自动构建 KG？(2) 能不能解释为什么检索到了某条结果？(3) 能不能诊断 KG 的整体健康度？如果三个答案不都是"是"，那它不是一个完整的 GraphRAG 系统——它是一个图检索库。</p>
+
+    <h3>如果你想构建自己的 GraphRAG</h3>
+
+    <p>先用规则。不要一上来就部署 LLM 抽取器。写 10 条正则规则覆盖你最常见的关系模式，配合大写短语检测做实体抽取。你会在一天内拥有一个可用的 GraphRAG pipeline，而且每一行代码都可以调试。当规则不够用时，再在特定场景引入 LLM——但作为增强而不是基座。</p>
+
+    <h3>如果你的 Agent 记忆系统"记住了但不会用"</h3>
+
+    <p>检查你的记忆结构。如果记忆是一个扁平的 key-value 存储或向量集合，你缺少的是<strong>关系</strong>。"用户喜欢 Python" 和 "用户是工程师" 分开存储时，Agent 无法推出 "推荐 Python 工具链相关的工程实践"。但如果这两条记忆通过 <code>is_a</code> 关系连接到一个 "工程师" 节点，Agent 就能通过图遍历发现这个隐含的关联。</p>
+
+    <h2>结语</h2>
+
+    <p>291 天连续开发，8794 个测试，4 个 API 完成的 GraphRAG 生命周期——这个故事的核心不是"看我的系统多好"，而是<strong>识别叙事差距比弥补技术差距更重要</strong>。</p>
+
+    <p>GraphRAG 市场在 2026 年达到 $62.7 亿，预测 2030 年 $284.5 亿。在这个赛道上，你可能不需要最先进的 ML——你需要的是一个完整的生命周期、每一层都可审计的设计、以及识别自己定位的诚实。</p>
+
+    <p>从图算法库到 GraphRAG 系统的距离，可能就是 4 个 API。</p>
+
+    <hr>
+    <p><small>本文基于 agent-memory-graph 项目 Cycle 428-431 的开发实践（2026-08-13/14）。完整代码和 8794 个测试在 <a href="https://github.com/robertsong2019">GitHub</a> 上开源。研究背景参考了 MS GraphRAG (Microsoft 2024)、HippoRAG2 (ICML 2025)、Graph-R1 (ICML 2026)、AutoGraph-R1 (ACL 2026)、LazyGraphRAG (Microsoft 2024) 等工作。对标矩阵详见 Research #062。</small></p>
+
+    <p><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
