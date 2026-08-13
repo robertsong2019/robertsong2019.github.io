@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tokenizer 分词器 · 高中生也能懂的 AI 小课堂</title>
+<style>
+:root{
+  --bg:#f6f5fc; --card:#ffffff; --ink:#20233f; --muted:#667085; --line:#e7e6f2;
+  --primary:#4f46e5; --primary-soft:#eef0fe; --violet:#7c3aed;
+  --teal:#0d9488; --teal-soft:#e6f7f4; --coral:#ea580c; --coral-soft:#fdeee4;
+  --amber:#b45309; --amber-soft:#fdf3e0; --green:#15803d; --green-soft:#e7f6ec; --red:#b91c1c; --red-soft:#fdeaea;
+  --radius:18px; --shadow:0 10px 30px rgba(79,70,229,.08);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:16px}
+.wrap{max-width:860px;margin:0 auto;padding:0 22px}
+
+/* ---------- Hero ---------- */
+.hero{background:linear-gradient(135deg,#312e81 0%,#4f46e5 55%,#7c3aed 100%);color:#fff;padding:72px 0 64px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-80px;top:-80px;width:320px;height:320px;border-radius:50%;background:rgba(255,255,255,.07)}
+.hero::before{content:"";position:absolute;left:-60px;bottom:-100px;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.05)}
+.badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);padding:6px 14px;border-radius:999px;font-size:13px;letter-spacing:1px;margin-bottom:20px}
+.hero h1{font-size:clamp(30px,5vw,44px);line-height:1.25;font-weight:800;margin-bottom:18px}
+.hero h1 em{font-style:normal;background:linear-gradient(90deg,#fbbf24,#f472b6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p.lead{font-size:17px;opacity:.92;max-width:640px}
+.hero .pill-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);padding:7px 14px;border-radius:999px;font-size:13.5px}
+.pill b{color:#fde68a}
+.scroll-hint{margin-top:30px;font-size:13px;opacity:.75;animation:bob 2s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+
+/* ---------- Section ---------- */
+section{padding:64px 0 8px}
+.s-head{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.s-num{flex:none;width:42px;height:42px;border-radius:12px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+.s-head h2{font-size:25px;font-weight:800}
+.s-sub{color:var(--muted);font-size:14.5px;margin-bottom:26px;padding-left:56px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:26px 28px;margin-bottom:18px}
+.card h3{font-size:18px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.card h3 .dot{width:9px;height:9px;border-radius:50%;background:var(--primary);flex:none}
+.card p{margin-bottom:12px}
+.card p:last-child{margin-bottom:0}
+.hl{background:var(--primary-soft);border-radius:6px;padding:1px 7px;font-weight:600;color:var(--primary)}
+.hl-teal{background:var(--teal-soft);color:var(--teal)}
+.hl-coral{background:var(--coral-soft);color:var(--coral)}
+.mono{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:.92em}
+code{background:#f1f0fb;border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:.9em;color:#4338ca}
+.note{background:var(--amber-soft);border:1px solid #f3dfb4;border-radius:12px;padding:14px 18px;font-size:14px;color:#7c4a03;margin-top:16px}
+.note b{color:#92400e}
+
+/* ---------- Flow diagram ---------- */
+.flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:16px 0 6px;justify-content:center}
+.fbox{background:var(--primary-soft);border:1.5px solid #c7cbfa;border-radius:12px;padding:12px 16px;text-align:center;min-width:92px}
+.fbox b{display:block;font-size:15px;color:#3730a3}
+.fbox span{font-size:12.5px;color:#6d6fb0}
+.farr{color:#a5a3c9;font-size:20px;font-weight:700}
+
+/* ---------- Comparison table ---------- */
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin-top:8px}
+th{background:#f3f2fc;color:#3730a3;text-align:left;padding:11px 14px;font-weight:700;border-bottom:2px solid #dcd9f5}
+td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.ok{color:var(--green);font-weight:600}
+td.bad{color:var(--red)}
+
+/* ---------- Chips / demo ---------- */
+.chip-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:14px 0}
+.chip{display:inline-flex;align-items:center;justify-content:center;border-radius:9px;padding:5px 11px;font-size:14px;font-weight:600;color:#1f2340;border:1px solid rgba(0,0,0,.06)}
+.chip.sep{background:transparent;border:none;color:#b3b1d0;font-size:12px;padding:0 2px}
+.c0{background:#c7d2fe}.c1{background:#fbcfe8}.c2{background:#a7f3d0}.c3{background:#fde68a}.c4{background:#bfdbfe}.c5{background:#ddd6fe}.c6{background:#fed7aa}.c7{background:#a5f3fc}
+.chip.new{outline:2px solid var(--coral);outline-offset:1px}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--primary);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14.5px;font-weight:600;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.btn:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(79,70,229,.3)}
+.btn.ghost{background:#fff;color:var(--primary);border:1.5px solid #c7cbfa}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 6px}
+.merge-log{background:#faf9ff;border:1px dashed #c7cbfa;border-radius:12px;padding:12px 16px;font-size:13.5px;color:#4c4a7a;min-height:24px;margin-top:10px}
+.merge-log b{color:var(--coral)}
+
+/* ---------- Token counter ---------- */
+.counter-box{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
+.stat{flex:1;min-width:130px;background:#faf9ff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;text-align:center}
+.stat b{display:block;font-size:26px;color:var(--primary);font-weight:800}
+.stat span{font-size:12.5px;color:var(--muted)}
+textarea{width:100%;border:1.5px solid #d8d6ee;border-radius:12px;padding:14px 16px;font-size:15px;font-family:inherit;resize:vertical;min-height:90px;outline:none;transition:border-color .15s}
+textarea:focus{border-color:var(--primary)}
+
+/* ---------- Quiz ---------- */
+.q{margin-bottom:14px}
+.q-title{font-weight:700;font-size:15.5px;margin-bottom:10px;display:flex;gap:8px;align-items:baseline}
+.q-title .qn{color:var(--primary);font-weight:800}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:block;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:11px 16px;cursor:pointer;transition:border-color .15s,background .15s;font-size:14.5px}
+.opt:hover{border-color:#a5a3f5;background:#fafaff}
+.opt.right{border-color:var(--green);background:var(--green-soft);color:var(--green);font-weight:600}
+.opt.wrong{border-color:var(--red);background:var(--red-soft);color:var(--red)}
+.q-explain{display:none;margin-top:10px;padding:12px 16px;border-radius:11px;font-size:14px;background:#f3f2fc;color:#4c4a7a}
+.q-explain.show{display:block}
+
+/* ---------- Summary ---------- */
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:8px}
+.sm{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+.sm .ico{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:19px;margin-bottom:10px}
+.sm b{display:block;font-size:15px;margin-bottom:6px}
+.sm p{font-size:13.5px;color:var(--muted);margin:0;line-height:1.7}
+footer{background:#1e1b4b;color:#c7c9f0;padding:34px 0;margin-top:72px;text-align:center;font-size:13.5px}
+footer b{color:#fde68a}
+
+/* ---------- Reveal animation ---------- */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none}}
+@media(max-width:640px){
+  .s-sub{padding-left:0}
+  .card{padding:20px 18px}
+  .hero{padding:52px 0 46px}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="badge">AI 小课堂 · 第 1 课</span>
+    <h1>Tokenizer 分词器:<br>AI 是怎么<em>"读懂"</em>你说的话的?</h1>
+    <p class="lead">一句话版本:AI 其实是个"文盲+数字控"——它不认识文字,只认识数字。<br>分词器(tokenizer)就是那个把文字切成小积木、再翻译成数字的"翻译官"。</p>
+    <div class="pill-row">
+      <span class="pill">你会学到:<b>token 是什么</b></span>
+      <span class="pill"><b>BPE 怎么切词</b></span>
+      <span class="pill">中文为什么<b>更费 token</b></span>
+      <span class="pill">和你<b>有什么关系</b></span>
+    </div>
+    <div class="scroll-hint">往下翻,开始上课 ↓</div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ============ 第 1 节 ============ -->
+  <section id="s1">
+    <div class="s-head reveal"><div class="s-num">1</div><h2>先搞懂一件事:AI 不是"看不懂",是"根本不看字"</h2></div>
+    <p class="s-sub reveal">我们人类看书靠眼睛,AI 看东西靠的是一长串数字。</p>
+
+    <div class="card reveal">
+      <p>你发消息给 ChatGPT,它<strong>并不会"读"你的文字</strong>。它把文字切成一块块小积木,每块积木对应一个编号,然后只处理这一串编号。整个过程是这样的:</p>
+      <div class="flow">
+        <div class="fbox"><b>你说的文字</b><span>"你好,世界"</span></div>
+        <div class="farr">→</div>
+        <div class="fbox"><b>切成积木</b><span>你 | 好 | 世 | 界</span></div>
+        <div class="farr">→</div>
+        <div class="fbox"><b>翻译成编号</b><span>[421, 88, 132, 905]</span></div>
+        <div class="farr">→</div>
+        <div class="fbox"><b>变成向量</b><span>一串小数</span></div>
+      </div>
+      <div class="note"><b>打个比方:</b>就像摩尔斯电码——中文汉字是"电报",但电报机只认"点"和"划"。分词器就是负责把汉字翻译成"点划"的那个报务员。</div>
+    </div>
+  </section>
+
+  <!-- ============ 第 2 节 ============ -->
+  <section id="s2">
+    <div class="s-head reveal"><div class="s-num">2</div><h2>什么是 token?AI 眼中的"语言积木"</h2></div>
+    <p class="s-sub reveal">token(读作"托肯"),可以理解成 AI 世界里最小的语言积木——一个积木对应一个编号。</p>
+
+    <div class="card reveal">
+      <h3><span class="dot"></span>英文:一个单词不一定是一个 token</h3>
+      <p>像 <code>unhappiness</code>(不开心)这种长词,AI 不会整个吞下去,而是拆成几块积木:</p>
+      <div class="chip-row">
+        <span class="chip c0">un</span><span class="chip c1">happi</span><span class="chip c2">ness</span>
+      </div>
+      <p>拆完之后,每块积木查"词典"(专业叫<strong>词表 vocabulary</strong>),找到自己的编号。这三块积木分别对应 <span class="hl mono">[119, 531, 312]</span>。</p>
+    </div>
+
+    <div class="card reveal">
+      <h3><span class="dot" style="background:var(--teal)"></span>中文:一个字基本就是一个 token</h3>
+      <p>像"智能体"这种词,常见的做法是一个字一块积木:</p>
+      <div class="chip-row">
+        <span class="chip c3">智</span><span class="chip c4">能</span><span class="chip c5">体</span>
+      </div>
+      <p>所以中文的 token 数 ≈ 字数。这也是后面要说的重要事实:<strong class="hl-coral">同样意思,中文比英文更"费 token"</strong>。</p>
+    </div>
+
+    <div class="card reveal">
+      <h3><span class="dot" style="background:var(--coral)"></span>词表是什么?</h3>
+      <p>词表就是 AI 的"积木收藏夹",里面存着它认识的所有积木和它们的编号,常见的有 <code>3.2 万</code> 到 <code>20 万</code> 块。相当于一本新华字典——只不过它查的不是"字",而是"积木 + 编号"。</p>
+      <div class="note"><b>彩蛋:</b>词表里还有一些"特殊积木",比如 &lt;end&gt;(表示话说完了)、&lt;pad&gt;(占位对齐)。模型输出里的怪异符号,很多就是它们。</div>
+    </div>
+  </section>
+
+  <!-- ============ 第 3 节 ============ -->
+  <section id="s3">
+    <div class="s-head reveal"><div class="s-num">3</div><h2>为什么要切?三种切法大比拼</h2></div>
+    <p class="s-sub reveal">也许你会问:为什么不整句话一个编号?为什么不一个字一个编号?答案藏在下面这张表里。</p>
+
+    <div class="card reveal">
+      <table>
+        <tr><th style="width:110px">切法</th><th>原理</th><th>优点</th><th>缺点</th></tr>
+        <tr>
+          <td><b>按词切</b><br><span class="mono" style="font-size:12.5px">unhappiness → 1 块</span></td>
+          <td>整个单词一块积木</td>
+          <td class="ok">语义完整</td>
+          <td class="bad">词表爆炸;遇到没见过的生词直接"懵圈"</td>
+        </tr>
+        <tr>
+          <td><b>按字切</b><br><span class="mono" style="font-size:12.5px">unhappiness → 11 块</span></td>
+          <td>每个字母/字一块</td>
+          <td class="ok">什么词都能拼出来</td>
+          <td class="bad">句子被切得超长,AI 的"记忆容量"(上下文窗口)很快被占满</td>
+        </tr>
+        <tr>
+          <td><b>按子词切</b><br><span class="mono" style="font-size:12.5px">unhappiness → 3 块</span></td>
+          <td>常用词整块保留,生僻词拆小块</td>
+          <td class="ok">两头的好处都要!</td>
+          <td class="ok">实现稍复杂(BPE 算法)</td>
+        </tr>
+      </table>
+      <div class="note" style="margin-top:16px"><b>结论:</b>主流大模型都选第三种——"子词切分",具体算法就是下一节的主角 <b>BPE</b>。</div>
+    </div>
+  </section>
+
+  <!-- ============ 第 4 节 ============ -->
+  <section id="s4">
+    <div class="s-head reveal"><div class="s-num">4</div><h2>BPE:AI 是怎么"学会"切词的?</h2></div>
+    <p class="s-sub reveal">BPE(Byte Pair Encoding,字节对编码)的思路超级朴素,只有一句话:<strong>反复把"最常一起出现"的两个小块,合并成一大块。</strong></p>
+
+    <div class="card reveal">
+      <h3><span class="dot" style="background:var(--amber)"></span>试试看:亲手当一次 BPE 训练师</h3>
+      <p>默认文本是英文单词 <code>low lower lowest</code>。一开始每个字母都是一块积木。请点击"合并一次"——AI 每次都会找出<strong>相邻且出现次数最多</strong>的一对积木,把它们粘在一起。</p>
+
+      <div class="btn-row">
+        <button class="btn" id="btnMerge">合并一次</button>
+        <button class="btn ghost" id="btnAuto">自动演示</button>
+        <button class="btn ghost" id="btnReset">重置</button>
+      </div>
+
+      <div class="chip-row" id="bpeSeq" style="min-height:44px"></div>
+
+      <div class="merge-log" id="mergeLog">合并记录:还没开始,点一下"合并一次"试试。</div>
+      <div class="note"><b>看懂了没?</b>合并到最后,<code>low</code> 直接变成一块大积木,<code>lower</code> 拆成 <code>low + er</code>,<code>lowest</code> 拆成 <code>low + est</code>——常用部分被"记住",生僻部分被"拼出来"。这就是 BPE 的全部秘密。</div>
+    </div>
+  </section>
+
+  <!-- ============ 第 5 节 ============ -->
+  <section id="s5">
+    <div class="s-head reveal"><div class="s-num">5</div><h2>中英文,谁更"费 token"?</h2></div>
+    <p class="s-sub reveal">下面这个工具,帮你直观感受"一句话值多少 token"。来打几个字试试。</p>
+
+    <div class="card reveal">
+      <textarea id="counterInput" placeholder="在这里输入任意文字,中英文都行…&#10;例如:今天天气真好! 或者 I love machine learning!">今天天气真好!I love machine learning!</textarea>
+      <div class="counter-box">
+        <div class="stat"><b id="stChars">0</b><span>字符数</span></div>
+        <div class="stat"><b id="stTokens">0</b><span>估算 token 数</span></div>
+        <div class="stat"><b id="stCost">¥0.00</b><span>参考费用(约 ¥3 / 百万 token)</span></div>
+      </div>
+      <div class="chip-row" id="counterChips" style="min-height:40px"></div>
+      <div class="note"><b>演示说明:</b>这里用的是简化估算——中文按"1 字 = 1 token",英文按"约 4 字符 = 1 token"。真实模型的 tokenizer 更精细,但量级差不多。你可以对比一下:同样一句话,英文版 token 是不是明显更少?</div>
+    </div>
+  </section>
+
+  <!-- ============ 第 6 节 ============ -->
+  <section id="s6">
+    <div class="s-head reveal"><div class="s-num">6</div><h2>知道这个,对你有什么用?</h2></div>
+    <p class="s-sub reveal">别觉得这是纯理论——token 直接决定三件跟你钱包和体验有关的事。</p>
+
+    <div class="summary-grid">
+      <div class="sm reveal">
+        <div class="ico" style="background:var(--coral-soft)">💰</div>
+        <b>1. 花钱按 token 算</b>
+        <p>大模型 API 按 token 计费。同样意思,中文文本比英文贵好几倍(因为 token 多)。发消息前想想:能不能说短点?</p>
+      </div>
+      <div class="sm reveal">
+        <div class="ico" style="background:var(--primary-soft)">🧠</div>
+        <b>2. 上下文窗口有上限</b>
+        <p>AI 一次能"记住"的内容(token 数)是有限的。中文 1 万字 ≈ 1 万 token,很快就把窗口塞满了,AI 就会"忘了"开头。</p>
+      </div>
+      <div class="sm reveal">
+        <div class="ico" style="background:var(--teal-soft)">⚡</div>
+        <b>3. 生成速度 &amp; 质量</b>
+        <p>AI 是"一个字一个字"(一个 token 一个 token)往外蹦的。token 越多,生成越慢、越贵。拆法不对,还可能答非所问。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 第 7 节 ============ -->
+  <section id="s7">
+    <div class="s-head reveal"><div class="s-num">7</div><h2>灵魂总结 + 小测验</h2></div>
+    <p class="s-sub reveal">学完啦!用 4 道题检验一下(点选项看答案)。</p>
+
+    <div class="card reveal">
+      <div class="q">
+        <div class="q-title"><span class="qn">Q1.</span> tokenizer(分词器)的主要工作是?</div>
+        <div class="opts">
+          <span class="opt" data-c="0">让 AI 变得更聪明、推理更快</span>
+          <span class="opt" data-c="1">把文字切成小块并翻译成数字编号</span>
+          <span class="opt" data-c="0">给文字配上漂亮的字体</span>
+        </div>
+        <div class="q-explain">对!它负责"文字 → 积木(token)→ 编号(ID)",是 AI 输入的第一道工序。</div>
+      </div>
+      <div class="q">
+        <div class="q-title"><span class="qn">Q2.</span> 为什么不直接用"按词切"这种简单方法?</div>
+        <div class="opts">
+          <span class="opt" data-c="1">词表会巨大,而且遇到没见过的生词会束手无策</span>
+          <span class="opt" data-c="0">按词切太慢了</span>
+          <span class="opt" data-c="0">单词太短,不好看</span>
+        </div>
+        <div class="q-explain">对!语言无穷无尽,"按词切"永远切不完,一个生词就能让 AI 崩溃。子词切分才能"常用词记住、生僻词拼出来"。</div>
+      </div>
+      <div class="q">
+        <div class="q-title"><span class="qn">Q3.</span> 表达同样的意思,中文和英文哪个更费 token?</div>
+        <div class="opts">
+          <span class="opt" data-c="0">英文更费</span>
+          <span class="opt" data-c="1">中文更费</span>
+          <span class="opt" data-c="0">一样多</span>
+        </div>
+        <div class="q-explain">对!中文 1 个字 ≈ 1 token,英文约 4 个字母才 ≈ 1 token。所以同样意思,中文占的"名额"更多,这也是中文 API 更贵的原因之一。</div>
+      </div>
+      <div class="q">
+        <div class="q-title"><span class="qn">Q4.</span> BPE 算法的核心思路是什么?</div>
+        <div class="opts">
+          <span class="opt" data-c="1">反复合并"最常一起出现"的相邻字符对</span>
+          <span class="opt" data-c="0">把所有词都拆成单个字母</span>
+          <span class="opt" data-c="0">随机切分,靠运气</span>
+        </div>
+        <div class="q-explain">对!BPE 就是"谁常在一起,就把它俩合并成一块"——从字母开始,一层层往上长,最终长出 low、er、est 这样的积木。</div>
+      </div>
+    </div>
+
+    <div class="card reveal" style="border-left:5px solid var(--primary)">
+      <h3 style="margin-bottom:8px"><span class="dot"></span>一句话带走</h3>
+      <p style="font-size:17px"><strong>AI 不读文字,只读数字;tokenizer 把文字变成积木和编号——<span class="hl">token 数 = 钱 = 记忆容量</span>,这就是它和你全部的关系。</strong></p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <b>小w · AI 小课堂</b> &nbsp;|&nbsp; 第 1 课:Tokenizer 分词器<br>
+    内容仅供学习参考,实际分词规则以各模型官方 tokenizer 为准。
+  </div>
+</footer>
+
+<script>
+/* ---------- 滚动入场 ---------- */
+const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+/* ---------- BPE 演示 ---------- */
+const bpe={seq:[],merges:[],timer:null};
+const CHIP_COLORS=['c0','c1','c2','c3','c4','c5','c6','c7'];
+const $seq=document.getElementById('bpeSeq');
+const $log=document.getElementById('mergeLog');
+
+function initBPE(){
+  bpe.seq=[];
+  const words='low lower lowest'.toLowerCase().trim().split(/\s+/);
+  words.forEach((w,wi)=>{
+    if(wi>0)bpe.seq.push('·');
+    bpe.seq.push(...w.split(''));
+  });
+  bpe.merges=[];
+  if(bpe.timer){clearInterval(bpe.timer);bpe.timer=null}
+  $btnAuto.textContent='自动演示';
+  $btnMerge.disabled=false;$btnAuto.disabled=false;
+  renderBPE();$log.innerHTML='合并记录:还没开始,点一下"合并一次"试试。';
+}
+function pairCounts(){
+  const c={};
+  for(let i=0;i<bpe.seq.length-1;i++){
+    const a=bpe.seq[i],b=bpe.seq[i+1];
+    if(a==='·'||b==='·')continue;
+    const k=a+'|'+b;c[k]=(c[k]||0)+1;
+  }
+  return c;
+}
+function mergeOnce(){
+  const c=pairCounts();const keys=Object.keys(c);
+  if(!keys.length)return false;
+  let best=keys[0];
+  keys.forEach(k=>{if(c[k]>c[best])best=k});
+  const [a,b]=best.split('|');
+  const out=[];let i=0;
+  while(i<bpe.seq.length){
+    if(bpe.seq[i]===a&&bpe.seq[i+1]===b&&a!=='·'&&b!=='·'){out.push(a+b);i+=2}
+    else{out.push(bpe.seq[i]);i++}
+  }
+  bpe.seq=out;
+  bpe.merges.push({t:a+b,exp:a+' + '+b,n:c[best]});
+  renderBPE(true);updateLog();
+  return true;
+}
+function renderBPE(highlight){
+  $seq.innerHTML='';
+  bpe.seq.forEach((tok,idx)=>{
+    if(tok==='·'){const s=document.createElement('span');s.className='chip sep';s.textContent='·';$seq.appendChild(s);return}
+    const s=document.createElement('span');
+    const colorIdx=Math.abs(hash(tok))%CHIP_COLORS.length;
+    s.className='chip '+CHIP_COLORS[colorIdx]+(highlight&&idx>=bpe.seq.length-1?' new':'');
+    s.textContent=tok;$seq.appendChild(s);
+  });
+}
+function hash(str){let h=0;for(let i=0;i<str.length;i++){h=(h*31+str.charCodeAt(i))|0}return h}
+function updateLog(){
+  const last=bpe.merges[bpe.merges.length-1];
+  const list=bpe.merges.slice(-6).reverse().map(m=>m.exp+' → <b>'+m.t+'</b>('+m.n+'次)').join('&nbsp;&nbsp;');
+  $log.innerHTML='最近合并:&nbsp;'+list+'&nbsp;&nbsp;|&nbsp;&nbsp;共合并 '+bpe.merges.length+' 次,当前积木 '+bpe.seq.filter(x=>x!=='·').length+' 块';
+}
+const $btnMerge=document.getElementById('btnMerge');
+const $btnAuto=document.getElementById('btnAuto');
+const $btnReset=document.getElementById('btnReset');
+$btnMerge.addEventListener('click',()=>{if(!mergeOnce()){$btnMerge.disabled=true;$log.innerHTML='合并完成!看,常用部分(low)长成一块大积木了 🎉'}});
+$btnAuto.addEventListener('click',()=>{
+  if(bpe.timer){clearInterval(bpe.timer);bpe.timer=null;$btnAuto.textContent='自动演示';return}
+  $btnAuto.textContent='暂停';
+  bpe.timer=setInterval(()=>{
+    if(!mergeOnce()){clearInterval(bpe.timer);bpe.timer=null;$btnAuto.textContent='自动演示';$btnMerge.disabled=true;$log.innerHTML='合并完成!看,常用部分(low)长成一块大积木了 🎉'}
+  },700);
+});
+$btnReset.addEventListener('click',initBPE);
+initBPE();
+
+/* ---------- Token 估算器 ---------- */
+const $inp=document.getElementById('counterInput');
+const $stChars=document.getElementById('stChars');
+const $stTokens=document.getElementById('stTokens');
+const $stCost=document.getElementById('stCost');
+const $chips=document.getElementById('counterChips');
+function countTokens(text){
+  const tokens=[];let i=0;
+  const cjk=/[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u30ff\uac00-\ud7af]/;
+  while(i<text.length){
+    const ch=text[i];
+    if(cjk.test(ch)){tokens.push(ch);i++}
+    else if(ch===' '||ch==='\n'||ch==='\t'){i++}
+    else{
+      let j=i;while(j<text.length&&!cjk.test(text[j])&&!/\s/.test(text[j]))j++;
+      const run=text.slice(i,j);
+      const n=Math.max(1,Math.ceil(run.length/4));
+      for(let k=0;k<n;k++)tokens.push(run.slice(k*4,(k+1)*4));
+      i=j;
+    }
+  }
+  return tokens;
+}
+function renderCounter(){
+  const text=$inp.value;
+  const tokens=countTokens(text);
+  const chars=[...text].filter(c=>!/[\s]/.test(c)).length;
+  $stChars.textContent=chars;
+  $stTokens.textContent=tokens.length;
+  $stCost.textContent='¥'+(tokens.length/1e6*3).toFixed(4);
+  $chips.innerHTML='';
+  tokens.slice(0,60).forEach((t,idx)=>{
+    const s=document.createElement('span');
+    s.className='chip '+CHIP_COLORS[idx%CHIP_COLORS.length];
+    s.textContent=t===''?' ':t;
+    $chips.appendChild(s);
+  });
+  if(tokens.length>60){const s=document.createElement('span');s.className='chip sep';s.textContent='… 共 '+tokens.length+' 块';$chips.appendChild(s)}
+}
+$inp.addEventListener('input',renderCounter);
+renderCounter();
+
+/* ---------- 小测验 ---------- */
+document.querySelectorAll('.q').forEach(q=>{
+  q.querySelectorAll('.opt').forEach(opt=>{
+    opt.addEventListener('click',()=>{
+      if(opt.classList.contains('right')||opt.classList.contains('wrong'))return;
+      const ok=opt.dataset.c==='1';
+      opt.classList.add(ok?'right':'wrong');
+      if(!ok){
+        q.querySelectorAll('.opt').forEach(o=>{if(o.dataset.c==='1')o.classList.add('right')});
+      }
+      q.querySelector('.q-explain').classList.add('show');
+    });
+  });
+});
+</script>
+</body>
+</html>
