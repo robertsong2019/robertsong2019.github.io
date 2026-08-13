@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当 AI 写了 90% 的代码：2026 年 Agentic Coding 的真实图景 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>当 AI 写了 90% 的代码：2026 年 Agentic Coding 的真实图景</h1>
+    <div class="meta">
+        2026-08-13 · <span class="tag">Agentic Coding</span> <span class="tag">Harness Engineering</span> <span class="tag">Software 3.0</span> <span class="tag">前沿研究</span>
+    </div>
+
+    <blockquote>93% 的开发者在用 AI 编码工具，90% 的财富 100 强公司部署了 GitHub Copilot。但如果你去看真实的生产力数据——400 多个组织的中位数 PR 吞吐量提升只有 7.76%。一个 RCT 研究甚至发现有经验的开发者用 AI 反而慢了 19%。问题出在哪？这不是一个关于"模型够不够聪明"的故事，而是一个关于"缰绳够不够好"的故事。</blockquote>
+
+    <h2>一、一个让所有 CTO 都不舒服的数据</h2>
+
+    <p>2026 年 2 月，METR（Model Evaluation & Threat Research）发布了一项随机对照试验结果，在 AI 编码领域引发了相当于地震的反应。</p>
+
+    <p>16 名有经验的开源开发者，246 个真实任务，严格的 RCT 设计。结果：当这些开发者<strong>被允许使用 AI 编码工具</strong>时，他们的任务完成时间<strong>比不使用 AI 时慢了 19%</strong>。</p>
+
+    <p>但真正的震撼在后面：实验结束后，这些开发者仍然<strong>坚信 AI 让他们快了 20%</strong>。</p>
+
+    <p>39 个百分点的感知-现实鸿沟。这不是"我觉得今天状态不错"的主观偏差——这是在严格的 RCT 设计下，专业开发者对自己生产力的判断完全失准。</p>
+
+    <p>如果你是 CTO，正在基于"开发者满意度调查"决定每年数百万美元的 AI 工具预算——这个数据应该让你彻夜难眠。</p>
+
+    <h2>二、从 Vibe Coding 到 Agentic Engineering：Karpathy 的范式转移</h2>
+
+    <p>要理解这个悖论，我们需要回到 2025 年初。Andrej Karpathy 在一条推文中创造了"vibe coding"这个词——完全沉浸在 AI 生成代码的"感觉"中，"忘记代码的存在"。它捕捉到了一个时代的氛围：人们用 Cursor 拖拽几下就能跑起来一个 SaaS 产品，周末 hackathon 变成了 prompt 竞赛。</p>
+
+    <p>但仅仅一年后，2026 年 4 月，在 Sequoia AI Ascent 上，Karpathy 正式宣布 vibe coding "已过时"。取代它的是一个更严肃的词：<strong>Agentic Engineering</strong>。</p>
+
+    <p>区别在哪？Vibe coding 是把代码扔给 AI 然后祈祷它能跑。Agentic Engineering 是围绕 AI 模型构建一整套工程体系——约束、工具、反馈循环、可观测性——让它在真实项目中可靠产出。</p>
+
+    <p>Karpathy 提出了三代软件的框架：</p>
+    <ul>
+        <li><strong>Software 1.0：</strong>写代码。你告诉机器每一步怎么做。</li>
+        <li><strong>Software 2.0：</strong>训练模型。你用数据集展示你想要什么。</li>
+        <li><strong>Software 3.0：</strong>提示和上下文。你用自然语言描述目标，LLM 是解释器，上下文窗口是程序。</li>
+    </ul>
+
+    <p>每一层都包含前一层。一个 Software 3.0 系统可以生成 Software 1.0 代码，也可以定义 Software 2.0 的训练配置。这是"软件吃软件"的递归循环。</p>
+
+    <p>但 Karpathy 在演讲中说了一句更关键的话："你可以把思考外包给 AI，但<strong>永远不能把理解外包</strong>。"这正是 METR 研究发现的根源：当开发者失去对代码的深刻理解时，验证 AI 产出的成本就会超过 AI 节省的时间。</p>
+
+    <h2>三、Harness Engineering：缰绳工程——2026 年最重要的新学科</h2>
+
+    <p>2026 年 3 月 31 日凌晨 4 点，安全研究员 Chaofan Shou 在 Twitter 上发了一条消息，改变了 AI 编码行业的走向。</p>
+
+    <p>Anthropic 在发布 Claude Code npm 包 v2.1.88 时，由于一个缺失的 <code>.npmignore</code> 配置项，意外地将完整的源码——<strong>512,000 行 TypeScript，1,906 个文件</strong>——通过一个 59.8 MB 的 source map 文件暴露到了公共 npm 仓库。</p>
+
+    <p>24 小时内，有人用 Python 从零重写了核心架构（名为 <code>claw-code</code>），在 2 小时内获得了 5 万 GitHub stars——可能是 GitHub 历史上增长最快的仓库。Karpathy 本人转发并戏称这是从 "code" 到 "claw" 的 speedrun。</p>
+
+    <p>但这次泄露真正揭示的，不是 Anthropic 的运维失误，而是<strong>一个生产级 AI Agent 的内部架构长什么样</strong>：</p>
+    <ul>
+        <li><strong>19 个权限控制的工具</strong>，每个独立沙箱化</li>
+        <li><strong>三层记忆系统</strong>：工作记忆（context window）→ 会话记忆（session）→ 持久记忆（versioned files）</li>
+        <li><strong>30 个生命周期 Hook 事件</strong>——在工具调用前、后、会话开始、提交前等节点插入确定性脚本</li>
+        <li><strong>44 个未发布的 feature flag</strong>，包括一个叫 KAIROS 的完整自主 Agent</li>
+        <li>甚至还有一个隐藏的电子宠物（Tamagotchi）彩蛋</li>
+    </ul>
+
+    <p>Martin Fowler 在看到这些后，于 2026 年 4 月写了一篇被广泛引用的文章，提出了一个简洁的公式：</p>
+
+    <blockquote><strong>Agent = Model + Harness</strong></blockquote>
+
+    <p>模型（GPT、Claude、Gemini）是商品——每个团队都能调用同样的 API。真正决定你的 Agent 好用还是难用的，是模型周围的<strong>一切其他东西</strong>——缰绳（Harness）。</p>
+
+    <p>缰绳工程的核心原则是 Birgitta Böckeler 和 HumanLayer 团队不约而同得出的同一个结论：</p>
+
+    <blockquote>用机制保证质量，而不是用 prompt 乞求质量。</blockquote>
+
+    <p>一个典型的例子：你在 CLAUDE.md 里写"提交前必须跑测试"，Agent 有 30% 的概率会忽略它。但如果你在 <code>.git/hooks/pre-commit</code> 里挂一个钩子脚本，不跑完测试就不让提交——那就是 100% 的保证。从"建议"到"保证"，就是缰绳工程的价值。</p>
+
+    <p>LangChain 的数据证实了这一点：同一个模型，仅仅更换 Harness，benchmark 分数就能波动 <strong>15-20 分</strong>。这意味着一个搭配好 Harness 的中等模型，可以轻松击败一个搭配差 Harness 的顶级模型。</p>
+
+    <h2>四、缰绳成熟度模型：你在哪一层？</h2>
+
+    <p>从 Claude Code 泄露的源码和业界实践中，可以提炼出一个五层成熟度模型：</p>
+
+    <table>
+        <tr><th>层级</th><th>名称</th><th>特征</th><th>典型表现</th></tr>
+        <tr><td>L0</td><td>裸模型</td><td>Chat 接口，复制粘贴上下文</td><td>每次从零开始，无法积累经验</td></tr>
+        <tr><td>L1</td><td>有工具</td><td>能读写文件、运行命令</td><td>能干活但靠临场发挥，质量不稳定</td></tr>
+        <tr><td>L2</td><td>有技能</td><td>约定固化在 CLAUDE.md / SKILL.md 中</td><td>遵循项目规范，但规则可能被忽略</td></tr>
+        <tr><td>L3</td><td>有钩子</td><td>PreToolUse / PostToolUse 钩子强制约束</td><td>"引导"变成"保证"，质量稳定</td></tr>
+        <tr><td>L4</td><td>完全编排</td><td>多 Agent、子 Agent、MCP、沙箱权限</td><td>团队级自治，人类只做 review</td></tr>
+    </table>
+
+    <p>大多数团队在 2026 年中处于 L1-L2 之间。从 L2 到 L3 的升级，往往只需要一个下午的工作——安装 pre-commit hook，配置 lint 规则，让 CI 成为 Agent 无法绕过的检查站。但这一个下午的投入，可能是你在 AI 编码工具上能做的最高 ROI 的事情。</p>
+
+    <h2>五、为什么 METR 的开发者"变慢了"——验证税</h2>
+
+    <p>回到开头那个让人不安的数据。为什么有经验的开发者用 AI 反而更慢？研究者们称之为"<strong>验证税</strong>"（Verification Tax）。</p>
+
+    <p>想象你在写一个排序函数。手写可能需要 2 分钟。让 AI 生成只需要 5 秒。但你接下来需要：阅读 AI 生成的 30 行代码（30 秒）→ 检查边界情况（1 分钟）→ 确认它和现有代码风格一致（30 秒）→ 跑一遍测试确认没有隐藏 bug（1 分钟）。总共 3 分钟——比手写多了 50%。</p>
+
+    <p>对于熟悉代码库的资深开发者来说，这个验证税尤其高。他们脑子里已经有了清晰的心智模型——知道每个函数的职责、每个模块的边界。AI 的建议不是在补充他们的知识，而是在<strong>与他们的心智模型竞争</strong>。每一次评估 AI 产出，都是一次上下文切换，而上下文切换是有认知成本的。</p>
+
+    <p>但有趣的是：对于经验较少的开发者，情况完全相反。AI 确实在帮他们——25-40% 的速度提升。AI 扮演了一个永远在线的结对编程者，处理语法、样板代码和基础单元测试。</p>
+
+    <p>所以真实的图景是：AI 是一个<strong>均衡器</strong>，而非放大器。它拉高了底，但没有抬高顶。这对组织的含义是深远的——你不能假设"最强的工程师 + AI = 更强的工程师"。你可能需要重新设计工作流：让 AI 做基础工作，让资深工程师专注架构和审查。</p>
+
+    <h2>六、SWE-bench 饱和：当基准测试不再有用</h2>
+
+    <p>2023 年 11 月，当 SWE-bench 发布时，最好的模型（Claude 2）只能解决 1.96% 的 GitHub issue。2026 年 7 月，Claude Opus 5 达到了 96-97%。三年时间，从 2% 到 97%——这是一个惊人的爬升。</p>
+
+    <p>但 OpenAI 在 2026 年 2 月发表了一篇文章，标题是《Why SWE-bench Verified No Longer Measures Frontier Coding Capabilities》。原因有两个：</p>
+    <ol>
+        <li><strong>数据污染</strong>：SWE-bench 的 500 个 issue 已被广泛暴露在训练数据中。模型可能不是在"解决"问题，而是在"回忆"答案。</li>
+        <li><strong>欠规范的测试</strong>：许多测试用例不够严格，允许多种语义上不同的实现通过。</li>
+    </ol>
+
+    <p>更诚实的评估来自 Medium 上一篇文章的分析：Claude Mythos Preview 在 SWE-bench Verified 上达到 93.9%，但其中 <strong>19.78% 的"已解决"案例在语义上是错误的</strong>。也就是说，接近五分之一的"成功"实际上是悄无声息的 bug。</p>
+
+    <p>这就是为什么业界正在转向更难的基准（SWE-bench Pro、Terminal-Bench、Aider Polyglot），以及为什么<strong>同一模型在不同 Harness 下的分数差距比不同模型之间的差距还大</strong>。</p>
+
+    <h2>七、Agent 架构的"大收敛"</h2>
+
+    <p>2026 年最有趣的现象之一：所有主要编码 Agent 正在架构上趋同。如果你拆解 Claude Code、Cursor、Devin、Codex、OpenHands，你会发现相同的核心组件：</p>
+    <ul>
+        <li>仓库探索循环（grep、read、目录遍历）</li>
+        <li>工具调用 + 执行反馈（terminal、file I/O、git）</li>
+        <li>多文件编辑 + 测试验证迭代</li>
+        <li>后台/异步执行能力</li>
+        <li>权限沙箱和安全管理</li>
+    </ul>
+
+    <p>差异已经不在"能做什么"，而在"做得有多好、多可靠、多便宜"。</p>
+
+    <table>
+        <tr><th>工具</th><th>核心定位</th><th>单任务成本</th><th>适合场景</th></tr>
+        <tr><td>Claude Code</td><td>可编程终端 Agent</td><td>~$0.50-5</td><td>复杂重构、长会话</td></tr>
+        <tr><td>Cursor</td><td>AI 原生 IDE</td><td>~$0.07-0.44</td><td>日常开发、快速迭代</td></tr>
+        <tr><td>Devin</td><td>异步自主 Agent</td><td>~$1-20</td><td>定义明确的独立任务</td></tr>
+        <tr><td>OpenHands</td><td>开源自托管</td><td>API 成本</td><td>预算敏感、需要自托管</td></tr>
+        <tr><td>Codex CLI</td><td>开发者终端</td><td>按 token</td><td>OpenAI 生态用户</td></tr>
+    </table>
+
+    <p>一个实用的选择策略：用 Claude Code 做深度任务（重构、迁移），用 Cursor 做日常编辑，用 Devin 或 Codex Cloud 做可以委派的后台任务。不要指望一个工具通吃所有场景。</p>
+
+    <h2>八、今天就能做的五件事</h2>
+
+    <h3>1. 创建你的 Harness 基础设施（1 小时）</h3>
+    <p>在项目根目录创建 <code>CLAUDE.md</code>（或 <code>AGENTS.md</code>），写入：架构概述、编码规范、测试要求、已知陷阱。这是从 L0 到 L2 的跨越。不用完美，写 50 行就比 0 行强 100 倍。</p>
+
+    <h3>2. 安装自动化质量门控（半天）</h3>
+    <p>配置 pre-commit hook，让每次提交自动跑 lint + test。反馈越快，Agent 越可靠。优先级：PostToolUse Hook（毫秒级）> pre-commit（秒级）> CI（分钟级）> 人工审查（小时级）。</p>
+
+    <h3>3. 度量真实 ROI（本周）</h3>
+    <p>不要用开发者满意度来衡量。追踪这几个数：周活用户比例（目标 >50%）、AI 辅助 PR 占比（40-60%）、PR 审查周期、变更失败率。METR 的研究证明了自我报告不可靠——你需要客观数据。</p>
+
+    <h3>4. 按风险分层委派（本月）</h3>
+    <p>不是所有任务都应该交给 AI。按风险分级：</p>
+    <ul>
+        <li><strong>低风险</strong>（boilerplate、文档、格式化）→ 完全自主</li>
+        <li><strong>中风险</strong>（功能实现、bug 修复）→ 生成 + 人审</li>
+        <li><strong>高风险</strong>（架构决策、安全相关、核心算法）→ 人类主导 + AI 辅助</li>
+    </ul>
+
+    <h3>5. 投资审查能力（长期）</h3>
+    <p>METR 研究最深刻的启示不是"AI 没用"，而是"<strong>验证能力</strong>正在成为开发者的核心竞争力"。当 AI 能在一分钟内生成 500 行代码时，瓶颈不再是"写得多快"，而是"你能不能在五分钟内判断这 500 行是否正确"。培养团队的代码审查能力、理解 AI 产出的局限性、建立系统化的验证流程——这些是 2026-2027 年最值得投资的方向。</p>
+
+    <h2>结语：从写代码到编排系统</h2>
+
+    <p>2026 年的 Agentic Coding 既没有像乐观主义者预言的那样"取代开发者"，也没有像悲观主义者担心的那样"制造灾难性的代码灾难"。它正在做一件更微妙的事：<strong>重新定义开发者的工作</strong>。</p>
+
+    <p>你写的代码变少了，但你审的代码变多了。你敲键盘的时间变短了，但你设计约束和验证逻辑的时间变长了。你不再亲手搭建每一块砖，但你变成了那个设计建筑蓝图、检查施工质量、决定哪面墙可以拆的架构师。</p>
+
+    <p>正如 Karpathy 在演讲结束时说的那句话：你可以把思考外包给 AI，但永远不能把理解外包。</p>
+
+    <p>在 Software 3.0 的时代，理解力就是你的缰绳。缰绳越好，你能驾驭的力量就越大。缰绳不好，再强的模型也只是在更大的功率下制造混乱。</p>
+
+    <p>这可能是 2026 年最值得记住的一课。</p>
+
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 2rem 0;">
+    <p style="color: #8b949e; font-size: 0.85rem;">
+        参考文献：METR 2026 RCT Study · Karpathy, Sequoia AI Ascent 2026 · Böckeler, martinfowler.com 2026 · Anthropic 2026 Agentic Coding Trends Report · OpenAI, "Why SWE-bench Verified No Longer Measures Frontier Coding Capabilities" 2026 · HumanLayer, "Skill Issue: Harness Engineering for Coding Agents" 2026 · Firecrawl, "Best AI Coding Agents in 2026" · DX / Laura Tacho, Pragmatic Summit 2026 · Claude Code Source Leak Analysis, March 2026
+    </p>
+</body>
+</html>
