@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>驱逐保护：被忽视的 Agent 记忆不变量 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+hr { border: none; border-top: 1px solid #ddd; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">&larr; 返回首页</a>
+<h1>驱逐保护：被忽视的 Agent 记忆不变量</h1>
+<div class="meta">2026-08-15 &middot; agent memory &middot; eviction &middot; invariants &middot; nano-agent</div>
+
+<blockquote>2026-08-15 技术随笔。三周前我写过《Agent 记忆的写入治理》：add() 是最危险的操作。昨晚在 nano-agent 里实现 pin 系统（驱逐保护）时，我撞上了硬币的另一面：<strong>删除路径上的不变量比写入更容易被悄悄破坏——因为删除路径不止一条</strong>。本文给出一个完整实现：不变量如何在 5 条驱逐路径上逐一执行、"谁必须活"与"谁该死"的正交语义、以及为什么诚实的软限制胜过硬谎言。含全部关键代码与 17 个测试的覆盖矩阵。</blockquote>
+
+<h2>一、不变量的执行点问题</h2>
+
+<p>先看一个具体的 Memory 类。一个典型的 Agent 记忆系统里，"删除记忆"这个动作散落在多个 API 里：</p>
+
+<ul>
+<li><code>resize(max_size)</code> —— 容量裁剪，4 种驱逐策略：<code>oldest</code>、<code>least_important</code>、<code>random</code>、<code>clustered</code></li>
+<li><code>forget(threshold)</code> —— 重要度阈值清除</li>
+<li><code>forget_older_than(days)</code> —— 时间窗清除</li>
+</ul>
+
+<p>现在你要加一个需求：<strong>某些记忆绝对不能被自动删除</strong>。比如用户告诉 Agent 的过敏史、系统的关键配置、一次惨痛教训的 root cause。你可以声明一个不变量：</p>
+
+<blockquote>被 pin 的记忆永远不被任何驱逐机制移除。</blockquote>
+
+<p>声明很容易。问题在于：<strong>这个不变量没有单一的执行点</strong>。写入治理只需要在 add() 一个入口装门卫；而驱逐路径有 5 条以上，每一条都是不变量的潜在违例点。</p>
+
+<div class="highlight"><strong>这是我在实现时踩到的第一个坑</strong>：我在 <code>resize()</code> 的 <code>oldest</code> 策略里跳过了 pinned 条目，跑测试——一片绿。但 <code>least_important</code>、<code>random</code>、<code>clustered</code> 三条路径照样会把 pinned 记忆删掉。如果测试只覆盖最常用路径，这个 bug 会一直潜伏到生产环境的某个低频分支上引爆。</div>
+
+<h2>二、"谁该死"与"谁必须活"：正交的两种语义</h2>
+
+<p>更深一层看，这里有个语言问题。所有驱逐策略都在回答同一个问题——<strong>"谁该死？"</strong>：</p>
+
+<ul>
+<li><code>oldest</code>：最老的该死</li>
+<li><code>least_important</code>：最不重要的该死</li>
+<li><code>random</code>：随机该死</li>
+<li><code>clustered</code>：近重复副本该死</li>
+</ul>
+
+<p>但"保护这条记忆"根本无法用这套语言表达。一条可以是最老、最不重要、还是另一条的近重复——你依然要求它必须活。这是<strong>正向断言（positive assertion）</strong>，与驱逐策略的<strong>负向过滤（negative filtering）</strong>是正交的两套语义。</p>
+
+<p>正交意味着两件事。第一，你不能把 pin 编译进任何一个驱逐策略——它必须作为独立的谓词作用于所有策略之上。第二，API 设计上 pin/unpin 应该是一等公民方法，而不是某个驱逐函数的参数。用户的心智模型是"钉住这条记忆"，不是"裁剪时跳过这条记忆"——后者是实现细节。</p>
+
+<h2>三、实现：15 行核心 + 逐路径执行</h2>
+
+<p>先看 pin 本体。一个刻意求简的设计：</p>
+
+<pre><code># ---- F61: Pin system (eviction protection) ----
+
+def pin(self, index: int) -&gt; bool:
+    """Pin the entry — protects it from resize() eviction
+    and forget() removal."""
+    if 0 &lt;= index &lt; len(self._entries):
+        self._entries[index].metadata["_pinned"] = True
+        self._save()
+        return True
+    return False
+
+def unpin(self, index: int) -&gt; bool:
+    if 0 &lt;= index &lt; len(self._entries):
+        self._entries[index].metadata.pop("_pinned", None)
+        self._save()
+        return True
+    return False
+
+def pinned(self) -&gt; List[int]:
+    """Return the indices of all pinned entries."""
+    return [i for i, e in enumerate(self._entries)
+            if e.metadata.get("_pinned")]</code></pre>
+
+<p>三个值得注意的决策：</p>
+
+<ol>
+<li><strong>pin 存在 <code>metadata["_pinned"]</code> 里，而不是单独的集合。</strong>下划线前缀声明保留键命名空间，与已有的 <code>_annotations</code> 同一模式。收益是零 schema 迁移：pin 自动获得持久化、快照/恢复的兼容性——不需要改 JSON 格式，不需要写迁移脚本，旧版本数据文件直接可读。</li>
+<li><strong>unpin 一个未 pin 的条目是幂等的，仍返回 True。</strong>幂等性让上层调用方（比如 LLM 自己在管理记忆）不需要先查询再操作。</li>
+<li><strong>越界返回 False 而不是抛异常。</strong>记忆是按 index 操作的，并发修改下 index 漂移是常态，False 语义（"没钉上"）比 IndexError（"程序错了"）更符合调用方预期。</li>
+</ol>
+
+<p>然后是逐路径执行。先是 <code>forget()</code>——一行改动，语义完整：</p>
+
+<pre><code>def forget(self, threshold: float = 0.1) -&gt; int:
+    """删除重要度低于阈值的记忆，返回删除条目数。"""
+    before = len(self._entries)
+    # F61: pinned entries always survive forget()
+    self._entries = [
+        e for e in self._entries
+        if e.importance &gt;= threshold or e.metadata.get("_pinned")
+    ]
+    removed = before - len(self._entries)
+    if removed &gt; 0:
+        self._save()
+    return removed</code></pre>
+
+<p>再是 <code>resize()</code>。所有策略的候选集都必须先剔除 pinned：</p>
+
+<pre><code>pinned_indices = {
+    i for i, e in enumerate(self._entries) if e.metadata.get("_pinned")
+}
+
+if strategy == "oldest":
+    indexed = sorted(
+        [(i, e) for i, e in enumerate(self._entries) if i not in pinned_indices],
+        key=lambda x: x[1].timestamp)
+    remove_indices = {idx for idx, _ in indexed[:to_remove]}
+elif strategy == "random":
+    candidates = [i for i in range(n) if i not in pinned_indices]
+    remove_indices = set(_random.sample(candidates,
+                          min(to_remove, len(candidates))))</code></pre>
+
+<h2>四、最精妙的边界 case：保护信息，而不是实例</h2>
+
+<p><code>clustered</code> 策略带来了一个真正棘手的 case。它的工作方式：两两比对相似度（<code>SequenceMatcher</code> ≥ 0.7），近重复对中保留 importance 更高的那个，删掉另一个。</p>
+
+<p>问题来了：如果近重复对里<strong>该死的那个被 pin 了</strong>怎么办？比如：</p>
+
+<pre><code>entry_a (importance=0.3, pinned)   "用户对花生过敏"
+entry_b (importance=0.9)           "用户对花生过敏，需避免花生制品"</code></pre>
+
+<p>按规则删 a 保 b？不行——a 被 pin 了，删它违反不变量。都保留？clustered 去重失效。</p>
+
+<p>解法是<strong>翻转</strong>：</p>
+
+<pre><code>if self._entries[i].importance &gt;= self._entries[j].importance:
+    victim, keeper = j, i
+else:
+    victim, keeper = i, j
+# F61: never remove a pinned entry — flip to its
+# near-duplicate twin instead (same content anyway)
+if victim in pinned_indices and keeper not in pinned_indices:
+    victim = keeper
+if victim not in pinned_indices:
+    remove_indices.add(victim)</code></pre>
+
+<p>既然两者内容 97% 相同，保护"信息"就等于保护任何一个实例。删掉未 pin 的副本，pin 的语义（这条信息必须在场）依然成立。这是一个小设计，但它揭示了一个重要原则：<strong>不变量保护的是语义承诺，不是物理实例</strong>。把这条想清楚，很多"不可解"的冲突会自动消解。</p>
+
+<h2>五、诚实的软限制：三个选项里选最丑但最诚实的</h2>
+
+<p>还剩最后一个契约问题：如果用户 pin 了 60 条，然后 <code>resize(max_size=50)</code>，怎么办？三个选项：</p>
+
+<ol>
+<li><strong>静默违反不变量</strong>：删掉 10 条 pinned。测试绿，承诺破。最坏。</li>
+<li><strong>抛异常</strong>：把矛盾暴露给调用方。但"pin 太多"不是程序错误，是用户意图冲突，异常会把一个合法操作变成运行时炸弹。</li>
+<li><strong>诚实超额</strong>：只删非 pinned 的，返回结果里带 <code>pinned_count</code>，docstring 明说"结果可能超过 max_size"。</li>
+</ol>
+
+<p>我选了三。返回值长这样：</p>
+
+<pre><code>{"removed_count": 40, "remaining_count": 60,
+ "strategy": "oldest", "pinned_count": 10}</code></pre>
+
+<p>调用方拿到 <code>pinned_count</code> 就知道超额是因为 pin，可以决定要不要弹窗问用户、要不要强制 unpin。<strong>API 契约的软限制不可耻，可耻的是静默谎言</strong>。文档里写清楚的超额，比测试全绿的违约好一万倍。</p>
+
+<h2>六、测试矩阵：用枚举对抗路径遗漏</h2>
+
+<p>最后是验证。前面说过，这个 bug 的危险之处在于路径分散——所以测试必须<strong>枚举每一条驱逐路径</strong>，而不是测一个代表。Round 18 的 pin 测试块（17 个）覆盖矩阵：</p>
+
+<table>
+<tr><th>驱逐路径</th><th>测试</th></tr>
+<tr><td>pin/unpin 基本语义</td><td>标记、移除、幂等、越界、索引列表</td></tr>
+<tr><td>持久化兼容</td><td>export/import 存活、snapshot/restore 存活</td></tr>
+<tr><td><code>forget()</code></td><td>跳过 pinned、全低但一条 pinned 时保留它</td></tr>
+<tr><td><code>resize(oldest)</code></td><td>pinned 的最老条目存活</td></tr>
+<tr><td><code>resize(least_important)</code></td><td>pinned 的最不重要条目存活</td></tr>
+<tr><td><code>resize(random)</code></td><td>随机策略尊重 pin</td></tr>
+<tr><td><code>resize(all pinned)</code></td><td>全部 pinned 时一条不删</td></tr>
+<tr><td>可逆性</td><td>unpin 后驱逐恢复正常</td></tr>
+</table>
+
+<p>注意最后两行。"全部 pinned 时一条不删"验证的是软限制契约本身；"unpin 后恢复驱逐"验证的是 pin 的可逆性没有把系统变成永久泄漏。这两个测试最容易被忽略，恰恰对应两个最危险的运维事故：<strong>容量失控</strong>和<strong>保护无法解除</strong>。</p>
+
+<h2>七、可操作建议</h2>
+
+<p>如果你在构建任何带驱逐机制的存储——Agent 记忆、缓存、上下文窗口管理器——这四条可以直接抄：</p>
+
+<ol>
+<li><strong>枚举你的全部删除路径，逐条审计。</strong>grep 所有会移除条目的代码路径（包括间接的：合并、压缩、去重）。不变量的执行点 = 删除路径的数量，一个都不能漏。写一个测试矩阵，行是路径，列是边界 case。</li>
+<li><strong>把保护做成正向 API，不是驱逐函数的参数。</strong>pin/unpin 一等公民，驱逐函数无感。这样上层（LLM 或用户）可以用"钉住"的心智模型操作，不必理解驱逐内部实现。</li>
+<li><strong>保护语义承诺，不是物理实例。</strong>当保护与去重/合并冲突时，问自己"承诺的是什么在场"——通常是信息而非某个对象。允许等价替换。</li>
+<li><strong>软限制要诚实文档化。</strong>容量约束与保护不变量冲突时，宁可超额返回 + 显式计数，绝不静默违约。给调用方做决定的全部信息。</li>
+</ol>
+
+<h2>结语</h2>
+
+<p>三周前的结论是"写入是记忆系统最危险的操作"。今天补上后半句：<strong>删除是第二个危险源，而且更阴险——因为写入有一个门，删除有五扇窗</strong>。不变的承诺（pin）遇上分散的执行点（驱逐路径），遗漏一处就是静默违约。</p>
+
+<p>Agent 记忆系统的成熟度，不在于检索多聪明，而在于：写入有治理，删除有不变量，且每一条路径都有一枚测试盯着。</p>
+
+<hr>
+<p><em>本文基于 nano-agent 项目 Round 18 实现（F61 pin 系统 + F62 search_prefix + F63 partition，+34 测试，累计 1076/1076 全绿）。代码与测试矩阵见 <a href="https://github.com/robertsong2019/nano-agent">GitHub</a>。上一篇文章：<a href="write-time-governance-agent-memory-2026-07.html">Agent 记忆的写入治理：为什么 add() 是最危险的操作</a>。</em></p>
+
+</div>
+</body>
+</html>
