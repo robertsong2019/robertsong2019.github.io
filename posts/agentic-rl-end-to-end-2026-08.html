@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>从提示词到权重：Agentic RL 如何把 Agent 能力烧进模型 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>从提示词到权重：Agentic RL 如何把 Agent 能力烧进模型</h1>
+    <p class="meta">
+        <span class="tag">Agentic RL</span>
+        <span class="tag">LLM Agents</span>
+        <span class="tag">Reinforcement Learning</span>
+        2026-08-14 · 基于 20+ 系统/论文的调研（Kimi-Researcher、Agent-R1、PARL、ToolRL 系、DeepResearcher 等）
+    </p>
+
+    <blockquote>设想这样一个场景：你花三个月打磨了一套 Agent 工作流——编排节点、提示词、重试逻辑、反思机制，终于在内部评测上跑通了。而下周，某家实验室发布了一个用端到端强化学习训练的模型，一个提示词都不用写，直接在你的任务上把你碾压了。这不是段子，这是 2026 年正在发生的事。</blockquote>
+
+    <h2>一、游泳池边学不会游泳：什么是 Agentic RL</h2>
+
+    <p>过去两年，RL 让 LLM 学会了"深度思考"——DeepSeek-R1 们用可验证奖励（RLVR）在数学和代码上突飞猛进。但这是<span class="highlight">答题式 RL</span>：模型面对一个问题，闭卷生成一整条思维链，答对了给糖，答错了扣分。就像看一百遍游泳教学视频，理论满分。</p>
+
+    <p>Agentic RL 是让模型<strong>下水</strong>：给它一个真实或模拟的环境——一个搜索引擎、一个浏览器、一个代码沙箱——让它多轮调用工具、观察反馈、修正行为，然后把<strong>整条轨迹</strong>拿去优化。失败可能来自第三步的搜索词选错，也可能来自第十步的轻信假消息，模型必须自己学会分辨。</p>
+
+    <p>用形式化语言说，这件事的变化比看起来深刻。传统 RL 中，状态就是 token 上下文，转移是确定的（追加一个 token 而已）。而在多轮 Agent 场景里，状态变成了<span class="highlight">联合状态</span>：模型看到的上下文 + 环境的外部状态（数据库内容、网页、文件系统）。转移函数也变得不确定——同一个搜索查询，两次返回的结果可以完全不同。这已经不是"生成文本"问题，而是真正的序贯决策问题。</p>
+
+    <p>这里有个容易被忽视的工程细节，Agent-R1 框架把它讲透了：训练时必须用 <code>action mask</code> 区分"模型生成的 token"和"环境返回的 token"，只对前者计算梯度。道理很简单——搜索结果里出现的文字不是模型的决策，不该背锅也不该领功。消融实验显示，关掉这个 mask，性能直接从 0.37 掉到 0.30。信用分配的粒度，决定学习的质量。</p>
+
+    <h2>二、证据：26.9% 与"涌现的谨慎"</h2>
+
+    <p>这条路线最硬核的证据来自 Kimi-Researcher：一个完全用端到端 agentic RL 训练的模型（没有预设工作流、没有人工示教），在 Humanity's Last Exam 上从基线的 8.6% 涨到 Pass@1 26.9%——当时的开源 SOTA。平均每个任务 23 步推理、探索 200+ 个 URL。</p>
+
+    <p>但比分数更有意思的是<strong>行为的涌现</strong>。研究者观察到两个 prompt 里写不出来的现象：</p>
+
+    <ul>
+        <li>面对多个来源的冲突信息，模型会迭代式地修正假设、自我纠错，直到矛盾解开；</li>
+        <li>面对看起来很简单的问题，它会主动多做几次搜索、交叉验证之后再回答——<span class="highlight">谨慎性本身成了涌现能力</span>。</li>
+    </ul>
+
+    <p>为什么提示词写不出这个？因为"谨慎"不是一条指令能稳定触发的行为，它是"在什么情况下多搜索一步会提高最终奖励"的统计规律，需要上千次轨迹级的试错才能沉淀下来。这正是 RL 的本质优势：它优化的不是单次回答的质量，而是<strong>整条决策链的期望回报</strong>。</p>
+
+    <h2>三、四条实战铁律</h2>
+
+    <p>调研了二十多个系统和复盘之后，我提炼出四条反复被验证的设计原则。</p>
+
+    <h3>铁律一：结果奖励必须占绝对主导</h3>
+
+    <p>Fireworks 的多轮 RL 实战报告说得毫不留情：如果你给中间指标（比如"成功调用了一次搜索"）太高的奖励权重，模型会收敛到退化策略——无限刷那些"看起来局部正确"的动作，永远不完成任务。安全配方是：<strong>结果奖励为主 + 轻量格式奖励兜底</strong>，只有在奖励明显稀疏时才考虑过程奖励，并且要时刻监控有没有涌现出来的 hack。换句话说，在 agentic 场景里，过程奖励模型（PRM）那条路线要非常小心——你给过程打的每一分，都是在给 reward hacking 修路。</p>
+
+    <h3>铁律二：信用分配解不开，就冻结</h3>
+
+    <p>多 Agent 联合优化有个致命模糊性：任务成功了，分不清是编排器分解得好，还是子 Agent 运气好。Kimi K2.5 的 PARL 范式给出了一个反直觉但极其工程化的解法：<span class="highlight">冻结子 Agent，只训练编排器</span>。子 Agent 的输出被当作环境观察，不进损失函数。这一下把多智能体问题降维回单智能体问题——像软件工程里"冻结接口、只改实现"的老智慧。另一边，GLM-5.2 因为超长轨迹被 compaction 切成长短不一的子轨迹、组内比较失稳，干脆从 GRPO 切回 PPO 用 critic 逐条估计优势。共同点：别指望一个更聪明的算法解决一切，<strong>架构上的取舍比算法上的花活更可靠</strong>。</p>
+
+    <h3>铁律三：环境是新数据</h3>
+
+    <p>Pretraining 时代大家抢语料，agentic RL 时代大家抢<strong>环境</strong>。瓶颈从"标注数据稀缺"变成了"高质量可验证环境稀缺"：Docker 沙箱集群、真实网页、生产系统的影子后端。Cursor 训练编码 Agent 时直接用影子生产后端，Chroma 让 Agent 在训练时面对真实数据库。第一原则只有一句话：<strong>Train where you deploy</strong>——训练环境和部署环境不一致，学到的能力会打水漂。更进一步，AutoForge 这类工作开始<strong>自动合成训练环境</strong>；ZeroSearch 用 LLM 模拟搜索引擎，把搜索 API 成本砍掉九成。环境先是被疯抢，然后被"内化"进模型——这个循环值得玩味。</p>
+
+    <h3>铁律四：上下文管理进入训练目标</h3>
+
+    <p>长轨迹 RL 撞上的第一堵墙不是算法，是上下文窗口。Kimi-Researcher 的 context management 机制让单条 rollout 跑到 50+ 轮；消融显示有该机制的模型多用 30% 的轮次、性能更高。更新的工作干脆把"总结历史"本身做成可学习的动作——模型自己学会什么该记、什么该压缩。这对所有做 Agent 记忆系统的人是个信号：<strong>记忆策略正在从手写规则变成可训练策略</strong>。</p>
+
+    <h2>四、这对从业者意味着什么</h2>
+
+    <p><strong>编排层的价值空间在被两头挤压。</strong>如果你的核心竞争力是"用工作流节点拼装出来的 Agent"，得清醒了：能力正在从 harness（提示词 + 工作流）迁回模型权重。这不会一蹴而就——领域知识、权限控制、审计这些仍然留在系统层——但"用提示词调教出来的智能"这部分，护城河正在变浅。</p>
+
+    <p><strong>小团队的机会在垂直反超。</strong>Fireworks 的曲线显示，多轮 RL 可以把一个较弱的模型训练成特定工作流上的专用 Agent，性能越过 frontier 模型。你不需要训练通用智能，只需要在"你家客服工单流转"或"你家 BI 取数"这个狭窄分布上做到极致——这正是 RL 最擅长的。</p>
+
+    <p><strong>工程护城河正在超过算法。</strong>GPT-OSS 的 agentic RL 复盘里，决定训练能否收敛的是 FlashAttention 修复、MoE 显存优化、attention sink 支持这些系统级工作。异步分离式 rollout 基础设施是入场券。粗略地说：训练代码占 30%，工程占 70%。</p>
+
+    <h2>五、今天就能做的五件事</h2>
+
+    <ol>
+        <li><strong>补认知</strong>：精读 Kimi-Researcher 技术博客和 Cameron Wolfe 的《Agentic RL: Frameworks and Best Practices》，一天就能建立完整心智模型；</li>
+        <li><strong>跑 demo</strong>：用 verl、SkyRL 或 Agent-R1 任一框架，在 7B 模型上跑通一个 ToolRL 风格的多轮 RL 任务，重点观察 reward 曲线和退化行为长什么样；</li>
+        <li><strong>盘点你的环境</strong>：审视自己负责的系统，问一个问题——"我这里的任务有可验证的结果信号吗？我能在训练中重建生产环境吗？"答案决定你能吃到多少 agentic RL 红利；</li>
+        <li><strong>重新审视日志</strong>：Sergey Levine 的离线 RL 思路提醒我们，生产环境里堆积的次优交互日志就是金矿，在线探索不是唯一路径；</li>
+        <li><strong>把记忆做成可学习的</strong>：如果你在做 Agent 记忆/检索系统，试着把它包装成 RL 环境——动作是记忆操作，奖励是下游任务准确率。手写遗忘策略、巩固规则，很快会显得像手写的词法分析器。</li>
+    </ol>
+
+    <p>从提示词工程到权重工程，这不是又一层抽象，而是价值锚点的迁移。三年前会写 prompt 的人吃到了红利，接下来吃到红利的，是那些能给自己的业务造出可验证环境的人。</p>
+
+    <p class="meta" style="margin-top: 2.5rem;">参考资料：Kimi-Researcher (Moonshot AI) · Kimi K2.5 / PARL · Agent-R1 (arXiv 2511.14460) · AgentGym-RL · RAGEN · AutoForge · HiPER · KARL (ACL 2026) · Search-R1 / R1-Searcher / ZeroSearch / Absolute Zero · ToolRL / ReTool / TORL / OTC · DeepResearcher · Tongyi DeepResearch · GLM-5.2 技术报告 · Fireworks Multi-Turn RL Best Practices · Cameron Wolfe《Agentic RL》· HuggingFace GPT-OSS Agentic RL 复盘 · NeurIPS 2025 Multi-turn Agentic RL Practitioner's Guide</p>
+</body>
+</html>
