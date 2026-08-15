@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>信息外置,纪律蒸发 · Agent 工程的极简主义</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0a08;
+  --bg-elev:#0f0e0b;
+  --surface:#14120e;
+  --surface-2:#1a1712;
+  --surface-3:#211d16;
+  --border:#282218;
+  --border-strong:#3a3122;
+  --text:#ece7dd;
+  --text-muted:#9a917f;
+  --text-faint:#655c4c;
+  --accent:#e8a33d;
+  --accent-bright:#f5b95e;
+  --accent-glow:rgba(232,163,61,0.10);
+  --evap:#6b7a8f;
+  --danger:#c96a5a;
+  --ok:#7fb069;
+  --grid:rgba(255,255,255,0.022);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  background-image:
+    linear-gradient(var(--grid) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:48px 48px;
+  color:var(--text);
+  font-family:'Inter',-apple-system,sans-serif;
+  font-size:15px;line-height:1.68;font-weight:400;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1100px;margin:0 auto;padding:0 32px}
+
+/* ============ Hero ============ */
+.hero{position:relative;padding:100px 0 76px;border-bottom:1px solid var(--border);overflow:hidden}
+.hero::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 75% 55% at 25% 0%,var(--accent-glow),transparent 62%);pointer-events:none}
+.hero .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;color:var(--accent);text-transform:uppercase;margin-bottom:26px;display:flex;align-items:center;gap:14px}
+.hero .eyebrow::before{content:"";width:28px;height:1px;background:var(--accent)}
+.hero h1{font-family:'Fraunces',Georgia,serif;font-weight:300;font-size:clamp(44px,6.6vw,80px);line-height:1.02;letter-spacing:-.02em;margin-bottom:30px;font-variation-settings:"opsz" 144}
+.hero h1 em{font-style:italic;font-weight:400;color:var(--accent)}
+.hero .lede{font-size:19px;line-height:1.6;color:var(--text-muted);max-width:740px;font-weight:300}
+.hero .lede strong{color:var(--text);font-weight:500}
+.meta-row{margin-top:52px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border)}
+.meta-cell{background:var(--bg-elev);padding:18px 22px}
+.meta-cell .k{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.15em;color:var(--text-faint);text-transform:uppercase;margin-bottom:8px}
+.meta-cell .v{font-family:'JetBrains Mono',monospace;font-size:13.5px;color:var(--text);font-weight:500}
+.meta-cell .v.up{color:var(--accent)}
+
+/* ============ Sections ============ */
+section{padding:88px 0;border-bottom:1px solid var(--border)}
+.section-head{display:grid;grid-template-columns:120px 1fr;gap:48px;margin-bottom:54px;align-items:start}
+.section-num{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.15em;color:var(--text-faint);padding-top:8px;border-top:1px solid var(--border-strong)}
+.section-num span{color:var(--accent)}
+.section-head h2{font-family:'Fraunces',Georgia,serif;font-weight:400;font-size:clamp(30px,3.8vw,44px);line-height:1.06;letter-spacing:-.015em;font-variation-settings:"opsz" 96}
+.section-head .sub{margin-top:16px;color:var(--text-muted);font-size:16px;max-width:660px;font-weight:300}
+
+/* ============ Pull quote ============ */
+.pullquote{margin:0;padding:34px 0;border-top:1px solid var(--border-strong);border-bottom:1px solid var(--border-strong);font-family:'Fraunces',Georgia,serif;font-weight:300;font-size:clamp(22px,2.6vw,30px);line-height:1.45;letter-spacing:-.01em;font-variation-settings:"opsz" 96}
+.pullquote em{font-style:italic;color:var(--accent)}
+
+/* ============ Evaporate vs Appreciate ============ */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border)}
+.duo-col{padding:36px 34px;background:var(--surface)}
+.duo-col h3{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:24px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.duo-col.evap h3{color:var(--evap)}
+.duo-col.up h3{color:var(--accent)}
+.duo-item{padding:16px 0;border-bottom:1px solid var(--border)}
+.duo-item:last-child{border-bottom:none}
+.duo-item .t{font-weight:500;font-size:15px;margin-bottom:6px;color:var(--text)}
+.duo-item .d{font-size:13.5px;color:var(--text-muted);line-height:1.6}
+.duo-col.up .duo-item .t{color:var(--accent-bright)}
+
+/* ============ Tilt diagram ============ */
+.tilt-wrap{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border)}
+.tilt-cell{background:var(--bg-elev);padding:32px 30px}
+.tilt-cell .axis{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.15em;color:var(--text-faint);text-transform:uppercase;margin-bottom:18px}
+.tilt-bar{height:10px;background:var(--surface-3);border:1px solid var(--border);position:relative;margin:22px 0 10px}
+.tilt-bar .fill{position:absolute;top:0;bottom:0;left:0;background:var(--evap)}
+.tilt-bar .fill.up{background:var(--accent)}
+.tilt-cell .lbl2{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-faint)}
+.tilt-cell p{font-size:14px;color:var(--text-muted);line-height:1.65;margin-top:18px}
+.tilt-cell p strong{color:var(--text);font-weight:500}
+
+/* ============ Assertion source ============ */
+.src-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border)}
+.src-card{background:var(--surface);padding:32px 30px;position:relative}
+.src-card.bad{border-top:2px solid var(--danger)}
+.src-card.good{border-top:2px solid var(--ok)}
+.src-card .tag{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:16px}
+.src-card.bad .tag{color:var(--danger)}
+.src-card.good .tag{color:var(--ok)}
+.src-card h3{font-family:'Fraunces',Georgia,serif;font-weight:500;font-size:22px;margin-bottom:14px}
+.src-card .code{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.8;background:var(--bg);border:1px solid var(--border);padding:16px 18px;margin:16px 0;color:var(--text-muted);overflow-x:auto}
+.src-card .code .c{color:var(--text-faint)}
+.src-card .code .g{color:var(--ok)}
+.src-card .code .r{color:var(--danger)}
+.src-card p{font-size:14px;color:var(--text-muted);line-height:1.65}
+.src-card p strong{color:var(--text);font-weight:500}
+
+/* ============ Blind review ============ */
+.blind{background:var(--bg-elev);border:1px solid var(--border);padding:40px;overflow-x:auto}
+.blind svg{min-width:640px;width:100%;display:block}
+
+/* ============ Layer table ============ */
+table.layers{width:100%;border-collapse:collapse;border:1px solid var(--border)}
+table.layers th{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--text-faint);text-align:left;padding:14px 20px;border-bottom:1px solid var(--border-strong);background:var(--surface-2);font-weight:500}
+table.layers td{padding:16px 20px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:top}
+table.layers tr:last-child td{border-bottom:none}
+table.layers td:first-child{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--accent-bright);white-space:nowrap}
+table.layers td.agent{color:var(--text-muted);width:44%}
+table.layers td.human{color:var(--text);width:44%}
+table.layers td.human strong{color:var(--accent-bright);font-weight:500}
+
+/* ============ Rust toolbox ============ */
+.toolbox{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--border);border:1px solid var(--border)}
+.tool{background:var(--surface);padding:26px 28px}
+.tool .cmd{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--accent);font-weight:500;margin-bottom:10px}
+.tool .what{font-size:14px;color:var(--text);font-weight:500;margin-bottom:6px}
+.tool .when{font-size:13px;color:var(--text-muted);line-height:1.6}
+.tool .cost{display:inline-block;margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;padding:4px 10px;border:1px solid var(--border-strong);color:var(--text-faint)}
+.tool .cost.cheap{color:var(--ok);border-color:rgba(127,176,105,.35)}
+.tool .cost.mid{color:var(--accent);border-color:rgba(232,163,61,.35)}
+.tool .cost.high{color:var(--danger);border-color:rgba(201,106,90,.35)}
+
+/* ============ Monotonic curve ============ */
+.curve-box{background:var(--bg-elev);border:1px solid var(--border);padding:40px;overflow-x:auto}
+.curve-box svg{min-width:600px;width:100%;display:block}
+
+/* ============ Landing rules ============ */
+.rules{counter-reset:rule;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border)}
+.rule{background:var(--surface);padding:30px 30px;position:relative;counter-increment:rule}
+.rule::before{content:counter(rule,decimal-leading-zero);position:absolute;top:26px;right:28px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-faint)}
+.rule h3{font-family:'Fraunces',Georgia,serif;font-weight:500;font-size:20px;margin-bottom:12px;padding-right:40px}
+.rule p{font-size:13.5px;color:var(--text-muted);line-height:1.65}
+.rule p code,code.inline{font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--surface-3);color:var(--accent);padding:2px 7px;border-radius:3px;border:1px solid var(--border)}
+
+/* ============ Equation ============ */
+.equation{margin-top:48px;padding:40px;text-align:center;background:linear-gradient(180deg,rgba(232,163,61,.05),transparent 70%),var(--surface);border:1px solid var(--border)}
+.equation .eq{font-family:'Fraunces',Georgia,serif;font-weight:300;font-size:clamp(22px,3vw,32px);line-height:1.5}
+.equation .eq .op{color:var(--text-faint);font-style:italic}
+.equation .eq .var{color:var(--accent);font-style:italic}
+.equation .note{margin-top:18px;font-size:14px;color:var(--text-muted)}
+
+/* ============ Footer ============ */
+footer{padding:56px 0 80px}
+.ft-row{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:24px}
+.ft-meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-faint);letter-spacing:.1em;line-height:1.9}
+.ft-sig{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:15px;color:var(--text-muted)}
+
+@media (max-width:900px){
+  .hero{padding:64px 0 48px}
+  .meta-row{grid-template-columns:repeat(2,1fr)}
+  .section-head{grid-template-columns:1fr;gap:16px}
+  .duo,.tilt-wrap,.src-grid,.toolbox,.rules{grid-template-columns:1fr}
+  section{padding:64px 0}
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== HERO ===================== -->
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Engineering Manifesto · 2026.08</div>
+    <h1>信息外置,<br><em>纪律蒸发</em></h1>
+    <p class="lede">
+      Agent 编程的脚手架正在经历一场淘汰:模型每半年内化一批旧技巧,
+      你精心搭建的工作流反而和它自己的判断<strong>打架</strong>。
+      但不是所有东西都在蒸发——<strong>信息不会内化,只有纪律会</strong>。
+      这份宣言划出那条线,并给出测试在 Agent 时代的完整角色。
+    </p>
+    <div class="meta-row">
+      <div class="meta-cell"><div class="k">Core Thesis</div><div class="v">信息 vs 纪律</div></div>
+      <div class="meta-cell"><div class="k">保留项</div><div class="v up">测试 + 设计文档</div></div>
+      <div class="meta-cell"><div class="k">蒸发项</div><div class="v" style="color:var(--evap)">工作流脚手架</div></div>
+      <div class="meta-cell"><div class="k">Review Cadence</div><div class="v">每半年重置</div></div>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== PULL QUOTE ===================== -->
+<section style="padding:64px 0">
+  <div class="wrap">
+    <blockquote class="pullquote">
+      "产品质量不是由测试<em>保障</em>的——是由 <em>spec 的质量 × 验证回路的质量</em> 保障的。
+      测试恰好是这两者的交点:它是人表达『什么算对』的唯一可执行形式。"
+    </blockquote>
+  </div>
+</section>
+
+<!-- ===================== §01 ===================== -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-num">§ <span>01</span> / 切分维度</div>
+      <div>
+        <h2>这条东西是给模型<br>信息,还是教它纪律?</h2>
+        <p class="sub">不要按功能切(保留测试、删掉编排),按性质切:信息保留,纪律蒸发。判断方法也简单——换新模型时裸跑一次,看默认行为是否已覆盖你的规则。</p>
+      </div>
+    </div>
+
+    <div class="duo">
+      <div class="duo-col evap">
+        <h3>↓ 正在蒸发 · 教模型怎么思考</h3>
+        <div class="duo-item">
+          <div class="t">Prompt 技巧</div>
+          <div class="d">"你是资深架构师,先一步步分析再动手"——模型已内化。早期还得教"先读文件再改",现在谁还写这条?</div>
+        </div>
+        <div class="duo-item">
+          <div class="t">强制瀑布工作流</div>
+          <div class="d">先规划→再分工→再执行→再测试。模型看到一个 typo,工作流却逼它走全流程——这就是你感受到的"前后矛盾"。</div>
+        </div>
+        <div class="duo-item">
+          <div class="t">角色分工式 SubAgent 编排</div>
+          <div class="d">每个 subagent 重新探索,context 传递损耗经常大于并行收益。作为"分工机制"在消失。</div>
+        </div>
+      </div>
+      <div class="duo-col up">
+        <h3>↑ 正在升值 · 给模型可验证信号</h3>
+        <div class="duo-item">
+          <div class="t">测试 / 类型 / CI</div>
+          <div class="d">角色变了:从"教纪律"变成"给 oracle"。强模型写代码已经不是瓶颈,证明写对了才是。</div>
+        </div>
+        <div class="duo-item">
+          <div class="t">设计文档 / 决策记录</div>
+          <div class="d">解决的不是模型能力,是状态外置:模型再强也没有跨会话记忆,"为什么选 X 不选 Y"只能活在文件里。</div>
+        </div>
+        <div class="duo-item">
+          <div class="t">SubAgent 作为上下文隔离工具</div>
+          <div class="d">作为"独立评审者"在升值——以前请第二个人盲评很贵,现在开一个无污染会话,边际成本为零。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tilt-wrap" style="margin-top:1px">
+      <div class="tilt-cell">
+        <div class="axis">模型能力 →</div>
+        <div class="tilt-bar"><div class="fill" style="width:22%"></div></div>
+        <div class="lbl2"><span>认知脚手架的需求</span><span>↓ 下降</span></div>
+        <p><strong>模型越强,越不需要"指导它怎么想"。</strong>半年重置一次技能库:换新模型裸测,被默认行为覆盖的规则直接删。</p>
+      </div>
+      <div class="tilt-cell">
+        <div class="axis">模型能力 →</div>
+        <div class="tilt-bar"><div class="fill up" style="width:86%"></div></div>
+        <div class="lbl2"><span>验证信号的价值</span><span style="color:var(--accent)">↑ 上升</span></div>
+        <p><strong>模型越强,越需要"告诉它做得对不对"。</strong>它能一次改 20 个文件,人 review 跟不上,只能靠机械验证兜底。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== §02 ===================== -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-num">§ <span>02</span> / 同源偏差</div>
+      <div>
+        <h2>测试的关键不是有没有,<br>是断言的值从哪来</h2>
+        <p class="sub">同一个模型写实现又写测试,它的测试往往在"验证自己的实现"而非"验证规范"。这就是 TDD 在 Agent 时代复活的原因——不是纪律,是 oracle 的来源问题。</p>
+      </div>
+    </div>
+
+    <div class="src-grid">
+      <div class="src-card bad">
+        <div class="tag">✗ 同源污染</div>
+        <h3>断言来自实现快照</h3>
+        <div class="code"><span class="c">// 跑一遍实现,把输出抄下来当期望值</span>
+assert_eq!(parse("2026-08-15"), <span class="r">result_刚才跑出来的那个值</span>);
+<span class="c">// 只能抓"以后改坏了"</span>
+<span class="c">// 抓不住"现在就错了"</span></div>
+        <p>快照镜像了实现的行为,而不是规范的行为。<strong>实现本身就错时,测试忠实地保护着错误。</strong></p>
+      </div>
+      <div class="src-card good">
+        <div class="tag">✓ 独立来源</div>
+        <h3>断言来自 Spec</h3>
+        <div class="code"><span class="c">// 期望值从 spec / issue / 类型签名推导</span>
+assert_eq!(parse("2026-08-15"), <span class="g">Date{y:2026,m:8,d:15}</span>);
+<span class="c">// 实现错了 → 测试红 → 拉回正确方向</span></div>
+        <p><strong>测试编码的是人的意图,不是机器的输出。</strong>这才是可执行的 spec,也是 agent 迭代的客观奖励信号。</p>
+      </div>
+    </div>
+
+    <p style="margin-top:32px;padding:22px 26px;background:var(--bg-elev);border-left:2px solid var(--accent);font-size:15px;line-height:1.7;color:var(--text)">
+      一句 prompt 就能杀掉大半偏差——<span style="color:var(--text-muted)">"断言的期望值必须来自 spec/issue/类型签名,<strong style="color:var(--accent)">禁止从当前实现的输出快照取值</strong>。写完告诉我哪些行为你找不到外部依据、只能从实现推断——那部分就是 spec 的缺口。"</span>最后一句是关键:它把模型不确定的地方暴露给你,那正是需要人补信息的地方。
+    </p>
+  </div>
+</section>
+
+<!-- ===================== §03 ===================== -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-num">§ <span>03</span> / 盲评</div>
+      <div>
+        <h2>切断上下文,<br>制造独立性</h2>
+        <p class="sub">让学生批改自己的卷子,能找出粗心错,找不出理解错——写测试的偏差和 review 测试的偏差是相关的,因为上下文是同一个。解法:开一个全新的会话,只给 spec 和测试,不给它看实现。</p>
+      </div>
+    </div>
+
+    <div class="blind">
+      <svg viewBox="0 0 920 300" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#e8a33d"/>
+          </marker>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7a8f"/>
+          </marker>
+        </defs>
+        <!-- main session -->
+        <rect x="40" y="40" width="330" height="180" rx="4" fill="#14120e" stroke="#3a3122"/>
+        <text x="56" y="68" fill="#9a917f" font-family="JetBrains Mono,monospace" font-size="12">主会话</text>
+        <rect x="64" y="86" width="180" height="36" rx="3" fill="#211d16" stroke="#282218"/>
+        <text x="78" y="109" fill="#ece7dd" font-family="JetBrains Mono,monospace" font-size="12">实现 (implementation)</text>
+        <rect x="64" y="136" width="180" height="36" rx="3" fill="#211d16" stroke="#282218"/>
+        <text x="78" y="159" fill="#ece7dd" font-family="JetBrains Mono,monospace" font-size="12">测试 (tests)</text>
+        <text x="256" y="110" fill="#c96a5a" font-family="JetBrains Mono,monospace" font-size="18">✕</text>
+        <text x="256" y="160" fill="#c96a5a" font-family="JetBrains Mono,monospace" font-size="18">✕</text>
+        <text x="205" y="200" fill="#655c4c" font-family="Inter,sans-serif" font-size="11">同源偏差:看不见自己的盲区</text>
+
+        <!-- arrows -->
+        <line x1="370" y1="100" x2="560" y2="100" stroke="#6b7a8f" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a2)"/>
+        <line x1="370" y1="175" x2="560" y2="175" stroke="#e8a33d" stroke-width="1.5" marker-end="url(#a1)"/>
+        <text x="392" y="90" fill="#6b7a8f" font-family="JetBrains Mono,monospace" font-size="11">实现 ✗ 不传递</text>
+        <text x="392" y="165" fill="#e8a33d" font-family="JetBrains Mono,monospace" font-size="11">测试 ✓</text>
+        <line x1="370" y1="195" x2="560" y2="195" stroke="#e8a33d" stroke-width="1.5" marker-end="url(#a1)"/>
+        <text x="392" y="215" fill="#e8a33d" font-family="JetBrains Mono,monospace" font-size="11">spec ✓</text>
+
+        <!-- fresh session -->
+        <rect x="570" y="40" width="330" height="180" rx="4" fill="#14120e" stroke="#e8a33d" stroke-width="1.5"/>
+        <text x="586" y="68" fill="#e8a33d" font-family="JetBrains Mono,monospace" font-size="12">Fresh 会话 · 盲评者</text>
+        <rect x="594" y="120" width="282" height="36" rx="3" fill="#211d16" stroke="#282218"/>
+        <text x="610" y="143" fill="#ece7dd" font-family="JetBrains Mono,monospace" font-size="12">逐条推导:期望值能只从 spec 推出吗?</text>
+        <text x="594" y="192" fill="#9a917f" font-family="Inter,sans-serif" font-size="12">它没见过实现 → 同源偏差没有来源</text>
+        <text x="594" y="210" fill="#9a917f" font-family="Inter,sans-serif" font-size="12">推出不同值 → 实现错了,或 spec 有歧义</text>
+
+        <!-- verdict -->
+        <text x="460" y="270" text-anchor="middle" fill="#655c4c" font-family="Fraunces,serif" font-style="italic" font-size="15">两种结果都是你想要的信号</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== §04 ===================== -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-num">§ <span>04</span> / 责任分层</div>
+      <div>
+        <h2>哪些交给 Agent,<br>哪些必须留给人</h2>
+        <p class="sub">写测试便宜了,判断测试是不是好测试没变便宜。人的时间只该花在一处:review 断言的来源。其他一切(数量、覆盖率、跑 CI)都可以完全交给 agent。</p>
+      </div>
+    </div>
+
+    <table class="layers">
+      <thead>
+        <tr><th>层</th><th>Agent 全权负责</th><th>人必须给的</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>类型 / 编译器</td><td class="agent">—</td><td class="human">已有,免费的 oracle</td></tr>
+        <tr><td>单元测试</td><td class="agent">写、跑、修</td><td class="human"><strong>review 断言来源</strong>(唯一值得花人时的环节)</td></tr>
+        <tr><td>回归测试</td><td class="agent">postmortem → 测试,全自动</td><td class="human">bug 的正确行为定义</td></tr>
+        <tr><td>属性 / 模糊测试</td><td class="agent">全权——写 property 比写 example 更适合 agent</td><td class="human">指出哪些模块值得</td></tr>
+        <tr><td>E2E / 集成</td><td class="agent">全权(以前太脆没人写,agent 不怕维护成本)</td><td class="human">哪条用户路径最重要</td></tr>
+        <tr><td>形式化验证</td><td class="agent">写 proof harness</td><td class="human">选安全关键的不变量——全量形式化的成本模型没变</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ===================== §05 ===================== -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-num">§ <span>05</span> / Rust 工具箱</div>
+      <div>
+        <h2>替代"提两嘴"<br>的具体清单</h2>
+        <p class="sub">与其说"加下 fuzz、搞下形式化验证",不如给对指令:让 agent 找出模块的不变量,用对工具验证。按成本排序——便宜的默认全开,贵的只给安全关键路径。</p>
+      </div>
+    </div>
+
+    <div class="toolbox">
+      <div class="tool">
+        <div class="cmd">cargo miri</div>
+        <div class="what">未定义行为检测</div>
+        <div class="when">几乎零成本,agent 自己会跑。解释执行器级别抓 UB:越界、别名违规、数据竞争。</div>
+        <div class="cost cheap">成本 ≈ 0 · 默认开</div>
+      </div>
+      <div class="tool">
+        <div class="cmd">loom</div>
+        <div class="what">并发正确性模型检查</div>
+        <div class="when">碰 Arc / Mutex / channel 的模块就该上。穷举交织,抓最阴的竞态。</div>
+        <div class="cost cheap">成本低 · 并发模块必开</div>
+      </div>
+      <div class="tool">
+        <div class="cmd">proptest / cargo-fuzz</div>
+        <div class="what">属性测试 / 模糊测试</div>
+        <div class="when">指令给法:"找出这个模块的不变量,然后用 proptest 验证"。写"排序后长度不变且有序"这类 property 是 agent 的甜点,且最难被同源偏差污染。</div>
+        <div class="cost mid">成本中 · 按模块开</div>
+      </div>
+      <div class="tool">
+        <div class="cmd">kani</div>
+        <div class="what">形式化验证(有界模型检查)</div>
+        <div class="when">只值得给安全关键的不变量:解析外部输入、权限检查、加密协议。agent 只是把"写 proof harness"的边际成本降了,不是让全量验证变便宜。</div>
+        <div class="cost high">成本高 · 仅安全关键</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== §06 ===================== -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-num">§ <span>06</span> / 单调改进</div>
+      <div>
+        <h2>测试保障的不是没有 Bug,<br>是每个 Bug 只发生一次</h2>
+        <p class="sub">测试能抓的都是已知模式:写过的回归、定义过的不变量、spec 描述过的边界。真正的线上事故一定是新模式。质量的真实机制是这条曲线的斜率,不是覆盖率的数字。</p>
+      </div>
+    </div>
+
+    <div class="curve-box">
+      <svg viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg">
+        <!-- axes -->
+        <line x1="60" y1="260" x2="760" y2="260" stroke="#3a3122" stroke-width="1"/>
+        <line x1="60" y1="260" x2="60" y2="30" stroke="#3a3122" stroke-width="1"/>
+        <text x="40" y="150" fill="#655c4c" font-family="JetBrains Mono,monospace" font-size="11" transform="rotate(-90 40 150)" text-anchor="middle">未防御的错误类别</text>
+        <text x="410" y="295" fill="#655c4c" font-family="JetBrains Mono,monospace" font-size="11" text-anchor="middle">时间 →</text>
+        <!-- good curve -->
+        <path d="M 60 50 C 200 60, 300 140, 420 190 C 540 235, 660 250, 760 255" fill="none" stroke="#e8a33d" stroke-width="2.5"/>
+        <!-- bad curve -->
+        <path d="M 60 50 C 180 55, 260 75, 340 90 C 480 115, 620 125, 760 130" fill="none" stroke="#6b7a8f" stroke-width="1.5" stroke-dasharray="6 5"/>
+        <!-- annotations -->
+        <text x="200" y="40" fill="#6b7a8f" font-family="Inter,sans-serif" font-size="12">没有回归流水线:错误类别缓慢减少</text>
+        <text x="480" y="230" fill="#e8a33d" font-family="Inter,sans-serif" font-size="12" font-weight="500">事故 → postmortem → 回归测试</text>
+        <text x="480" y="248" fill="#e8a33d" font-family="Inter,sans-serif" font-size="12" font-weight="500">每类错误永久关闭</text>
+        <!-- incident markers -->
+        <g font-family="JetBrains Mono,monospace" font-size="10" fill="#c96a5a">
+          <circle cx="150" cy="57" r="4" fill="#c96a5a"/><text x="150" y="42" text-anchor="middle">事故 1</text>
+          <circle cx="290" cy="126" r="4" fill="#c96a5a"/><text x="290" y="111" text-anchor="middle">事故 2</text>
+          <circle cx="430" cy="190" r="4" fill="#c96a5a"/><text x="430" y="175" text-anchor="middle">事故 3</text>
+        </g>
+        <text x="740" y="240" fill="#655c4c" font-family="Fraunces,serif" font-style="italic" font-size="14" text-anchor="end">判据是斜率,不是覆盖率</text>
+      </svg>
+    </div>
+
+    <div class="equation">
+      <div class="eq"><span class="var">产品质量</span> <span class="op">=</span> <span class="var">spec 的质量</span> <span class="op">×</span> <span class="var">验证回路的质量</span></div>
+      <div class="note">测试对 agent 是生产资料而非防御设施:在有客观信号的代码库上迭代会收敛到正确,<br>在没有信号的代码库上会"自信地错"。评估一个团队的 agent 就绪度,先看测试回路,再看用什么模型。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== §07 ===================== -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-num">§ <span>07</span> / 落地</div>
+      <div>
+        <h2>已经写进<br>全局配置的四条规则</h2>
+        <p class="sub">你希望固定发生的行为,口头说是不可靠的——模型的行为偏好会漂,换会话、换模型,口头约定就没了。和测试断言外置到 spec 是同一个道理:规则也要外置到配置。</p>
+      </div>
+    </div>
+
+    <div class="rules">
+      <div class="rule">
+        <h3>断言来源</h3>
+        <p>测试断言的期望值必须来自 <code>spec / issue / 类型签名 / 用户陈述的需求</code>,禁止从当前实现的输出快照取值。快照只能用于回归测试并明确标注。</p>
+      </div>
+      <div class="rule">
+        <h3>Spec 缺口申报</h3>
+        <p>写完测试后主动报告哪些行为找不到外部依据、只能从实现推断——那部分是 spec 的缺口,交给用户补。</p>
+      </div>
+      <div class="rule">
+        <h3>关键模块盲评</h3>
+        <p>触及安全、并发、解析外部输入的模块时,用独立 subagent 做断言盲评:只给 <code>spec + 测试</code>,不给实现,逐条推导期望值,标出推不出来的。</p>
+      </div>
+      <div class="rule">
+        <h3>Bug 只发生一次</h3>
+        <p>每个修复的 bug 必须配套回归测试,且该测试要能证明修复前会失败。</p>
+      </div>
+    </div>
+
+    <p style="margin-top:32px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text-faint);line-height:2">
+      ~/.claude/CLAUDE.md<span style="color:var(--accent)">  ·  </span>全局层,所有项目生效<span style="color:var(--accent)">  ·  </span><br>
+      项目级:根目录 AGENTS.md(可进 git 共享)<span style="color:var(--accent)">  ·  </span>目录级:子目录 AGENTS.md(私有范围)<span style="color:var(--accent)">  ·  </span><br>
+      维护节奏:半年换新模型裸测一遍,被内化的行删掉
+    </p>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="wrap">
+    <div class="ft-row">
+      <div class="ft-meta">
+        Engineering Manifesto · 信息外置,纪律蒸发<br>
+        Date · 2026-08-15 · Landing · ~/.claude/CLAUDE.md
+      </div>
+      <div class="ft-sig">— 把脑子里的意图,外置成机器能验证的东西</div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
