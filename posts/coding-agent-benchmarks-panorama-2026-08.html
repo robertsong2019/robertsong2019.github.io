@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>编码 Agent 基准全景 · 五个基准测什么</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;900&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070b14; --bg2:#0b1120; --panel:#0e1626;
+  --line:rgba(120,150,200,.14); --line-hi:rgba(255,176,32,.4);
+  --ink:#e8edf6; --ink-dim:#8b9bb4; --ink-faint:#57657d;
+  --amber:#ffb020; --amber-soft:rgba(255,176,32,.12);
+  --cyan:#4fd8e8; --green:#5ee88f; --red:#ff6b6b;
+  --serif:'Noto Serif SC',serif; --sans:'Noto Sans SC',sans-serif; --mono:'IBM Plex Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.75;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 80% 50% at 75% -10%,rgba(79,216,232,.08),transparent 60%),
+             radial-gradient(ellipse 60% 40% at 8% 12%,rgba(255,176,32,.05),transparent 60%);}
+body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.35;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");}
+.wrap{max-width:1160px;margin:0 auto;padding:0 28px;position:relative;z-index:1}
+
+header{padding:100px 0 60px}
+.tag{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:2.5px;color:var(--cyan);
+  border:1px solid rgba(79,216,232,.3);padding:5px 14px;border-radius:99px;margin-bottom:26px;text-transform:uppercase}
+h1{font-family:var(--serif);font-weight:900;font-size:clamp(42px,7vw,76px);line-height:1.08;letter-spacing:-1px}
+h1 .accent{color:var(--amber);font-style:italic}
+.sub{margin-top:22px;max-width:660px;font-size:17px;color:var(--ink-dim);font-weight:300}
+
+/* spectrum */
+.spectrum{margin-top:56px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:34px 30px 24px}
+.spectrum .lbl{font-family:var(--mono);font-size:11.5px;letter-spacing:2px;color:var(--ink-faint);text-transform:uppercase;margin-bottom:22px;text-align:center}
+.axis{position:relative;height:2px;background:linear-gradient(90deg,rgba(79,216,232,.15),var(--cyan),var(--amber));border-radius:2px;margin:44px 8px 8px}
+.bench-marks{display:flex;justify-content:space-between;position:relative;margin-top:-9px}
+.bm{display:flex;flex-direction:column;align-items:center;gap:10px;width:19%;text-align:center}
+.bm .dot{width:16px;height:16px;border-radius:50%;background:var(--bg);border:3px solid var(--amber);box-shadow:0 0 14px rgba(255,176,32,.45)}
+.bm:nth-child(1) .dot,.bm:nth-child(2) .dot{border-color:var(--cyan);box-shadow:0 0 14px rgba(79,216,232,.4)}
+.bm .n{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink)}
+.bm .t{font-size:11.5px;color:var(--ink-faint)}
+.bm a{text-decoration:none;color:inherit;display:block}
+.bm .n:hover{color:var(--amber)}
+
+/* section per benchmark */
+section{padding:64px 0 12px}
+.sec-head{display:flex;align-items:baseline;gap:16px;margin-bottom:10px;flex-wrap:wrap}
+.sec-head .no{font-family:var(--mono);color:var(--amber);font-size:14px}
+.sec-head h2{font-family:var(--serif);font-weight:900;font-size:clamp(26px,3.6vw,36px)}
+.sec-head .cat{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--cyan);
+  border:1px solid rgba(79,216,232,.3);border-radius:99px;padding:3px 12px;text-transform:uppercase}
+.sec-link{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:13px;color:var(--amber);
+  text-decoration:none;border:1px solid var(--line-hi);background:var(--amber-soft);
+  padding:7px 16px;border-radius:8px;margin:12px 0 22px;transition:all .2s}
+.sec-link:hover{background:rgba(255,176,32,.2);transform:translateY(-1px)}
+.sec-link a{color:inherit;text-decoration:none}
+.sec-link a:hover{color:var(--ink)}
+.lead{font-size:16.5px;color:var(--ink-dim);max-width:860px;margin-bottom:26px;font-weight:300}
+.lead b{color:var(--ink);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px}
+.kv{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.kv .k{font-family:var(--mono);font-size:10.5px;letter-spacing:1.5px;color:var(--ink-faint);text-transform:uppercase;margin-bottom:4px}
+.kv .v{font-size:14.5px;color:var(--ink);font-weight:500}
+.kv.hl{border-color:var(--line-hi);background:linear-gradient(180deg,var(--panel),rgba(255,176,32,.07))}
+.kv.hl .v{color:var(--amber)}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
+.card h4{font-size:15px;margin-bottom:8px;color:var(--ink)}
+.card h4 span{color:var(--amber);margin-right:8px;font-family:var(--mono);font-size:13px}
+.card p{font-size:13.5px;color:var(--ink-dim)}
+
+/* comparison table */
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+th{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--ink-faint);text-align:left;
+  padding:12px;border-bottom:1px solid var(--line);text-transform:uppercase}
+td{padding:12px;border-bottom:1px solid rgba(120,150,200,.08);color:var(--ink-dim)}
+td:first-child{color:var(--ink);font-weight:600}
+td a{color:var(--cyan);text-decoration:none}
+td a:hover{text-decoration:underline}
+.score{font-family:var(--mono);font-weight:600;color:var(--ink)}
+.score b{color:var(--amber)}
+
+/* bars */
+.bars{margin-top:18px}
+.brow{display:grid;grid-template-columns:150px 1fr 60px;align-items:center;gap:14px;padding:7px 0}
+.brow .n{font-family:var(--mono);font-size:12.5px;color:var(--ink-dim)}
+.track{height:22px;background:rgba(120,150,200,.07);border-radius:6px;overflow:hidden}
+.fill{height:100%;border-radius:6px;background:linear-gradient(90deg,rgba(79,216,232,.15),rgba(79,216,232,.5));width:0;
+  transition:width 1s cubic-bezier(.2,.8,.2,1)}
+.fill.own{background:linear-gradient(90deg,rgba(255,176,32,.25),var(--amber))}
+.brow .v{font-family:var(--mono);font-size:13px;text-align:right;color:var(--ink-dim)}
+.brow.own .v{color:var(--amber);font-weight:600}
+
+footer{border-top:1px solid var(--line);padding:44px 0;text-align:center;margin-top:70px}
+footer .fin{font-family:var(--serif);font-size:19px;font-style:italic;color:var(--ink)}
+footer .fin b{color:var(--amber);font-style:normal}
+footer .src{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);margin-top:14px}
+footer .src a{color:var(--cyan);text-decoration:none}
+.note{font-size:12px;color:var(--ink-faint);margin-top:16px;font-family:var(--mono)}
+.rv{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s ease}
+.rv.on{opacity:1;transform:none}
+@media(max-width:880px){
+  .grid{grid-template-columns:1fr 1fr}
+  .cards{grid-template-columns:1fr}
+  .bm .t{display:none}
+  .brow{grid-template-columns:100px 1fr 50px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="tag">Coding Agent Benchmarks · GLM-5.3 Model Card</div>
+    <h1>五个基准，<br><span class="accent">五种能力。</span></h1>
+    <p class="sub">它们常被放在同一张表里比较，但测量的维度截然不同——从"修一个 bug"到"独自扛完数天的工程"。这份全景图拆解 Terminal Bench、DeepSWE、ProgramBench、SWE-Marathon、NL2Repo 的本质区别。</p>
+
+    <div class="spectrum rv">
+      <div class="lbl">任务时长光谱 · 从单步到天级</div>
+      <div class="axis"></div>
+      <div class="bench-marks">
+        <div class="bm"><a href="https://github.com/Agentica-engineer/deep-swe" target="_blank"><span class="dot"></span><span class="n">DeepSWE</span><span class="t">分钟级 · 单点修复</span></a></div>
+        <div class="bm"><a href="https://www.tbench.ai/" target="_blank"><span class="dot"></span><span class="n">Terminal Bench</span><span class="t">10-60 分钟 · 终端操作</span></a></div>
+        <div class="bm"><a href="https://github.com/princeton-nlp/ProgramBench" target="_blank"><span class="dot"></span><span class="n">ProgramBench</span><span class="t">小时级 · 规格构造</span></a></div>
+        <div class="bm"><a href="https://github.com/abundant-ai/swe-marathon" target="_blank"><span class="dot"></span><span class="n">SWE-Marathon</span><span class="t">数天工程压缩 · 马拉松</span></a></div>
+        <div class="bm"><a href="https://github.com/scaleapi/NL2Repo" target="_blank"><span class="dot"></span><span class="n">NL2Repo</span><span class="t">小时~天 · 仓库集成</span></a></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ================= 01 DeepSWE ================= -->
+<section>
+  <div class="wrap">
+    <div class="sec-head rv"><span class="no">01</span><h2>DeepSWE</h2><span class="cat">单点修复 · 分钟级</span></div>
+    <a class="sec-link rv" href="https://github.com/Agentica-engineer/deep-swe" target="_blank">🔗 github.com/Agentica-engineer/deep-swe</a>
+    <p class="lead rv"><b>给一个真实 GitHub issue + 仓库快照，要求产出能通过测试的 patch。</b>上下文相对局部，不需要长时间自主探索——本质考验 issue → 定位 → 改对的<b>精度</b>。这是最"传统"的 SWE 基准形态，也是当前最拥挤的赛道。</p>
+    <div class="grid rv">
+      <div class="kv"><div class="k">输入</div><div class="v">Issue + 仓库快照</div></div>
+      <div class="kv"><div class="k">任务本质</div><div class="v">定位并修复一个问题</div></div>
+      <div class="kv"><div class="k">验证</div><div class="v">PASS_TO_PASS + FAIL_TO_PASS</div></div>
+      <div class="kv hl"><div class="k">GLM-5.3</div><div class="v">66.9 <small style="color:var(--ink-faint)">(5.2: 46.2, +45%)</small></div></div>
+    </div>
+    <div class="bars rv">
+      <div class="brow own"><span class="n">GLM-5.3</span><div class="track"><div class="fill own" data-w="92"></div></div><span class="v">66.9</span></div>
+      <div class="brow"><span class="n">GPT-5.6 Sol</span><div class="track"><div class="fill" data-w="100"></div></div><span class="v">72.7</span></div>
+      <div class="brow"><span class="n">Fable 5</span><div class="track"><div class="fill" data-w="96"></div></div><span class="v">69.7</span></div>
+      <div class="brow"><span class="n">Kimi K3</span><div class="track"><div class="fill" data-w="93"></div></div><span class="v">67.5</span></div>
+    </div>
+    <p class="note rv">→ 头部挤在 67-73：单点修复接近饱和，区分度已转移到长程基准。</p>
+  </div>
+</section>
+
+<!-- ================= 02 Terminal Bench ================= -->
+<section>
+  <div class="wrap">
+    <div class="sec-head rv"><span class="no">02</span><h2>Terminal Bench</h2><span class="cat">终端操作 · 10-60 分钟</span></div>
+    <a class="sec-link rv" href="https://www.tbench.ai/" target="_blank">🔗 tbench.ai · 官网与排行榜</a>
+    <p class="lead rv"><b>一台真实的 Linux 容器 + shell，只有一句任务描述。</b>没有任何铺垫——模型要自己决定看什么文件、装什么依赖、写什么脚本、怎么验证。这是最接近"人类拿到一台裸机"的场景，考验<b>环境探索、工具使用与自我纠错</b>，而非纯粹的代码生成。3.0 版收紧了客观检查点并保持闭网执行。</p>
+    <div class="grid rv">
+      <div class="kv"><div class="k">输入</div><div class="v">任务描述 + 裸终端环境</div></div>
+      <div class="kv"><div class="k">任务本质</div><div class="v">自主探索并完成配置/搭建/分析</div></div>
+      <div class="kv"><div class="k">验证</div><div class="v">环境客观检查（产出文件 / 测试）</div></div>
+      <div class="kv hl"><div class="k">GLM-5.3</div><div class="v">28.3 <small style="color:var(--ink-faint)">(5.2: 4.6, 6.2×)</small></div></div>
+    </div>
+    <div class="bars rv">
+      <div class="brow own"><span class="n">GLM-5.3</span><div class="track"><div class="fill own" data-w="82"></div></div><span class="v">28.3</span></div>
+      <div class="brow"><span class="n">GPT-5.6 Sol</span><div class="track"><div class="fill" data-w="100"></div></div><span class="v">34.6</span></div>
+      <div class="brow"><span class="n">Fable 5</span><div class="track"><div class="fill" data-w="97"></div></div><span class="v">33.7</span></div>
+      <div class="brow"><span class="n">Kimi K3</span><div class="track"><div class="fill" data-w="50"></div></div><span class="v">17.4</span></div>
+    </div>
+    <p class="note rv">→ 6.2× 的涨幅正是"天级 RL 环境"训练的直接产物：奖励来自任务最终状态是否达标。</p>
+  </div>
+</section>
+
+<!-- ================= 03 ProgramBench ================= -->
+<section>
+  <div class="wrap">
+    <div class="sec-head rv"><span class="no">03</span><h2>ProgramBench</h2><span class="cat">规格构造 · 小时级</span></div>
+    <a class="sec-link rv" href="https://github.com/princeton-nlp/ProgramBench" target="_blank">🔗 github.com/princeton-nlp/ProgramBench</a>
+    <p class="lead rv"><b>给定需求/规格描述，从接近零起点构造一个多模块、需分阶段开发的完整程序。</b>它考的不是"修"也不是"操作环境"，而是<b>规格理解 → 架构分解 → 多阶段实现 → 自我测试</b>的全链条。典型失败模式：前 70% 都对，集成阶段崩。</p>
+    <div class="grid rv">
+      <div class="kv"><div class="k">输入</div><div class="v">规格 / 需求描述</div></div>
+      <div class="kv"><div class="k">任务本质</div><div class="v">从零构造多阶段程序</div></div>
+      <div class="kv"><div class="k">验证</div><div class="v">阶段化 / 端到端测试</div></div>
+      <div class="kv hl"><div class="k">GLM-5.3</div><div class="v">19.0 <small style="color:var(--ink-faint)">(5.2: 9.5, 2×)</small></div></div>
+    </div>
+    <div class="bars rv">
+      <div class="brow own"><span class="n">GLM-5.3</span><div class="track"><div class="fill own" data-w="58"></div></div><span class="v">19.0</span></div>
+      <div class="brow"><span class="n">Fable 5</span><div class="track"><div class="fill" data-w="100"></div></div><span class="v">33.0</span></div>
+      <div class="brow"><span class="n">GPT-5.6 Sol</span><div class="track"><div class="fill" data-w="70"></div></div><span class="v">23.0</span></div>
+    </div>
+    <p class="note rv">→ 差距最大的基准：复杂规格的多阶段规划仍是前沿模型的护城河。</p>
+  </div>
+</section>
+
+<!-- ================= 04 SWE-Marathon ================= -->
+<section>
+  <div class="wrap">
+    <div class="sec-head rv"><span class="no">04</span><h2>SWE-Marathon</h2><span class="cat">天级马拉松 · 反作弊最严</span></div>
+    <span class="sec-link rv"><a href="https://github.com/abundant-ai/swe-marathon" target="_blank">🔗 github.com/abundant-ai/swe-marathon</a> · <a href="https://arxiv.org/abs/2606.07682" target="_blank" style="margin-left:10px">📄 论文 arXiv:2606.07682</a></span>
+    <p class="lead rv"><b>21 个"项目级"任务，每个对应资深工程师数天的工作量</b>：用 Rust 从零写 C 编译器（约 4,500 行、780+ 测试）、克隆一个三节点水平扩展的 Slack、把 Kubernetes 迁移到 Rust……任务按"天"而非"步"计量，运行在 billion-token 级的长会话上。</p>
+    <div class="grid rv">
+      <div class="kv"><div class="k">输入</div><div class="v">工程任务书（instruction.md）</div></div>
+      <div class="kv"><div class="k">任务本质</div><div class="v">端到端扛下数天工程</div></div>
+      <div class="kv"><div class="k">验证</div><div class="v">大型套件 + 隐藏泛化集</div></div>
+      <div class="kv hl"><div class="k">GLM-5.3</div><div class="v">42.5 <small style="color:var(--ink-faint)">(5.2: 19.4, 2.2×)</small></div></div>
+    </div>
+    <div class="cards rv">
+      <div class="card"><h4><span>🛡</span>反作弊三件套</h4><p>封网重下测试套件防篡改 · strace 监控禁止 gcc 编 .c（必须自己实现前端）· 二进制 canary 检查防止把答案嵌入输出。</p></div>
+      <div class="card"><h4><span>🔒</span>隐藏泛化集</h4><p>可见的 3 个套件用于打分，第 4 个（gcc.dg）在验证时才加入——专测超出可见测试的泛化能力，防"刷榜式过拟合"。</p></div>
+    </div>
+    <div class="bars rv" style="margin-top:20px">
+      <div class="brow own"><span class="n">GLM-5.3</span><div class="track"><div class="fill own" data-w="87"></div></div><span class="v">42.5</span></div>
+      <div class="brow"><span class="n">Opus 4.8</span><div class="track"><div class="fill" data-w="100"></div></div><span class="v">48.8</span></div>
+      <div class="brow"><span class="n">Kimi K3</span><div class="track"><div class="fill" data-w="98"></div></div><span class="v">48.1</span></div>
+    </div>
+    <p class="note rv">→ 与 GLM-5.3 后训练环境（数天工程师任务 + 客观验收）最同构的公开基准，提升也最直接。</p>
+  </div>
+</section>
+
+<!-- ================= 05 NL2Repo ================= -->
+<section>
+  <div class="wrap">
+    <div class="sec-head rv"><span class="no">05</span><h2>NL2Repo</h2><span class="cat">仓库集成 · 小时~天</span></div>
+    <a class="sec-link rv" href="https://github.com/scaleapi/NL2Repo" target="_blank">🔗 github.com/scaleapi/NL2Repo</a>
+    <p class="lead rv"><b>一段自然语言功能需求 + 一个从未见过的真实代码库。</b>要求在遵守该仓库架构、风格与既有抽象的前提下实现完整功能（含测试）。与 DeepSWE 的"修一个问题点"不同，这里是"交付一个功能面"——<b>大规模代码导航与仓库理解的权重远高于单点修复</b>。</p>
+    <div class="grid rv">
+      <div class="kv"><div class="k">输入</div><div class="v">需求 + 陌生仓库</div></div>
+      <div class="kv"><div class="k">任务本质</div><div class="v">功能级理解与集成</div></div>
+      <div class="kv"><div class="k">验证</div><div class="v">仓库级测试</div></div>
+      <div class="kv hl"><div class="k">GLM-5.3</div><div class="v">58.0 <small style="color:var(--ink-faint)">(5.2: 48.9, +19%)</small></div></div>
+    </div>
+    <div class="bars rv">
+      <div class="brow own"><span class="n">GLM-5.3</span><div class="track"><div class="fill own" data-w="83"></div></div><span class="v">58.0</span></div>
+      <div class="brow"><span class="n">Opus 4.8</span><div class="track"><div class="fill" data-w="100"></div></div><span class="v">69.7</span></div>
+    </div>
+    <p class="note rv">→ Opus 4.8 在此显著领先：大规模仓库理解 + 功能级集成是强分化维度。</p>
+  </div>
+</section>
+
+<!-- ================= 对比总表 ================= -->
+<section>
+  <div class="wrap">
+    <div class="sec-head rv"><span class="no">Σ</span><h2>横向对比总表</h2></div>
+    <div class="rv" style="overflow-x:auto">
+      <table>
+        <tr><th>基准</th><th>输入</th><th>核心能力</th><th>典型时长</th><th>验证</th><th>饱和度</th></tr>
+        <tr><td><a href="https://github.com/Agentica-engineer/deep-swe" target="_blank">DeepSWE v1.1</a></td><td>Issue + 仓库</td><td>定位与修复</td><td>分钟</td><td>仓库测试</td><td>高（拥挤）</td></tr>
+        <tr><td><a href="https://www.tbench.ai/" target="_blank">Terminal Bench 3.0</a></td><td>任务描述 + 裸终端</td><td>终端操作与自主探索</td><td>10-60 分钟</td><td>环境客观检查</td><td>中</td></tr>
+        <tr><td><a href="https://github.com/princeton-nlp/ProgramBench" target="_blank">ProgramBench</a></td><td>规格 / 需求</td><td>架构分解与构造</td><td>小时</td><td>阶段测试</td><td>低（差距大）</td></tr>
+        <tr><td><a href="https://github.com/abundant-ai/swe-marathon" target="_blank">SWE-Marathon</a></td><td>工程任务书</td><td>长程自主工程</td><td>数小时（数天工作量）</td><td>大型套件 + 反作弊</td><td>低</td></tr>
+        <tr><td><a href="https://github.com/scaleapi/NL2Repo" target="_blank">NL2Repo</a></td><td>需求 + 陌生仓库</td><td>仓库理解与集成</td><td>小时~天</td><td>仓库测试</td><td>中</td></tr>
+      </table>
+    </div>
+    <p class="note rv" style="margin-top:24px">⚠️ 描述基于各基准公开论文/仓库信息；不同版本的协议细节会随更新变化，精确数字以官方为准。</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="fin">"进步最快的地方，恰恰是原来最弱的地方 —— <b>而剩余的差距，标出了下一轮扩展的方向。</b>"</div>
+    <div class="src">数据来源 · <a href="https://z.ai/blog/glm-5.3" target="_blank">z.ai/blog/glm-5.3</a> · 本页为独立解读，非官方页面</div>
+  </div>
+</footer>
+
+<script>
+const io=new IntersectionObserver(es=>es.forEach(e=>{
+  if(e.isIntersecting){
+    e.target.classList.add('on');
+    e.target.querySelectorAll?.('.fill').forEach((f,i)=>setTimeout(()=>f.style.width=f.dataset.w+'%',i*100));
+    io.unobserve(e.target);
+  }
+}),{threshold:.15});
+document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
