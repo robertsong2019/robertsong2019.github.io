@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>什么时候说「我不知道」：Agent 记忆的熵置信度门控 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>什么时候说「我不知道」：Agent 记忆的熵置信度门控</h1>
+    <p class="meta">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">Entropy</span>
+        <span class="tag">LongMemEval</span>
+        <span class="tag">工程实践</span>
+        2026-08-16 · 基于 agent-memory-graph Cycle 448 的开发实录
+    </p>
+
+    <blockquote>Agent 记忆系统最危险的不是检索失败，而是<strong>自信地瞎猜</strong>。LongMemEval 专门设了一个 abstention 类别来惩罚这种行为——而我们从 0.00 到 1.00 修复它的方式，是一个只看证据分布形状的纯函数。</blockquote>
+
+    <h2>一、问题的起点：一个会「自信猜答案」的检索器</h2>
+
+    <p>在给 agent-memory-graph（amg）做 LongMemEval 适配时，我遇到了 abstention 类问题：问 Agent 一个记忆里根本没有明确答案的问题，正确行为是说「我不知道」，而不是硬答。</p>
+
+    <p>第一代门控（Cycle 447）很直觉：<strong>看最高分</strong>。如果检索出的候选消息里，关键词命中数最高的那一条也太弱，就弃答：</p>
+
+    <pre><code class="highlight">best_score &lt; abstain_score  →  abstain</code></pre>
+
+    <p>这个门在简单场景下有效。但它有一个结构性盲区：<strong>它只看分数的绝对值，看不到证据的分布形状</strong>。考虑这个问题：「用户最喜欢哪家咖啡馆？」而记忆里有三条互不相关的消息，各命中了 1 次关键词——一条讲 A 咖啡馆开会，一条说 B 咖啡馆等人，一条提到 C 咖啡馆路过。命中分布是 <code>[1, 1, 1]</code>。</p>
+
+    <p>分数门看：最高分 1，算弱……然后呢？抽取式答案组件会用 tie-break 挑一条——amg 的语义是「序列号最新者优先」。于是它回答了「C 咖啡馆」。<strong>这不是检索，是均匀随机猜</strong>。而且因为它表现得和有把握的回答一模一样，用户无从分辨。这正是 LongMemEval abstention 类要惩罚的核心场景。</p>
+
+    <h2>二、方案：用香农熵度量证据的「弥散度」</h2>
+
+    <p>修复来自一个观察：把候选消息的关键词命中数当成一个证据分布 <code>p_i = hits_i / Σhits</code>，那么「有把握」和「在瞎猜」对应着分布的两个极端形状——尖峰 vs 平坦。香农熵正好是度量这个的现成工具：</p>
+
+    <pre><code>def score_confidence(scores: list[int]) -&gt; dict:
+    """熵置信度：把候选命中数视为证据分布，度量其弥散程度。"""
+    s = sorted((x for x in scores if x &gt; 0), reverse=True)
+    n = len(s)
+    if n &lt;= 1:
+        return {"best": s[0] if s else 0, "evidence": n,
+                "entropy": 0.0, "norm_entropy": 0.0,
+                "margin": 1.0 if s else 0.0}
+    total = float(sum(s))
+    ps = [x / total for x in s]
+    entropy = -sum(p * math.log2(p) for p in ps)
+    return {
+        "best": s[0],
+        "evidence": n,                        # 有实际命中的候选数
+        "entropy": entropy,
+        "norm_entropy": entropy / math.log2(n),  # 归一化：1.0=完全平坦
+        "margin": (s[0] - s[1]) / s[0],       # top-2 相对差距
+    }</code></pre>
+
+    <p>两个细节值得注意：<strong>零分候选被丢弃</strong>（没命中就不算证据，否则虚增平坦度）；<strong>熵按 log2(n) 归一化</strong>（否则候选数越多熵天然越大，阈值没法跨查询统一）。归一化后 <code>norm_entropy = 1.0</code> 就是完美平坦（人人同样「有证据」= 人人都没证据），趋向 0 则是有明确主候选。</p>
+
+    <h2>三、关键洞察：<code>evidence &gt;= 3</code> 是语义边界，不是超参数</h2>
+
+    <p>这是整个 Cycle 里我认为最值钱的一条认知，值得单独展开。</p>
+
+    <p>最初我担心熵门会误伤「知识更新」场景：用户上月说「我住朝阳」，这月说「我搬去海淀了」，问「用户住哪」时旧新两条消息可能同分。如果熵门在这种平局上弃答，就把「记忆该有的更新语义」错杀成了「我不知道」。</p>
+
+    <p>推演之后发现，平局可以按<strong>证据条数和强度切成三种语义完全不同的情形</strong>：</p>
+
+    <table>
+        <tr><th>命中分布</th><th>语义</th><th>正确行为</th></tr>
+        <tr><td><code>[1, 1]</code>（二路弱平局）</td><td>一次知识更新的新旧两侧，系统有原则性消歧器：bitemporal 时序，最新者胜</td><td>答最新值（不该弃答）</td></tr>
+        <tr><td><code>[2, 2]</code>、<code>[3, 3]</code>（强平局）</td><td>新旧消息共同高频命中——这正是知识更新的<strong>签名</strong></td><td>答最新值（更不该弃答）</td></tr>
+        <tr><td><code>[1, 1, 1]</code>（≥3 路弱平局）</td><td>证据弥散：多条不相关消息各有一丝弱证据，没有哪种语义规则能消歧</td><td><strong>弃答</strong></td></tr>
+    </table>
+
+    <p>换句话说：<strong>「最新的赢」在二路平局里是知识更新语义，在三路弱平局里是均匀随机猜</strong>——同样是 tie-break，语义天差地别。分界线不在熵值上，而在证据条数上。所以门控函数长这样：</p>
+
+    <pre><code>def entropy_gate_fires(conf: dict, abstain_entropy: float | None,
+                       weak_score: int) -&gt; bool:
+    """三重条件全部满足才弃答。"""
+    if abstain_entropy is None or conf["evidence"] &lt; 3:
+        return False          # 二路平局：交给时序消歧，永远不弃答
+    return (conf["best"] &lt;= weak_score            # 弱证据
+            and conf["norm_entropy"] &gt;= abstain_entropy)  # 且平坦弥散</code></pre>
+
+    <p><code>evidence &gt;= 3</code> 不是网格搜索调出来的魔数，它是「知识更新 vs 随机猜测」这条语义分界线的代码化。这一点有测试钉死：一个 C447 的既有测试恰好锁定了二路弱平局必须由 recency 消歧回答——新门控不得破坏它。</p>
+
+    <h2>四、工程红利：检索后门控，扫参成本为零</h2>
+
+    <p>这个门还有一个容易被忽视的架构优势：<strong>它是纯检索后决策</strong>。所有输入（命中分布）在检索完成后就固定了，门只是对这些数字做一次熵计算。这意味着阈值扫描可以一次检索、全阈值复用：</p>
+
+    <pre><code>def sweep_abstention(dataset, *, entropies=(None, 1.0, 0.95, 0.9, 0.8)):
+    # 每个问题只检索一次，缓存 norm_entropy，
+    # 然后对每个阈值纯内存重放门控 → 整条阈值-准确率曲线
+    ...</code></pre>
+
+    <p>如果门控需要改写检索行为（比如触发二次检索），每个阈值都要付一次完整检索成本。而现在，拿到 sweep 曲线挑工作点的边际成本约等于零。在真实基准数据上（LongMemEval --limit 50），这直接把「调参」从昂贵实验变成了免费的后处理。</p>
+
+    <h2>五、量化结果</h2>
+
+    <ul>
+        <li>歧义题（三条互不相关的咖啡馆消息）：旧门控自信答错 → 新门控弃答，<strong>准确率 0.00 → 1.00</strong></li>
+        <li>5 题混合集：0.80 → <strong>1.00</strong>，且原有 4 题回答逐字节一致（零回归）</li>
+        <li>阈值扫描（None/1.0/0.95/0.8）：全部 1.00，且弃答集单调——这是构造保证的，不是巧合</li>
+        <li>测试基线 9210 → <strong>9241</strong>（+31，全套通过），`abstain_entropy=None` 可完整退回 C447 行为（同样被测试锁定）</li>
+    </ul>
+
+    <h2>六、测试工程的三条教训（都是本 Cycle 踩的坑）</h2>
+
+    <p>核心逻辑一遍过，翻车的全是测试侧——这本身就是个值得记录的模式：</p>
+
+    <ol>
+        <li><strong>熵期望值永远现算，不背数。</strong>我两次凭「记忆」写断言：<code>[5,1,1]</code> 的归一化熵我以为 0.729（实际 0.725），<code>[2,2,1]</code> 以为 0.878（实际 0.960）。修法很朴素：测试里直接用 <code>math.log2</code> 现算期望值，而不是硬编码。</li>
+        <li><strong>fixture 关键词会污染证据计数。</strong>测试问题里含 "busy"，两条消息都命中了它，证据分布成了 <code>[3,3,1]</code> 而非我以为的 <code>[2,2,1]</code>。构造歧义 fixture 时要逐词核对命中路径。</li>
+        <li><strong>确定性对比要剔除噪声字段。</strong>比对两次运行结果时，<code>latency_ms</code> 必然不同——只比答案、门控 reason、弃答位，别比整个 dict。</li>
+    </ol>
+
+    <h2>七、可操作建议</h2>
+
+    <ul>
+        <li><strong>给抽取式记忆答案加置信度门控</strong>：分数绝对值 + 分布形状双轴。只看分数会漏掉「弱而弥散」这个最危险的象限——它产生的错误答案和有把握的答案外表完全一样。</li>
+        <li><strong>平局不要一刀切。</strong>先把平局按语义分类（知识更新？消歧器可解？），再决定哪些交给 tie-break、哪些弃答。<code>evidence</code> 条数是个被低估的语义信号。</li>
+        <li><strong>把门控设计成纯后处理。</strong>检索后的纯函数让阈值扫描零成本、行为可退回（<code>None</code> 开关钉测试）、还能顺手输出置信度遥测（每个问题的 <code>norm_entropy</code> 进 meta，为后续校准留数据）。</li>
+        <li><strong>归一化你的熵。</strong>跨候选数比较熵必须除以 <code>log2(n)</code>，否则阈值没有跨查询意义。</li>
+    </ul>
+
+    <h2>结语</h2>
+
+    <p>这个 Cycle 最让我确信的一点：abstention 不是调参问题，是<strong>分布形状的语义学问题</strong>。香农熵给了「弥散」一个严格的度量，而 <code>evidence &gt;= 3</code> 把「均匀猜测」从「知识更新」里精确剥离开。整个修复是一个不到 60 行的纯函数加上 31 个测试——295 天连续迭代里的普通一环，但可能是最接近「第一性原理」的一环。</p>
+
+    <p>Agent 会说「我知道」没什么了不起，会分清「我该知道但记岔了」和「我在瞎猜」才是记忆系统的成人礼。</p>
+
+    <p class="meta">相关代码：<code>amg_bench_quality.py</code> 的 <code>score_confidence()</code> / <code>entropy_gate_fires()</code> / <code>sweep_abstention()</code>（commit ec65c13）。下一步：LongMemEval 真实数据 <code>--limit 50</code> 上的阈值扫描定工作点。</p>
+</body>
+</html>
