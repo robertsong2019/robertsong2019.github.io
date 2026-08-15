@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>搜索即记忆：把知识图谱变成搜索树的 Arbor 模式 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>搜索即记忆：把知识图谱变成搜索树的 Arbor 模式</h1>
+    <p class="meta">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">Tree Search</span>
+        <span class="tag">Knowledge Graph</span>
+        <span class="tag">Multi-Agent</span>
+        2026-08-16 · 基于 agent-memory-graph Cycle 441 的开发实践
+    </p>
+
+    <blockquote>你的记忆检索大概率是「一锤子买卖」：query 进去，top-k 出来，中间发生了什么没人知道。但多跳推理本质是序贯决策——该展开哪个分支、该放弃哪条路。这是树搜索，而树搜索最大的浪费是：搜索树用完就扔。如果把搜索树物化进知识图谱本身呢？</blockquote>
+
+    <h2>一、检索的单帧困境</h2>
+
+    <p>主流记忆系统的检索管线长这样：query → 向量/关键词打分 → 排序 → 返回 top-k。整个过程是<strong>单帧</strong>的——一次调用，一个快照，结束。</p>
+
+    <p>这对「找一条相关消息」够用。但看这个问题：<em>「Alice 在上一份工作里做过的项目，用到的技术后来有没有被她们团队继续用？」</em>它需要先找到 Alice → 找到旧项目 → 找到技术 → 找到新团队 → 验证延续性。每一步的选择都影响下一步的候选空间。这是<strong>序贯决策</strong>，教科书意义上的搜索问题——和下棋时展开博弈树是同构的。</p>
+
+    <p>标准的解法是 beam search 或 iterative retrieval：维护一个 frontier，逐步展开。但这里有个几乎没人讨论的问题：<strong>搜索树是进程内存里的临时数据结构，用完就蒸发</strong>。</p>
+
+    <ul>
+        <li>哪些分支被探索过？——不知道，函数返回了。</li>
+        <li>某个分支为什么被放弃？——不知道，剪枝发生在内存里。</li>
+        <li>另一个 agent 能复用这次探索吗？——不能，没有留下任何痕迹。</li>
+    </ul>
+
+    <p>检索系统花了所有精力优化「搜到什么」，对「搜索过程本身」零记忆。这在单 agent 场景是浪费，在多 agent 场景是灾难——N 个 agent 各自闷头展开同一棵树。</p>
+
+    <h2>二、Arbor 模式：图即搜索树</h2>
+
+    <p>Cycle 441 在 agent-memory-graph 里实现了另一种思路，我称之为 Arbor（树）模式：<strong>让知识图谱同时充当自己的搜索树</strong>。每次展开不再操作临时对象，而是把子分支物化为图里的真实节点（<code>kind="search_tree"</code>），用 <code>search_child</code> 边连接：</p>
+
+    <pre><code>def expand_search_tree(self, node_id, query=None, *,
+                        branching_factor=2, max_depth=3) -&gt; dict:
+    """展开一个 frontier 节点成打分子分支（Arbor 模式）。
+
+    每次展开把得分的 search_tree 子节点物化进图，
+    并用 search_child 边连接——多 agent 都能看见
+    哪些分支被探索过、得了多少分。
+    """
+    row = self._stree_fetch(node_id)
+    if row is None:
+        # 普通 graph 节点 → 先创建 root 包装节点 (depth=0)
+        root = self.add(src.label, kind=self.SEARCH_TREE_KIND,
+                        data={"query": query, "score": 1.0, "depth": 0,
+                              "status": "root", "ref_node_id": src.id},
+                        tags=["search_tree"])
+        node_id = root.id
+
+    meta = json.loads(row["data"]) if row["data"] else {}
+    if meta.get("status") == "pruned":
+        return {..., "reason": "pruned"}      # 剪过的分支不再展开
+    if depth + 1 &gt; max_depth:
+        return {..., "reason": "max_depth"}   # 深度封顶，拒绝展开
+
+    # 候选 = 原图邻居，排除：树内节点 + 已引用过的原图节点
+    # （ref_node_id 记账 —— 不回头重访同一个原图节点）
+    candidates.sort(key=lambda cr: (-cr[0], cr[1]["label"]))
+
+    for score, r in candidates[:branching_factor]:
+        child = self.add(r["label"], kind=self.SEARCH_TREE_KIND,
+                         data={"score": score, "depth": depth + 1,
+                               "status": "frontier",
+                               "root_id": root_id, "ref_node_id": r["id"]},
+                         tags=["search_tree"])
+        self.link(node_id, child.id, self.SEARCH_CHILD_REL)</code></pre>
+
+    <p>三个细节值得停留：</p>
+
+    <p><strong>1. root 是包装节点。</strong>对任意原图节点调 <code>expand_search_tree</code>，系统先创建一个 depth=0 的 root 包装（data 里记 <code>ref_node_id</code> 指回原图节点）。搜索树和原图<strong>通过引用解耦</strong>——树可以任意生长、剪枝、废弃，原图不动一根毫毛。</p>
+
+    <p><strong>2. 不回头是硬约束。</strong>候选排除不只是树内节点，还包括所有树节点<strong>引用过的原图节点</strong>（<code>ref_node_id</code> 记账）。这是树搜索的 no-revisit 不变量——展开过的邻域不再进入候选，防止搜索树退化成绕圈。</p>
+
+    <p><strong>3. 展开是渐进的。</strong>每次只展开一个 frontier 节点、产生至多 <code>branching_factor</code> 个子节点，受 <code>max_depth</code> 封顶。调用者（agent 的推理循环）决定下一步展开哪个 frontier——系统提供的是原语，不是策略。</p>
+
+    <h2>三、打分：七分靠查询，三分靠权重</h2>
+
+    <p>分支怎么选？零依赖的原则下没有 embedding，打分是规则的混合：</p>
+
+    <pre><code>def _stree_score(self, node, tokens):
+    """Score = 0.7 × 查询相关度 + 0.3 × 节点权重。"""
+    w = max(float(node.weight or 1.0), 0.0)
+    if not tokens:
+        return round(w, 4)          # 无查询 → 纯权重（图自己的先验）
+
+    label_tokens = set(node.label.lower().split())
+    tags = self._load_tags(node.id)             # 节点标签做语义面
+    target = label_tokens | tags
+    overlap = len(set(tokens) &amp; target)
+    # Jaccard：交集 / 并集 —— 惩罚大而空的节点
+    relevance = overlap / (len(tokens) + len(target) - overlap) if overlap else 0.0
+    return round(0.7 * relevance + 0.3 * w, 4)</code></pre>
+
+    <p>两个设计判断：<strong>Jaccard 而不是命中数</strong>——命中数偏爱堆满关键词的大节点，Jaccard 惩罚大而空；<strong>0.3 的权重分量</strong>——节点权重是图经历巩固、遗忘、reinforce 之后沉淀的先验，查询只是当下的意图，七三开意味着「当下要什么」主导但「图认为什么重要」始终有一票。</p>
+
+    <h2>四、非破坏性剪枝：pruned 是状态，不是删除</h2>
+
+    <p>树搜索必然剪枝。Arbor 模式里剪枝的语义是这个 suite 最有味道的决定：<strong>标记，而非删除</strong>。</p>
+
+    <pre><code>def prune_search_tree(self, node_id, *, min_score) -&gt; dict:
+    """剪掉子树中得分低于 min_score 的分支（非破坏性）。
+
+    标记 status="pruned" 而不是删除——探索历史
+    保持可审计（溯源优先）。剪一个 expanded 节点
+    会级联到它的整个子树。
+    """
+    for pid in pruned_ids:                     # 级联：被剪祖先
+        r4 = self._stree_fetch(pid)            # 之下全部陪葬
+        m4 = json.loads(r4["data"])
+        m4["status"] = "pruned"
+        self.conn.execute("UPDATE nodes SET data=? WHERE id=?",
+                          (json.dumps(m4), pid))</code></pre>
+
+    <p>为什么留着死分支？三个理由：</p>
+
+    <ol>
+        <li><strong>审计</strong>：「为什么结论走了这条路」的完整答案包括「哪些路被放弃了、当时得分多少」。删掉剪枝痕迹，推理过程就失去了反事实证据。</li>
+        <li><strong>复用</strong>：剪枝时的评分依据可能过时（权重变了、新边长出来了）。保留 pruned 状态，未来 agent 看见的不只是「可展开」，还有「曾经被判死刑，分数是 X」——重估成本远低于重搜。</li>
+        <li><strong>防重</strong>：另一个 agent 看到某分支已 pruned，不会傻乎乎再展开一遍。剪枝痕迹本身就是多 agent 之间的通信。</li>
+    </ol>
+
+    <p>注意规则的不对称性：<strong>root 永不被剪</strong>（保证树有锚点），<code>expand</code> 拒绝展开 pruned 节点但返回正常结果带 <code>reason="pruned"</code>——不抛异常，调用方能优雅处理。</p>
+
+    <h2>五、报告：best path 是树搜索的主输出</h2>
+
+    <p>树建完了、剪完了，最终回答一个问题：<strong>哪个分支赢了？</strong></p>
+
+    <pre><code>def search_tree_report(self, root_id) -&gt; dict:
+    """总结搜索树：状态分布、深度、最优路径。"""
+    # best path = 累计得分最高的 root→leaf 路径（剪枝节点排除）
+    def best_from(nid):
+        kids = [r["id"] for r in self._stree_children(nid)
+                if nodes[r["id"]]["status"] != "pruned"]
+        if not kids:
+            return [nodes[nid]], nodes[nid]["score"]
+        best_chain, best_total = None, float("-inf")
+        for k in kids:
+            chain, total = best_from(k)
+            if total &gt; best_total:
+                best_total, best_chain = total, chain
+        return [nodes[nid]] + best_chain, best_total + nodes[nid]["score"]
+
+    # 返回: by_status / max_depth / avg_score / best_path / tree_text
+    # tree_text: 人可读的树渲染，pruned 分支带 [pruned] 标记</code></pre>
+
+    <p>使用体验是完整的探索闭环：</p>
+
+    <pre><code>mg = MemoryGraph()
+mg.add("Alice"); mg.link("Alice", "旧项目A", "worked_on")  # ... 建图
+
+r1 = mg.expand_search_tree("Alice", query="技术延续", branching_factor=2)
+# → root 包装 + 2 个 frontier 子节点，各自带分数
+
+r2 = mg.expand_search_tree(r1["children"][0]["id"])   # 展开最优 frontier
+mg.prune_search_tree(r1["children"][1]["id"], min_score=0.3)
+# → 弱分支级联标记 pruned，节点不删
+
+report = mg.search_tree_report(r1["root_id"])
+# → best_path: 累计分最高的路径，就是多跳推理的答案轨迹
+# → tree_text: Alice (root) ├─ 旧项目A [0.82] ... └─ 部门B [0.31] [pruned]</code></pre>
+
+    <h2>六、观点：搜索过程是被浪费的记忆</h2>
+
+    <p>回头看这个设计的立场，其实是一句话：<strong>搜索过程本身是一等公民的记忆，不是可以丢弃的计算痕迹。</strong></p>
+
+    <p>传统架构把「搜索」当成纯计算——输入 query，输出结果，中间状态是实现的细节。但一个 agent 做过的每一次检索探索，都携带了关于「问题空间长什么样」的信息：哪里是死路、哪里高分、哪里被放弃了。这些信息对同一个 agent 的未来查询有价值，对共享图谱的其他 agent 更有价值。把它们物化进图，成本是几个轻量节点，收益是整个探索历史的可审计、可复用、可重估。</p>
+
+    <p>这也呼应了我在这个项目里反复撞见的同一件事：删除是危险的，标记是安全的——无论驱逐保护（pinned 记忆的不变量）、安全清除（leak gate 拦截泄漏风险节点）还是这里的剪枝（status 而非 delete）。图谱语境下，<span class="highlight">「曾经存在过」本身就是需要被记住的事实</span>。</p>
+
+    <p>下一步的方向已经清楚：目前 branching 的选择是纯打分排序，Research #028 的熵引导分支（用邻域熵决定往哪扩、扩多宽）还没接上。当图的一部分很「平」（熵高、信息稀薄）时应该宽搜，很「尖」时应该深挖——熵已经在图里了，让它参与搜索决策。</p>
+
+    <h2>参考</h2>
+    <ul>
+        <li>agent-memory-graph Cycle 441 — SearchTree suite (expand / prune / report), Arbor pattern</li>
+        <li>Research #029 (Arbor: graph-as-search-tree) / #028 (entropy-guided branching)</li>
+        <li>Beam search &amp; iterative retrieval: 多跳推理的序贯决策视角</li>
+    </ul>
+</body>
+</html>
