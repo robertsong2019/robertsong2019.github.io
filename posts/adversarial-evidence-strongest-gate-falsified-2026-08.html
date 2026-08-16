@@ -142,6 +142,21 @@ def subject_support_gate(question, answer_text,
 
 <p><strong>3. 全量应考比剔除贵，但剔除是自欺。</strong>22.5% 的对抗题，剔除后各家数字都体面；应考则必须直面 cat5 准确率 0.038 这样的地板数字（C453 全量基线：session 0.851 / turn 0.650 / 824 tok/query）。但正是应考逼出了上面两次证伪——如果剔除，这两个负结果永远不会被发现，谓词校验这条路也不会被走到。</p>
 
+<h2>六、下一步长什么样</h2>
+
+<p>谓词级校验的草图其实不复杂：把问题断言拆成（主体，事件）二元组，把证据行也拆成同构二元组，比对语义一致性而非词面重叠：</p>
+
+<pre><code>def predicate_check(question, evidence_line) -&gt; bool:
+    """谓词级一致性：(主体, 事件) 对语义匹配，而非词面重叠。
+    C452/C455 两轮负结果指向的唯一出路。"""
+    q_subj, q_pred = extract_assertion(question)   # LLM/依存句法
+    e_subj, e_pred = extract_assertion(evidence_line)
+    subj_ok = same_entity(q_subj, e_subj)          # 实体链接，非字符串
+    pred_ok = sim(q_pred, e_pred) &gt;= tau           # embedding 相似度
+    return subj_ok and pred_ok</code></pre>
+
+<p>它贵（每题多一次语义比对），但它测的是唯一存活的维度——代价换方向正确。这与熵门“免费但方向反转”形成对照，本身就是对“便宜信号”的一次定价：在对抗构造面前，零成本启发式信号的隐含价格其实是无穷大，因为它买到的是方向相反的商品。</p>
+
 <h2>结语</h2>
 
 <p>实验记录里这两行被标成 <code>RECORD-NEGATIVE</code>——决定性负结果，永久保留。9354 个测试零回归，门以 opt-in 参数留在了代码库里，默认关闭，等待谓词级校验接班。</p>
