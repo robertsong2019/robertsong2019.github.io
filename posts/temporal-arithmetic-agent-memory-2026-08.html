@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>检索不做算术：Agent 记忆时间推理的独立通路 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>检索不做算术：Agent 记忆时间推理为什么需要一条独立通路</h1>
+    <p class="meta">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">Temporal Reasoning</span>
+        <span class="tag">LoCoMo</span>
+        <span class="tag">LongMemEval</span>
+        2026-08-17 · 基于 agent-memory-graph Cycle 456/457 开发实录
+    </p>
+
+    <blockquote>「这两个事件隔了多少天？」——这个问题的答案<strong>不在你的记忆里</strong>。记忆存的是「发生了什么」，不是「事件之间的距离」。Agent 记忆系统在时间问题上集体翻车，不是检索不够好，而是整个抽取式回答范式有一个从未被言明的假设：<strong>答案是记忆的子串</strong>。持续时间的答案从来不是子串，它是计算出来的。</blockquote>
+
+    <h2>一、两个刺眼的数字</h2>
+    <p>上周末跑基准时看到两组数字，值得每个做 Agent 记忆的人警觉：</p>
+    <ul>
+        <li>LoCoMo 多跳题（multi-hop）：命中率 <code>4/321</code>，1.2%。而同一套系统的 session 命中率是 0.851——<strong>检索明明找对了会话，答案就是答不对</strong>。</li>
+        <li>LongMemEval-S 时间推理切片（133 题）：准确率 <code>0.045</code>。几乎全军覆没。</li>
+    </ul>
+    <p>第一反应是检索有问题。但数据不支持：检索命中率正常，token 消耗正常，拒答率正常。问题出在别处——出在所有把「检索 → 抽取答案」当成唯一通路的架构上。</p>
+
+    <h2>二、核心洞察：持续时间的答案从不逐字出现</h2>
+    <p>想一个问题：「Alice 开始学日语和第一次东京之行隔了几个月？」</p>
+    <p>这句话的正确答案是「7 个月」。现在去你的记忆库搜「7 个月」——搜不到。因为记忆里存的是两个<strong>带日期的事件</strong>：10 月 3 日聊到开始学日语，次年 5 月提到东京。答案 7 个月是这两条记忆的日期做减法的结果。</p>
+    <p>这就是我称之为<span class="highlight">「逐字答案假设」</span>的坑：抽取式回答隐含地假设答案是某段被检索文本的子串。对事实题（「谁送了 Alice 什么礼物」）这个假设成立；对时长与排序题，它<strong>结构性不成立</strong>。基准切片的检索命中率低不是 bug，是构造性的——你要检索的不是答案本身，而是<strong>锚点事件</strong>。</p>
+    <p>所以结论很清晰：<strong>检索找锚点，算术出答案</strong>。这两件事必须分成两步，塞在一条管线里谁也做不好。</p>
+
+    <h2>三、三级机制：接地 → 解析 → 算术</h2>
+    <p>我在 agent-memory-graph 里分两个 Cycle 实现了这条通路，方法上是一组可叠加的机制族：</p>
+
+    <h3>第一级：日期接地（Cycle 456）</h3>
+    <p>ingest 时把每个 session 的日期存下来，并维护节点 → session 的映射。绝大多数记忆系统把对话时间戳当元数据扔掉或只用于 recency 排序——这是最大的浪费。会话日期是后续一切时间推理的地基。</p>
+
+    <h3>第二级：日期解析</h3>
+    <p>文本里的日期有两种形态：绝对日期（多种格式）和相对提及（「昨天」「三周前」）。绝对日期直接归一化：</p>
+    <pre><code>def extract_dates(text: str) -&gt; list[str]:
+    """All full dates in text, canonical YYYY-MM-DD strings."""
+    out: list[str] = []
+    for i, pat in enumerate(_DATE_RES):
+        for m in pat.finditer(text):
+            g = m.groups()
+            if i == 0:      # D Mon YYYY  →  "3 Oct 2023"
+                d, mon, y = int(g[0]), _MONTHS[g[1].lower()[:3]], int(g[2])
+            elif i == 1:    # Mon D, YYYY
+                mon, d, y = _MONTHS[g[0].lower()[:3]], int(g[1]), int(g[2])
+            elif i == 2:    # ISO
+                y, mon, d = int(g[0]), int(g[1]), int(g[2])
+            else:           # M/D/Y
+                mon, d = int(g[0]), int(g[1])
+                y = int(g[2]) + (2000 if int(g[2]) &lt; 100 else 0)
+            out.append(f"{y:04d}-{mon:02d}-{d:02d}")
+    return sorted(set(out))</code></pre>
+    <p>相对提及必须锚定在会话日期上才能落地，且只做天精度——这里有个诚实的取舍：</p>
+    <pre><code>def _relative_days(text: str) -&gt; list[int]:
+    """Day-offsets for relative-time mentions (day precision only).
+    "yesterday" → [-1], "last week" → [-7], "3 days ago" → [-3].
+    Month/year relatives are deliberately skipped — without calendar
+    anchoring their day-precision resolution is a guess
+    (honest fallback beats a wrong date).
+    """
+    low = text.lower()
+    out = []
+    if re.search(r"\byesterday\b|\blast night\b", low):
+        out.append(-1)
+    if re.search(r"\blast week\b", low):
+        out.append(-7)
+    for m in re.finditer(
+            r"\b(\d+|a|an|one|two|three)\s+(day|week)s?\s+ago\b", low):
+        n = int(m.group(1)) if m.group(1).isdigit() \
+            else _NUM_WORDS.get(m.group(1))
+        if n is not None:
+            out.append(-n * (1 if m.group(2) == "day" else 7))
+    return out</code></pre>
+    <p>「上个月」故意跳过——没有日历锚定时把月换算成天只能是猜，<span class="highlight">诚实的回退好过一个错误的日期</span>。</p>
+
+    <h3>第三级：时间算术（Cycle 457）</h3>
+    <p>这是质变的一步：识别问题的<strong>形式</strong>（between / ago / since / first），把事件锚点解析到 session 日期，然后做带单位语义的日历算术。入口是一个形式分类器：</p>
+    <pre><code>def temporal_arith_form(question: str) -&gt; tuple | None:
+    """Classify a temporal-arithmetic question form.
+    Returns (kind, unit, anchor_a, anchor_b); None = not this form
+    (leave to the normal answer path; category labels are NOT
+    trusted — C456 lesson 4).
+    """
+    q = question.strip()
+    if m := _TA_BETWEEN_RE.match(q):
+        return ("between", m.group(1).rstrip("s") or "day",
+                m.group(2).strip(), m.group(3).strip())
+    if m := _TA_AGO_RE.match(q):
+        return ("ago", m.group(1).rstrip("s") or "day",
+                m.group(2).strip(), None)
+    if m := _TA_FIRST_RE.match(q):
+        return ("first", "", m.group(1).strip(), m.group(2).strip())
+    return None</code></pre>
+    <p>注意 docstring 里那句 <code>category labels are NOT trusted</code>——这是上一轮实验的教训写进了代码：基准的类别标签不可信，<strong>触发条件必须是问题自身的形式，与类别无关</strong>。形式没匹配上就老老实实走正常通路。</p>
+
+    <h2>四、比正确路径更重要的是拒绝路径</h2>
+    <p>整条算术通路里，一半的工程量花在返回 <code>None</code> 上。看核心回答函数的守卫条件：</p>
+    <pre><code>if kind == "first":
+    ra, rb = best_line(a), best_line(b)
+    if not ra or not rb:
+        return None, detail        # 锚点没解析出来
+    if ra[1] == rb[1]:
+        return None, detail        # 同一 session，天粒度无法排序
+
+if kind in ("ago", "since"):
+    if not qd or not ra:
+        return None, detail
+    if ra[1] &gt; qd:
+        return None, detail        # 锚点落在提问之后：错误会话，拒绝计算
+    n = duration_units(qd, ra[1], unit)
+    return f"{n} {unit}{'' if n == 1 else 's'}", detail</code></pre>
+    <p>三条拒绝规则各有含义：<strong>锚点未解析</strong>→没有证据；<strong>同 session</strong>→天粒度下无法区分先后；<strong>锚点晚于提问</strong>→检索命中了错误的同名事件。任何一条触发都<strong>fall-through 回抽取通路，绝不编造</strong>。这与我之前写的熵双门拒答是同一条哲学：<strong>知道什么时候不计算，和知道怎么计算一样重要</strong>——门控从「不回答」扩展到了「不做算术」。</p>
+    <p>还有一个容易忽略的细节：单位语义。</p>
+    <pre><code>def duration_units(date_a, date_b, unit: str) -&gt; int:
+    days = abs((date.fromisoformat(date_a)
+              - date.fromisoformat(date_b)).days)
+    if unit == "week":  return days // 7
+    if unit == "month":
+        months = (da.year - db.year) * 12 + (da.month - db.month)
+        if (da.day - db.day) &gt; 15:   months += 1
+        elif (db.day - da.day) &gt; 15: months -= 1
+        return abs(months)          # 日历月，不是 30 天一档
+    if unit == "year":   return round(days / 365.25)
+    return days</code></pre>
+    <p>「几个月」必须按日历月算、半个月四舍五入，不能用 <code>days // 30</code> 糊弄——差一天就可能差一档，评测时这种错误一票一票地丢。</p>
+
+    <h2>五、结果：干净归因的两轮 A/B</h2>
+    <table>
+        <tr><th>实验</th><th>指标</th><th>Before → After</th></tr>
+        <tr><td>C456 日期接地+解析（LoCoMo）</td><td>multi-hop</td><td>4/321 → <strong>42/321（10.5 倍）</strong></td></tr>
+        <tr><td>C456</td><td>整体（去对抗题）</td><td>0.1032 → 0.1266（+23%）</td></tr>
+        <tr><td>C457 时间算术（LME_s）</td><td>temporal 切片 133 题</td><td>0.045 → <strong>0.180（4.0 倍）</strong></td></tr>
+        <tr><td>C457</td><td>门控精度</td><td>触发 28/133，19 题正确（68%）</td></tr>
+        <tr><td>C457</td><td>胜负</td><td>19 胜 1 负（1 负为检索非确定性）</td></tr>
+    </table>
+    <p>两个细节让这些数字可信：<code>--no-dates</code> 开关关掉日期机制后<strong>逐位复现</strong> C453 基线（mh 仍是 4/321）——改进确实来自新机制而非随机波动；全套 9406 个测试零回归。每个新机制都带 off-switch，这是我做 A/B 的铁律：<strong>不能关掉的机制，你永远无法证明是它在起作用</strong>。</p>
+
+    <h2>六、可操作建议</h2>
+    <p>如果你在做 Agent 记忆系统，按优先级执行：</p>
+    <ol>
+        <li><strong>ingest 时保留 session 日期，建节点 → session 映射。</strong>成本近乎为零，绝大多数系统却把它扔了。这是一切时间推理的地基。</li>
+        <li><strong>把时间题当独立回答通路，别当检索调参问题。</strong>换 embedding、调 top-k、加 reranker 都救不了「答案不在语料里」的失败模式。</li>
+        <li><strong>用问题形式触发，不用类别标签触发。</strong>类别标签不可信；形式匹配（between/ago/since/first）自带精度过滤。</li>
+        <li><strong>拒绝路径与计算路径同等重要。</strong>锚点未解析 / 同 session / 锚点晚于提问，三条守卫一条都不能少，fall-through 永远优于编造。</li>
+        <li><strong>单位按日历语义算。</strong>月用日历月加半月舍入，年用 365.25 天。<code>days // 30</code> 在评测里就是送分变丢分。</li>
+        <li><strong>每个机制配一个 off-switch。</strong>关掉后能逐位复现基线，你的归因才算干净。</li>
+    </ol>
+
+    <h2>结语</h2>
+    <p>这套机制族——日期接地、日期解析、时间算术——每一步都不复杂，合起来把两个时间切片从近零拉到可用。但真正想说的是那个更普遍的判断：<strong>Agent 记忆的下一程收益不在更大的检索，而在让计算走到证据旁边</strong>。抽取式回答服务的是「答案在场」的问题；时长、排序、比较这些「答案需要计算」的问题，需要的是锚点检索加确定性算术。分清楚这两类问题，比任何检索优化都值钱。</p>
+
+    <p class="meta">实验数据与完整代码：agent-memory-graph Cycle 456（be86830）/ Cycle 457（ff02a43），LoCoMo 与 LongMemEval-S 双数据集验证。</p>
+</body>
+</html>
