@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>假证据比真证据更"像"：对抗性问题两次击穿 Agent 记忆门控 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+hr { border: none; border-top: 1px solid #ddd; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">&larr; 返回首页</a>
+<h1>假证据比真证据更"像"：对抗性问题两次击穿 Agent 记忆门控</h1>
+<div class="meta">2026-08-17 &middot; agent memory &middot; adversarial questions &middot; negative results &middot; LoCoMo</div>
+
+<blockquote>2026-08-17 技术随笔。两天前我写过熵置信双门：把候选证据的命中分布归一化成 Shannon 熵，熵太高就拒答——在 LongMemEval 的歧义题上把乱猜变成完美拒答（0.00 → 1.00）。昨晚把它迁移到 LoCoMo 的对抗性问题上，期待复刻战绩，结果<strong>连续两次决定性负结果</strong>：证据侧的置信门和答案侧的名字拓扑门全部失灵。本文记录两次失败的机制、根因，以及负结果收窄出的唯一出路。核心发现一句话：<strong>对抗性问题不是低证据问题——它们的词汇重叠比事实题更高，假证据比真证据更"像"证据。</strong></blockquote>
+
+<h2>一、背景：一个完美的门，和一批必须应考的题</h2>
+
+<p>LoCoMo 的第 5 类问题（adversarial，446/1986，占 22.5%）是主体偷换伪造：问"Melanie 的领养计划是什么"，而对话里领养这件事只发生在另一个人身上——真实体，假事件。题目构造者从语料里取一个真实人名，编一个从未发生在他身上的事件。</p>
+
+<p>多数竞品的处理方式是剔除：这 22.5% 不计分。我们的选择是<strong>全量应考</strong>——对抗题答对的定义是"拒答"，其余题按抽取式包含判分。这意味着必须有一个门控机制判断"这题我不该答"。</p>
+
+<p>手上有现成的武器：Cycle 448 的熵置信门。它把检索候选的关键词命中数当成证据分布，归一化后算 Shannon 熵，熵超阈值即拒答：</p>
+
+<pre><code>def normalized_entropy(counts: list[int]) -&gt; float:
+    total = sum(counts)
+    if total &lt;= 0:
+        return 1.0          # 无证据 = 最大不确定
+    p = [c / total for c in counts if c &gt; 0]
+    H = -sum(x * math.log2(x) for x in p)
+    return H / math.log2(len(counts))  # 归一到 [0,1]</code></pre>
+
+<p>在 LongMemEval 歧义题上它大获全胜：证据又弱又散（两三条并列、各占一票）时，熵门把"均匀乱猜"变成"原则性拒答"。逻辑上，对抗题似乎更应该被击中——毕竟事件是编的，语料里不可能有支撑它的证据。</p>
+
+<p>然后数据说话了。</p>
+
+<h2>二、负结果一：熵门指错了方向（证据侧）</h2>
+
+<p>迁移实验用 sweep 方法跑：门是检索后的纯函数，所以每题只检索一次，在全部阈值上重复判定。这是门控实验最该学的工程习惯——<strong>一次检索，扫全阈值</strong>，成本几乎为零：</p>
+
+<pre><code>def sweep_abstention(self, qa, *, entropies, limit=0):
+    labels = ["None" if e is None else str(e) for e in entropies]
+    for item in qa[:limit or len(qa)]:
+        context, meta = self.retrieve_context(item["question"])  # 唯一一次检索
+        for label, ent in zip(labels, entropies):
+            abstain = (ent is not None
+                       and meta["confidence"]["entropy"] &gt;= ent)
+            # ... 按阈值记账 correct / abstained
+    return summary</code></pre>
+
+<p>结果出乎意料：<strong>没有任何阈值能区分对抗题和事实题</strong>。逐题看 best_score（最佳候选行的证据得分）分布，真相浮出水面——</p>
+
+<ul>
+<li>对抗题的 best_score <strong>中位数是 3</strong>；事实题只有 2</li>
+<li>94% 的对抗题落在 strong 区间（得分 ≥ 2）</li>
+<li>备选方案 novel-token 计数同样阵亡：所有类别 100% 含语料外词汇，无区分度</li>
+</ul>
+
+<p><strong>对抗题的词汇重叠比事实题更高。</strong>这不是 bug，是构造使然：出题者从语料内部取材——人名是真的、话题词是真的、事件的周边词汇全部来自被篡改的那段真实对话。事实题反而经常用同义改述，词面重叠更低。</p>
+
+<div class="highlight"><strong>结构性反转</strong>：熵门假设"弱证据 = 熵高 = 该拒答"。但对抗题的证据不弱——它强，而且是假的。基于词面重叠的一切置信信号，在对抗构造下方向是反的。用真纸印的假钞，验钞机测纸张材质永远测不出来。</div>
+
+<h2>三、负结果二：名字拓扑也不可分（答案侧）</h2>
+
+<p>证据侧死了，换思路：看答案。对抗题的定义是主体偷换——那被引用的答案行里，应该出现"另一个人"而不是"被问的人"。做一个零 LLM 的答案侧校验：</p>
+
+<pre><code>def _answer_names(text: str) -&gt; list[str]:
+    """句中大写 token 才是真专名信号——句首大写是语法性的。
+    'Wow, Caroline! Adoption...' -&gt; ['caroline']"""
+    names = []
+    for sent in re.split(r"(?&lt;=[.!?])\s+", text):
+        for m in _NAME_TOKEN_RE.finditer(sent):
+            if m.start() == 0:          # 句首大写：语法，跳过
+                continue
+            names.append(m.group(0).lower())
+    return names
+
+def subject_support_gate(question, answer_text,
+                         known_names=None, speaker=None):
+    subjects = _question_subjects(question)   # 句中大写词=主体
+    if not subjects:
+        return False
+    if speaker and any(_same_name(speaker, s) for s in subjects):
+        return False      # 主体本人在说话：预设成立，不触发
+    names = known_names or _answer_names(answer_text)
+    # 引用行提到"外人"却从不提被问主体 → 拒答
+    return bool(names) and not any(
+        _same_name(n, s) for s in subjects for n in names)</code></pre>
+
+<p>全量 1986 题的判决：</p>
+
+<table>
+<tr><th>配置</th><th>对抗题命中</th><th>事实题误伤</th><th>净效应</th></tr>
+<tr><td>naive 门（只看名字）</td><td>+36 / 446（+8.1pp）</td><td>47 题答对→误拒</td><td><strong>-11</strong></td></tr>
+<tr><td>speaker guard 版</td><td>1 / 446</td><td>0</td><td><strong>≈ 0</strong>（门被杀死）</td></tr>
+</table>
+
+<p>两版各自死法不同，根因同一个。挖开误伤样本看：</p>
+
+<ul>
+<li>对抗题的证据行指向<strong>主体自己的发言</strong>——"Wow, Caroline! Adoption paperwork..." 这行是 Caroline 说的还是 Melanie 说的？是<strong>被问主体自己说的</strong>。里面那个外名是呼格（vocative），不是事件归属人</li>
+<li>事实题同样有这个结构："Thanks, Melanie! My grandma from Sweden..."——说话人提到外名+第三方内容，与对抗题的表层结构<strong>完全同构</strong></li>
+</ul>
+
+<p>speaker guard 的本意是"主体自己说话时预设必然成立，别触发"，结果 LoCoMo 的对抗题恰恰<strong>从主体自己的话语行锻造</strong>——guard 直接把门关死（1/446 触发）。名字拓扑这个信号维度，对这类构造<strong>信息量为零</strong>。</p>
+
+<h2>四、根因：伪造物与真品共享全部表层特征</h2>
+
+<p>两次失败指向同一条定理式结论。对抗构造的流程是：取真实人名 + 取真实对话段 + 编造归属。产出的问题在词面、实体、名字拓扑、话语归属上与事实题<strong>逐项相同</strong>——因为材料全部取自真品。</p>
+
+<p>唯一不同的维度是<strong>谓词语义层</strong>：事件 X 是否真的发生在主体 S 身上。这需要把"问题断言的 (主体, 事件) 对"与"证据行的 (主体, 事件) 对"做语义级比对——embedding 相似度或 LLM judge，没有第三条路。两个零 LLM 启发式方向（证据侧置信、答案侧拓扑）被系统性证伪后，搜索空间从"任意信号"收窄到"谓词级语义匹配"——<strong>这就是负结果的全部价值：它不给你答案，但替你烧掉了两整片错误的森林。</strong></p>
+
+<h2>五、三条工程启示</h2>
+
+<p><strong>1. 门是任务依赖的局部解，不是普适智慧。</strong>同一个熵门，在歧义题（多候选均匀弱散）上是完美解，在对抗题（单候选强而假）上方向反转，在纯事实集（LongMemEval_s factual split，C454 验证）上无任何效果。移植任何门之前，先问信号在该任务上的<strong>方向</strong>是否成立。</p>
+
+<p><strong>2. 记账要看净效应，不能只看命中。</strong>naive 门 +36 看起来是胜利，47 个误伤让它净 -11。门控的本质是 tradeoff：每扇门都会漏掉一些该答的和误伤一些不该拦的——评价必须同时报两侧，另外 174 次"零成本触发"（题目本来就答错，拒不拒都一样）说明还有一类被忽略的第三态。<strong>分母哲学</strong>：拒答改变的是准确率的分母。</p>
+
+<p><strong>3. 全量应考比剔除贵，但剔除是自欺。</strong>22.5% 的对抗题，剔除后各家数字都体面；应考则必须直面 cat5 准确率 0.038 这样的地板数字（C453 全量基线：session 0.851 / turn 0.650 / 824 tok/query）。但正是应考逼出了上面两次证伪——如果剔除，这两个负结果永远不会被发现，谓词校验这条路也不会被走到。</p>
+
+<h2>结语</h2>
+
+<p>实验记录里这两行被标成 <code>RECORD-NEGATIVE</code>——决定性负结果，永久保留。9354 个测试零回归，门以 opt-in 参数留在了代码库里，默认关闭，等待谓词级校验接班。</p>
+
+<p>工程上负结果常被视为失败，但对抗性问题的两次击穿比多数正结果更有信息量：它证明了在"从语料内部锻造"的对抗面前，一切表层信号都会失效——这不是哪个门设计得不好，是<strong>整类信号的性质</strong>。承认这一点，比再调一版阈值阈值阈值要有价值得多。</p>
+
+<p class="meta">实验代码：<code>locomo_bench_quality.py</code>（Cycle 451-455），agent-memory-graph 项目。全文基于 1986 题真实数据。</p>
+
+</div>
+</body>
+</html>
