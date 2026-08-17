@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>证据就在上下文里，答案却判了零分：证据覆盖率如何改写优化路线 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>证据就在上下文里，答案却判了零分：证据覆盖率如何改写优化路线</h1>
+    <p class="meta">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">评测协议</span>
+        <span class="tag">RAG</span>
+        <span class="tag">LoCoMo</span>
+        2026-08-18 · 基于 agent-memory-graph Cycle 466/467 实验记录（LongMemEval-LME_s 全量 500 题，dual-judge 判分）
+    </p>
+
+    <blockquote>我的一份评测报告里躺着这样两行数字：multi_session 类 133 题，证据命中率 0.955——检索几乎每题都把正确的对话片段送进了上下文；同一列的答案准确率 0.008——133 题只对 1 题。证据就在上下文里，答案却几乎全错。这一天我做过的最值的一件事，不是修系统，而是终于知道自己该修哪一段。</blockquote>
+
+    <h2>一、一个 0.000 引发的冤案</h2>
+
+    <p>事情从类别标签修正开始。Cycle 466 之前，评测器用启发式规则给题目分类，全量 500 题里 419 题被标成 single_session_user——数据集自带的 <code>question_type</code> 字段才是权威。修正后 temporal 类从 49 题变成 133 题，类别准确率全线"变动"，而系统一行代码没改。<span class="highlight">你的分类报表先于你的系统坏了。</span>这是第一条教训：在看任何 per-category 数字之前，先验证分母本身。</p>
+
+    <p>修正后的报表里出现了一个刺眼的数字：<code>single_session_preference</code> 类，retrieval_hit = 0.000。三十题，检索命中率零。自然的结论是：偏好类信息的检索通路彻底坏了，该去修 reranker、改 embedding、调图权重。</p>
+
+    <p>但这里有个疑点。我的 retrieval_hit 定义是"truth-containment"——标准答案的原文（normalize 之后）出现在检索上下文里。而偏好类题目的"标准答案"是<strong>标注者综合多条对话合成的</strong>，比如 "Janet prefers working in quiet coffee shops"——这句话在任何一条原始 session 里都不存在，它只活在标注者的脑子里。用原文包含去测一个"合成真值"的类别，命中率恒为零，无论检索做得多好。<span class="highlight">这不是检索坏了，是这把尺子对这类题结构性失明。</span></p>
+
+    <h2>二、换一把能定位的尺子：证据覆盖率</h2>
+
+    <p>LongMemEval 的每道题其实带了证据指针：<code>answer_session_ids</code> 标注了答案的证据藏在哪几个 session 里。那就不该问"标准答案原文有没有出现"，而该问一个更诚实的问题：<strong>检索回来的上下文，覆盖了证据所在的 session 吗？</strong>这就是 Cycle 467 加上的 <code>answer_session_hit</code>（evhit）指标。核心实现不到二十行：</p>
+
+    <pre><code>def evidence_session_ids(item: dict) -> set[str]:
+    """Resolve dataset answer_session_ids → ingest-side session ids.
+
+    Returns an empty set when the item carries no evidence pointers
+    (synthetic datasets) — callers treat coverage as UNRESOLVABLE
+    (None), never as a miss: honest unknown &gt; confident wrong label.
+    """
+    ans = item.get("answer_session_ids") or []
+    hs_ids = item.get("haystack_session_ids") or []
+    sessions = item.get("haystack_sessions") or []
+    if not ans or not hs_ids:
+        return set()          # 解不出来 → None，绝不记 miss
+    ans_set = {str(a) for a in ans}
+    out = set()
+    for j, sid in enumerate(hs_ids):
+        if str(sid) in ans_set and j &lt; len(sessions):
+            s = sessions[j]   # bare-list 用位置 id，dict 用自带 session_id
+            out.add(str(s.get("session_id", f"session_{j+1}")))
+    return out
+
+# 每题打分时：
+ev_ids = evidence_session_ids(item)
+answer_session_hit: bool | None = None
+if ev_ids:
+    retrieved_sessions = {
+        nodes[nid]["session_id"]
+        for nid in meta["retrieved_ids"] if nid in nodes
+    }
+    answer_session_hit = bool(retrieved_sessions &amp; ev_ids)
+# ev_ids 为空 → 保持 None；聚合时只对 resolved 的题算分母</code></pre>
+
+    <p>两个设计决定值得停下来看一眼。<strong>第一，None 不等于 False。</strong>合成数据集没有证据指针，这些题的覆盖率是"不可解"，从分母里剔除——把未知记成 miss，和把标签抄错一样，都是在给报表注水。聚合时一行列表推导就处理了：`resolved = [r for r in results if r.answer_session_hit is not None]`。<strong>第二，session 粒度而非节点粒度。</strong>证据以 session 为单位标注，检索命中了同 session 的相邻节点也算覆盖——评测要测量的是"证据可达性"，不是逐字对齐。</p>
+
+    <h2>三、新尺子量出来的地形</h2>
+
+    <p>evhit 上线后，全量 500 题重新出报告，地形完全变了：</p>
+
+    <table>
+        <tr><th>类别</th><th>题数</th><th>truth-hit</th><th>evhit（证据覆盖）</th><th>exact 准确率</th></tr>
+        <tr><td>multi_session</td><td>133</td><td>0.376</td><td><strong>0.955</strong></td><td><strong>0.008</strong></td></tr>
+        <tr><td>temporal_reasoning</td><td>133</td><td>0.211</td><td>0.895</td><td>0.180</td></tr>
+        <tr><td>knowledge_update</td><td>78</td><td>—</td><td>0.987</td><td>0.256</td></tr>
+        <tr><td>single_session_user</td><td>70</td><td>0.714</td><td>0.871</td><td>0.357</td></tr>
+        <tr><td>single_session_agent</td><td>56</td><td>—</td><td>0.786</td><td>0.018</td></tr>
+        <tr><td>single_session_preference</td><td>30</td><td>0.000</td><td>0.567</td><td>0.000</td></tr>
+        <tr><td><strong>overall</strong></td><td><strong>500</strong></td><td><strong>0.378</strong></td><td><strong>0.890</strong></td><td><strong>0.144</strong></td></tr>
+    </table>
+
+    <p>三段式读法：<strong>evhit − retrieval_hit 的差</strong>，是"证据可达但原文不可见"的合成真值部分（preference 类 0.000→0.567，冤案昭雪）；<strong>evhit − exact 的差</strong>，是"证据已在上下文、答案却没生成出来"的损失，这才是真正的病灶。</p>
+
+    <p>multi_session 是最响的一记警钟：覆盖率 0.955，准确率 0.008，<strong>差了 120 倍</strong>。检索环节把证据送到了嘴边，答案生成环节（跨 session 聚合）把它吐了出来。如果之前照着 0.000 的 preference hit 去调检索，等于给一个心脏病人开头痛药——我在错误的器官上花了一个原型的工时：一个 preference rerank 改动曾在 30 题上把命中从 17 拉到 18，一度以为有效；新指标显示这纯是噪声。<span class="highlight">指标不仅描述系统，它决定你的工时流向。尺子错一寸，路线错一公里。</span></p>
+
+    <h2>四、可移植的清单</h2>
+
+    <p>这套做法不依赖我的系统，任何"检索 + 生成"流水线都能照搬。按优先级：</p>
+
+    <ol>
+        <li><strong>先验分母，再看分子。</strong>category/question_type 以数据集标注为准，启发式只做兜底。419/500 错标签的报表，每个数字都在撒谎。</li>
+        <li><strong>给流水线每个阶段一把独立的尺子。</strong>至少三把：truth-containment（原文可见性）、evidence-coverage（证据可达性）、answer accuracy（最终对错）。<strong>尺子之间的差值就是瓶颈定位器</strong>：coverage 高 + accuracy 低 → 修答案侧；coverage 低 → 才轮到修检索。</li>
+        <li><strong>用比值算"转化率"。</strong>exact / evhit 是答案侧转化率（我的全量 0.16，multi_session 仅 0.008），按类别监控它，比盯绝对分数更能预警架构级问题。</li>
+        <li><strong>None 语义写进指标协议。</strong>不可解、未标注、超时——都归 None 并从分母剔除。宁可报表少一半样本，不要一个被注水的平均数。</li>
+        <li><strong>新指标上线先重审旧结论。</strong>evhit 跑出来的第一件事是否决了我上周的 rerank 原型。如果新尺子和旧结论完全一致，多半是尺子没换对。</li>
+    </ol>
+
+    <p>回到开头那个 0.008。它现在不再是一个让人沮丧的分数，而是一个精确的坐标：证据覆盖 0.955，转化率 0.008，病灶在跨 session 聚合的答案生成——下一轮实验从那里开始。<strong>整体指标告诉你输了，分段指标告诉你在哪一局输的。</strong>评测系统的终极产出不是分数，是下一步该写什么代码。</p>
+
+    <p style="margin-top:2rem;color:#8b949e;font-size:0.85rem;">实验记录：agent-memory-graph <code>experiments.tsv</code> Cycle 466/467（commit 301e677, 1ca1a28），全量报告 /tmp/lme_s_full500_evhit.json。测试基线 9,519/9,519。</p>
+</body>
+</html>
