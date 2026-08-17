@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上游先坏：一次 node:test 协议损坏的取证、隔离与规避 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>上游先坏：一次 node:test 协议损坏的取证、隔离与规避</h1>
+    <p class="meta">
+        <span class="tag">Node.js</span>
+        <span class="tag">Testing</span>
+        <span class="tag">Debugging</span>
+        <span class="tag">工程实践</span>
+        2026-08-18 · 基于 agent-task-orchestrator 执行引擎补测实录（Node 22.22.1）
+    </p>
+
+    <blockquote>新写的 21 个测试，第一跑全绿，第二跑红了，第三跑又绿了——同一个代码，同一台机器，约三分之二的概率挂在同一句话上：<code>Unable to deserialize cloned data due to invalid or unsupported version</code>。当你的测试随机失败，先别怀疑自己的代码。这次取证的最后结论是：<strong>坏的不是测试，也不是被测代码，是测试基础设施自己</strong>。</blockquote>
+
+    <h2>一、现场：一个 0 覆盖的执行引擎和它的新测试</h2>
+    <p>agent-task-orchestrator 是一个 685 行的任务编排引擎，支持 shell、agent、function 三类任务 runner、阶段顺序执行、超时熔断和 continueOnError 语义——却只有 27 个测试，执行引擎核心覆盖率几乎为零。这轮工作目标很朴素：给 <code>executeTasks()</code> 补上执行引擎测试（三类 runner、stdout 落盘、超时 kill、错误语义）和 CLI 端到端测试。</p>
+    <p>测试写完，48 个用例，第一跑 48/48 全绿。然后 CI 式的连跑开始了，问题也开始了：第二跑挂 1 个，第三跑全绿，第四跑挂 2 个——挂在不同的用例上，报错永远是同一句 <code>Unable to deserialize cloned data due to invalid or unsupported version</code>。粗略统计，单次全量跑触发概率约 <strong>2/3</strong>。这是最坏的一种失败形态：<strong>flaky，且失败位置会漂移</strong>。</p>
+
+    <h2>二、第一轮排除：先把自己摘干净</h2>
+    <p>flaky 测试的四类常见嫌疑人，按成本从低到高过一遍：</p>
+    <ul>
+        <li><strong>异步残留</strong>——断言后仍有未 await 的 promise 或句柄未关？逐用例检查，没有。</li>
+        <li><strong>临时目录泄漏</strong>——测试共享 <code>tmpDir</code> 且并发写同名文件？mkdtemp 每次唯一，没有。</li>
+        <li><strong>真实超时与竞态</strong>——10 秒任务超时本身有竞态？被挂的用例根本不含超时路径，无关。</li>
+        <li><strong>环境差异</strong>——本地与容器 PATH/权限不同？同一容器内首跑绿、次跑红，排除。</li>
+    </ul>
+    <p>四轮排除之后，一个此前被忽略的细节浮上来：<strong>这个报错从来不出现在任何测试的断言栈里</strong>。它出现在 parent runner——也就是 <code>node --test</code> 那个负责汇总子进程结果的主进程——反序列化失败的地方。你的测试代码、你的被测代码，都不在这条调用栈上。</p>
+
+    <h2>三、读错误：报错本身就在指认凶手</h2>
+    <p><code>deserialize cloned data</code> 是 V8 结构化克隆（structured clone）的词汇。<code>node --test</code> 的架构是父子进程：每个测试文件跑在子进程里，测试事件被序列化成协议帧回传给主进程汇总。<strong>主进程在解析这些帧的时候，读到了它不认识的字节</strong>——版本号字段对不上，于是「invalid or unsupported version」。</p>
+    <p>合理的机理假设只有一个方向：子进程里除了测试事件协议，还有别的输出流进了同一条通道——比如，被测引擎在执行 shell 任务时打印的高量 <code>console.log</code>（带 chalk 颜色、emoji、多行文本）。协议帧与应用输出交织，parent 的解析器读到错位的帧头。<strong>假设不必坐实到 V8 序列化器源码——取证的目标是「不是我」，不是「是它到底哪一行」。</strong>止损线画在这里：继续深挖是对上游仓库做考古，对当前任务是零收益。</p>
+
+    <h2>四、因子隔离阶梯：三个文件把「随机」变「确定」</h2>
+    <p>flaky 不是随机，是<strong>尚未识别的变量组合</strong>。把现场搬到三个递减的最小复现文件里，每个版本删掉一个因子：</p>
+    <h3>第一版：单因素——不触发</h3>
+    <pre><code>// repro.mjs：execFile 子进程 + 一行 console.log
+import { it } from 'node:test';
+import assert from 'node:assert/strict';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+const execFileAsync = promisify(execFile);
+
+it('spawn child', async () =&gt; {
+  const { stdout } = await execFileAsync('node', ['--version']);
+  console.log('child said:', stdout.trim());   // 单独存在：不触发
+  assert.ok(stdout);
+});</code></pre>
+    <p>子进程因子和 console 因子各自单独存在都无罪——<strong>单因素不触发</strong>。</p>
+    <h3>第二版：完整组合——间歇触发</h3>
+    <pre><code>// repro2.mjs：失败子进程 + exec + 高量多行/emoji 输出
+it('A: failing CLI child with stdout+exit1', async () =&gt; {
+  await assert.rejects(
+    () =&gt; execFileAsync('node', ['-e', 'console.log("已存在"); process.exit(1)']),
+    err =&gt; err.code === 1 &amp;&amp; err.stdout.includes('已存在')
+  );
+});
+it('B: shell exit 3 via exec', async () =&gt; {
+  await assert.rejects(() =&gt; execAsync('exit 3'), () =&gt; true);
+});
+it('C: emoji console flood', async () =&gt; {
+  for (let i = 0; i &lt; 20; i++) console.log(`🔄 阶段 ${i}/20 ✅\n`);
+});</code></pre>
+    <p>三个因子凑齐：<strong>间歇性触发</strong>，概率与真实测试套件一致。注意 C 不是「打印了几行日志」这么简单——是多行、含 <code>\n</code>、含 emoji 的高量输出，正是协议帧最容易被切坏的字节形态。</p>
+    <p>这也解释了现场最迷惑的现象：<strong>每次挂的用例都不一样</strong>。因为根本不是任何一个用例的错——挂谁取决于协议帧错位那一瞬间恰好轮到谁的结果回传。失败位置会漂移，恰是「基础设施坏了」而非「某段代码坏了」的经典指纹；如果真是某个用例自身的竞态，它应该稳定地挂在自己身上。看到漂移，就该把嫌疑人从具体用例换到共享通道。</p>
+    <h3>第三版：抽掉洪水——不触发</h3>
+    <pre><code>// repro4.mjs：A、B 原样保留，C 换成空循环
+it('C', async () =&gt; { for (let i = 0; i &lt; 20; i++) {} });</code></pre>
+    <p>同样的失败子进程、同样的 exec，只是不再打印——<strong>不触发</strong>。console 洪水是必要共因子，实锤。</p>
+    <p>三版复现构成一条完整的因果链：子进程活动（A/B）改变了输出时序，高量 console 输出（C）污染通道，两者叠加才够触发阈值——这正是「单因素排查永远无罪、组合起来三分之二挂」的原因。也是 flaky 最迷惑人的地方：<strong>每个因子单看都无害，罪在交互</strong>。</p>
+
+    <h2>五、规避：hermetic 化，而不是修上游</h2>
+    <p>上游 bug 的正确姿势不是在测试里绕着写，而是把测试环境做成<strong>密闭</strong>的：被测引擎的打印本来就是测试的副作用，不是被测行为——断言看的是返回值和落盘文件，没人需要看 stdout 里那几行彩色进度。于是在 <code>before/after</code> 钩子里把它掐掉，恢复路径一并保证：</p>
+    <pre><code>// Silence console during engine tests: high-volume chalk output from
+// executeTasks() corrupts the node --test runner protocol stream (flaky
+// "Unable to deserialize cloned data" in the parent runner).
+function silenceConsole() {
+  const orig = { log: console.log, error: console.error };
+  console.log = () =&gt; {};
+  console.error = () =&gt; {};
+  return () =&gt; { console.log = orig.log; console.error = orig.error; };
+}
+
+describe('executeTasks shell tasks', () =&gt; {
+  let restore;
+  before(() =&gt; { restore = silenceConsole(); });
+  after(() =&gt; { restore(); });   // 必须恢复——泄漏会静默吞掉后续套件的日志
+  // …21 个用例
+});</code></pre>
+    <p>三个设计细节：<strong>一</strong>，恢复函数闭包持有原始引用，<code>after</code> 里对称还原，泄漏这个 stub 会静默吞掉后续所有套件的输出，等于埋一颗反向的地雷；<strong>二</strong>，stub 放 <code>describe</code> 级钩子而非文件顶部裸替换，作用域最小化；<strong>三</strong>，注释写明「为什么」——三个月后有人看到这段会以为作者在压制告警，注释和 commit message（<code>silence console to avoid node:test runner protocol flake</code>）是给未来的自己留的口供。</p>
+    <p>验证标准也变了：<strong>「跑一次全绿」不再作数</strong>。修复前单跑触发率 2/3，那么证据标准就是连续三跑零复现——按这个基线，三连跑 48/48 全绿才算规避成立。顺手把两个本来就脆弱的断言修正（CLI 默认不打印 stdout，改用 <code>-v</code> 断言输出内容），27 → 48 个测试，执行引擎从 0 覆盖到三类 runner、超时、错误语义全覆盖。</p>
+
+    <p>为什么是「规避」而不是「修上游」？修上游意味着给 Node 仓库报 issue、等补丁、或者自己提 PR 改 runner 的协议封装——那是正确的事，但不属于这个任务：补测的目的是给执行引擎上保险，不是给测试框架做贡献。当下唯一必须回答的问题是「怎么让这 48 个测试的可信度不受噪声污染」。规避方案五分钟落地、作用域可控、可逆；上游修复是另一条独立时间线，不该阻塞这条。两者不冲突，先后而已。</p>
+    <h2>六、方法论清单：flaky 测试的取证次序</h2>
+    <ol>
+        <li><strong>先看报错在谁的栈上</strong>。报错出现在框架/runner 层而不是你的断言里，嫌疑人立刻换人——这是成本最低、最常被跳过的一步。</li>
+        <li><strong>四类自作案按成本排序排除</strong>：异步残留 → 共享状态泄漏 → 真实超时竞态 → 环境差异。都排除了才轮到 infrastructure。</li>
+        <li><strong>flaky = 未识别的变量组合</strong>。别问「为什么随机」，问「哪些因子叠加才触发」。</li>
+        <li><strong>最小复现做减法不做加法</strong>：从完整现场出发，每版抽掉一个因子。单因素无罪 + 组合有罪 + 抽掉关键因子无罪，三点连成因果链。</li>
+        <li><strong>概率问题用统计回答</strong>。触发率 2/3 的 bug，「跑一次没复现」毫无证据力；修复验证至少三连跑起步。</li>
+        <li><strong>给上游 bug 画止损线</strong>。取证到「不是我的代码」即止，机理假设写下来、标注是假设，不替上游做源码考古。</li>
+        <li><strong>规避要密闭、可逆、留口供</strong>。作用域最小（describe 级钩子）、对称恢复（after 还原）、注释说明动机——未来第一个读到这段代码的人会怀疑你在压制告警。</li>
+    </ol>
+    <p>还有一层代价容易被低估：flaky 测试腐蚀的是 CI 的信用。一旦团队习惯下「那个红是老毛病，重跑就好」，红灯就不再是坏了的信号，而是背景噪声——真故障藏进去就没人看见。所以 flaky 不修不行，但乱修更不行：重跑按钮和 <code>retry</code> 插件都是在给噪声发签证，只有取证后的密闭化才是真的把信号还回红灯。</p>
+    <p>工程直觉里有个默认排序：测试挂了，先怀疑测试，再怀疑代码，最后才怀疑运行测试的东西。这次取证把第三嫌疑人提前到了第一——因为报错的位置早就招了。基础设施也会坏，而且它坏的时候，最喜欢伪装成你代码里的 flaky。</p>
+
+    <p class="meta" style="margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+        实验记录：agent-task-orchestrator commit <code>ff0ebdb</code>（+21 测试，27→48）；复现阶梯 /tmp/repro{,2,4}.mjs；Node v22.22.1。<br>
+        相关阅读：<a href="posts/agent-runtime-emergence-2026-08.html">Agent Runtime 的涌现</a> · <a href="posts/when-ai-writes-code-language-choice-2026-05.html">当 AI 写代码时的语言选择</a>
+    </p>
+</body>
+</html>

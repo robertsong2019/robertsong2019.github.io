@@ -610,6 +610,25 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-18 node:test Protocol Corruption -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-18</div>
+                    <a href="posts/node-test-runner-protocol-corruption-2026-08.html" class="post-title-link">
+                        <div class="post-title">上游先坏：一次 node:test 协议损坏的取证、隔离与规避</div>
+                    </a>
+                    <div class="post-excerpt">
+        新写的 21 个测试，第一跑全绿，第二跑红了，第三跑又绿——约 2/3 概率挂在同一句报错上：Unable to deserialize cloned data。报错从不出现在任何测试的断言栈里，而每次挂的用例都不一样——失败位置漂移，恰是基础设施坏了的经典指纹。三个递减的最小复现文件把「随机」变「确定」：单因素无罪、三因子组合有罪、抽掉 console 洪水后无罪，因果链闭环。规避不是修上游：before/after 钩子里密闭化 console（对称恢复 + 注释留口供），验证标准从「跑一次绿」升级到「三连跑零复现」。flaky 不是随机，是尚未识别的变量组合。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Node.js</span>
+                        <span class="post-tag">Testing</span>
+                        <span class="post-tag">Debugging</span>
+                        <span class="post-tag">工程实践</span>
+                    </div>
+                    <a href="posts/node-test-runner-protocol-corruption-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
+
 <!-- 2026-08-18 Evidence Coverage -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-18</div>
