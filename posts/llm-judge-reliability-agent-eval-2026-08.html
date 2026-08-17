@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>谁来给判卷人打分：LLM-as-Judge 的可靠性陷阱与修复清单 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>谁来给判卷人打分：LLM-as-Judge 的可靠性陷阱与修复清单</h1>
+    <p class="meta">
+        <span class="tag">LLM-as-Judge</span>
+        <span class="tag">评测协议</span>
+        <span class="tag">Agent Memory</span>
+        <span class="tag">Benchmark</span>
+        2026-08-17 · 基于 2026 年判分协议研究调研（LongMemEval / MemEval / Memora / 21-judge 审计 + 工程实践）
+    </p>
+
+    <blockquote>想象你的 Agent 记忆系统交出这样一份成绩单：检索命中率 1.0——每道题都精准找到了那条正确的记忆；但知识更新类准确率 0.0——没有一道题得分。系统坏了，还是尺子坏了？拆开一看：判卷老师只认标准答案原文。模型回答 "She usually works from quiet coffee shops"，标准答案是 "Janet prefers working in coffee shops"——意思一字不差，判零。</blockquote>
+
+    <h2>一、0.0 分的两种病因：系统病与协议病</h2>
+
+    <p>词边界精确匹配（exact-match judging）这个判分方式，对选择题、填空题是够用的，但对记忆系统是结构性错配：记忆 Agent 的回答是生成式的——它必然带指代、同义改写、语气词。"她一般喜欢在安静的咖啡馆工作"和"Janet 偏好在咖啡馆办公"在词面上重叠不足一半，在语义上是同一个答案。用原文匹配去判生成式回答，就像让一个只背了标准答案的阅卷老师去批作文：学生写得再对，只要没用原句，就是零分。</p>
+
+    <p>但在急着换尺子之前，有一个容易跳过的事实：知识更新（knowledge update）本来就是所有记忆系统最难的类别。MemEval 框架在 LongMemEval 上的完整榜单里，所有系统的 K-Update 列都是各自成绩单的最低分之一——PropMem 0.528、SimpleMem 0.475、Full-Context 0.202。你的 0.0 里有协议的病，也有题目本身的难。分不清这两者，换尺子换出来的数字就是自欺。</p>
+
+    <p>于是行业共识指向 LLM judge：让一个 LLM 读懂参考答案，判生成式回答对不对。LongMemEval 榜单的原生协议就是 gpt-4o 二元判定。但这就把问题推到了下一层：<span class="highlight">判卷人自己可靠吗？谁来给判卷人打分？</span></p>
+
+    <h2>二、判卷人的偏见档案：2026 年的三份审计报告</h2>
+
+    <h3>偏见一：分数编号偏好（Score-ID Bias）</h3>
+
+    <p>Li 等人（arXiv:2506.22316）发现，让 judge 打 1–10 分时，模型对"分数编号本身"有系统性偏好：GPT-4o 偏好打 4，Qwen3-32B 偏好打 5。更糟的是 rubric 顺序敏感——把评分标准在 prompt 里换個位置，分数分布就变。这意味着梯度打分（1–10、1–5）的判卷里，混杂着大量与答案质量无关的噪声。</p>
+
+    <h3>偏见二：κ 通货紧缩（Kappa Deflation）</h3>
+
+    <p>对 21 个 judge 的大规模审计（arXiv:2606.19544）给出了更狠的结论。所有 judge 的"原始一致率"都虚高——因为二元判定里有大量"靠瞎蒙也能对"的机会一致性。做过机会校正（Cohen's κ）之后，judge 之间的差距可以拉到 <strong>41.2 个百分点</strong>。原文一致率 90% 的两个 judge，κ 校正后一个可能是 0.85，另一个可能只有 0.44。</p>
+
+    <h3>偏见三：一致性-偏见悖论（Consistency–Bias Paradox）</h3>
+
+    <p>同一份审计里最反直觉的发现：test-retest 最稳定的 judge，反而可能是最偏的。Qwen 3 8B 和 Gemini 2.5 Flash 落在"一致但偏"象限——每次判都给出同样的错判。类比一台永远慢两小时的挂钟：每次看它都"一致"，但每次都错。<strong>把 test-retest 一致性当 judge 的质量证明，是当前评测报告里最流行的误导。</strong></p>
+
+    <p>另外还有自偏好（self-preference）：judge 和被测系统用同一家族的模型时，分数系统性虚高——老师给自己班学生的卷子打分，手总是松一点。</p>
+
+    <h2>三、可靠判卷的五条协议</h2>
+
+    <p>综合 LongMemEval 原生协议、Memora（arXiv:2604.20006）的评估设计和工程实践，一个可靠的判分协议可以浓缩成五条：</p>
+
+    <h3>协议一：参考锚定二元判定</h3>
+
+    <p>judge 只输出 CORRECT / WRONG，不打梯度分。没有分数梯度，score-ID bias 就没有生存空间。有正确参考答案时，参考锚定的二元判定一致比 prompt-only 开放打分可靠——这是 MT-Bench 之后多份复现研究的共同结论。工程细节：参考答案放在 prompt 尾部（规避 rubric 在前的近因比较效应），temperature=0，输出钳制到 8 个 token。</p>
+
+    <h3>协议二：判据原子化 + 异构多数投票</h3>
+
+    <p>Memora 的设计值得抄作业：每道题拆成原子判据（每个判据只含一个事实点），3 个不同家族的 judge（GPT-4.1 + Claude Haiku 4.5 + Gemini 2.5 Flash）各投一票取多数，达到 88.3% 人类一致率、Cohen's κ 0.86–0.90。关键在<span class="highlight">原子性</span>：让判卷人判断"这段回答是否包含'生日是 3 月 5 日'这一事实点"，和让判卷人判断"这篇回答质量如何（1–10 分）"，是完全不同难度的两件事——前者是 judge 可靠区间的最大处，后者是偏见的温床。另外注意：EMNLP 2025 的研究表明多轮辩论式 judge 反而会放大偏置——<strong>原子判据 + 单轮多数票就是可靠性与成本的甜点，不需要更复杂的编排</strong>。</p>
+
+    <h3>协议三：判卷人与考生异构</h3>
+
+    <p>judge 模型与被测生成器必须不同家族。这不是洁癖，是对 self-preference 的直接防御。</p>
+
+    <h3>协议四：abstain 必判 WRONG</h3>
+
+    <p>对抗性题目的设计目的就是让"编造"产生可见成本。这里有个微妙之处：MemEval 榜单里 Graphiti 在 Adversarial 列拿到全场最高的 0.873，靠的是知识图谱的结构性拒答能力——拒答能力是真的优势。但判分协议必须保证弃权的语义诚实：<strong>拒答 ≠ 答对</strong>。如果弃权得分，你在奖励一个什么都不敢答的系统；如果幻觉不罚，你在奖励编造。正确语义是：abstain 判 WRONG，让"敢答且答对"成为唯一得分路径，拒答的收益只能体现在"不产生幻觉扣分"的相对比较里。</p>
+
+    <h3>协议五：双口径报告</h3>
+
+    <p>换 judge 之后准确率从 0.0 升到 0.4——这个提升来自系统变好，还是 judge 变松？单口径永远回答不了。唯一的诚实解：exact-match 和 LLM judge 两列并排输出，附 divergence 报告。工程上有个现成的自检阈值：两种判分器的分歧率超过 20–25%，说明 rubric 本身有问题，回去重写；分歧样本天然就是人工抽检清单——先抽 20 条人工判，rubric 的缺陷会立刻现形。</p>
+
+    <pre><code># 判分协议自检清单
+binary_verdict:     true        # 只判 CORRECT/WRONG，无梯度
+reference_position: prompt_tail # 参考答案后置
+atomic_criteria:    true        # 每判据一个事实点
+judges:             3, 异构家族, 与 generator 不同族
+abstain_verdict:    WRONG       # 拒答≠答对
+error_isolation:    true        # judge 基础设施故障不计票
+dual_metric:        [exact, llm_judge] + divergence_report
+report:             Cohen's κ (vs 人工锚标), 禁止只报 test-retest
+rubric_review_threshold: divergence > 0.25</code></pre>
+
+    <h2>四、指标本身也会说谎：不考遗忘的评测在考复读机</h2>
+
+    <p>判分协议修好之后，还有一层更深的问题：指标本身的设计。标准 accuracy 系统性高估记忆系统——因为"答对"的判定不问记忆是否过期。</p>
+
+    <p>Memora 提出了遗忘感知准确率 FAMA：<code>max(0, MPA − λ·(1−FAA))</code>，其中 MPA 是有效记忆命中率，FAA 是过期记忆排除率。用 FAMA 重新打分，系统名次会重排：不遗忘的系统拿着过期记忆照样"对答如流"，时间线拉长后折损急剧放大——A-Mem 的 FAMA 折损月度 −29.5、季度 −37.9。</p>
+
+    <p>类比一个把三年前的旧黄历背得滚瓜烂熟的人：问他任何旧事都对答如流，标准答案一个没错——但答案全是过期的。<span class="highlight">不考遗忘的记忆评测，考出来的是复读机。</span>如果你的系统存储带时间戳、版本或 invalid_at 这类谱系信息，你天然可以生成"过期判据"（答案在某个时点后已失效），跑一个 FAMA 变体——这是目前被严重低估的差异化指标。</p>
+
+    <h2>五、94.7% 和 0.35：同一个系统的两个"正确"数字</h2>
+
+    <p>最后是读榜单的人最容易踩的坑：口径不可互换。Zep 商业版宣传 94.7%——那是 LLM-judge accuracy；Mem0 论文独立复测 Zep 的 token-F1 只有 0.35–0.50。两个数字都"对"，都说的是同一个系统，但完全不可比。你在 A 榜单看到的第一名，换到 B 榜单可能垫底，唯一变的是判分口径。</p>
+
+    <p>MemEval 框架对此的回应是公平性分层：同一 LLM、同一 embedding、同一判分管线、端到端 token 计费，成绩以 F1 + Judge + Tokens 三列并列。这个做法应该成为行业的默认底线——<strong>任何只报一个数字的评测，都把口径问题留给了读者去猜。</strong></p>
+
+    <h2>六、今天就能做的四件事</h2>
+
+    <ol>
+        <li><strong>给现有评测加第二把尺子</strong>：保留 exact-match 判分器，加一个二元 LLM judge，双列输出 + divergence 报告。对照跑一遍，把分歧样本抽 20 条人工判——你的 rubric 问题会在这一步现形，而不是在论文发表之后；</li>
+        <li><strong>judge prompt 三件套</strong>：二元判定 + 参考答案置于 prompt 尾部 + 显式失败条件（"Do not reward verbosity. Do not infer missing facts."）。这三条每条都对应一类已文档化的偏见；</li>
+        <li><strong>验证 judge 时报 κ 不报 test-retest</strong>：拿 50 题人工标注做锚，judge 与人工的 Cohen's κ 低于 0.6 的 judge 没资格上 leaderboard——记住"一致但偏"象限的存在，最稳的可能是最偏的；</li>
+        <li><strong>给你的记忆系统出一个"遗忘考卷"</strong>：如果存储里有时间戳/版本/invalid_at，构造一批答案已过期的判据，跑 FAMA 式双指标（命中率 + 过期排除率）。这是把已有基础设施变成评测差异化卖点的最短路径。</li>
+    </ol>
+
+    <p>回到开头那份 0.0 的成绩单。换上二元参考锚定 + 异构多数票的判分协议后，它大概率会升到 0.2–0.5。但真正的进步不是那个数字，而是你终于能回答那个更根本的问题：数字的每一次变动，有多少来自系统，有多少来自尺子。评测的意义从来不是产出一个好看的数字，而是让每一次变动都可归因。<span class="highlight">给判卷人打分，不是评测的附加题，是评测的及格线。</span></p>
+
+    <p class="meta" style="margin-top: 2.5rem;">参考资料：LongMemEval (arXiv 2410.10813) · ProsusAI/MemEval (GitHub) · Memora: From Recall to Forgetting (arXiv 2604.20006) · 21-Judge 审计 (arXiv 2606.19544) · Scoring Bias (arXiv 2506.22316) · EMNLP 2025 辩论式 judge 研究 · Adaline / Deepchecks 判分工程实践 · LoCoMo 口径注记 (Zep 94.7% vs Mem0 复测 token-F1)</p>
+</body>
+</html>
