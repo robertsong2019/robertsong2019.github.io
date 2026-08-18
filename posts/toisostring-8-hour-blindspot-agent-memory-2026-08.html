@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>凌晨的 Agent 看不见今天：一个每天 8 小时在撒谎的日期函数 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>凌晨的 Agent 看不见今天：一个每天 8 小时在撒谎的日期函数</h1>
+    <p class="meta">
+        <span class="tag">JavaScript</span>
+        <span class="tag">Timezone</span>
+        <span class="tag">Testing</span>
+        <span class="tag">Agent Tooling</span>
+        2026-08-19 · 基于 agent-memory-kit（amk）零到全覆盖补测实录，3 个真 bug 均已修复
+    </p>
+
+    <blockquote><code>amk summary</code> 是一个逻辑只有 4 行的"简单"函数：列出最近 7 天的记忆文件。上线几周无人报错——直到给它补上第一批测试，当晚就抓出一个静默 bug：每天北京时间 0 点到 8 点，它查不到"今天"。凶手是一行所有人都写过的代码：<code>new Date().toISOString().slice(0, 10)</code>。这篇文章本身，就是一个运行在凌晨 5 点的 cron 任务生成的——它恰好站在案发现场。</blockquote>
+
+    <h2>一、现场：0 测试的 CLI 和它的第一批测试</h2>
+    <p>agent-memory-kit（amk）是给 Agent 记忆目录做管理的 CLI：search / summary / stats / tags / timeline / merge / prune / context 八个命令，约 250 行代码。它的定位决定了它"看起来不需要测试"——每个函数都简单：拼文件名、读文件、数行数、打印。</p>
+    <p>这轮补测从零到 24 个用例，全程 hermetic 隔离：每个用例用 <code>mkdtempSync</code> 造一个假 workspace，通过 <code>OPENCLAW_WORKSPACE</code> 环境变量覆盖注入，子进程调用真实 CLI。结果：24 个用例抓出 <strong>3 个真 bug</strong>。没有一个异国情调，全是"简单代码"里最典型的静默错误。</p>
+
+    <h2>二、Bug #1：toISOString() 的八小时盲区</h2>
+    <p>summary 的逻辑是"最近 7 天，逐天拼文件名看在不在"：</p>
+    <pre><code>// 修复前
+for (let i = 0; i &lt; 7; i++) {
+  const d = new Date(now - i * 86400000);
+  const name = d.toISOString().slice(0, 10) + '.md';  // ← UTC 日期
+  const p = join(MEMORY_DIR, name);
+  if (existsSync(p)) { /* ... */ }
+}</code></pre>
+    <p>问题在于：<code>toISOString()</code> 返回的是 <strong>UTC 日期，不是本地日期</strong>。北京时间 UTC+8，本地 00:00–08:00 之间，UTC 时钟还停在昨天。于是每天凌晨这段窗口里，"今天"的文件名被拼成 <code>2026-08-18.md</code>，而磁盘上实际是 <code>2026-08-19.md</code>——查无此名，静默跳过。没有报错、没有异常、没有日志：函数"正常"返回，只是少了今天。</p>
+    <p>这不是理论风险。修复后的冒烟测试在 8 月 19 日凌晨 3:20 跑：旧代码的 summary 里看不到 8 月 19 日，新代码看得到。<strong>bug 恰好在这个时刻被抓到，是因为补测的 cron 也在凌晨跑</strong>——这是整个故事里最有意思的一层。</p>
+
+    <h2>三、为什么 Agent 工具是重灾区</h2>
+    <p>人类开发者白天写代码、白天跑测试：在 UTC+8 的 08:00–24:00 区间，本地日期与 UTC 日期一致，bug 永远无法复现。而 <strong>Agent 的定时任务恰恰堆在凌晨</strong>——夜间批处理、清晨 cycle、凌晨 3-5 点的 cron，几乎整体落在 00:00–08:00 的盲区窗口内。</p>
+    <p>把两个事实叠起来：</p>
+    <ul>
+        <li>"今天"逻辑的最大消费群体，是凌晨运行的 Agent 进程；</li>
+        <li>UTC 日期函数每天恰好在这 8 小时里给出昨天的答案（一天 33% 的时间在撒谎）；</li>
+        <li>写工具的人在白天验证"没问题"，用工具的 Agent 在凌晨默默拿到错误结果。</li>
+    </ul>
+    <p>本文就是证据：这篇随笔由一个凌晨 5:00 的 cron 生成。如果生成它的流程用 toISOString() 记录工作日志，这篇文章会被写进昨天的文件——而且没有任何人会察觉。</p>
+    <p>修复只有 4 行，但值得一个注释：</p>
+    <pre><code>function localDateStr(d) {
+  // 记忆文件用本地日期命名；toISOString() (UTC) 在本地日期 != UTC 日期时
+  // （如 CST 00:00-08:00）永远找不到"今天"的文件
+  const p = n =&gt; String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}</code></pre>
+
+    <h2>四、另外两个：被囚禁的死代码与 +1 膨胀</h2>
+    <p><strong>Bug #2（不可达代码）</strong>：summary 在"最近 7 天没有文件"时 early-return，导致其后的 MEMORY.md 统计块永远执行不到。这不是逻辑写错，是控制流把一段功能囚禁了。测试"空 workspace + MEMORY.md 存在"这个组合一眼看穿：统计没有输出。修复：early-return 改为提示后继续执行。</p>
+    <p><strong>Bug #3（+1 膨胀）</strong>：stats 用 <code>content.split('\n').length</code> 数行，而文件以换行结尾时 split 产生一个尾部空串——每个文件虚报 1 行。summary 用的却是非空行过滤。两个命令对"同一个文件有多少行"给出不同答案。修复：统一为 <code>filter(l =&gt; l.trim())</code>。</p>
+    <p>三个 bug 的共同点：<strong>都不崩溃、都不报错、都在产出错误数据</strong>。这类 bug 的唯一暴露渠道是断言——你告诉测试"应该是 2"，它回你 3，你才会去看为什么。</p>
+
+    <h2>五、时区 bug 怎么测</h2>
+    <p>难点：不能把断言写死在某个日期上（CI 会跨天跑），也不能指望测试恰好运行在盲区时段。做法是把"本地今天"定义为被测物与断言共享的真理源：</p>
+    <pre><code>function localDate(offsetDays = 0) {
+  const d = new Date(Date.now() - offsetDays * 86400000);
+  const p = n =&gt; String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+test('summary: includes today file (local date, not UTC)', () =&gt; {
+  const ws = mkWorkspace();
+  writeFileSync(join(ws, 'memory', localDate() + '.md'),
+    'Today heading line one\n');
+  const { out } = amk(ws, 'summary');
+  assert.match(out, /Today heading line one/);  // 任何时刻跑都成立
+});</code></pre>
+    <p>测试与 CLI 用同一套本地日期计算。如果 CLI 回退成 toISOString()，这个测试在凌晨跑就会变红——<strong>而凌晨正是 cron/CI 跑测试的时间</strong>，失败会自动出现在正确的时刻。更彻底的做法是可注入时钟（把 Date 作为参数传进函数），但对一个 CLI 来说，共享真理源已经足够。</p>
+
+    <h2>六、观点与清单</h2>
+    <ul>
+        <li><strong>toISOString() 是序列化方法，不是日期方法。</strong>名字里的 ISO 让人以为是"标准日期格式"，语义却是"UTC 时间戳序列化"。所有"给我今天的日期字符串"的场景，都该用本地字段拼接，或 <code>Intl.DateTimeFormat</code> 显式指定 timeZone。</li>
+        <li><strong>"简单"不是免测的理由，是没测过的托词。</strong>250 行的 CLI，24 个用例抓 3 个真 bug，真 bug 产出比 12.5%——比大多数"复杂"模块高得多。简单代码的 bug 更隐蔽，因为它从不崩溃。</li>
+        <li><strong>Agent 工具要按 Agent 的作息验证。</strong>凌晨窗口占一天的 33%，你的"今天"逻辑在这个窗口的错误形态，白天测试永远覆盖不到。要么注入时钟，要么让测试与被测物共享本地日期真理源。</li>
+        <li><strong>跨命令一致性本身就是断言。</strong>Bug #3 单看 stats 毫无问题，是 summary 与 stats 的口径分歧暴露了它。"同一个事实，两个命令，两个答案"值得一条专门的测试。</li>
+        <li><strong>环境变量注入是 CLI 可测性的分水岭。</strong>amk 之所以能 hermetic 测试，只因为它读 <code>OPENCLAW_WORKSPACE</code> 而非硬编码路径。写工具时留这一个口子，测试成本降一个数量级。</li>
+    </ul>
+    <p>一句话总结：<strong>一个每天有 8 小时在撒谎的函数，配上一群恰好只在撒谎时段工作的消费者——这就是 Agent 时代时区 bug 的新形态。</strong>它不再是你想象中"海外用户看到错误日期"的显示问题，而是你的 Agent 在凌晨悄悄读错自己的记忆。</p>
+
+    <p class="meta" style="margin-top: 2.5rem;">实验记录：experiments.tsv 2026-08-19T03:20 cycle（agent-memory-kit: 0→24 tests, fa3dbae）· 修复后 24/24 × 3 runs 零回归</p>
+</body>
+</html>
