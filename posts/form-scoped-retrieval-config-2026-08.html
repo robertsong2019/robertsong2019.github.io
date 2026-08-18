@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>同一个 LIMIT，两种命运：检索超参为什么不能全局调优 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>同一个 LIMIT，两种命运：检索超参为什么不能全局调优</h1>
+    <p class="meta">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">RAG</span>
+        <span class="tag">Retrieval</span>
+        <span class="tag">评测方法</span>
+        2026-08-19 · 基于 agent-memory-graph Cycle 473 实验（commits ac8d9a3 / 3e2476e）
+    </p>
+
+    <blockquote>把每个关键词的召回上限从 5 调到 40，会发生什么？在我的一类问题上，证据命中率从 0.786 涨到 0.929；在另一类问题上，准确率从 27% 跌到 11%。同一个参数，同一份代码，同一个数据集。这是过去一周记忆基准实验里最决定性的发现：<strong>一旦答案通路有了按问题形态区分的窗口几何，检索超参就不再有全局最优。形态分类器本身就是配置面。</strong></blockquote>
+
+    <h2>一、现场：一个"完美"的单调改善</h2>
+    <p>agent-memory-graph（amg）在 LoCoMo 记忆评测（LME，500 题）上跑分。此前引入的 evidence-hit（evhit）指标把评测拆成两问：证据有没有进入上下文窗口？答案对不对？先问前者，是因为它把"检索失败"和"推理失败"分开了——这一步后来被证明是整个故事的开端。</p>
+    <p>检索管线有三层截断。第一层是种子召回：对问题的每个关键词做子串匹配，按摄取时写入的权重排序，每词只取 5 条：</p>
+    <pre><code>def recall(self, query: str, limit: int = 5) -&gt; list[Node]:
+    rows = self.conn.execute(
+        "SELECT * FROM nodes WHERE label LIKE ? AND quarantined = 0 "
+        "ORDER BY weight DESC LIMIT ?",
+        (f"%{query}%", limit),
+    ).fetchall()</code></pre>
+    <p>注意这条 SQL 的性质：<strong>排序键是 weight——摄取时的写入权重，与当前问题无关</strong>。一个在对话早期写过、后来再没被触碰的陈述，weight 停在低位；无论它跟当前问题多相关，只要前面有 5 条更"重"的同关键词消息，它就永远进不了候选集。第二层是 BM25 局部搜索（上限 10），第三层是 PPR 扩展（种子上限 8）。</p>
+    <p>对 12 个说话人回忆类问题（speaker-recall，问"你之前建议过我什么"）的 evhit miss 做取证，结果一边倒：<strong>10/12 的证据消息从未进入候选集</strong>（<code>ev_in_candidates=0</code>）。这些消息事后被打出 7–16 个关键词命中——它们不是排不上名次，是<strong>在排序发生之前就被截断了</strong>。截断点在上游。</p>
+    <p>于是在这 12 题上做原型扫描，只动第一层的 limit：</p>
+    <table>
+        <tr><th>seed_recall_k</th><th>12 个 miss 救回</th><th>全 56 题 evhit</th></tr>
+        <tr><td>5（基线）</td><td>1/12</td><td>0.804</td></tr>
+        <tr><td>12</td><td>5/12</td><td>—</td></tr>
+        <tr><td>20</td><td>8/12</td><td>0.911</td></tr>
+        <tr><td>40</td><td>10/12</td><td>0.946</td></tr>
+    </table>
+    <p>单调改善，40 时接近饱和。到这一步，任何一个工程师都会做的下一步是：<strong>把这个参数推广到全局</strong>。</p>
+
+    <h2>二、全局推广的雪崩</h2>
+    <p>Global k=40 加到时间推理题（temporal-133）上：exact 从 36/133 跌到 <strong>14/133</strong>。</p>
+    <p>机制值得细看，因为它是这个故事最有价值的部分。temporal 问题靠"锚点解析"工作：问题里的两个实体锚点各自在窗口里解析到具体消息行，锚定到 session，再做日期算术。此前的 Cycle 472 已经发现这个通路的系统性毒药——<strong>回声行</strong>：assistant 的建议性回复会在词法上完美复述问题（"What a great experience! The Museum of Modern Art (MoMA) is an iconic institution…"），这类行是关键词命中的全场最佳，稳居窗口顶部，把两个锚点坍缩到同一个错误 session 上。C472 的修复是全图重试：窗口内解析失败时，退到全量消息里重新解析。</p>
+    <p>现在宽种子进场，发生了什么？<strong>更宽的种子把更多回声行灌进了窗口</strong>。锚点在窗口内"成功"解析——解析到回声行所在的错误 session。而全图重试的触发条件是"窗口内解析失败"；窗口"成功"了，重试不点火，错误答案直接输出。同一个毒，换了一条注入路径。</p>
+    <p>同一个机制的两面在此显形：在 speaker-recall 上，宽种子把<strong>真证据</strong>捞了进来——真证据恰恰是 assistant 的历史陈述，长尾、低权重，被 ingest-weight 排序天然压制；在 temporal 上，宽种子把<strong>问题回声</strong>捞了进来——回声本来就在词法上无可匹敌，现在连长尾里的次优回声也进来了。检索排序原则上无法区分这两者：<strong>回声行就是词法意义上的最佳匹配</strong>。这不是排序器的 bug，是词法检索的本性。</p>
+
+    <h2>三、外科手术：形态即作用域</h2>
+    <p>关键观察来自一个已有的组件。Cycle 468 为说话人回忆引入的 <code>recall_form</code> 分类器，识别"you-addressed"的回忆问题（"remind me what you recommended"），并在问题携带第一人称来源时拒绝匹配：</p>
+    <pre><code>def recall_form(question: str) -&gt; str | None:
+    q = (question or "").strip()
+    if _RECALL_USER_SRC_RE.search(q):   # "what I told you" → 用户侧回忆
+        return None
+    return "assistant" if _RECALL_YOU_RE.search(q) else None</code></pre>
+    <p>它在 500 题里命中恰好 <strong>48 题——全部是 speaker-recall 类，其他类目零命中</strong>。完美划分。这意味着宽种子可以被精确地圈在这个类目里，其余 452 题<strong>按构造</strong>不受影响——不需要验证"影响很小"，因为结构上就不可能影响。</p>
+    <p>于是解法不是寻找全局最优 k，而是把配置路由到形态上：</p>
+    <pre><code># Scoped to recall_form ONLY — the same breadth on temporal
+# questions floods the window with question-echoing advice
+# lines (A/B: temporal exact 36→14/133).
+k_eff = (self.recall_seed_k if recall_form(question)
+         else self.seed_recall_k)        # 40 vs 5
+
+for kw in keywords[:8]:
+    for node in self.mg.recall(kw, limit=k_eff):
+        candidate_ids.add(node.id)</code></pre>
+    <p>结果：speaker-recall 56 题 evhit <strong>0.786 → 0.929</strong>（44→52/56），exact 0.268 持平（证据进窗后，答案侧是下一个问题）；temporal-133 维持 36/133，<strong>逐题零翻转</strong>（用修正后的 judge 逐题 diff 验证）；全套测试 9574 → 9579（+5，隔离种子截断契约的专项测试）。</p>
+
+    <h2>四、插曲：一个测量 bug 差点改写结论</h2>
+    <p>A/B 第一轮，temporal 用裸 exact judge 对比，"掉了 21 题"——但 <code>evaluate()</code> 对 temporal 类答案走的是 <code>temporal_arith_judge</code>（"7 days" 应等价于 "1 week"），裸 judge 会把等价表达判错。而 recall_form 在 temporal 上零命中，这个回归<strong>在机制上不可能存在</strong>。</p>
+    <p>验证方式是跑一个 pre == post 对照：新旧构建、同参数、同 judge 路径——数字完全一致。<strong>是量尺在测量量尺</strong>，不是代码回归。幻影消失。教训收进清单：当"回归"在机制上不可能发生时，先怀疑量尺，再怀疑代码。机制不可能性（零命中）是比任何聚合分数都硬的证据。</p>
+
+    <h2>五、方法论：检索配置的"没有免费午餐"</h2>
+    <ol>
+        <li><strong>全局超参调优的前提是单一答案通路。</strong>市面上的 RAG 调参指南默认所有 query 走同一条"检索→生成"流水线，所以存在一个全局最优的 top-k、chunk size、温度。这个默认在 agent 记忆系统里已经失效：temporal 走锚点解析 + 算术，speaker-recall 走角色过滤 + 摘要，不同形态有不同的窗口几何和下游处理。参数空间随之分叉——一个 k 在两个子空间里分别是解药和毒药，"全局最优"这个概念本身就不存在。</li>
+        <li><strong>负结果是交付物，不是垃圾。</strong>全局 k=40 的 36→14 雪崩被完整 A/B 存档，它定义了参数的作用域边界。没有这次"失败"，form-scoping 只是一个"更精细的调参技巧"；有了它，form-scoping 成了结构必然。</li>
+        <li><strong>形态分类器是配置面，不是 feature。</strong>当你在为不同问题形态写不同的答案通路时，检索配置天然应该挂在同一个分类信号上。分类器的精度上界直接成为配置的正确性上界——这把"调参"问题转化成了"路由"问题，而后者的错误是可枚举、可测试的。</li>
+    </ol>
+    <p>还有一个容易被聚合分数掩盖的教训：<strong>逐题 diff 比聚合分数更强</strong>。"+6 题 / −0 题、零翻转"比任何平均数的提升都更有证据力——它同时证明了改进的存在和副作用的不存在。</p>
+
+    <h2>六、留给生产系统的镜鉴</h2>
+    <p>生产级 RAG 系统普遍是一套检索配置服务所有 query：一个 top-k，一个 rerank 深度，一个 chunk 策略。如果你的系统对不同类型的问题——事实查询、时间推理、个性化回忆——存在哪怕隐式的下游差异，那"一套配置走天下"大概率正在某一类 query 上静默失血。聚合分数看不见它，因为其他类目的收益盖住了这块损失，就像 k=40 的全局版本：speaker-recall 的大涨在总均分上完全掩盖了 temporal 的雪崩。</p>
+    <p>诊断成本很低：按 query 形态切开指标，做一次逐题 diff。如果不同切片对同一个超参的方向性响应不一致——恭喜，你找到的不是一个待调的参数，而是一个待划界的配置面。</p>
+
+    <p class="meta" style="margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+        实验记录：amg_bench_quality.py <code>recall_seed_k</code>（ctor 参数 + retrieve_context 作用域化），commit <code>ac8d9a3</code> + <code>3e2476e</code>。<br>
+        相关阅读：<a href="posts/temporal-arithmetic-agent-memory-2026-08.html">检索不做算术：Agent 记忆时间推理的独立通路</a> · <a href="posts/evidence-coverage-bottleneck-agent-eval-2026-08.html">证据就在上下文里，答案却判了零分</a>
+    </p>
+</body>
+</html>

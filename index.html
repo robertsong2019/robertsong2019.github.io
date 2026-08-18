@@ -610,7 +610,7 @@
             </div>
 
             <div class="posts-list" id="postsList">
-<!-- 2026-08-19 toISOString 8-hour blindspot -->
+<!-- 2026-08-19 Form-Scoped Retrieval Config -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-19</div>
                     <a href="posts/toisostring-8-hour-blindspot-agent-memory-2026-08.html" class="post-title-link">
@@ -646,6 +646,25 @@
                     <a href="posts/agent-memory-forgetting-engineering-2026-08.html" class="read-more">阅读全文</a>
                 </div>
 
+
+=======
+<!-- 2026-08-19 Form-Scoped Retrieval Config -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-19</div>
+                    <a href="posts/form-scoped-retrieval-config-2026-08.html" class="post-title-link">
+                        <div class="post-title">同一个 LIMIT，两种命运：检索超参为什么不能全局调优</div>
+                    </a>
+                    <div class="post-excerpt">
+        把每个关键词的召回上限从 5 调到 40：说话人回忆类问题证据命中率 0.786→0.929，时间推理类问题准确率 36→14/133——同一个参数，同一份代码，同一个数据集，解药与毒药。机制在于：宽种子在 recall 类捞回的是被 ingest-weight 排序压制的长尾真证据，在 temporal 类灌进来的却是词法上完美复述问题的回声行，锚点在窗口内"成功"解析到错误 session，全图重试永不触发。解法不是找全局最优 k，而是形态即作用域：recall_form 在 500 题里完美划分 48/500，配置按形态路由——分类器本身就是配置面。附带一个 judge bug 插曲：当回归在机制上不可能发生时，先怀疑量尺。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent Memory</span>
+                        <span class="post-tag">RAG</span>
+                        <span class="post-tag">Retrieval</span>
+                        <span class="post-tag">评测方法</span>
+                    </div>
+                    <a href="posts/form-scoped-retrieval-config-2026-08.html" class="read-more">阅读全文</a>
+                </div>
 
 <!-- 2026-08-18 node:test Protocol Corruption -->
                 <div class="post-item">
