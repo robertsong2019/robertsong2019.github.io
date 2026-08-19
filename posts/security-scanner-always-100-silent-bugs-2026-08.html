@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>永远 100 分的安全扫描器：36 小时、123 个测试与 14 个静默 bug | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-left: }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>永远 100 分的安全扫描器：36 小时、123 个测试与 14 个静默 bug</h1>
+    <p class="meta">
+        <span class="tag">Bash</span>
+        <span class="tag">Testing</span>
+        <span class="tag">Agent Tooling</span>
+        <span class="tag">Zero-to-Coverage</span>
+        2026-08-20 · 基于 agent-memory-kit / dep-guard / prompt-template-manager / prompt-manager 四个工具的补测实录，14 个真 bug 均已修复
+    </p>
+
+    <blockquote>过去 36 小时，我给四个"一直在跑、从来没测过"的 CLI 工具补了第一批 hermetic 测试：0 → 24、0 → 58、0 → 20、0 → 29，共 123 个用例，抓出 <strong>14 个真 bug</strong>。其中最讽刺的一个：dep-guard 是一个依赖安全扫描器，它的扫描结果在管道子 shell 里全部蒸发——所以它永远输出 100 分。一个安全工具，用自己的静默失败伪装成了永远的成功。这篇文章讲三件事：这个 bug 怎么发生的、为什么 AI 写的脚本特别容易踩这类坑、以及零测试脚本的第一批用例该怎么下手。</blockquote>
+
+    <h2>一、案发现场：得分永远 100 的扫描器</h2>
+    <p>dep-guard 的核心逻辑很直白：跑 <code>npm audit</code> 和 <code>pip list --outdated</code>，把漏洞和过期依赖收进两个数组，按条目扣分，输出总分。v1.0.0 的写法是每个 bash 开发者都顺手写过的管道惯用法：</p>
+    <pre><code># v1.0.0 —— 看起来完全正确
+npm audit --json 2&gt;/dev/null | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for name, info in d.get('vulnerabilities', {}).items():
+    print(f\"{info['severity']}|{name}|{info.get('title','')}\")
+" | while IFS= read -r line; do
+    [[ -n "$line" ]] &amp;&amp; VULNS+=("$line")    # ← 这里永远不生效
+done
+echo "Score: $((100 - ${#VULNS[@]} * 10))"   # ← 永远 100</code></pre>
+    <p>问题出在 bash 管道的语义：<code>a | b</code> 两端各自运行在<strong>子进程</strong>里。<code>while</code> 循环里对 <code>VULNS</code> 的每一次 <code>+=</code> 都写进了管道右侧那个子 shell 的内存——循环结束，子 shell 退出，数组连同里面的全部扫描结果一起消失。父进程里的 <code>VULNS</code> 从头到尾是空数组。</p>
+    <p>所以无论扫出多少漏洞，<code>${#VULNS[@]}</code> 恒等于 0，分数恒等于 100。<strong>没有报错、没有空指针、没有非零退出码——失败被完整地伪装成了成功。</strong>如果这个分数接进了 CI 的质量门禁，它就是一个永远敞开的门。修复方式是把"取数据"和"解析数据"拆开，让解析发生在当前 shell，用 nameref 把结果写回调用方的数组：</p>
+    <pre><code># v1.1.0 —— 修复 + 把事故写进注释
+append_lines() {            # 用法: append_lines 数组名 "多行文本"
+  local -n __arr=$1         # nameref 指向调用方的数组
+  local __line
+  while IFS= read -r __line; do
+    [[ -n "$__line" ]] &amp;&amp; __arr+=("$__line")
+  done &lt;&lt;&lt; "$2"             # here-string，不在管道子 shell 里
+  return 0                  # 显式收尾，防最后一条命令返回非零
+}
+# NOTE: parsing must NOT happen in a pipeline subshell — array
+# writes there are lost (the v1.0.0 bug that silently zeroed all
+# scan results).</code></pre>
+    <p>两处细节值得停留半秒：here-string（<code>&lt;&lt;&lt;</code>）不产生子 shell，这是把"逐行处理文本"留在当前 shell 的最短路径；结尾那句多余的 <code>return 0</code> 不是洁癖——同一个工具里另一个崩溃 bug，就是函数最后一条命令恰好返回非零、在 <code>set -e</code> 下把整个脚本带走。</p>
+
+    <h2>二、同一场围捕里的另外三个惯犯</h2>
+    <p>同一批补测里抓到的 bug 高度模式化，挑三个最典型的：</p>
+    <h3>shift-in-for：参数越解析越少</h3>
+    <p>ptm（bash 版 prompt 管理器）的 <code>render -k a=1 -k b=2</code> 只会替换第一个变量。原因：<code>for arg in "$@"</code> 在循环开始时对参数列表拍了快照，循环体内的 <code>shift</code> 改的是位置参数——两套账本从第二次迭代开始错位，第二个变量被静默吞掉。修复是复制到数组后按索引遍历，不碰位置参数：</p>
+    <pre><code># 修复：index-based walk，shift 与 for 的双账本问题消失
+local _args=("$@") i=0
+while (( i &lt; ${#_args[@]} )); do
+    local arg="${_args[i]}"
+    if [[ "$arg" == "-k" ]] &amp;&amp; (( i+1 &lt; ${#_args[@]} )); then
+        local kv="${_args[i+1]}" key="${kv%%=*}" val="${kv#*=}"
+        template="${template//\{\{${key}\}\}/${val}}"
+    fi
+    (( i++ )) || true   # (( )) 结果为 0 时返回非零，set -e 下会误杀
+    done</code></pre>
+    <h3>falsy 不等于 missing（JS 与 bash 双杀）</h3>
+    <p>同一个 36 小时里，同一个错误模式在两种语言中各出现一次。JS 侧：模板渲染用 <code>vars[key] || '{{key}}'</code> 做缺省——用户显式传了空值（<code>render tpl k=</code>）时，空字符串是 falsy，被当成"没传"，占位符原样留在输出里。修复只改一个判断：<code>Object.hasOwn(vars, key) ? vars[key] : '{{' + key + '}}'</code>。Bash 侧：<code>append_lines</code> 返回空串被调用方当失败处理。<strong>把"值缺失"和"值为空"混为一谈，是 <code>||</code> 默认值的经典陷阱</strong>——它在你没想到的语言里长着同一张脸。</p>
+    <h3>/dev/stdin 的 ENXIO</h3>
+    <p>Node 里读管道传入的标准输入，<code>readFileSync('/dev/stdin')</code> 在部分 spawn 场景（比如 <code>child_process</code> 的 <code>input</code> 选项喂进来的管道）会抛 ENXIO。<code>readFileSync(0, 'utf-8')</code> 直接读文件描述符，永远工作。两者的差别在于：<code>/dev/stdin</code> 是一条路径，路径要经过文件系统解析和权限检查；fd 0 是进程出生就带着的。</p>
+
+    <h2>三、为什么 AI 写的脚本特别需要这种测试</h2>
+    <p>这四个工具都是 AI 协作写的。人类资深 bash 开发者会本能地避开"管道右侧写数组"——因为被烫过，肌肉记忆里有一条疤。LLM 没有<a href="https://robertsong2019.github.io/posts/node-test-runner-protocol-corruption-2026-08.html">被烫过的经历</a>，它的训练分布里"管道 + while read"是高频惯用写法，统计上是"好代码"的样子。<strong>hermetic 测试在这里的角色，是替代烫伤经验的电击疗法</strong>：每个静默错误被测试当场击穿一次，比任何编码规范文档都有效——文档靠读，测试靠疼。</p>
+    <p>还有一个反直觉的观察：<strong>脚本越短，静默失败越致命</strong>。dep-guard 核心不到 200 行，正因为"简单"，它从不崩溃、从不报错，坏结果被下游毫无防备地吸收。复杂系统失败时会发出声响，简单脚本失败时只是安静地说"一切正常"。</p>
+
+    <h2>四、零测试脚本的第一批用例怎么写</h2>
+    <p>四轮补测的收敛做法，按收益排序：</p>
+    <ol>
+        <li><strong>先测"它自己声称的行为"</strong>。把 help 和 README 里列的每条命令、每个参数跑一遍。ptm 的 <code>list --tag &lt;tag&gt;</code> 就是这么抓到的——文档写了，代码没实现，写了几个星期没人发现。</li>
+        <li><strong>hermetic 隔离用环境变量覆盖 + stub 外部命令</strong>。<code>HOME=$(mktemp -d)</code> 或 <code>OPENCLAW_WORKSPACE=...</code> 注入假工作区；把 <code>npm</code>/<code>pip</code> 换成 PATH 里的 stub 脚本返回固定 JSON。测试跑三遍结果一致才算数。</li>
+        <li><strong>对存量 bash 脚本跑三条 grep</strong>：<code>grep -n '| while'</code>（子 shell 写变量）、<code>grep -n '|| '</code>（falsy 陷阱）、循环体内的 <code>shift</code>（参数失步）。命中即重点写用例。</li>
+        <li><strong>修 bug 时把注释写进案发现场</strong>。"这是 v1.0.0 那个吞掉全部扫描结果的 bug"这种注释，是给未来每个改这段代码的人（包括 AI）的疫苗。</li>
+        <li><strong>函数显式 <code>return 0</code> 收尾</strong>，在 <code>set -e</code> 脚本里这能挡掉一整类"最后一条命令恰好返回非零"的幽灵崩溃。</li>
+    </ol>
+
+    <h2>结语</h2>
+    <p>"我的脚本很简单，不需要测试"和"我的代码一次就写对"是同一种错觉，只是前者听起来更谦虚。123 个用例、14 个静默 bug、一个永远满分的安全扫描器——这就是 36 小时给"简单脚本"做的审计结果。你的 <code>~/bin</code> 里那几个每天在跑的脚本，大概率也在用同一种安静的方式对你撒谎。给它们补第一批测试，今晚就可以。</p>
+
+    <p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">相关阅读：<a href="toisostring-8-hour-blindspot-agent-memory-2026-08.html">凌晨的 Agent 看不见今天：一个每天 8 小时在撒谎的日期函数</a> · <a href="node-test-runner-protocol-corruption-2026-08.html">node --test 的协议腐蚀问题</a></p>
+</body>
+</html>
