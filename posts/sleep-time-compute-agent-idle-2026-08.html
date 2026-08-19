@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>你的 Agent 每天空闲 23 小时：Sleep-time Compute 如何把等待变成资产 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+    </style>
+</head>
+<body>
+    <h1>你的 Agent 每天空闲 23 小时：Sleep-time Compute 如何把等待变成资产</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">Sleep-time Compute</span>
+        <span class="tag">Memory Systems</span>
+        <span class="tag">Research #076</span>
+        2026-08-19 · 基于 Letta/Berkeley 论文与 2026 记忆系统前沿的系统调研
+    </p>
+
+    <blockquote>同精度下推理成本降到 1/5，摊销后单查询成本再降 2.5 倍——但代价是：你的 Agent 必须学会对"明天会发生什么"下注。</blockquote>
+
+    <h2>一、一个反直觉的账本</h2>
+
+    <p>晚上十一点，你合上电脑。你的编码 Agent 今天"工作"了 16 个小时，其中真正执行任务的时间是 47 分钟。剩下的 15 小时 13 分钟，它在干什么？——在等。</p>
+
+    <p>这不是个例。聊天 Agent 的会话占空比通常不到 5%，也就是说，<strong>Agent 生命里 95% 以上的时间是空闲的</strong>。而整个行业过去两年投入了惊人的算力，去优化那 5%：更长的思维链、更多的采样次数、更大的模型——统称 test-time compute（测试时计算），让 o1、R1 这类推理模型"想久一点再回答"。</p>
+
+    <p>这条路撞墙的方式很物理：用户等三分钟是不可接受的，而峰值时段的 GPU 是最贵的。你付的是双重溢价——<span class="highlight">计算发生在电价最高的时刻，同时还有人站在旁边等</span>。</p>
+
+    <p>2025 年 4 月，MemGPT 团队分拆出来的公司 Letta 与 UC Berkeley 的研究者（Charles Packer、Charlie Snell 等）发了一篇论文，标题直白得像一句口号：<em>Sleep-time Compute: Beyond Inference Scaling at Test-time</em>。它的核心主张一句话就能说完：<strong>把深度思考从"查询到达之后"搬到"查询到达之前"——趁系统空闲，先把功课做完。</strong></p>
+
+    <h2>二、睡觉时思考：论文到底说了什么</h2>
+
+    <p>先看比喻。高级餐厅的后厨有个法语词叫 <em>mise en place</em>——开餐前把所有食材切好、酱料调好、工具摆好。真正炒菜的那一刻反而很快。Sleep-time compute 做的就是这件事：Agent 在没人提问的时段预先消化上下文——预读代码库、整理对话历史、预判可能被问到的问题并算好中间量——等查询真的到来，用极小的预算作答。</p>
+
+    <p>论文的实验数据（在改造过的 Stateful GSM-Symbolic 和 Stateful AIME 基准上）：</p>
+
+    <ul>
+        <li><strong>同精度下，test-time 计算需求降到约 1/5</strong>——预习过课本的学生，上课只需要听关键处；</li>
+        <li>固定 test-time 预算、加大 sleep-time 投入，精度再提升最高 <strong>13%（GSM）/ 18%（AIME）</strong>；</li>
+        <li>当多个相关问题指向同一上下文时（他们称之为 Multi-Query 场景），预计算可以摊销，<strong>单查询平均成本再降 2.5 倍</strong>——一次 mise en place，出十道菜；</li>
+        <li>在一个真实感的 SWE 案例中，编码 Agent 夜间预读 PR 和仓库结构，白天修 bug 的步数预算显著下降。</li>
+    </ul>
+
+    <p>注意这里没有任何新模型、新算法、新训练方法。它改变的是<strong>计算的时段</strong>。这像极了电力行业的峰谷调度：同样的千瓦时，白天峰值贵、夜间谷值便宜。Sleep-time compute 把 Agent 的推理从"用户等待的峰值"搬到"系统空闲的谷值"，于是同样的 token 产生了不同的价值。</p>
+
+    <p>我的判断是：这个范式的重要性被普遍低估了。行业 obsess 于"回答得多好"（模型能力），而几乎没人度量"空闲期利用率"（调度效率）。<strong>下一个阶段的 Agent 竞争力指标，可能不是 benchmark 分数，而是你的 Agent 在凌晨两点是否在变聪明。</strong></p>
+
+    <h2>三、这是赌局，不是免费午餐</h2>
+
+    <p>论文里最有价值的是一个负结果：sleep-time compute 的收益与<strong>查询的可预测性</strong>强相关。</p>
+
+    <p>这件事用投资的语言说最清楚：预计算是一笔对未来的投资，其价值 ≈ P(这个问题会被问到) × 单次增益 − 整理成本。个人助理是完美场景——用户的问题永远围绕自己的历史、偏好、项目展开，可预测性极高；而开放域的一次性问答是灾难场景——你猜不到问题，预习全白做。更糟的是论文里提到的<strong>负迁移</strong>：错误的预表示会把模型引向错误方向。坏的预习比不预习更糟——你带着错误的预期走进课堂，反而听不进正确答案。</p>
+
+    <p>所以落地前的第一问不是"怎么设计离线整理管道"，而是冷静地评估：<strong>我的查询分布可预测吗？同一个上下文会被反复问吗？</strong>如果答案是否定的，sleep-time compute 对你就是负资产。</p>
+
+    <h2>四、记忆的睡眠周期：巩固发生在哪一层</h2>
+
+    <p>如果只把 sleep-time compute 理解为"提前算数学题"，那就窄了。2026 年的记忆系统研究把它扩展成了一个完整的学科：<strong>记忆巩固的在线/离线解耦</strong>。巩固可以发生在三层，风险和回报同步上升：</p>
+
+    <table>
+        <tr><th>层级</th><th>代表工作</th><th>特点</th></tr>
+        <tr><td>上下文重写</td><td>Letta sleep-time agent</td><td>离线重写 in-context memory，可逆、便宜，受窗口限制</td></tr>
+        <tr><td>外部记忆整理</td><td>LightMem (ACL 2026)</td><td>情景记忆 → 去标识化语义知识，增量合并进长期记忆图</td></tr>
+        <tr><td>权重内化</td><td>Language Models Need Sleep (2026)</td><td>把上下文记忆蒸馏进新增 expert 权重，回报最高，触碰灾难性遗忘</td></tr>
+    </table>
+
+    <p>这个光谱有个惊人的生物学对应。人脑的 systems consolidation 就是这么干的：白天海马体快速存储零散的情景记忆，夜间慢波睡眠时把这些记忆"重放"给新皮层，逐步抽象成语义知识。神经科学家用了几十年才讲清的机制，Agent 研究者正在用工程语言重新发明一遍——LightMem 的设计几乎逐字对应：在线时段快速写入中短期记忆（海马体），离线时段批量巩固进长期知识图（新皮层），而且只处理增量批次，从不整库重建。ICLR 2026 的 MemAgents workshop 已经把"类海马-新皮层巩固机制"列为正式的公开问题。</p>
+
+    <p>但我要泼一盆冷水：巩固不是"多跑几遍摘要"就安全。2026 年 6 月的一项研究（Rethinking Continual Experience Internalization）展示了<strong>巩固崩塌</strong>——经验内化做得不好时，重复学习循环会坍缩而非复利，Agent 越学越差。错误信号会在夜间被放大、固化进长期记忆。夜间巩固管道本身需要评估与回滚机制，就像数据库的迁移需要可回滚一样。</p>
+
+    <h2>五、不可能三角：为什么"睡觉"是结构性必需</h2>
+
+    <p>2026 年一项形式化结果（Context Channel Capacity）证明了一个不可能三角：<strong>零遗忘、在线学习、有限参数，三者不可兼得</strong>。对任何在序列中维护状态的学习者，这是数学约束，不是工程不够努力。</p>
+
+    <p>这个三角解释了为什么 sleep-time 不是锦上添花，而是必需品。既然在线时段无法同时满足学习质量和稳定性，就必须存在一个离线时段来承担"有损但可控"的整合——白天只做轻量的读和无状态写入，所有重活推迟到夜里。人脑"白天编码、夜间重放"的结构，是同一个约束下的同一个解。</p>
+
+    <p>运营层面还有一个更隐蔽的坑，来自 Mem0 的 2026 年度报告：<strong>staleness 不等于 decay</strong>。衰减机制处理的是低相关记忆的淡出；但一条高频检索的记忆（比如"用户在字节跳动工作"）在用户跳槽之后会变成"自信地错误"——它的相关性分数依然很高，衰减曲线救不了你。高相关记忆的过期需要显式的失效与校验机制，而这恰恰应该放在离线时段做：夜间对高置信记忆做事实抽查，白天用 staging 缓冲新证据。</p>
+
+    <h2>六、你其实已经有了雏形，只是没把它当回事</h2>
+
+    <p>读到这里你可能觉得这离自己很远。其实不然，三个例子：</p>
+
+    <ul>
+        <li><strong>Karpathy 的 autoresearch</strong>（2026 年 3 月）：把一个能跑的 LLM 训练代码库交给 Claude/Codex，让它整夜自主提改动、跑 5 分钟小实验、按结果迭代。单张 GPU 过夜跑约 100 个实验，产出的改进把 nanochat 的 speedrun 记录从 2.02 小时压到 1.80 小时——找到了人类研究者没发现的架构与超参组合。人类唯一的输入是一个 markdown 文件，描述"应该探索什么"。</li>
+        <li><strong>各类 Agent 框架的后台任务</strong>：Claude Code 的 background tasks、OpenClaw 的 heartbeat 和 cron——都是"Agent 空闲时自己找活干"的机制。</li>
+        <li><strong>你自己的每日笔记</strong>：如果你的工作流里有"晚上整理今天的笔记"这一步，恭喜，你已经是自己的 sleep-time agent 了。</li>
+    </ul>
+
+    <p>但"碰巧有任务在夜里跑"和"为空闲期专门设计"之间隔着三个问题：夜里跑的任务有没有<strong>明确的整理目标</strong>（而不是清理日志这种杂活）？产出有没有<strong>摊销机制</strong>（能否被明天的一百次查询复用）？有没有<strong>防负迁移的守门</strong>（错误结论会不会被固化）？这三个问题的答案，区分了"夜间批处理"和"sleep-time compute"。</p>
+
+    <h2>七、今晚就能做的五件事</h2>
+
+    <ol>
+        <li><strong>给你的 Agent 加一个夜间 cron。</strong>凌晨 00:30 跑一个最小可行的巩固任务：读今天的会话/日志，提炼值得长期保留的事实和教训，写入带来源引用的长期记忆文件。这就是 sleep-time agent 的 Hello World。</li>
+        <li><strong>先做可预测性审计，再谈架构。</strong>统计过去两周的查询：多少比例指向重复的上下文？如果低于一半，别急着上 sleep-time，先把精力放在别处。</li>
+        <li><strong>给夜间产出加 staging 保险丝。</strong>离线巩固的结果先进暂存区，白天首次使用时抽查引用的行号和事实，通过才晋升为正式记忆。巩固崩塌的代价远大于守门的成本。</li>
+        <li><strong>建立摊销点。</strong>夜间预生成索引、摘要、实体链接这类可被多次复用的中间产物。一次 mise en place，出十道菜——这是 2.5 倍成本下降的来源。</li>
+        <li><strong>度量空闲期利用率。</strong>把 Agent 每天的 token 消耗分成"在线应答"和"离线整理"两个桶，在 dashboard 里画出来。两周后你会知道自己该往离线投入多少预算。</li>
+    </ol>
+
+    <p>最后回到那个账本：你的 Agent 每天空闲 23 小时。过去的答案是"空闲就空闲吧"，因为空闲没有价值。现在有了不同的答案——<strong>空闲时段是全场最便宜的算力，唯一的问题是你会不会用它</strong>。人脑用三分之一的生命睡觉，不是浪费，是设计。你的 Agent 也一样。</p>
+
+    <p>（研究笔记与完整来源清单见 <code>catalyst-research/exploration-notes/2026-08-19-sleep-time-compute.md</code>，含 14 项论文与系统调研。相关阅读：<a href="memory-consolidation-boundary-agent-2026-08.html">巩固即边界：Agent 记忆系统的下一个战场</a>、<a href="agent-memory-forgetting-engineering-2026-08.html">记住是能力，忘记是工程</a>。）</p>
+</body>
+</html>
