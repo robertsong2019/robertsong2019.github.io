@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>上下文工程：别把窗口当仓库，把它当预算 - Robert's Blog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+p { margin-bottom: 15px; text-align: justify; }
+ul, ol { margin-left: 25px; margin-bottom: 15px; }
+li { margin-bottom: 8px; }
+code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; }
+blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+strong { color: #2c3e50; font-weight: 600; }
+.highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f8f9fa; font-weight: 600; }
+a { color: #3498db; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+hr { border: none; border-top: 1px solid #ddd; margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html">&larr; 返回首页</a>
+<h1>上下文工程：别把窗口当仓库，把它当预算</h1>
+<div class="meta">2026-08-20 &middot; context engineering &middot; LLM agents &middot; 上下文管理</div>
+
+<blockquote>2026-08-20 深度调研随笔。窗口标称一百万 token 的时代，Agent 反而更容易在长任务里"失神"。本文综合 Chroma 的 context rot 实测、Anthropic 的工程实践、Stanford ACE 框架和 ICML 2026 的 Context Folding，梳理"上下文工程"这门新学科的骨架，并给出一个核心判断：上下文不是容量问题，是预算问题——目标是找到让下一步成立的最小高信号 token 集合。</blockquote>
+
+<h2>一个反直觉的实验结果</h2>
+
+<p>想象你在维护一个几十万行的代码库，让 AI Agent 帮你修一个跨模块的 bug。直觉做法是把整个 codebase 的摘要都塞给它——信息越全，判断越准，对吧？</p>
+
+<p>Sourcegraph 在真实工作负载里测到的结果正好相反：<strong>同一个任务，100K token 的全量 codebase 摘要，效果不如 5K token 的定向检索。</strong>信息少了 95%，正确率反而更高。</p>
+
+<p>这不是孤例。Chroma 的 context rot 报告测了 18 个前沿模型（GPT-4.1、Claude 4、Gemini 2.5、Qwen3 都在列），结论是：随着输入变长，模型在<strong>受控任务</strong>上的准确率非均匀、不可预测地下降。注意"受控"两个字—— needle 测试证明信息模型都"看得见"，但它就是提取不出来。就像你在嘈杂的酒馆里，朋友说的话每个字都听清了，你就是串不成一句有意义的话。</p>
+
+<p>这就是 2025-2026 年 Agent 工程最重要的一课：<strong>窗口大不等于窗口好用。</strong>于是有了这门新学科——上下文工程（Context Engineering）。</p>
+
+<h2>为什么更大的窗口救不了你</h2>
+
+<p>先说清 rot 为什么是架构性的。Transformer 的注意力是全连接的：n 个 token 之间有 n² 对两两关系。上下文每变长一点，模型捕捉这些关系的"注意力预算"就被摊薄一点。更麻烦的是，训练数据里短序列远多于长序列，模型对长程依赖天生缺少专门化的参数——位置编码插值能让模型"处理"更长的序列，代价是位置理解精度的下降。</p>
+
+<p>所以 rot 不是 bug，是物理。行业因此发明了一个比"上下文窗口"更诚实的指标：<strong>MECW（最大有效上下文窗口）</strong>——模型还能保持高质量输出的区间。经验值很扎眼：多数模型的高质量区间在 256K token 以内，标称 200K 的模型大约 130K 就开始退化。生产环境的 Agent，实际可用的上下文容量大约只有规格表的六到七成。</p>
+
+<p>一个比喻：上下文窗口不是仓库，是<strong>工作台</strong>。仓库越大越好，工作台不是——台面上堆的零件越多，你越找不到手边要用的那颗螺丝。Liu 等人的 "Lost in the Middle" 研究（TACL 2024）早就给过精确版本：同样的信息，放在窗口开头或结尾，召回显著好于放在中间。</p>
+
+<p>这就是上下文工程和提示工程的分水岭。提示工程问"这句话怎么写"，上下文工程问的是：<strong>在每一次推理时，应该让模型看到什么、不看到什么、以什么顺序看到。</strong>Anthropic 给的定义是"在推理过程中策展并维护最优 token 集合的一组策略"——系统提示、工具定义、检索结果、对话历史、记忆注入，全部在这个集合的管辖范围内。</p>
+
+<h2>四大杠杆与一个排序键</h2>
+
+<p>把工程实践归纳一下，无非四个杠杆（Philschmid 的框架）：<strong>外置</strong>（Offloading，把信息移到文件系统等外部）、<strong>压缩</strong>（Reduction，收敛历史）、<strong>检索</strong>（Retrieval，just-in-time 动态拉取）、<strong>隔离</strong>（Isolation，子代理各用干净窗口）。</p>
+
+<p>真正值钱的是一个排序键：<strong>可逆性</strong>。Manus 团队（他们的 Agent 产品在长任务上口碑极好）总结的顺序是：</p>
+
+<pre><code>原始内容 &gt; 可逆压缩（Compaction） &gt; 有损摘要（Summarization）</code></pre>
+
+<p>什么意思？Agent 写了一个 500 行的文件，对话历史里不需要保留文件内容，只需要留一个路径——下次要用，工具重读一遍就行。这就是可逆压缩：信息还在环境里，窗口里只放指针。<strong>指针优于载荷</strong>，这一条能解决大部分上下文膨胀。实在不够了，再上有损摘要，而且摘要时保留最近几轮的原始工具调用——模型需要"节奏感"，全摘要会把它的输出风格一起摘没。</p>
+
+<p>Anthropic 在 Claude Code 里落地的三板斧，本质都是这个排序键的展开：</p>
+
+<ul>
+<li><strong>Compaction</strong>：窗口快满时总结重开。最安全的第一刀叫 tool result clearing——很深的历史里，工具调用的原始结果可以清掉（反正能重调），只保留"调过什么"的记录结构；</li>
+<li><strong>结构化笔记</strong>：Agent 定期把进展写到窗口外的文件里（Claude Code 的 to-do list、NOTES.md 都是），上下文重置后读自己的笔记继续。有个可爱的案例：Claude 玩宝可梦，跨几千步维护着"皮卡丘在 1 号道路练了 1234 步、离目标还差 2 级"的精确账本；</li>
+<li><strong>子代理隔离</strong>：深搜索的脏上下文隔离在子代理里烧掉，主代理只拿干净的结论。</li>
+</ul>
+
+<p>注意这三招的共同哲学：<strong>它们都不依赖更大的窗口。</strong>Anthropic 说得很直白——任何尺寸的窗口都逃不过 context pollution，想要最强的 Agent 表现，就得直接治理进入窗口的内容。</p>
+
+<h2>上下文是新的权重：ACE 的启示</h2>
+
+<p>以上还是"手工流水线"。2025 年 10 月 Stanford、SambaNova 和 Berkeley 的 ACE 框架（Agentic Context Engineering）把事情往前推了一步：<strong>上下文可以自己进化，不需要动模型权重。</strong></p>
+
+<p>ACE 把上下文当作一本"活的 playbook"：Generator 用当前 playbook 干活，Reflector 从成败里提炼经验（"工具 B 处理日历总失败，换 C"），Curator 以增量 delta 的方式合并进 playbook——去重、剪枝、归类，永不整篇重写。每个条目还带使用计数：<code>{content, helpful: 14, harmful: 1, last_updated}</code>。</p>
+
+<p>为什么强调"永不整篇重写"？因为他们先证明了反面：反复重写 prompt 会触发两个病态——<strong>brevity bias</strong>（越改越短，细节流失）和 <strong>context collapse</strong>(越改越薄，关键信息被磨掉)。实验里传统重写把准确率从 66.7% 磨到 57.1%，而 ACE 的增量更新不塌反涨：AppWorld 基准 +10.6%，金融推理 +8.6%，一个开源小模型 + ACE 打平了 GPT-4.1 驱动的冠军系统，适配延迟还降了八成以上。</p>
+
+<p>对用 API 模型的团队，这是条现实的自改进通道：fine-tune 要数据、要卡、要周级周期，而 playbook 的进化是小时级的，且随模型升级可以平移。我自己的 Agent 工作流里早有一个雏形——错误升级协议（同类错误第三次出现就固化成规则），现在看就是个缺 usage 计数的 proto-playbook。</p>
+
+<h2>被忽视的第三维度：上下文布局就是账单</h2>
+
+<p>大多数团队把上下文当质量变量，其实它还是个成本变量，而且系数大得吓人。</p>
+
+<p>现代推理栈（SGLang 的 RadixAttention、vLLM 的 prefix caching）会缓存共享前缀的 KV 状态。如果多个请求共享同一段系统提示 + 工具定义，命中缓存的请求首 token 延迟能从秒级降到 200 毫秒以下。行业测到的账：前缀重叠 60% 以上的工作负载，缓存命中率能到 75-95%；<strong>命中率和 0% 和 90% 的差别，是同一负载下每月 2 万美元和 2 千美元 GPU 账单的差别。</strong></p>
+
+<p>这直接改写了上下文设计规则：</p>
+
+<ul>
+<li>稳定的内容（系统提示、工具定义）放前面，易变的内容放后面；</li>
+<li>别用 RAG 动态注入工具定义——每轮工具列表都在变，缓存全碎，模型还会"幻觉"出第一轮见过、第二轮消失的工具；</li>
+<li>多 agent 之间"通过通信共享内存，而不是通过共享内存通信"（Manus 借用 Go 语言并发的格言）——能传结构化结果就不要 fork 整段上下文，fork 是昂贵的依赖。</li>
+</ul>
+
+<p>更进一步，KVFlow 这类 2025 年的系统工作发现连缓存驱逐策略都该懂 agent：LRU 在 agent 工作流里是错的，要按执行顺序感知驱逐加预取，能再提速 1.8-2.2 倍。上下文工程正在从"写好 prompt"下沉到"和推理系统协同设计"。</p>
+
+<h2>终局猜想：学会折叠</h2>
+
+<p>今天的 compaction、笔记、子代理都是人写好的流水线。ICML 2026 的 Context Folding 工作给了个终局方向的预览：让模型<strong>自己学会</strong>管理上下文。Agent 处理子任务时程序化 branch 出一段子轨迹，完成后 fold——中间步骤坍缩，只留结果摘要，像"做完一件杂事顺手写了张便签，便签留下，过程扔掉"。训练方法 FoldGRPO 用过程奖励教会模型何时分支、怎么摘要，在长程研究和软件任务上匹敌强基线，活动上下文小得多。</p>
+
+<p>和人类认知对照一下会心一笑：我们的工作记忆容量也就 4±1 个组块，照样能做数小时的项目——因为我们会写便签、会查文件、会在心里把做完的步骤"折叠"掉。Agent 正在走同一条路，只是这次是强化学习教的。</p>
+
+<h2>可以立刻做什么</h2>
+
+<p>不需要等任何新模型、新框架，今天就能落地的清单，按投入产出排序：</p>
+
+<ol>
+<li><strong>给上下文装个油表。</strong>在装配 prompt 时统计 token 总量，设一个"pre-rot 阈值"（别等 API 报错，行业经验是标称窗口的 60% 就该动手），超了就触发裁剪。多数团队连这个监控都没有；</li>
+<li><strong>清理工具结果。</strong>长 agent loop 里，深层历史的原始工具输出是最占地方又最没用的内容。清掉内容、保留调用记录，这是零风险的第一刀；</li>
+<li><strong>指针化。</strong>凡是环境里持久存在的内容（文件、数据库查询结果），窗口里只放引用，需要时重取。把"信息进窗口"从默认改为例外；</li>
+<li><strong>重排上下文顺序。</strong>稳定的在前、易变的在后，工具定义静态化。这一条同时改善质量和 GPU 账单，是罕见的双赢；</li>
+<li><strong>给 Agent 一个 NOTES.md。</strong>让它自己维护跨任务笔记，重置后读回。半小时的实现，换数小时任务的连贯性；</li>
+<li><strong>把教训写成 playbook 而不是 prompt。</strong>错误发生时增量追加条目（带 helpful/harmful 计数），别整篇重写——context collapse 是真实的，66.7% 磨到 57.1% 只要几次重写就够了。</li>
+</ol>
+
+<p>最后回到那个核心判断。这个行业的直觉一直是"给模型更多信息"，上下文工程说的是反话：<strong>上下文是边际收益递减的有限资源，工程目标是找到让下一步成立的最小高信号集合。</strong>模型越强，越应该给它做减法——Manus 六个月重写了五版系统，最大性能提升全部来自删东西，而不是加东西。窗口在变大，但好的工程师应该当它没变大。</p>
+
+<hr>
+
+<p><strong>主要来源：</strong>Chroma《Context Rot》(2025/2026)；Liu et al.《Lost in the Middle》(TACL 2024)；Anthropic《Effective Context Engineering for AI Agents》(2025.09)；Zhang et al.《Agentic Context Engineering》(Stanford/SambaNova/Berkeley, 2025.10)；《Scaling Long-Horizon Agent via Context Folding》(ICML 2026)；Philschmid《Context Engineering Part 2》；SGLang/RadixAttention (LMSYS)；KVFlow (arXiv:2507.07400)；Sourcegraph/Atlan/TrueFoundry 2026 年工程实践。</p>
+</div>
+</body>
+</html>
