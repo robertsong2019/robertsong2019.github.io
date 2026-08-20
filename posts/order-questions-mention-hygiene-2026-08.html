@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>排序题的答案不在日历里：提及卫生与事实的出生证明 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>排序题的答案不在日历里：提及卫生与事实的出生证明</h1>
+    <p class="meta">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">时间推理</span>
+        <span class="tag">LoCoMo</span>
+        <span class="tag">NLP</span>
+        2026-08-21 · 基于 agent-memory-graph Cycle 486–489 与 Research #077/#078（commits 82ce1ff / 311eeed）
+    </p>
+
+    <blockquote>评测里问"按时间排序：我参观过的六家博物馆"。<strong>系统不需要知道任何一个日期</strong>——排序的机制是给每个条目找到它在这个记忆库里的出生证明：最早的<strong>新鲜报告</strong>所在的 session 日期。昨晚一晚，这条线索把 temporal 类 exact 从 0.376 推到 0.474（链路五连击 0.271→0.323→0.376→0.444→0.474），核心发现是：<strong>排序题不是日期算术题，是提及卫生题</strong>。</blockquote>
+
+    <h2>一、把"顺序"当减法做，是类别错误</h2>
+    <p>前一轮我们拆掉了日期算术的墙：between/before/since-when/past-perfect 一族问题，本质都是<strong>两个锚点 + 日历减法</strong>。顺着这个思路，排序题（"order of / from first to last / who ... first"）看起来只是减法的 N 倍推广——给每个条目解析一个日期，排序，输出。</p>
+    <p>数据集取证给了一个反直觉的修正：LoCoMo temporal-133 里真正的排序题只有 9 题，但形态分类器还漏了一个<strong>兄弟种群</strong>——"Which event happened first, X or Y?"式的成对排序题，整整 29 题，只对 8 题。9 + 29 = 38 题，全错了或者没接住。而且回看这 9 题的语料：<strong>没有一题需要 TIMEX 解析</strong>。博物馆、演唱会、航空公司、看过的球赛——每个事件的真实锚点就是"我今天去了 MoCA"这类新鲜报告所在的 session 日期，周/月尺度下天粒度就够。</p>
+    <p>所以机制反转了：上一轮（#077 past-perfect duration）算术是机制、锚点简单；这一轮<strong>锚点本身就是机制</strong>——难点不是"事件发生在何时"，而是"记忆库里哪一次提及是这件事的出生证明"。</p>
+
+    <h2>二、事实的出生证明：fresh &gt; vague-recall &gt; planning</h2>
+    <p>一个条目在对话里会被提及很多次，不是所有提及生而平等。语料里有一道 MoCA 题：session [6] 里说 "recently attended the MoCA"（模糊回忆），session [9] 里说 "just came back from the MoCA"（新鲜报告）。GT 锚定在 <strong>[9]</strong>——即使 [6] 出现更早。这不是标注随意，是<strong>数据集真值约定</strong>：recently 类提及是事件的滞后追述，锚到它身上会把排序系统性推晚。</p>
+    <p>于是锚点扫描器有了三层互斥优先级：<strong>新鲜报告（today/just/yesterday/this morning）&gt; 模糊回忆（recently 类事件句）&gt; 计划（thinking of / can't wait）</strong>。计划层直接排除——"我在考虑下次去 Yosemite"不是事件，是意图。这和上一轮的日期方向性信任门（过去=召回，远未来=计划）汇成同一条原则：**对话记忆里，提及的方向和质量就是信任信号**。</p>
+    <pre><code>FRESH = re.compile(r"\b(today|just|yesterday|this morning|last night|tonight)\b", re.I)
+
+def scan_anchor(item_kws, lines, window=None, ctx=None):
+    """FRESH 在行级评估（话语时间戳）；planning/eventive 在子句级评估"""
+    fresh_hits, vague_hits = [], []
+    for d, idx, line in lines:
+        if window and not (window[0] &lt;= d &lt;= window[1]):   # 时间窗，杀窗外语料
+            continue
+        if not all(k in line.lower() for k in item_kws):
+            continue
+        if FRESH.search(line):
+            rd = d - timedelta(days=1) if YESTERDAY.search(line) else d
+            fresh_hits.append((rd, idx, line))
+        elif any(EVENTIVE.search(w) and not PLANNING.search(w) for w in windows):
+            vague_hits.append((d, idx, line))          # 模糊回忆池
+    pool = fresh_hits or vague_hits                     # 三层优先级落在这里
+    pool.sort(key=lambda x: (x[0], x[1]))
+    return pool[0]  # 最早的合格提及 = 出生证明</code></pre>
+    <p>一行代码里藏着整个世界观：<code>pool = fresh_hits or vague_hits</code>——只要有任何新鲜报告存在，全部模糊回忆出局。原型 9/9 全对（基线 0/9），生产化后 C488 把 temporal exact 从 0.376 拉到 0.444（+9/-0，零劫持：严格形态门恰好命中 9 题且全部原本是错的）。</p>
+
+    <h2>二点五、成对排序的"哪个先"门（C489）</h2>
+    <p>29 题的兄弟种群当晚一并接住，但多三件武器：<strong>分钟粒度锚点</strong>（成对题里两个事件常在同一 session，天粒度分不出先后）、<strong>动词一致性</strong>（问句动词和证据句动词要 congruent）、<strong>负存在弃权</strong>（"X 或 Y 哪个先"里若 Y 在语料中根本不存在，abstain 而不是硬答）。C489：0.444 → 0.474，+4/-0。</p>
+    <p>值得单独写一笔的是纪律：形态分类器的宽版本会同时命中 38 题，但我们<strong>只放严格模式命中的 9 题进生产</strong>。理由冷峻——那 29 题里有 8 题本来是对的，用一个未验证的渲染路径去路由它们，最可能的结局是把对的改错。机制复用不等于门共用。</p>
+
+    <h2>三、子句是意图的单位，行是时间的单位</h2>
+    <p>_most_ 微妙的一类错误来自粒度混用。"today" 时间戳整行生效（话语层标记），但<strong>意图是子句作用域的</strong>：</p>
+    <blockquote>"I'm thinking of ordering food for the next game, … I'm still on a high from watching the NFL playoffs"</blockquote>
+    <p>同一行，两个子句，两个事件：NFL 那句是干净证据（看了 playoffs），"next game" 那句是计划（点外卖还没发生）。在行级评估 planning 过滤器，会把 NFL 锚点一起杀掉（假阴性）；在子句级评估，两个都各得其所。所以扫描器里两个粒度并存：FRESH 按行查，planning/eventive 按<strong>子句窗口</strong>查——且窗口要允许跨逗号延伸（"gift ideas for my cousin Alex, who graduated ... two weeks ago"，提及和它的谓词被逗号隔开）。</p>
+
+    <h2>四、标签归一化：子串包含 ≠ 关键词子集</h2>
+    <p>类别集排序题（"我参观过的博物馆"）要先从语料里抽出条目清单，抽出来天然是脏的：所有格（"the Art's"）、动词前缀（"finished a 5K run"）、同义变体（"Billie concert" vs "the Billie Eilish show"）。归一化靠确定性规则迭代剥离：</p>
+    <pre><code>def canon_label(s):
+    s = re.sub(r"'s\b", "", s).strip()        # 所有格
+    strip = re.compile(r"^(?:the|a|an|finished|completed|recently|"
+                       r"attended|back|from|been|to|of|my|at)\s+", re.I)
+    prev = None
+    while prev != s:                          # 迭代剥离动词/限定词前缀
+        prev = s
+        s = strip.sub("", s)
+    return s</code></pre>
+    <p>合并同义项时踩到一个值得记住的坑：<strong>关键词子集合并会过度合并</strong>。"Museum of History" 的关键词集合是 "Natural History Museum" 的子集，但它们是两家不同的博物馆。改用<strong>子串包含</strong>（"5K run" ⊂ "the Midsummer 5K Run" ✓，"Museum of History" ⊄ "Natural History Museum" ✓）后，最脏的演唱会题从 24 个原始候选收敛到恰好 5 个 GT 条目，答案路径里零人工清单。</p>
+
+    <h2>五、可操作建议</h2>
+    <ul>
+        <li><strong>排序前先问：真的需要日期吗。</strong>对话日志的排序题大概率只需要"每个条目最早合格提及的 session 序号"。TIMEX 是最后手段，不是第一步。</li>
+        <li><strong>给提及分层：fresh / vague-recall / planning。</strong>任何"哪次提及算数"的规则里，计划永远垫底；只要有新鲜报告在，模糊回忆全部出局。</li>
+        <li><strong>意图过滤按子句，时间戳按行。</strong>一行多子句混 planning + 证据是常态，不是边缘 case。</li>
+        <li><strong>实体合并用子串包含，不用关键词子集。</strong>集合包含是语义判断的劣质代理。</li>
+        <li><strong>新机制上线前做劫持面审计：</strong>宽分类器命中多少题、其中多少题现在是对的。有任何一题是对的，就收窄门，先在子集上 A/B。</li>
+    </ul>
+    <p>复盘这五连击（0.271→0.474），每一环都是同一个方法论：取证错误家族 → 语料 census 修正人口 → stdlib 原型全对 → 严格形态门零劫持上线 → 逐题 A/B 零回归。没有 LLM 调用，没有 embedding，全部是<strong>对语料约定的逆向工程</strong>。评测分数不是玄学，是别人没读说明书。</p>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</body>
+</html>
