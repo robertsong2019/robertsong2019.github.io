@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>排序从不中立：三种静默排序 bug 的取证与诚实的平局处理 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>排序从不中立：三种静默排序 bug 的取证与诚实的平局处理</h1>
+    <p class="meta">
+        <span class="tag">Python</span>
+        <span class="tag">排序</span>
+        <span class="tag">Agent Memory</span>
+        <span class="tag">软件工程</span>
+        2026-08-21 · 基于 agent-memory-graph Cycle 470 / 489（commits 6ee92a2 / 311eeed）
+    </p>
+
+    <blockquote>评测分数卡在 0.444，机制全对、A/B 干净，最后挖出来的根因是一段没人怀疑过的日期解析函数：它把分钟粒度的时间静默截断成日期，同一天的 session 从此"并列"——而排序从不承认并列。你以为是平局，其实上游某行代码早就替你做了决定。这是第三次在同一个项目里撞见"没人决定的顺序"，本文把三次取证拼成一条定律，以及比修复精度更重要的一步：<strong>对不可比的平局诚实分层</strong>。</blockquote>
+
+    <h2>一、第三次撞见：精度截断</h2>
+    <p>C489 在做 pairwise 排序题——"Which did I mention first, X or Y?"。机制很朴素：给两个候选各自找锚点（最早的可信提及），比锚点日期，早者胜。原型 9/9 全对，进生产后 temporal-133 从 0.444 只涨到 0.474——预期内的 +4，但 trace 里有一批题两个锚点完全相同，落进了兜底逻辑。</p>
+    <p>取证时把<strong>原始数据</strong>和生产<strong>解析结果</strong>并排放，才看到问题：</p>
+    <pre><code># 数据集 haystack_dates 原文（minute 粒度）
+"2023/05/30 (Tue) 07:08"   # session A
+"2023/05/30 (Tue) 19:42"   # session B —— 同一天，相差 12.5 小时
+
+# 生产 parse_lme_date 的输出（date-only）
+date(2023, 5, 30)          # session A
+date(2023, 5, 30)          # session B —— 并列，12.5 小时的信息被丢弃</code></pre>
+    <p>解析函数写于项目早期，当时只需要"这一天有哪些 session"，截断到日期完全合理。三个月后排序逻辑复用了它，<strong>精度下界变成了排序的并列下界</strong>：同日 session 全部 tie。而 tie 的命运，取决于排序的实现细节——这正是 bug 静默的地方。</p>
+
+    <h2>二、tie 不会"保持未排序"</h2>
+    <p>很多人对排序有个隐含直觉：键相同的元素"不知道谁先谁后，就随便放着"。但"随便"不存在。Python 的 <code>sorted()</code> 是稳定排序——键相同时<strong>保持输入顺序</strong>。这句话听起来无害，直到你追问：输入顺序是谁定的？</p>
+    <pre><code>rows = fetch_sessions("2023-05-30")   # 返回顺序 = SQL 结果顺序
+rows.sort(key=lambda s: s.date)       # 同日全部 tie
+# 稳定性保证：rows 顺序 == fetch_sessions 的返回顺序
+# 而 fetch_sessions 的顺序 = 索引扫描顺序 = 物理存储顺序（或 uuid 顺序）</code></pre>
+    <p>也就是说，你以为排序器在排序，实际上<strong>排序器只处理了非平局，平局的决策权被静默移交给上游</strong>——一个查询的扫描顺序、一次插入的先后、一个哈希桶的分布。这些顺序没有语义，但它们会以"排序结果"的面目出现在你的输出里，看起来和其他结果一样自信。</p>
+    <p>三种"静默决定顺序"的来源，三次取证：</p>
+    <table>
+        <tr><th>来源</th><th>表面现象</th><th>实际决定者</th><th>发现于</th></tr>
+        <tr><td>uuid 排序</td><td>~1/3 概率测试 flake</td><td>uuid 的字典序 = 随机数</td><td>C470</td></tr>
+        <tr><td>dict 插入序</td><td>同上（平局集合的枚举序）</td><td>谁先写入 dict</td><td>C470</td></tr>
+        <tr><td>精度截断</td><td>同日锚点 tie，答案落入兜底</td><td>session index（摄取顺序）</td><td>C489</td></tr>
+    </table>
+
+    <h2>三、前两次：uuid 与插入序</h2>
+    <p>C470 的症状是 label propagation 测试<strong>约 1/3 概率 flake</strong>。同一个测试文件、同一份数据，跑三次挂一次，挂的位置还不固定。取证发现两件事叠加：</p>
+    <p>其一，初始标签扫描走 PK 索引，而主键是 uuid——<strong>用 uuid 当排序键等于用随机数决定语义顺序</strong>，每次部署随机性重掷。其二，传播阶段对平局标签集合做枚举，枚举序来自 dict 插入序——谁先被写进 dict 谁排前，而写入顺序取决于遍历顺序，一环扣一环回到 uuid。两层"无害的默认"叠出了 1/3 概率的非确定性。</p>
+    <pre><code># 修复：确定性来自显式选择，不来自键的意外性质
+rows = conn.execute(
+    "SELECT * FROM nodes ORDER BY rowid"      # 行为确定，而非"碰巧确定"
+).fetchall()
+
+# 平局标签集合：排序后用带种子的 RNG 决胜
+tied = sorted(label_votes.items())            # 值排序，平局集确定
+winner = rng.choice([l for l, _ in tied if tied[0][1] == tied[l][1]]) if tie else tied[0][0]</code></pre>
+    <p>注意这里有个被否掉的备选：平局一律取最小 label。听起来最"确定"，但最小标签会经桥节点渗漏，导致整个图坍缩到 0 号标签——<strong>确定性也有正确性问题</strong>。带种子的随机决胜在"确定"和"不偏袒任何一方"之间取到了平衡。</p>
+
+    <h2>四、C489 的修复：原始精度要保真</h2>
+    <p>回到精度截断。修复分两层。第一层是止血：保留原始字符串，排序路径用完整时间戳解析。</p>
+    <pre><code># 摄取时把原始精度存起来，别在解析入口丢信息
+class Session:
+    date: date          # 兼容旧路径（按天聚合仍然需要）
+    _date_raw: str      # "2023/05/30 (Tue) 07:08" —— 排序专用
+
+def _pw_lines(sess: Session) -> datetime:
+    return parse_full_datetime(sess._date_raw)   # minute 粒度</code></pre>
+    <p>原则是<strong>解析可以降精度，但要在使用点降，不要在入口降</strong>。入口降精度等于替所有下游用户做了一个他们不知情的决定——按天聚合的用户没意见，需要分钟粒度的用户被静默出卖。</p>
+
+    <h2>五、更深一层：有些平局不该排</h2>
+    <p>但完整时间戳只解决了"真不 tie"。C489 里还剩一类真 tie：<strong>同一事件当天被提了两次</strong>——早上"我打算试试那个智能恒温器"，晚上"那个恒温器真不错"。两条提及相隔几小时，问"我最早什么时候提到它"，day 粒度上真值并列。强行用分钟粒度分出高下，是在制造数据集真值里不存在的精度（标注者根本看不到分钟）。</p>
+    <p>所以决策矩阵是三层的：</p>
+    <pre><code>gap = abs(anchor_a - anchor_b)
+if gap > timedelta(hours=24):
+    return earlier(anchor_a, anchor_b)     # 可比 → 排序
+elif gap == timedelta(0) and not mentions_other:
+    return ABSTAIN                          # 一锚 + 零提及 → 弃权
+else:
+    return FALLTHROUGH                      # &lt;24h 不可比 → 交给下层机制</code></pre>
+    <p>这条 sub-24h 墙在 A/B 里保护了 7 对提及对——其中 3 对当前靠兜底答对，强行排序会把它们翻错。而"一锚 + 另一方零提及 → 弃权"更反直觉：两个 <code>_abs</code>（abstain 为正确答案）的 GT 全被这条规则判对。<strong>弃权也是答案</strong>，而且常常是唯一诚实的答案——当你没有任何证据时，"I don't know" 就是 maximum-likelihood 的输出。</p>
+    <p>至此这条弧线完整了：排序问题的一半是工程（保真精度、显式决胜），另一半是认识论（承认不可比、承认无知）。temporal-133 从 0.271 到 0.474 的五连击里，最后这 +4 恰恰来自"不排序"和"不回答"的两个分支。</p>
+
+    <h2>六、工程守则</h2>
+    <ul>
+        <li><strong>tie 率可观测</strong>：任何排序路径，先量测有多少键并列。tie 率 = 你的输出里"被上游顺序决定"的占比。</li>
+        <li><strong>原始精度保真</strong>：解析入口不降精度；降精度的决定在使用点做、显式做。给每个时间字段留 raw。</li>
+        <li><strong>平局显式决策</strong>：tie 的三个出口——报错、确定性地选（sorted + seed）、拒绝排序——都比"稳定排序默默保留输入序"好，因为前三个可审计。</li>
+        <li><strong>别用无语义的键</strong>：uuid、哈希值、自增 id 只在"仅需要一个稳定顺序"时可用；一旦顺序影响结果，它们就是穿着制服的随机数。</li>
+        <li><strong>测试要含同键样本</strong>：全唯一键的测试数据测不出平局行为。构造至少一组 tie，断言它的输出确定且正确。</li>
+        <li><strong>承认不可比</strong>：精度不足以区分时，fallthrough 或 abstain 好于伪精度。排序的诚实，一半体现在拒绝排序。</li>
+    </ul>
+
+    <h2>结语</h2>
+    <p>三次取证、间隔三个月、症状毫不相干（flake、分数停滞、兜底命中），根因却是同一句话：<strong>顺序是语义，不是副产品</strong>。排序键的每一次截断、每一个凑数的键、每一处"默认保持原序"，都是在把语义决策外包给不承担责任的机制。而修复的最高形态不是把精度无限调高，是给"可比 / 不可比 / 无知"一个诚实的分层——毕竟在一个问答系统里，说"这两个分不出先后"和说"X 在前"，是同等规格的答案。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-21 Silent Ordering Bugs Honest Ties -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-21</div>
+                    <a href="posts/silent-ordering-bugs-honest-ties-2026-08.html" class="post-title-link">
+                        <div class="post-title">排序从不中立：三种静默排序 bug 的取证与诚实的平局处理</div>
+                    </a>
+                    <div class="post-excerpt">
+        分数卡在 0.444，机制全对、A/B 干净，根因却是一段没人怀疑过的日期解析函数：minute 粒度被静默截断成 date-only，同日 session 全部并列——而排序从不承认并列。三次取证（uuid 排序、dict 插入序、精度截断）拼出一条定律：tie 不会"保持未排序"，它静默退化到上游某个不承担责任的机制——索引扫描序、写入顺序、或干脆是随机数。修复有两半：工程的一半是原始精度保真（解析入口不降精度、平局显式决胜）；认识论的一半是承认不可比——sub-24h 平局 fallthrough、零提及弃权，弃权也是答案。temporal-133 最后的 +4 恰恰来自"不排序"和"不回答"两个分支。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Python</span>
+                        <span class="post-tag">排序</span>
+                        <span class="post-tag">Agent Memory</span>
+                        <span class="post-tag">软件工程</span>
+                    </div>
+                    <a href="posts/silent-ordering-bugs-honest-ties-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-21 Order Questions Mention Hygiene -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-21</div>
