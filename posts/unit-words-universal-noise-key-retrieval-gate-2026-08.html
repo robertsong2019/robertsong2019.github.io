@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>你的问题里藏着一把万能钥匙：检索门控的单位词污染与精度预算 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>你的问题里藏着一把万能钥匙：检索门控的单位词污染与精度预算</h1>
+    <p class="meta">
+        <span class="tag">Python</span>
+        <span class="tag">Agent Memory</span>
+        <span class="tag">检索</span>
+        <span class="tag">信息抽取</span>
+        2026-08-22 · 基于 agent-memory-graph C490/C491 生产验证与 Research #079 四臂取证，A/B 数字可复现
+    </p>
+
+    <blockquote>问用户记忆系统一个问题："我总共休了多少天社交媒体假？" 它回答 <strong>59 天</strong>。真值是 <strong>17 天</strong>。多出来的 42 天，来自一次和社交媒体毫无关系的法律咨询会话——"提交上诉通知表的期限是 28 天"。没有检索 bug，没有解析 bug，每一行代码都在按设计运行。<strong>凶器是问题自己带来的：那个 "days"。</strong>这篇文章讲一次完整的取证：污染如何发生、为什么单位词在分布语言学上是「主题均匀词」、一行修复如何通过四臂 A/B，以及一个更普遍的教训——<strong>门控的假阳性率乘以干草堆大小，等于你预期收到的噪声事件数。在 3 个会话上验证过的机制，到 41 个会话上会突然翻脸。</strong></blockquote>
+
+    <h2>一、悬案：42 天从天而降</h2>
+    <p>背景是我在做的 zero-LLM agent 记忆系统（LongMemEval 评测）：几百个会话的原始聊天记录，回答跨会话的时序与聚合问题。聚合家族（"总共多少天/多少钱"）的机制很朴素——从问题提取<strong>锚集</strong>（anchor set），扫描会话，只有句子里命中锚词的时长/金额才被计入求和。</p>
+    <p>social-media 这题的锚集长这样：</p>
+    <pre><code>_cnt_question_anchors("How many days did I take social media breaks in total?")
+# =&gt; {'breaks', 'days', 'media', 'social'}</code></pre>
+    <p>真事件只有两句：二月中旬的 10 天假 + 一月中旬的一周假 = 17 天，分毫不差。但生产答案是 59。逐句溯源（trace 模式），多出来的账全在这里：</p>
+    <pre><code>[SOCIAL-MEDIA GT=17] anchors=['breaks', 'days', 'media', 'social']
+    EV s21 + 10.0 [10-day]   ...cut down on social media... 10-day break
+    EV s22 +  7.0 [a week]   ...week-long break from it in mid-January
+    EV s38 + 28.0 [28 days]  Lodge the Notice of Appeal form... within 28 days
+    EV s38 + 14.0 [14 days]  ...this timeframe is 14 days instead of 28 days
+    EV s38 + 28.0 [28 days]  (同句第二匹配)
+  production = '59 days'     F1-patched = '17 days'</code></pre>
+    <p>s38 是一次签证法律咨询。它句句合法、句句带 "days"——于是句句过门。同一把钥匙还开了别的门：Hawaii+NYC 旅行天数（真值 15）被一次国会程序会话灌到 90（"提前 15 天通知国会领袖"、"指定 60 天"）；camping（真值 8）被灌到 18。<strong>同一个 bug，三个具名受害者，全部同根：问题自己的单位词混进了锚集。</strong></p>
+
+    <h2>二、分布语言学：锚资格由语料分布决定</h2>
+    <p>为什么 "days" 是万能钥匙，而 "social"、"media"、"breaks" 不是？答案不在词性表里，在语料里：<strong>"days" 出现在法律、国会、牙医、健身、飞行……一切主题里。一个跨主题均匀分布的词，携带零主题信息。</strong>"social" 也高频，但它只在少数主题里高频——它的分布有峰，峰就是判别力。</p>
+    <p>这和 TF-IDF 的 idf 直觉同源，但我要把它推得更硬：在门控语境下，这不是加权问题，是<strong>资格问题</strong>。idf 可以是软信号，锚门是硬开关——一个主题均匀词进了锚集，等于给全语料发通行证。所以规则应该是：</p>
+    <blockquote>任何「从问题词构造证据过滤器」的机制，必须先扣除问题自身的量纲词汇——单位词、货币词、频率词、疑问框架词。这些词描述你在<strong>量什么</strong>，不描述你在<strong>找什么</strong>。</blockquote>
+    <p>注意这个问题的普遍性：它不是时序系统的怪癖。你用问题文本构造 RAG 检索 query 时，"多少钱" 里的 "钱"、"几分钟" 里的 "分钟"、"推荐几部" 里的 "部"，全是同一族污染源——它们会把所有谈钱、谈时间、谈推荐的东西都召回来。<strong>提问词汇法与过滤器构造，在量纲词上必然自噬。这是结构，不是 bug。</strong></p>
+
+    <h2>三、一行修复，四臂对赌</h2>
+    <p>修法在概念上一行，在工程上是一族词表：</p>
+    <pre><code>UNIT_ANCHOR_STOP = {u.rstrip('s') for u in (
+    'day', 'days', 'week', 'weeks', 'hour', 'hours', 'month',
+    'months', 'year', 'years', 'minute', 'minutes', 'night',
+    'nights', 'time', 'times')}
+
+# F1: 测量单位不是主题锚——锚集编译前扣除
+anchors = {a for a in _cnt_question_anchors(question)
+           if a.rstrip('s') not in UNIT_ANCHOR_STOP}</code></pre>
+    <p>（还有一道 F2 加固：从大写锚里剔除泛词头——"New York City" 贡献的 <code>city</code> 能放行任何聊 "city" 的会话；这次是靠单元测试在落地前抓到的，原型里没这防御。）</p>
+    <p>取证用四臂 A/B，在 133 题生产切片 + 全量干草堆上跑（42 秒）：</p>
+    <table>
+        <tr><th>臂</th><th>改动</th><th>fired</th><th>fired-correct</th><th>prec</th></tr>
+        <tr><td>A 生产</td><td>—</td><td>23</td><td>7</td><td>0.30</td></tr>
+        <tr><td><strong>B = F1</strong></td><td>单位词不作锚</td><td>22</td><td><strong>10</strong></td><td><strong>0.45</strong></td></tr>
+        <tr><td>C = F1+F2</td><td>+ 泛词头不作传播锚</td><td>22</td><td>10</td><td>0.45</td></tr>
+        <tr><td>D = F1+F2+F3</td><td>+ 同句对比取单值</td><td>22</td><td>10</td><td>0.45</td></tr>
+    </table>
+    <p>三个具名失败全部转正（59→17、90→15、18→8），第四个错误 fire 转成诚实弃权（"证据不足"），<strong>零正确损失</strong>。F3（"14 days instead of 28" 是替换语义不是加法）在当前切片零活跃实例——记录证据，defer，不写没被需要的代码。C490 落地生产后官方复验：multi_session 9→12/133，counting 家族 fired-precision 0.32→0.46，全量 9778 项测试全绿。</p>
+
+    <h2>四、精度预算：假阳性率 × 干草堆大小</h2>
+    <p>这里有个更深的教训值得单独说。<strong>这个机制的原型阶段是通过的。</strong>在 oracle 证据会话（只喂 2~3 个相关会话）上，"days" 作锚零伤害——证据会话里带 "days" 的句子恰好就是真事件句。到生产跑 41 个会话，"days" 从无害变致命。</p>
+    <p>这不是移植走样，是数学必然：</p>
+    <blockquote><strong>门控假阳性率 × 干草堆规模 = 期望噪声事件数。</strong>干草堆每放大一个数量级，同样的假阳性率就多生一个数量级的垃圾。而你的正确答案不会随之变多——真事件就那几句。</blockquote>
+    <p>所以方法论修正是：<strong>原型阶段的精确率必须在噪声注入口径（全量干草堆）下报告，否则集成 A/B 一定会「突然」发现一整族失败。</strong>原型指标是机制上限，不是管线预期。我在这次取证里看到最讽刺的对照：同一个 "days"，在 n=3 的评测里是 0.67 精确率的功臣的一部分，在 n=41 时把精确率打到 0.30。规模是精度的隐变量，不控制它，你的 A/B 结论会在换数据集的那一刻作废。</p>
+
+    <h2>五、同病异器官：把纪律移植到货币域</h2>
+    <p>取证不止修了一个 bug，还揭示了一个模式。残差分桶时发现：total_sum（"总共花了多少钱"）的 4 个失败与 duration_sum 共享同一病理——过求和——但器官不同：total_sum 连锚门都没有，任何 "$" 都入账。收入行（$50k）、签证法定费（$4500×2）、买表下馆子，全被加进"自行车花了多少"。</p>
+    <p>C491 的修法不是发明新机制，是<strong>器官移植</strong>：把 duration_sum 已验证的锚纪律搬到货币域，只换词表——</p>
+    <pre><code># 问题 token 扣除货币单位词（money/raise/total/expenses = 主题均匀）
+# 连字符头拆分：bike-related -&gt; bike；单复数归一：workshops -&gt; workshop
+# 会话传播：一个非意图锚提及点亮整个会话；意图句（计划）不能点亮
+# 价格对跳过："$50 to $200" 是预算不是消费</code></pre>
+    <p>结果：4 个具名总额全部精确命中（$2440→$185、$56355→$5850、$8750→$3750、$8940→$720），multi_session 12→16/133，零损失、零门翻转。其中 $5850 = 250+600+5000，逐笔可对账——<strong>锚集在真实干草堆上分离信号的能力，比任何下游补救都干净</strong>。</p>
+    <p>这就是「同病异器官」的价值：已验证的机制（锚门、会话签名去重、意图门）移植到缺失的器官，比在新器官上发明新机制便宜得多——<strong>机制的边际成本递减，且移植自带现成的 A/B 方法论</strong>。修复路线图的优先级，应该按「病理相同度 × 器官缺失数」排，不按表面家族排。</p>
+
+    <h2>六、连判分器也在骗你</h2>
+    <p>顺带一提这次取证的副产物：F1 修完，有一题预测 "1 weeks"、真值 "one week"——语义已对，被数字正则判错。这是该项目判分伪影的<strong>第四处</strong>（此前：答案侧幻影命中、类目侧误标、真值侧首数字主张）。发布前判分器审计清单再 +1：真值词数归一化（one→1）。教训朴素但常被忘：<strong>在你看懂度量怎么算之前，所有分数都是传闻。</strong></p>
+
+    <h2>七、今天就能做的事</h2>
+    <ul>
+        <li><strong>审计你的检索 query 构造。</strong>凡是从用户问题直接拼过滤器/查询的路径，列出量纲词表（单位、货币、频率、疑问框架词），在编译过滤器之前扣除。一小时的词表工作，换来的是干草堆规模无关的主题纯度。</li>
+        <li><strong>把「量什么」和「找什么」分开表示。</strong>单位词不是噪声词那么简单——它告诉你答案的<strong>量纲</strong>（回答应以天计、以美元计）。把它从检索侧挪到判分侧/格式化侧，它就从钥匙变成了类型标注。</li>
+        <li><strong>原型评测必须带噪声注入。</strong>在 oracle 小集合上调出来的精确率是上限不是预期；发布口径的 A/B 一定在全量干草堆上跑。记住预算公式：假阳性率 × 干草堆大小。换数据集前先问干草堆大了多少倍。</li>
+        <li><strong>取证优先于修复。</strong>这次的 trace 模式（逐事件溯源到句）让根因在写修复前就已确凿——锚集差异把信号分得干干净净，修复只是"纯移植"。没有 trace 的 A/B 是盲赌，有 trace 的 A/B 是执行既定判决。</li>
+        <li><strong>失败按病理分桶，不按家族。</strong>残差桶会告诉你哪个已验证器官能移植到哪。同病异器官的移植是回报率最高的修复：零新机制风险，自带评测协议。</li>
+        <li><strong>零活跃实例的加固也值得写——但只写一行。</strong>F2 的 <code>city</code> 泛词头在当前切片零实例，却只差一个会话就出事故。一行防御 + 一个单元测试，是廉价的未来保险；但像 F3 那样连证据都没有的，老实 defer。</li>
+    </ul>
+
+    <p>回到那把钥匙。它最迷人的地方在于：它一直躺在问题里，光明正大。"How many days…"——你问天数，你就带来了 "days"；你带来 "days"，你就给 41 个会话里所有谈天数的句子发了通行证。<strong>提问的语言和过滤的语言是两种语言：一种描述量纲，一种描述主题。把它们混在一个集合里，后者就会被前者稀释到失灵。</strong>这个教训值 42 天，希望你免费拿到。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
