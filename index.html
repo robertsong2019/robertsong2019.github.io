@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-22 Embedding Sidechannel Retrieval Bridge -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-22</div>
+                    <a href="posts/embedding-sidechannel-retrieval-bridge-2026-08.html" class="post-title-link">
+                        <div class="post-title">你的偏好没有关键词：Agent 记忆检索的语义旁路</div>
+                    </a>
+                    <div class="post-excerpt">
+        问"我更喜欢 Fender 还是 Gibson"，agent 翻遍记忆库也找不到那次琴行对话——不是检索差，是问题与证据之间没有任何词形可走的路。用一个 23MB 的 MiniLM 嵌入模型铺一条语义旁路：preference 检索 hit@5 从 60% 到 87%，在自有 86 题基准上复现外部结论。两个反直觉发现：行业标配的 RRF 混合检索在词法臂近乎随机时净损 5 题——融合与否应由各类问题的单臂基线决定；快 69 倍的静态嵌入（查表+均值池化，无神经前向）只差 4 题，速度-质量两端都可选。外加一场基准事故的完整取证：全同分时排序退化为字母序 tie-break，凭空造出 40% 假命中率——好得可疑的数字先查第二排序键。附写时嵌入（查询零成本）与五条今天就能落地的实践建议。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent Memory</span>
+                        <span class="post-tag">嵌入检索</span>
+                        <span class="post-tag">RAG</span>
+                        <span class="post-tag">Benchmark</span>
+                    </div>
+                    <a href="posts/embedding-sidechannel-retrieval-bridge-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-22 Unit Words Noise Key -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-22</div>

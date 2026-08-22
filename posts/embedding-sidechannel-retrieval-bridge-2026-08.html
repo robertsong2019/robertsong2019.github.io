@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>你的偏好没有关键词：Agent 记忆检索的语义旁路 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>你的偏好没有关键词：Agent 记忆检索的语义旁路</h1>
+    <p class="meta">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">嵌入检索</span>
+        <span class="tag">RAG</span>
+        <span class="tag">Benchmark</span>
+        2026-08-22 · 基于 Research #083（86 题真实会话基准 + 可运行原型）· MiniLM / model2vec / LongMemEval 协议
+    </p>
+
+    <blockquote>问你的 agent："我之前说过更喜欢 Fender 还是 Gibson？" 它翻遍记忆库，返回三段上周的闲聊——唯独没有那段你在琴行门口聊"Fender 音色亮、Gibson 更厚"的对话。检索引擎没坏：那次对话和你的提问之间，<strong>没有任何一个词是重合的</strong>。你问的是乐器，证据聊的是逛店见闻——词形上隔着一整条类别鸿沟。这是 agent 长期记忆里一类真实存在的结构性缺口。本文讲我们怎么用一个 23MB 的嵌入模型把它填上（hit@5 从 60% 到 87%），路上撞见的两个反直觉发现——<strong>混合检索居然有害，快 69 倍的"查表模型"只差 4 题</strong>——以及一场几乎骗过所有人的基准事故。</blockquote>
+
+    <h2>一、缺口长什么样：不是检索差，是桥断了</h2>
+    <p>把 agent 的长期记忆想成一座图书馆，检索是管理员。你提问，他拿着问题里的词去卡片目录里查。BM25、TF-IDF、token overlap——这套词法机制对"上次说的项目代号是什么"类问题非常好用，因为问题的词和证据的词高度重合。</p>
+    <p>但偏好类问题天然不适配。在这次实验的 86 道基准题（来自 LongMemEval 协议的真实合成会话，22002 个文本块、3983 段会话）里，preference 类 30 题，词法检索的 hit@1 只有 <span class="highlight">3/30</span>，hit@5 也只有 18/30。这不是参数没调好——先前的取证已经证明，这 30 题里词法能做到"唯一最优命中"的只有 4 题。<strong>从问题到证据之间根本没有词形可走的路。</strong></p>
+    <p>典型样本：问题是 <code>"music store tips"</code>（我在琴行聊过什么），标准答案会话的内容是 <code>"Fender Stratocaster vs Gibson Les Paul"</code>。类别词与实体词之间隔着一道语义鸿沟——每个 token 都对不上，但任何懂英语的人一眼就知道它们说的是同一件事。缺的不是记忆，是一座<strong>材质不同的桥</strong>：词法桥铺不过去的地方，语义桥可以。</p>
+
+    <h2>二、换桥：384 维的语义旁路</h2>
+    <p>方案朴素得出奇：用 all-MiniLM-L6-v2（23MB 的 int8 ONNX 模型，零 torch 依赖）把会话和问题各自编码成 384 维向量，算余弦相似度。工程上唯一值得注意的是<strong>chunk-max</strong>：长会话切成 150 词的块分别编码，会话得分取所有块的最大余弦——避免长文本把关键段落"平均稀释"。</p>
+    <table>
+        <tr><th>类目</th><th>检索臂</th><th>hit@1</th><th>hit@5</th><th>速度</th></tr>
+        <tr><td>preference-30</td><td>词法 token-overlap</td><td>3/30</td><td>18/30</td><td>毫秒级</td></tr>
+        <tr><td>preference-30</td><td><span class="highlight">MiniLM 嵌入</span></td><td><span class="highlight">15/30</span></td><td><span class="highlight">26/30（87%）</span></td><td>36 chunks/s</td></tr>
+        <tr><td>preference-30</td><td>RRF 混合（词法+嵌入）</td><td>10/30</td><td>26/30</td><td>—</td></tr>
+        <tr><td>ssa-56</td><td>词法</td><td>49/56</td><td>56/56</td><td>毫秒级</td></tr>
+        <tr><td>ssa-56</td><td>MiniLM 嵌入</td><td><span class="highlight">56/56</span></td><td>56/56</td><td>同上</td></tr>
+        <tr><td>preference-30</td><td>静态嵌入 potion-32M</td><td>11/30</td><td>22/30</td><td><span class="highlight">2463 chunks/s</span></td></tr>
+    </table>
+    <p>hit@5 从 60% 到 87%，与外部研究（agentmemory 项目报告 BM25 60% → +嵌入 83%）方向一致且更强——更重要的是它在<strong>自有数据、自有协议</strong>上复现了，不再依赖"别人的 benchmark 说有用"。</p>
+    <p>语义真实性抽查也过了：把命中样本逐条人工看一遍，"music store tips" 命中 "Fender vs Gibson" 靠的是真实的类别-实体语义邻近，不是表面词巧合。这不是魔法——嵌入模型存在的前提就是学会"逛琴行"和"Fender"出现在相似的语境里。</p>
+
+    <h2>三、反直觉发现一：混合检索不是默认答案</h2>
+    <p>行业叙事里，hybrid retrieval（词法+dense 双路、RRF 融合）几乎是检索工程的"最佳实践"。但看上表第三行：RRF 融合的 hit@1 只有 <span class="highlight">10/30，比纯嵌入的 15/30 净损 5 题</span>。</p>
+    <p>为什么？RRF 的机制是两路排名倒数融合——它隐含一个前提：<strong>两路信号都得有区分度</strong>。而 preference 类的词法臂 hit@1 只有 3/30，近乎随机。这时候融合就像让两位评委打分取平均：一位懂行，一位在掷骰子——骰子不会带来信息，只会稀释懂行者的意见。</p>
+    <p>于是集成策略不是"全局 hybrid"，而是 <strong>form-gated switch（按问题类型分流）</strong>：preference 类走纯嵌入旁路；ssa 类词法已 49/56、嵌入只负责补齐 @1。这个思路可以推广：<strong>要不要融合，应该由每一类问题各自的单臂基线决定，而不是由行业最佳实践决定</strong>。词法强的地方嵌入做增量，词法弱的地方嵌入做主干——配置面是分类器，不是融合参数。</p>
+
+    <h2>四、反直觉发现二：快 69 倍的"查表字典"只差 4 题</h2>
+    <p>第二个反直觉数字来自静态嵌入（static embeddings）：model2vec 家族的 potion-retrieval-32M。它的原理粗暴得可爱——<strong>把神经网络对每个 token 的理解预先算好，印成一本字典；句子向量 = 查表 + 取平均，没有任何神经前向计算</strong>。就像把一部电梯拆掉换成一截楼梯：没了电机，但大多数时候你只是上一层楼。</p>
+    <p>实测：2463 chunks/s，比 MiniLM 的 36 chunks/s 快 <span class="highlight">69 倍</span>（22002 块从 611 秒降到 8.9 秒）；质量上 preference hit@1 是 11/30 vs 15/30——<strong>只差 4 题</strong>，仍是词法臂（3/30）的 3.7 倍。依赖面更是悬殊：numpy + safetensors + tokenizers 共约 30MB，不需要任何神经运行时。</p>
+    <p>这对部署小机器的 agent 是实打实的选择空间。工程上的落地形态是"双档可选依赖"：<code>[sidechannel]</code>（神经档，质量上限）与 <code>[sidechannel-fast]</code>（静态档，近实时），运行时探测装了哪个用哪个。<strong>"可选加速器"可以同时是"默认可用"——速度-质量谱系的两端都不是玩具。</strong></p>
+
+    <h2>五、一场几乎骗过所有人的基准事故</h2>
+    <p>这篇实验的第一跑出了一个漂亮的数字：嵌入臂 hit@1 = 12/30，全组欢呼。一周后复核发现它是<strong>伪影</strong>。</p>
+    <p>事故链：一个数据处理 bug 把会话的 turn 字典展开成了 key 垃圾文本（<code>"role content role content…"</code>）→ 所有块的嵌入完全相同 → 余弦分数全部打平 → 排序退化到第二排序键 <code>sid</code>（会话 id）的字典序 → 而基准题目答案会话的 id 前缀 <code>answer_*</code> 恰好排在语料 id（<code>ultrachat_*</code> / <code>sharegpt_*</code>）前面 → <strong>字母序凭空造出了 40% 的假命中率</strong>。</p>
+    <p>教训浓缩成三条，适用于所有做评测和排序系统的人：</p>
+    <ol>
+        <li><strong>好得可疑的数字，先查 tie-break。</strong>分数全同时，<code>sorted</code> 的第二键就是排序本身——一个没人审视过的 <code>sid</code> 在悄悄决定谁上榜。</li>
+        <li><strong>基准 id 命名是隐藏变量。</strong>如果答案侧 id 与语料侧 id 在字母序上天然可分，tie-break 就有系统性偏置——务必随机化第二键，或确保分数连续。</li>
+        <li><strong>每臂独立的 sanity 数字是伪影检测器。</strong>救了这次结论的是一个反常读数：词法臂在同一批坏数据上得了 0/86。一个"诚实到尴尬"的异常数字，价值高于一个漂亮的正常数字。</li>
+    </ol>
+
+    <h2>六、落地形态：写时嵌入，查询零成本</h2>
+    <p>查询时现算嵌入在慢机器上要 7.5 秒/题，不可接受。但检索是<strong>读多写少</strong>的操作——把嵌入成本挪到写入时：会话落库的 ingest 钩子里顺手算好向量存起来，查询时只剩一次问题编码加一次矩阵乘，毫秒级。22k 块全量嵌入的内存峰值不到 400MB，1GB 的小盒也安全。旁路就此闭环：<strong>主干保持零 LLM、零神经运行时；需要语义桥的那几类问题，走一条 23MB 的小模型铺的路。</strong></p>
+
+    <h2>今天就能做的五件事</h2>
+    <ol>
+        <li><strong>给你的检索问题分类，再谈架构。</strong>按问题类型（偏好/事实/时序/聚合）分别测词法单臂基线——某类 hit@1 掉到 1/3 以下，就是嵌入旁路的候选人。不要直接上全局 hybrid。</li>
+        <li><strong>从 23MB 的 MiniLM 起步。</strong>fastembed + ONNX int8，无 torch 依赖，一台最破的 CPU 盒就能跑。速度不够再换静态嵌入（model2vec），先质量后速度的顺序通常不会错。</li>
+        <li><strong>检查你所有打分器的第二排序键。</strong>搜代码里的 <code>sorted(</code>，看 tie 时排什么——如果是 id、时间戳或任何有命名规律的键，做一次"全同分"测试，看它是否在悄悄决定结果。</li>
+        <li><strong>把嵌入挪到写入时。</strong>任何读多写少的检索系统都适用：ingest 时算向量存下来，查询路径只剩点积。</li>
+        <li><strong>外部 benchmark 数字要在自有数据上复现一次。</strong>论文说嵌入有用，不等于在你的 form 分布上有用；复现一次，杠杆就从"引用"变成"证据"。</li>
+    </ol>
+
+    <p>偏好没有关键词，但偏好有语义。当你的 agent 记不住你喜欢哪把吉他时，问题往往不在记忆力，在于桥的材质——而换一座桥，可能只需要 23MB。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
