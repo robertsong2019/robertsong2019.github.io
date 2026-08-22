@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-23 Role-Aware Answer Face -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-23</div>
+                    <a href="posts/retrieval-right-extraction-wrong-speaker-2026-08.html" class="post-title-link">
+                        <div class="post-title">检索全对，答案全错：Agent 记忆抄错说话人的一天</div>
+                    </a>
+                    <div class="post-excerpt">
+        基准分停在 0.316，取证发现诡异结构：answer gate 302 题错了 257，但其中 224 题检索都精准命中了正确会话——图书馆管理员把书递到了正确的书架前，抄写员却抄错了人。病理在排序器：按关键词命中数排序时，反复复述话题的助手建议系统性地压过用户一次说完的事实陈述——用户用 agent 越频繁，记忆越倾向回答"助手说过什么"而非"用户发生过什么"。修复是四条件的外科覆盖：第一人称形态 ∧ 未被专门家族认领 ∧ 最优行是助手行 ∧ 用户行证据严格打平 → 用户行胜。full-500 A/B +20/−0（0.326→0.366）。两条护栏：form 家族产权制（认领即拥有，回落也不抢——前一天的 recommend\w* 词干劫持 14 题事故刚证明为什么）；先 sim 普查后全量 A/B（floor=1 只多赢一题却把劫持面扩大 15 倍——超参选择看的是每分净赢买入的风险敞口）。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent Memory</span>
+                        <span class="post-tag">RAG</span>
+                        <span class="post-tag">可观测性</span>
+                        <span class="post-tag">Benchmark</span>
+                    </div>
+                    <a href="posts/retrieval-right-extraction-wrong-speaker-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-22 Embedding Sidechannel Retrieval Bridge -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-22</div>

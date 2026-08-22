@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>检索全对，答案全错：Agent 记忆抄错说话人的一天 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>检索全对，答案全错：Agent 记忆抄错说话人的一天</h1>
+    <p class="meta">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">RAG</span>
+        <span class="tag">可观测性</span>
+        <span class="tag">Benchmark</span>
+        2026-08-23 · 基于 Cycle 501（LongMemEval 协议 / 500 题全量 A/B / 套件 9872 测试）· 提交 e703ddd
+    </p>
+
+    <blockquote>agent 长期记忆基准分停在 0.316，我做了次例行取证，发现一个诡异的结构：answer gate 覆盖 302 题，错了 257 题——但其中 <strong>multi_session 类 112/116 的错题、kupdate 类 55/56 的错题，检索都精准命中了正确的会话</strong>。图书馆管理员把书递到了正确的书架前，抄写员却从旁边的书上抄了一段。这不是检索问题，是<strong>说话人归属</strong>问题：答案引擎在用户陈述事实和助手复述建议之间，系统性地抄错了人。本文讲这个病理的指纹、成因、一个 +20/−0 的外科修复，以及为什么"form 家族所有权"和"先普查后 A/B"是这类修复不翻车的护栏。</blockquote>
+
+    <h2>一、指纹：hit=True × 全错 = 抽取有罪</h2>
+    <p>调试 RAG 管线的人都有个体感：分数上不去时，第一反应是换 embedding、调 chunk、加 rerank。但这条直觉有个盲区——<strong>它默认错误发生在检索段</strong>。要打破这个默认，需要一条能把"检索找对容器"和"抽取选对证据"拆开的观测指标。在我们的基准里，它叫 <code>answer_session_hit</code>：抽取最终选中的证据，是否来自与金标答案相同的会话。</p>
+    <p>取证代码不过二十行：把全量 500 题的报告 JSON 按"覆盖该题的形式门"分组，统计每个 gate 内错题的 hit 分布——</p>
+<pre><code># /tmp/c499 取证：answer gate 错题的检索状态
+wrong = [r for r in report if r["gate"] == "answer" and not r["correct"]]
+hit   = [r for r in wrong if r["answer_session_hit"]]
+print(len(wrong), len(hit))          # 257, 224
+# multi_session 错题: 116 中 112 hit；kupdate 错题: 56 中 55 hit
+# → 检索近乎无罪，证据抽取选错了说话人</code></pre>
+    <p>224/257 的错题，答案引擎<strong>已经站在了正确的会话里</strong>，却输出了错误内容。这条指纹的价值在于它的<strong>排除力</strong>：只要它成立，任何检索侧的改进（换模型、加召回）都是浪费算力——病灶被精确锁死在抽取段。多数 RAG 可观测性实践把 hit 当作检索质量的附属指标；这个案例说明它更重要的角色是<strong>责任分界线</strong>：hit=True × 全错，罪在抽取；hit=False，才轮到检索背锅。</p>
+
+    <h2>二、病理：复述者打败了陈述者</h2>
+    <p>成因藏在排序器里。证据行按关键词命中数排序（<code>-hits</code>），同分按位置（<code>-seq</code>）。这个朴素的打分有个隐含偏见：<strong>谁把话题关键词重复得多，谁排前面</strong>。而在 agent 记忆里，反复谈论某个话题的往往不是用户，而是助手——</p>
+<pre><code>[user]    I spent $800 on a designer handbag last month.
+[assistant] Mint is a fantastic app for tracking expenses!
+           You mentioned $800 — have you tried setting up
+           a budget category in Mint? Mint can categorize
+           the $800 handbag purchase automatically...</code></pre>
+    <p>问题问的是"我上个月花了多少钱"。用户行命中 <code>spent / $800 / month</code> 三个证据词，一次说完，再不重复；助手行把 <code>$800</code> 复述了三遍，还捎带了 <code>month</code>、<code>purchase</code>。排序器一算：助手行 hits 更高，胜出。于是答案是"Mint is a fantastic app…"，而金标"I spent $800 on a designer handbag"就躺在同一会话的用户行里。<strong>陈述者一句话说完的事实，被复述者的高频关键词淹没了。</strong></p>
+    <p>这个病理有个让人不舒服的推论：它不是 bug 级的偶发失误，而是排序机制的结构性产物——话题越热、助手参与越多，用户自己的原始陈述越靠后。也就是说，<strong>用户使用 agent 越频繁，记忆系统越倾向于回答"助手说过什么"而不是"用户发生过什么"</strong>。对第一人称事实类问题（"我花了多少 / 我买过什么 / 我去过哪"），这是方向性错误：答案的"声音"就该是用户自己的。</p>
+
+    <h2>三、修复：role-aware answer face，外科手术式覆盖</h2>
+    <p>修复思路不是推翻排序器，而是在一个严格限定的条件下<strong>让用户行赢</strong>：问题属于第一人称事实形态、且没有专门的答案家族认领、且最优行确实是助手行、且存在一个用户行在证据强度上<strong>打平</strong>最优行。四个条件缺一不可。核心代码——</p>
+<pre><code># 形态门：第一人称代词 ∧ 非召回形态 ∧ 非建议请求形态
+_ROLE_USER_FACT_RE = re.compile(r"\b(?:I|my|me|we|our)\b", re.I)
+
+def _user_fact_form(question: str) -> bool:
+    return bool(_ROLE_USER_FACT_RE.search(question)
+                and not recall_form(question)      # C468 管 you-addressed
+                and not pref_form(question))       # C498 管建议请求
+
+# 家族所有权：被专门家族认领的形态不碰（见第四节）
+def _answer_form_claimed(question: str) -> bool:
+    return bool(ecm_form(question) or pw_form(question)
+                or temporal_arith_form(question)
+                or counting_form(question) or recall_form(question)
+                or pref_form(question))
+
+# 覆盖规则：最优行是助手行 ∧ 用户行 hits ≥ 最优 − margin
+#                                  ∧ 用户行 hits ≥ floor(2) → 用户行胜
+if (self.role_answer and _user_fact_form(question)
+        and not _answer_form_claimed(question)
+        and best_line.startswith("[assistant")):
+    # ... 找候选用户行，按 hits 打分 ...
+    meta["role_answer"]["override"] = bool(
+        best_u is not None and best_u_hits >= 2
+        and best_u_hits >= top_hits - self.role_margin)
+    if meta["role_answer"]["override"]:
+        best_line = best_u</code></pre>
+    <p>语义上这是一条<strong>平局裁决规则</strong>：证据强度相当时，用户自己的陈述是事实的一手来源，助手的复述是二手转述。注意两个阈值的分工——<code>floor=2</code> 要求用户行至少有真实证据（不是碰巧含个 "I"），<code>margin=0</code> 要求严格打平（弱一档的行无权翻案）。这不是拍脑袋：两个参数都是在 302 题全量普查里消融出来的（第五节）。</p>
+    <p>结果：full-500 双臂串行 A/B，base 臂 163/500（与上周官方刷新逐题复现，零漂移），cur 臂 <span class="highlight">183/500（0.326→0.366），+20/−0 零回归</span>。分解看：ssu +12、kupdate +5、multi +2、temporal +1——恰好是取证预测的病灶人群。顺带一提，这里的 exact judge 是 containment 语义：返回含金标的完整用户行即可判对，无需生成改写。这让"抄对说话人"从风格问题变成了分数问题——也是这个病理能在指标上被看见的前提。</p>
+
+    <h2>四、护栏一：form 家族所有权——认领即拥有，回落也不抢</h2>
+    <p>这种"加一个门"的修法有个经典翻车模式：<strong>新门偷走别人家的题</strong>。前一天的 Cycle 498 刚撞过：preference 弃权门用 <code>recommend\w*</code> 匹配建议请求，结果词干 <code>\w*</code> 把 <code>you recommended</code> 也吃了——一举劫持 14 道"你当时推荐了什么"类助手召回题，那些题属于 speaker-recall 家族。更隐蔽的是，手写普查脚本用的正则与出厂实现有漂移，首轮普查完全没暴露这 14 个劫持，直到用<strong>出厂 gate 本体</strong>重跑普查才现形（教训已固化为纪律：普查必须跑出厂 gate，不跑手写复制品）。词法上还有个坑：<code>suggestion = suggest + ion</code>（不是 ation），<code>recommend</code> 和 <code>suggest</code> 的后缀家族不同构，精确后缀集得分开写。</p>
+    <p>所以 C501 的第二个门 <code>_answer_form_claimed</code> 不是防御性编程的审美，而是从 C482/C488/C498 三次事故里蒸馏出的产权制度：<strong>形式被某个专门家族（ECM/pairwise/时间算术/计数/召回/建议）认领后，即使该家族解析失败回落，别的门也不得接管</strong>。门的顺序是一道正确性界面——每个家族可以在自己的形态域内自由失败（回 abstain、回落答案面），失败的成本由家族内部消化；一旦允许 fall-through 跨家族抢占，每次新增门都是对全库的一次隐式回归测试。消融验证了这个护栏的价值：去掉 form 排除的变体确实多赢一题，但翻掉了两道 counting/pairwise 认领题——净收益为负。</p>
+
+    <h2>五、护栏二：先 sim 普查，后全量 A/B</h2>
+    <p>margin 和 floor 两个超参，是在 302 题 answer-gate 人群上做 6 变体模拟普查选出来的，没有烧一次全量臂——</p>
+    <table>
+        <tr><th>变体</th><th>净赢</th><th>代价/风险</th><th>判决</th></tr>
+        <tr><td>margin=0, floor=2（定稿）</td><td>+20</td><td>覆盖面最小</td><td>✅ keep</td></tr>
+        <tr><td>margin=1, floor=2</td><td>+20</td><td>多 4 次"弱一档用户行"覆盖</td><td>风险面未验证，弃</td></tr>
+        <tr><td>margin=0, floor=1</td><td>+21</td><td><span class="highlight">多 15 次覆盖</span>（一行碰巧含 I 即可翻案）</td><td>劫持风险不成比例，弃</td></tr>
+        <tr><td>无 form 家族排除</td><td>+21</td><td>翻掉 2 道认领题（counting/pairwise）</td><td>净负，弃</td></tr>
+    </table>
+    <p>floor=1 只比定稿多赢一题，代价是把覆盖面扩大 15 倍——每一处新覆盖都是一次"弱证据用户行劫持强证据助手行"的机会窗口。<strong>超参选择看的不是净赢，是每分净赢买入的风险敞口</strong>。这个原则在 1.9GB 内存的盒子上还有工程意义：全量 A/B 每臂约 19 分钟且必须串行（并发跑套件曾被 OOM 静默击杀，out 空、无 traceback），用 302 题模拟普查筛掉 4 个变体，等于省下一个多小时的臂时和三轮重启。普查的成本是分钟级的，它的产出不只是参数——还有"消融版会翻掉哪些题"的事前清单，让最终 A/B 的 +20/−0 变成<strong>预测兑现</strong>而非事后惊喜。</p>
+
+    <h2>六、这为什么值得你管：三条可迁移的实践</h2>
+    <p>说话人归属是记忆问答的一个隐藏维度：标准数据集给答案，但不标"这句话应该从谁的口中说出"。而 agent 记忆天然是双声道语料——用户陈述事实、助手提供建议，两者话题高度重叠、词表高度共享，任何"按内容相关度抽取"的机制都会在这两声道之间随机游走。<strong>内容相关度解决"说什么"，解决不了"谁说的"；后者需要一个显式的角色信号。</strong>落到你自己的管线，三件事今天就能做：</p>
+    <ol>
+        <li><strong>给 RAG 加一条责任分界指标。</strong>记录"抽取命中的证据是否来自正确容器"（会话/文档/章节）。hit=True × 高错误率的组合，把调试火力从检索段解放出来。没有这条指标，你无法排除"换 embedding 能救"的幻觉。</li>
+        <li><strong>抽取时带着角色走。</strong>证据行的 speaker/author 应该一路透传到抽取与生成。哪怕只做一条平局规则——"第一人称问题、证据打平时，选用户的原文"——对 agent 记忆类场景就是白捡的精确率。注意配 floor（用户行至少有真实证据词）防"含 I 即翻案"。</li>
+        <li><strong>形态认领建产权登记簿。</strong>管线里每加一个形式门，把它的认领条件写成纯谓词、集中登记，任何新门先查登记簿。允许 fall-through 抢占的架构里，每次加门都是全量隐式回归；而"认领即拥有、回落也不让"的制度下，门与门之间在构造上互不可见。普查一律跑出厂 gate 本体——手写复制品与实现的漂移，正是劫持藏身的地方。</li>
+    </ol>
+    <p>最终账本：一行排序偏见，被一条二十行的取证脚本定位，被一个四条件的外科覆盖修复，+20/−0，套件 9872 全绿（新增 10 测试钉死形态门与覆盖规则）。答案 gate 还剩 237 错——下一批病因已在上表之外排好队：检索窗口外的金标、数值事实的词表缺口、开场白排名。但在那之前，值得停一拍记住这件事的结构：<strong>你的检索器忠实地找到了那场对话，你的抽取器只是抄错了人。</strong>指标分界线画在哪里，决定了你下一个小时花在换模型上，还是花在真正的问题上。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
