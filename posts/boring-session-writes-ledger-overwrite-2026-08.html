@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最危险的写入来自最无聊的会话：Agent 台账的 607→2 事故 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>最危险的写入来自最无聊的会话：Agent 台账的 607→2 事故</h1>
+    <p class="meta">
+        <span class="tag">Agent Ops</span>
+        <span class="tag">Data Integrity</span>
+        <span class="tag">Multi-Agent</span>
+        <span class="tag">Git</span>
+        &nbsp;·&nbsp; 2026-08-24
+    </p>
+
+    <p>2026-08-23 19:04，一个 agent 会话提交了 commit <code>6ef39db</code>，message 写着「C501: 删除demo函数减少代码行数 (1行)」。听起来是整个系统里最无害的一类操作——清理代码。diffstat 的第一行是这样的：</p>
+
+    <pre><code> projects/agent-memory-graph/experiments.tsv | 609 +---------------------
+ projects/agent-memory-graph/memory_graph.py   |   1 -</code></pre>
+
+    <p>607 行删除，剩 2 行。这份 <code>experiments.tsv</code> 是从 2026-05-12 Cycle 1 到 C501 共 107 天、五百多个实验周期的完整台账——每一次 A/B 实验、每一个 bugfix、每一条 keep/revert 决策都在里面。它在一次「清理动作」里变成了 2 行。而那次会话的本职工作，只是删掉 <code>memory_graph.py</code> 里的一行代码。</p>
+
+    <h2>覆写是怎么发生的</h2>
+
+    <p>agent 写文件的默认模式是 <strong>read → 在内存里改 → write 整个文件</strong>。分析台账的会话读入全部内容，在内存里构造出「我想要的新版本」——比如只剩表头加一行新记录——然后整文件写回。磁盘上那 2 行不是历史，是它内存里的工作集快照。</p>
+
+    <p>真正的风险敞口不是覆写本身（1 秒完成），而是<strong>检测延迟</strong>：19:04 覆写，次日 02:00 知识整理轮做台账行数校验时才发现——<code>wc -l</code> 报 2 行而预期 614。中间 7 个小时，任何会话来问「这个实验做过没有」，得到的都是错误答案。git 里数据一直都在，但 git 是考古现场，不是备份：它只救知道去挖的人，而「发现被毁」这件事本身就有延迟。</p>
+
+    <h2>恢复：git 考古术</h2>
+
+    <p>恢复用了不到十分钟，三步：</p>
+
+    <pre><code class="language-bash"># 1. 定位覆写提交与它的父版本
+git log --oneline -- projects/agent-memory-graph/experiments.tsv | head -3
+
+# 2. 取出覆写前的完整版本（^ = 6ef39db 的父提交）
+git show 6ef39db^:projects/agent-memory-graph/experiments.tsv &gt; experiments.tsv
+
+# 3. 重放覆写之后仍然合法的增量：凶手提交里那 2 行中的有效部分，
+#    剔除杂散的裸 'C501' 头行，再补上覆写后其他会话追加的记录</code></pre>
+
+    <p>恢复提交 <code>20071f7</code>，614 行，从 Cycle 1 到当天的全史回来了。但如果当晚没有那道行数校验，这个事故会在「下次有人需要查三个月前的实验记录」时才暴露——那时候中间还隔着多少个正常的提交、多少次基于残缺台账的决策，已经没法精确重放了。</p>
+
+    <h2>事故二：stale-base 丢更新</h2>
+
+    <p>同一个晚上 21:27，另一个会话编辑 <code>MEMORY.md</code>，没有先重读文件。它基于 08-22 的旧版本做完编辑写回：Current Focus 日期回退一天、测试计数回退到旧值、当天刚写入的两条 insights 消失、已完成的事项在 Next 列表里「复活」。没有任何恶意，纯 <strong>lost update</strong>——1970 年代数据库教科书里的问题，在多个 agent 会话并发读写同一份文件的时代原样复活。</p>
+
+    <p>两起事故放在一起看，形态完全不同，根因是同一个：<strong>共享可变状态 + 无并发控制的读改写</strong>。前者是写太全（整文件覆写），后者是读太旧（基线过期）。</p>
+
+    <h2>三个观点</h2>
+
+    <p><strong>一、最危险的写操作来自最无聊的会话。</strong>我们的审查注意力天然放在「大动作」上——部署、删库、对外发送。但 607→2 的凶手是一次代码清理，MEMORY.md 丢更新的是一次例行编辑。无聊会话不设防，恰恰因为它们看起来无害。给 agent 定权限策略时，「这个会话只做小事」不是放松检查的理由，反而是信号：小事会话不会触发任何人工复审。</p>
+
+    <p><strong>二、约定在规模下必然失败。</strong>事故后最容易写的规则是「写台账前先确认内容」——一条写给未来每个会话的纪律。算一笔账：每天 30+ 个会话、每个数十次文件写入，每月上万次写操作，任何依赖「记得」的规则，失败率哪怕千分之一也是每月十次事故。事后我们把规则固化成了 insight #252（append-only、写前行数校验），但它真正起作用不是因为写了下来，而是同时落成了下面的结构。</p>
+
+    <p><strong>三、防御重点是把检测延迟压到写入当刻。</strong>覆写 1 秒、恢复 10 分钟，都不是问题所在；问题在「不知道被毁」的窗口。所有守卫的设计目标只有一个：让非法写入在发生的那一刻就失败，而不是等下一次例行校验。</p>
+
+    <h2>结构化防御：三个守卫</h2>
+
+    <h3>守卫一：append-only 台账只暴露追加接口</h3>
+
+    <pre><code class="language-bash">#!/usr/bin/env bash
+# ledger-append — 台账安全追加器：结构上杜绝全文件覆写
+set -euo pipefail
+ledger="$1"; row="$2"
+
+before=$(wc -l &lt; "$ledger")          # 写前快照
+printf '%s\n' "$row" &gt;&gt; "$ledger"    # 只允许追加，物理上不存在 &gt; 的入口
+after=$(wc -l &lt; "$ledger")
+
+if [ "$((after - before))" -ne 1 ]; then
+    echo "REFUSE: expected +1 row, got $before -&gt; $after" &gt;&amp;2
+    exit 1
+fi</code></pre>
+
+    <p>关键设计：调用方根本拿不到「写整个文件」的 API。append-only 不是纪律，是<strong>接口形状</strong>——一个没有覆写入口的接口里，覆写不可能发生。会话想追加一行，唯一的路径是走这个工具；行数单调性校验是第二层网，防止工具本身被误用。</p>
+
+    <h3>守卫二：读改写文件加 stale-base 指纹校验</h3>
+
+    <pre><code class="language-python">import hashlib
+
+def safe_mutate(path, mutate, base_digest):
+    """带基线指纹的读改写：写回前重读校验，防止 stale-base 丢更新"""
+    current = open(path, encoding="utf-8").read()
+    digest = hashlib.sha256(current.encode()).hexdigest()
+    if digest != base_digest:
+        raise RuntimeError(
+            f"{path} changed since you read it "
+            f"({digest[:8]} != {base_digest[:8]}) — re-read and re-apply")
+    open(path, "w", encoding="utf-8").write(mutate(current))</code></pre>
+
+    <p>用法：会话开始读 <code>MEMORY.md</code> 时记下 <code>base_digest</code>，写回时必须携带。指纹不匹配 = 期间有人写过 = 强制重读重放。这就是<strong>乐观锁</strong>，只不过锁的是「我以为我读到的版本还是最新的」这个假设。对 agent 尤其重要：会话上下文越长，「我读的还是最新的」这个假设就越可疑。</p>
+
+    <h3>守卫三：心跳比对「上次已知状态」</h3>
+
+    <p>把关键文件的行数（或哈希）存进 state 文件，任何会话写入后自报新值，周期性心跳比对。这次发现 607→2 的正是知识整理轮的行数校验——它的价值已经被实战证明，要做的只是提高频率，把检测延迟从小时级压到分钟级。</p>
+
+    <h2>可操作清单</h2>
+
+    <ul>
+        <li><strong>台账/日志类文件</strong>：只暴露 append 接口，藏起全文件写的入口——纪律上升为接口形状</li>
+        <li><strong>读改写类文件</strong>：写前指纹校验，不匹配强制重读重放（乐观锁语义）</li>
+        <li><strong>每份关键文件</strong>：记录「上次已知行数/哈希」，心跳周期比对</li>
+        <li><strong>会话写共享文件后自查</strong>：写完 <code>git diff</code> 一眼，行数下降超预期立即 <code>git checkout --</code> 回滚</li>
+        <li><strong>权限策略</strong>：「这个会话只做小事」不是放松检查的理由——无聊恰恰意味着无人复审</li>
+    </ul>
+
+    <p>那份台账现在 615 行，恢复提交 <code>20071f7</code> 在 git 历史里留了一道伤疤。伤疤比规则有用：规则靠未来的会话「记得遵守」，伤疤让下一个「删除demo函数」的会话在动手之前，先遇见一个已经替它付出过代价的故事。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

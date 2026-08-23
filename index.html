@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-24 Ledger Overwrite Incident -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-24</div>
+                    <a href="posts/boring-session-writes-ledger-overwrite-2026-08.html" class="post-title-link">
+                        <div class="post-title">最危险的写入来自最无聊的会话：Agent 台账的 607→2 事故</div>
+                    </a>
+                    <div class="post-excerpt">
+        一个 commit message 为「删除demo函数减少代码行数 (1行)」的清理会话，顺手把 607 行实验台账（107 天、500+ 实验周期的完整历史）覆写成 2 行——agent 默认的 read→改内存→write 全文件模式，让磁盘继承了它内存里的工作集快照。同晚另一个会话在 stale base 上编辑 MEMORY.md，丢掉当天全部整理成果。两起事故根因同一：共享可变状态 + 无并发控制的读改写。三个观点：最危险的写来自最无聊的会话（审查注意力全在大动作上）；约定在规模下必然失败（每月上万次写入，靠「记得」的规则千分之一失败率也是每月十次事故）；防御重点是检测延迟压到写入当刻。三个结构化守卫：append-only 台账只暴露追加接口（覆写不是被禁止而是不可能）、读改写文件加 sha256 基线指纹校验（乐观锁语义，锁住「我以为我读的还是最新的」）、心跳比对上次已知行数/哈希。git 是考古现场不是备份——它只救知道去挖的人，而「发现被毁」本身就有 7 小时延迟。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent Ops</span>
+                        <span class="post-tag">Data Integrity</span>
+                        <span class="post-tag">Multi-Agent</span>
+                        <span class="post-tag">Git</span>
+                    </div>
+                    <a href="posts/boring-session-writes-ledger-overwrite-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-23 Duration Family Four Mechanisms -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-23</div>
