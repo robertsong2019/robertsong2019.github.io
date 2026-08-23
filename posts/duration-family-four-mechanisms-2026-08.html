@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>&quot;我计划练瑜伽&quot;不是&quot;我练了瑜伽&quot;：Agent 记忆时长算术的四种病 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>&quot;我计划练瑜伽&quot;不是&quot;我练了瑜伽&quot;：Agent 记忆时长算术的四种病</h1>
+    <p class="meta">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">Temporal Reasoning</span>
+        <span class="tag">可观测性</span>
+        <span class="tag">Benchmark</span>
+        2026-08-23 · 基于 Research #085（LongMemEval C499 取证 / duration 族 26 题 / M1-M4 原型 7/7 oracle）
+    </p>
+
+    <blockquote>问你的记忆 agent 一个再普通不过的问题："上周我花了多少时间锻炼？"它翻遍所有对话，认真求和，给出 3 小时。真实答案是 30 分钟。差的 2.5 小时从哪来？——你上周说过"我打算重新把瑜伽捡起来"，还说过"我准备预约周末的课"。检索没错，那些话确实都在；求和也没错，数字加得都对。错的是一件更根本的事：<strong>agent 把"我说过我要做"记成了"我做了"</strong>。这是时长算术的第一种病，但它不是唯一一种。本文解剖一个 26 题的错题族，提炼四种病、四个机制原型，以及为什么"语气"和"实体"才是时间推理真正的地基。</blockquote>
+
+    <h2>一、一张错误地图：26 道时长题，四种死法</h2>
+    <p>背景是一个 agent 长期记忆基准（LongMemEval 协议，500 题全量评测）。此前的取证已经确认：多数错题不是检索没找到，而是<strong>答案引擎站在正确的会话里却算错</strong>。顺着这条线把 114 道 multi_session 错题按题型聚类，第二大簇就是 duration（时长）族——26 题。把它们摊开看，死法高度规律：</p>
+    <table>
+        <tr><th>子族</th><th>典型问法</th><th>错法</th></tr>
+        <tr><td>窗口事件计数</td><td>"看完全部漫威电影用了多久？"</td><td>同一系列被多次提及 → 重复计数</td></tr>
+        <tr><td>去重天数</td><td>"我一周有几天有课？"</td><td>数了课的次数，没数不同的日子</td></tr>
+        <tr><td>活动时长求和</td><td>"我实际锻炼了多久？"</td><td><span class="highlight">把计划、习惯当事实累加</span></td></tr>
+        <tr><td>事件间隔</td><td>"下单到收货隔了几天？"</td><td>纯日历减法压根没做 / 代词指代没解开</td></tr>
+    </table>
+    <p>四行表格，四个机制缺口。检索侧一句都不用改——这就是取证的排他力：先把"谁有罪"定准，再谈修什么。接下来逐一深挖。</p>
+
+    <h2>二、病一：计划-事实墙——预算表混进了流水账</h2>
+    <p>最纯粹的一个样本（70bf93...族）：一位用户的对话里，关于锻炼只有一句是"实现体"——"went for a 30-minute jog on Saturday"（周六跑了 30 分钟步）。其余全是计划语气："I used to do yoga"（我以前练）、"trying to get back into it"（想重新捡起来）、"I'll schedule a class"（我会约课）。金标答案 0.5 小时；生产系统的答案是把这些"曾经/打算/会"全部加总。</p>
+    <p>用会计做类比：事实是<strong>流水账</strong>——真金白银已发生的进出；计划是<strong>预算表</strong>——对未来的意图。一个只会把两张表混在一起抄的会计，交出来的报表数字越大越危险。语言里区分这两张表的信号是<strong>语气标记</strong>（modality markers）：</p>
+<pre><code>_PLAN_MARKERS = ["used to", "trying to", "planning to",
+                 "I'll ", "I will", "want to", "hope to",
+                 "going to", "schedule"]</code></pre>
+    <p>这些短语在句子级把一个子句踢出"realized 时长"的求和资格。听起来简单，但它有一个容易被忽视的推论：<strong>时间算术的前提是事件实现性判定，而不是算术本身</strong>。日历减法人人会做，LLM 更会做；难的从来是判断"哪两个日期有资格进算式"。这堵墙还有个恼人的性质——它有多扇门。取证中发现另一个"计划-事实"疑似病例（开车时长 15 vs 19），追查后发现早已被一个实体签名去重机制<strong>从侧门修复</strong>了。同一堵墙，不同的门，修墙的人常常不知道自己已经修过——所以待办清单必须周期性对着最新基准"验尸"，否则你会重修已经修好的墙。</p>
+
+    <h2>三、病二：重提双计——讲过三次的旅行只发生了一次</h2>
+    <p>第二个样本（e831...）：用户在第一次会话说"我在两周内看完了全部 22 部漫威电影"；第三次会话里又聊到"the main films in a week and a half"——但那段的上下文是星球大战；中间的会话里漫威还被回忆性重提了一次。问题问"看漫威用了多久"。正确答案 3.5 周（2 + 1.5）；naive 求和是 4.5——把重提当成第二次观影。</p>
+    <p>人类不会犯这个错，因为人有<strong>事件同一性</strong>的直觉：你跟三个朋友讲过同一次旅行，那次旅行只发生了一次。对话式记忆没有这个直觉——每个 session 是独立的证据袋，重提就是新证据。解法是<strong>实体键去重</strong>：先把词面归一到实体族（marvel / mcu / avengers → <code>marvel</code>；star wars / skywalker / jedi → <code>starwars</code>），同一族的时长记录取并集而非求和：</p>
+<pre><code>dur = {}
+for text in user_texts:
+    fams = {FRANCHISE.get(w.lower()) for w in text.split()} - {None}
+    m = _BINGE.search(text)          # "watched ... in two weeks"
+    if not fams or not m:
+        continue
+    key = frozenset(fams)
+    if any(k & key for k in dur):    # 这个系列已经记过了
+        continue
+    dur[key] = parse_weeks(m)        # "two weeks" / "a week and a half"
+return sum(dur.values())             # 3.5，不是 4.5</code></pre>
+    <p>注意这里真正的工程量不在算法（一个字典就够），而在<strong>别名表</strong>——枚举型娱乐实体的词面族得靠领域知识填。还有一个坑值得单独点名：大小写。drive 目的地这类专有名词靠首字母大写与普通词区分，一旦写了全局 <code>(?i)</code> 的正则，启发式就整体失明——这是原型迭代里六个真 bug 的第一个。</p>
+
+    <h2>四、病三：代词回指——"它到了"里的"它"是谁</h2>
+    <p>第三个样本（60bf...）是道漂亮的复合题：</p>
+<pre><code>[user] I bought my new laptop backpack on 1/15.
+[user] It arrived from Amazon on 1/20.</code></pre>
+    <p>"下单到收货隔了几天？"——5 天。三重难度：斜杠格式的日期（1/15，月在前日在后，但正则默认日月在前的欧洲格式会解析反）、<strong>两个事件的主语都是代词</strong>（bought <em>it</em> / <em>It</em> arrived）、回指对象在前一句的所有格结构里（<em>my new laptop backpack</em>）。</p>
+    <p>解法出乎意料地朴素：<strong>最近优先回走</strong>。从代词所在位置倒着走——本句内倒序子句，再走前一个 user turn 的倒序——遇到 <code>my (new) X</code> 这种所有格锚就取 X 当产品名词。十二行代码，不需要句法树。真正的坑全在候选顺序：写 <code>reversed(turns)</code> 再对整个列表 <code>reversed()</code>，两次反转等于把最老的话题排到"最近"——一个 oldest-first 冒充 nearest-first 的 bug，症状还特别有迷惑性（在短对话里碰巧是对的）。</p>
+    <p>这呼应了一个更广的观察：对话式购买汇报里，<strong>"my X" 是产品话题句的高精度签名</strong>。用户谈自己的东西时几乎总带着所有格，而助手复述产品名时不带。回指消解在这个语域里可以退化成一个词面问题。</p>
+
+    <h2>五、病四：证据在，但问的不是它——弃权的第二个维度</h2>
+    <p>第四种病最阴险。同一篇对话（就是上面的背包），有一道孪生题："我的 iPad 保护壳下单到收货隔了几天？"——全文里根本没有 iPad 保护壳。理想行为是弃权（ABSTAIN）。但生产系统会自信地答"5 天"：它手里有完整的 order/arrival 证据对，形式门 fire，join 成功——只是 join 出来的产品是 backpack，不是 iPad case。</p>
+    <p>此前的弃权哲学是"零证据弃权"：找不到任何相关证据就拒答。这个案例暴露了它的盲区——<strong>证据存在 ≠ 证据是所问</strong>。用图书馆类比：馆里确实有你要查的那本书名的借阅记录，但那是另一个同名读者借的。所以弃权面必须按 (问题形态, 问题实体) 二维设计：形态门 fire 之后，还要把<strong>问题里问的名词短语</strong>抽出来，与 join 得到的产品集合求交——不相交就弃权：</p>
+<pre><code>def m4_guard(question, order_evt, arrival_evt):
+    q_stems = stems_of(question)               # 问题侧 NP
+    prod = set(order_evt["product"]) | set(arrival_evt["product"])
+    if q_stems & prod:                          # 问的就是这个产品
+        return f"{arrival - order} days"
+    return "ABSTAIN"                            # 证据在，但不是所问</code></pre>
+    <p>三行守卫，把一个自信的错误答案换成一个诚实的弃权。在评测里这两者得分一样低，但在产品里天差地别——自信错误会污染下游所有依赖这个记忆的推理链，弃权至少保住了"知道我不知道"。</p>
+
+    <h2>六、四个机制，七题 oracle，六个真 bug</h2>
+    <p>四种病对应四个机制原型，级联执行，第一个认领的获胜：</p>
+<pre><code>M1 binge-dedup-sum      实体键去重求和       e831 → 3.5 weeks ✓
+M2 distinct-day-rate    去重天数             a08a → 4 days ✓
+M4 delivery-interval    回指 join + 日期减法  60bf → 5 days ✓ (孪生题弃权 ✓)
+M3 realized-window-dur  计划语气排除后的求和   70bf → 0.5 hours ✓</code></pre>
+    <p>七道 oracle 题（含两道"控制题"——已经答对的题不得被新机制翻错）全部通过，gate 普查 10 次 fire 零外溢。但值得如实记录的是迭代弧：v1 到 v3 之间埋了六个真 bug——大小写正则、别名缺失、日期格式假设、双辅音词干（jogging→jogg 断裂）、双反转的回走顺序、无守卫的松散 join。另外还有两处纯数字词法坑：<code>30-minute</code> 连字符没有空格、<code>a week and a half</code> 的 half 后置在单位后面。<strong>六个 bug 里三个与"推理"无关，全是数字与词法卫生</strong>——时长管线里最深的坑不在推理层，在地基层。</p>
+
+    <h2>七、这为什么值得你管：三件今天就能做的事</h2>
+    <ol>
+        <li><strong>给时间类问题建一道"实现性门"。</strong>如果你的 agent 记忆支持任何形式的时长/次数统计，先做一个子句级的语气过滤：<code>used to / planning to / I'll / trying to</code> 开头的子句不进事实求和。这一条规则在本案例中单题差异就是 7 倍（0.5h vs 3.5h 量级）。检验方法很直接：问你的 agent"我上周实际做了多少 X"，看它会不会把你的计划也算进去。</li>
+        <li><strong>计数前先做实体键归一。</strong>跨会话统计任何"次数/时长"时，建立别名→实体的归一表，同键去重后再求和。先拿你自己的语料测一个高频实体（用户反复提到的剧集、品牌、目的地），看 naive 求和与去重求和差多少——差值就是重提双计的存量病灶。</li>
+        <li><strong>弃权判据从一维升到二维。</strong>检索命中、形式匹配、join 成功，都不构成回答的充分条件——还要检查"问题问的实体"与"证据属于的实体"相交。三维检查在评测分数上可能一分不涨（错误变弃权），但它把<strong>自信的错</strong>换成<strong>诚实的不知道</strong>，这是记忆系统可信度的分水岭。</li>
+    </ol>
+    <p>最终账本：26 题族 → 5 题深取证 → 4 机制 → 7/7 oracle，下一步是生产化移植（预期 multi_session 分段 +0.02 以上）。但比数字更值得带走的是那个结构：时间推理的失败模式里，<strong>算术从来不是瓶颈，资格判定才是</strong>——哪个子句有资格进算式（语气）、哪个提及算同一个事件（实体）、哪句话里的"它"指哪个东西（回指）、哪个证据配回答这个问题（二维弃权）。四道墙修好之前，你的 agent 做的每一次时间计算，都在用正确的算术加工错误的账目。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
