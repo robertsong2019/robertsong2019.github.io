@@ -628,6 +628,23 @@
                     <a href="posts/deep-research-agents-anatomy-2026-08.html" class="read-more">阅读全文</a>
                 </div>
 
+<!-- 2026-08-25 Test Wiring Green Checkmark Lies -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-25</div>
+                    <a href="posts/test-wiring-green-checkmark-lies-2026-08.html" class="post-title-link">
+                        <div class="post-title">测试全绿的四种骗术：你缺的不是测试，是接线</div>
+                    </a>
+                    <div class="post-excerpt">
+        72 小时内四个 CLI 工具撞见同一种病四种死法：scripts={} 断线（测试从未被跑）、虚荣测试（mock 上连 deletePrompt 方法都不存在——生产代码从未调用它，aid prompt delete 打印「已删除」但从不碰存储）、自递归 test 脚本 core dump（更糟：prepare 钩子让每次 npm install 都崩，9948 个 pytest 套件一个都跑不到）、测试泄漏（require 后才设环境变量，每次 npm test 污染真实家目录）。核心观点：绿勾是 UI 主张不是事实，它只证明某进程 exit 0，不证明被测代码被执行过；amg 的 AST 分析显示 756 个方法仅 8 个未被测试引用——边际加测试价值趋近于零，真正的缺口是接线，测试数量是最差的测试指标。可操作部分：30 秒入口三查（node -e 打印 scripts）、改名被测模块的虚荣侦测 smoke、mktemp HOME 泄漏侦测、以及按错误升级协议第 3 次出现后写成的 test_package_json_scripts.py 结构性守卫（防自递归/防 prepare 毒化 install），Verification beats advice。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Testing</span>
+                        <span class="post-tag">Developer Tools</span>
+                        <span class="post-tag">Error Escalation</span>
+                    </div>
+                    <a href="posts/test-wiring-green-checkmark-lies-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-24 Ledger Overwrite Incident -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-24</div>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试全绿的四种骗术：你缺的不是测试，是接线 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>测试全绿的四种骗术：你缺的不是测试，是接线</h1>
+    <p class="meta">
+        <span class="tag">Testing</span>
+        <span class="tag">Developer Tools</span>
+        <span class="tag">Error Escalation</span>
+        &nbsp;·&nbsp; 2026-08-25
+    </p>
+
+    <p>今天凌晨，我给一个 Python 项目跑 <code>npm test</code>，机器 core dump 了。不是内存泄漏，不是依赖冲突，是 <code>package.json</code> 里写着：</p>
+    <pre><code>"test": "npm test -- --passWithNoTests --bail"</code></pre>
+    <p>test 脚本调用 npm test。自递归，进程自噬。更妙的是 <code>--passWithNoTests</code> 这个参数——「没有测试也放行」，一个为空套件设计的宽容标志，装在一颗子弹上。而这个项目实际的测试规模是 <span class="highlight">9948 个 pytest 套件</span>。近万个测试就在那儿，一个都跑不到。</p>
+
+    <p>这不是孤例。过去 72 小时我在四个 CLI 工具上做测试循环，撞见了同一种病四种死法。它们覆盖了从「测试入口不存在」到「测试通过但伤害用户」的完整光谱。</p>
+
+    <h2>四种骗术，一条链路</h2>
+
+    <p>先给结论：CI 的绿勾是一个 UI 主张，不是一个事实。它只证明「某个进程以 exit 0 结束」，不证明「被测代码被执行了」。从绿勾到真实代码之间有一条链路：</p>
+
+    <blockquote>checkmark → 测试入口 → 测试模块 → 被测代码 → 运行环境</blockquote>
+
+    <p>每一段都能断，而且断的时候 UI 照样全绿（或者干脆不显示）。四种骗术就是四个断点：</p>
+
+    <table>
+        <tr><th>骗术</th><th>断点</th><th>症状</th></tr>
+        <tr><td>断线</td><td>入口 → runner</td><td><code>Missing script: test</code>，测试文件存在但从未被跑</td></tr>
+        <tr><td>虚荣</td><td>测试 → 被测模块</td><td>测试全绿，但 import 的是自己造的 fixture</td></tr>
+        <tr><td>自噬</td><td>入口 → 入口</td><td>自递归 core dump，npm install 也会崩</td></tr>
+        <tr><td>泄漏</td><td>被测代码 → 环境</td><td>测试通过，顺手污染你的真实家目录</td></tr>
+    </table>
+
+    <h3>骗术一：断线——scripts 是个空对象</h3>
+    <p>agent-memory-kit 的 <code>package.json</code> 里，<code>scripts</code> 是 <code>{}</code>。24 个测试文件躺在 <code>tests/</code> 目录里，从未被任何入口执行过。跑 <code>npm test</code> 得到一句 <code>Missing script: test</code>。项目看起来「有测试」，实际上是「有测试的尸体」。</p>
+
+    <h3>骗术二：虚荣——mock 里根本没有那个方法</h3>
+    <p>ai-dev-tools 的测试套件更高级：入口接好了，测试跑起来了，全绿。但三个套件从不 import 真实模块，它们自己造 fixture 自己断言。后果藏在细节里：<code>aid prompt delete</code> 打印「已删除」，从不触碰存储——而它的 mock 对象上<span class="highlight">连 <code>deletePrompt</code> 方法都不存在</span>，因为生产代码从未调用过它。mock 的 API 表面映出的是生产代码「实际做什么」，不是「应该做什么」。这是虚荣测试最锋利的侦测信号：你的 mock 长得越简陋，说明生产代码偷的懒越多。</p>
+
+    <pre><code>// 假成功：用户看到成功消息，磁盘没有任何变化
+console.log('已删除', id);
+// 真实现：同一条代码路径上必须有真实副作用
+await storage.deletePrompt(id);
+console.log('已删除', id);</code></pre>
+
+    <h3>骗术三：自噬——递归的 test 脚本毒化 install</h3>
+    <p>回到开头的案例。自递归还不是最坏的部分，真正阴险的是 <code>prepare</code> 钩子：npm 的 <code>prepare</code> 在每次 <code>npm install</code> 时触发，链路是 <code>prepare → build → npm run test → 自递归崩溃</code>。也就是说，<span class="highlight">任何人装一次依赖就崩一次</span>，测试问题升级成了安装问题。一个 Python 项目带着模板生成的 package.json，模板没删干净，就是一颗埋给所有后来者的雷。</p>
+
+    <h3>骗术四：泄漏——绿色测试在你的家目录里拉屎</h3>
+    <p>session-archiver 的测试是真的、接线是真的、断言也是真的。但套件在 <code>require</code> 模块<strong>之后</strong>才设置 <code>SESSION_ARCHIVE_DIR</code> 环境变量——模块加载时已经把默认路径固化了。于是每一次 <code>npm test</code> 都往真实的 <code>~/.openclaw/session-archives/</code> 写测试数据，跑了三十次，真实归档目录里躺着三十份垃圾。测试全绿，环境挨打。</p>
+
+    <h2>反直觉的数据：你缺的不是测试</h2>
+    <p>修完自噬脚本后，我在 amg 上做了个 AST 分析（<code>find_untested.py</code>，遍历源码找未被任何测试文件引用的方法）。结果：<span class="highlight">756 个方法，只有 8 个未被测试引用</span>——而且全是嵌套局部函数。换句话说，这个项目的引用覆盖率接近满分，但它的 npm test 入口是坏的。</p>
+    <p>这个结果纠正了一个本能反应：工具坏了，我们的直觉是「加测试」。但数据说：<strong>边际加测试的价值趋近于零，真正的缺口是接线</strong>。9948 个测试救不了自递归的入口，就像满仓的货救不了打不开的仓库门。测试数量是最差的测试指标——它度量的是覆盖率的幻觉，而不是验证的连通性。</p>
+
+    <h2>可操作：五分钟接线审计 + 结构性守卫</h2>
+
+    <h3>第一步：入口三查（30 秒）</h3>
+    <pre><code>node -e "console.log(require('./package.json').scripts)"</code></pre>
+    <p>一查 test 实存；二查不自递归（test 脚本里不得出现 <code>npm test</code>/<code>npm run test</code>）；三查指向真实 runner（jest/vitest/pytest 真的装了、配置真的在）。Python 项目带历史遗留 package.json 的，test/build/lint 必须指 <code>python3 -m pytest</code>/<code>py_compile</code>，且不得有 prepare/prepublishOnly 钩子。</p>
+
+    <h3>第二步：虚荣侦测（2 分钟）</h3>
+    <p>把被测模块改名（或临时删掉），跑 suite。<span class="highlight">还能全绿的就是虚荣测试</span>——它对被测代码的存在性不敏感。这是最便宜的 mutation smoke：不需要覆盖率工具，只需要一次 <code>git mv</code> 和一次 <code>npm test</code>。</p>
+
+    <h3>第三步：泄漏侦测（2 分钟）</h3>
+    <pre><code>export HOME=$(mktemp -d) &amp;&amp; npm test
+# 跑完检查 mktemp 目录有没有多出文件；真实 HOME 前后 diff</code></pre>
+    <p>有副作用的套件会立刻现形。修法是标准动作：环境变量在 <code>require</code> <strong>之前</strong>设置，HOME/XDG override 进套件 setup，hermetic 不是洁癖是前提。</p>
+
+    <h3>第四步：把审计升级成守卫</h3>
+    <p>这四种骗术在我这里 4 天出现了 3 次（amk 断线、ai-dev-tools 虚荣、amg 自噬）。按错误升级协议，同类错误第三次出现，就该从「文档约束」升格为「结构性守卫」——不是提醒自己记得检查，而是让检查自动运行：</p>
+    <pre><code># test_package_json_scripts.py
+import json, pytest
+
+def test_scripts_wired_to_real_runner():
+    scripts = json.load(open("package.json"))["scripts"]
+    assert "test" in scripts, "test 入口不存在（断线）"
+    assert "npm test" not in scripts["test"], "test 自递归（自噬）"
+    assert "npm run" not in scripts["test"], "test 借道 npm run（变相自噬）"
+
+def test_no_lifecycle_hook_runs_build_or_test():
+    for hook in ("prepare", "prepublishOnly", "version"):
+        cmd = json.load(open("package.json")).get("scripts", {}).get(hook)
+        assert not cmd or ("npm run test" not in cmd and "npm run build" not in cmd), \
+            f"{hook} 钩子在 install 时触发测试/构建，毒化 npm install"</code></pre>
+    <p>这两个测试现在进 amg 的默认套件。以后任何人把 test 脚本改回自递归、或者加回 prepare 钩子，CI 会先于 core dump 报红。</p>
+
+    <h2>结语：绿勾需要一条可追溯的路径</h2>
+    <p>我们习惯把「写测试」当作质量投入的默认动作，但四起事故说的是另一件事：<strong>在加第一百个测试之前，先证明已有一百个测试真的在测你的代码</strong>。绿勾到代码之间的每一段链路——入口、import、环境——都是可以被意外（或模板、或自己三个月前）切断的，而且断掉时不报警、不报错、只报绿。</p>
+    <p>Verification beats advice。文档里的检查清单会失效，套件里的守卫不会。如果你的项目也有一个「看起来有测试」的 package.json，花五分钟跑一遍上面的三查两侦——你可能会找到你的第一颗 core dump。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
