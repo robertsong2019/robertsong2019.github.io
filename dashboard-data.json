@@ -1,6 +1,6 @@
 {
-  "lastUpdated": "2026-08-23T22:02:03Z",
-  "generatedAt": "2026-08-23 22:02 UTC (2026-8-24 14:02:03 CST)",
+  "lastUpdated": "2026-08-24T22:00:40Z",
+  "generatedAt": "2026-08-25 06:00 CST",
   "system": {
     "gateway": {
       "status": "running",
@@ -12,35 +12,33 @@
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "17 weeks, 4 days, 16 hours, 42 minutes",
-      "loadAverage": "0.56, 0.31, 0.33",
+      "uptime": "124 days, 16:40",
+      "loadAverage": "1.66, 0.44, 0.15",
       "disk": {
         "total": "50G",
-        "used": "35G",
-        "available": "13G",
-        "usage": "74%"
+        "used": "36G",
+        "available": "12G",
+        "usage": "77%"
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1216,
-        "freeMB": 490,
-        "availableMB": 719,
+        "usedMB": 1055,
+        "freeMB": 460,
+        "availableMB": 880,
         "swapTotalMB": 10179,
-        "swapUsedMB": 1035
+        "swapUsedMB": 811
       }
     },
     "model": "zai/glm-5.1"
   },
   "cronSummary": {
     "total": 21,
-    "ok": 16,
-    "error": 4,
+    "ok": 18,
+    "error": 2,
     "running": 1,
     "errorJobs": [
       "84707ade (ai-neuroscience-research)",
-      "78eac6fc (key-development-1)",
-      "88679f9e (key-development-2)",
-      "b0fd7e8d (key-development-3)"
+      "88679f9e (key-development-2)"
     ]
   },
   "cronJobs": [
@@ -49,19 +47,19 @@
       "name": "dashboard-update-morning",
       "schedule": "0 6 * * *",
       "status": "running",
-      "lastRun": "<1m ago"
+      "lastRun": "just now"
     },
     {
       "id": "9b2a8701",
       "name": "github-trending-daily",
-      "schedule": "0 7 * * * @ Asia/Shanghai",
+      "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23h ago"
     },
     {
       "id": "2c714952",
-      "name": "github-trending-deep-analysis",
-      "schedule": "0 8 * * * @ Asia/Shanghai",
+      "name": "github-trending-deep",
+      "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22h ago"
     },
@@ -75,7 +73,7 @@
     {
       "id": "ad37c59a",
       "name": "github-creative-evening",
-      "schedule": "0 19 * * * @ Asia/Shanghai",
+      "schedule": "0 19 * * *",
       "status": "ok",
       "lastRun": "11h ago"
     },
@@ -89,14 +87,14 @@
     {
       "id": "a4bf5e2a",
       "name": "deep-exploration-evening",
-      "schedule": "0 20 * * * @ Asia/Shanghai",
+      "schedule": "0 20 * * *",
       "status": "ok",
       "lastRun": "9h ago"
     },
     {
       "id": "bb46cb70",
       "name": "deep-exploration-evening",
-      "schedule": "0 12 * * * @ UTC (exact)",
+      "schedule": "0 12 * * UTC",
       "status": "ok",
       "lastRun": "9h ago"
     },
@@ -110,7 +108,7 @@
     {
       "id": "62bf7f3b",
       "name": "tool-development-evening",
-      "schedule": "0 22 * * * @ Asia/Shanghai",
+      "schedule": "0 22 * * *",
       "status": "ok",
       "lastRun": "7h ago"
     },
@@ -124,16 +122,16 @@
     {
       "id": "84707ade",
       "name": "ai-neuroscience-research",
-      "schedule": "30 22 * * * @ Asia/Shanghai",
+      "schedule": "30 22 * * *",
       "status": "error",
-      "lastRun": "7h ago"
+      "lastRun": "8h ago"
     },
     {
       "id": "78eac6fc",
       "name": "key-development-1",
       "schedule": "0 23 * * *",
-      "status": "error",
-      "lastRun": "7h ago"
+      "status": "ok",
+      "lastRun": "6h ago"
     },
     {
       "id": "88679f9e",
@@ -146,13 +144,13 @@
       "id": "b0fd7e8d",
       "name": "key-development-3",
       "schedule": "0 1 * * *",
-      "status": "error",
+      "status": "ok",
       "lastRun": "5h ago"
     },
     {
       "id": "1ea6e3b0",
       "name": "knowledge-organization",
-      "schedule": "0 2 * * * @ Asia/Shanghai",
+      "schedule": "0 2 * * *",
       "status": "ok",
       "lastRun": "4h ago"
     },
@@ -187,49 +185,115 @@
     {
       "id": "f0362050",
       "name": "essay-generation-morning",
-      "schedule": "0 5 * * * @ Asia/Shanghai",
+      "schedule": "0 5 * * *",
       "status": "ok",
       "lastRun": "57m ago"
     }
   ],
   "sessions": {
     "total": 61,
-    "active24h": 43,
+    "active24h": 23,
     "notable": [
       {
-        "type": "cron (dashboard-update)",
-        "lastActive": "2m ago",
-        "model": "glm-5.1",
-        "context": "38k/204k (18%)"
-      },
-      {
-        "type": "cron (dashboard-update)",
-        "lastActive": "2m ago",
-        "model": "glm-5.1",
-        "context": "38k/204k (18%)"
-      },
-      {
-        "type": "other",
-        "lastActive": "3m ago",
+        "type": "main",
+        "lastActive": "10m ago",
         "model": "glm-5-turbo",
-        "context": "68k/204k (33%)"
+        "context": "64k/205k (31%)"
       },
       {
-        "type": "cron (essay-generation)",
-        "lastActive": "34m ago",
+        "type": "cron (dashboard)",
+        "lastActive": "just now",
         "model": "glm-5.1",
-        "context": "52k/204k (25%)"
+        "context": "38k/205k (18%)"
+      },
+      {
+        "type": "cron (essay-gen)",
+        "lastActive": "57m ago",
+        "model": "glm-5.1",
+        "context": "34k/205k (17%)"
+      },
+      {
+        "type": "cron (documentation)",
+        "lastActive": "2h ago",
+        "model": "glm-5.1",
+        "context": "61k/205k (30%)"
+      },
+      {
+        "type": "cron (project-testing)",
+        "lastActive": "3h ago",
+        "model": "glm-5.1",
+        "context": "45k/205k (22%)"
+      },
+      {
+        "type": "cron (knowledge-org)",
+        "lastActive": "4h ago",
+        "model": "glm-5.1",
+        "context": "90k/205k (44%)"
+      },
+      {
+        "type": "cron (key-dev-3)",
+        "lastActive": "5h ago",
+        "model": "glm-5.1",
+        "context": "1504k/205k (734%)"
+      },
+      {
+        "type": "cron (key-dev-1)",
+        "lastActive": "6h ago",
+        "model": "glm-5.1",
+        "context": "98k/205k (48%)"
+      },
+      {
+        "type": "cron (tool-dev)",
+        "lastActive": "7h ago",
+        "model": "glm-5.1",
+        "context": "317k/205k (155%)"
+      },
+      {
+        "type": "cron (ai-neuroscience)",
+        "lastActive": "8h ago",
+        "model": "glm-5.1",
+        "context": "50k/205k (24%)"
+      },
+      {
+        "type": "cron (code-lab)",
+        "lastActive": "9h ago",
+        "model": "glm-5.1",
+        "context": "69k/205k (34%)"
+      },
+      {
+        "type": "cron (deep-exploration)",
+        "lastActive": "9h ago",
+        "model": "glm-5.1",
+        "context": "117k/205k (57%)"
+      },
+      {
+        "type": "cron (github-creative)",
+        "lastActive": "11h ago",
+        "model": "glm-5.1",
+        "context": "41k/205k (20%)"
+      },
+      {
+        "type": "cron (github-trending-deep)",
+        "lastActive": "11h ago",
+        "model": "glm-5-turbo",
+        "context": "55k/205k (27%)"
+      },
+      {
+        "type": "cron (github-trending-daily)",
+        "lastActive": "22h ago",
+        "model": "glm-5.1",
+        "context": "41k/205k (20%)"
       }
     ]
   },
   "git": {
     "repo": "robertsong2019/openclaw-workspace",
     "recentCommits": [
-      "4763dff C507: total-number family v2 — entity-split sums, ordinals, post-noun numbering",
-      "deed601 memory: POST 切片 04:45 被 OOM 击杀，待空闲重启",
-      "0703d17 memory: C508 where-form +2/0 (ledger row 615)",
-      "aa3fe03 C508: where-form locative extraction (#084) — full-500 where 4→6 (+2/0)",
-      "740bb82 memory: 08-24 04:00 docs cron — amg README 9928/505, atc 1599/202, F141 flaky bypass note"
+      "151bc7a docs: 08-25 documentation round — amg README catch up C507-C511 (total-number v2/where/delta/inventory 10th form/POST 0.414), suite 9963/511 cycles/302 days",
+      "b52e6ba amg: fix DOA npm scripts (self-recursive core dump) -> pytest wiring; +5 structural guard tests",
+      "b28c4f3 KO 08-25 verification round: duplicate trigger confirmed, 02:00 main round intact",
+      "1b130ea KO 08-25: integrate C507-C511 + POST 0.414; amg 9958; insight #254",
+      "d4ff9ac amg: C511 inventory_count — 10th counting form (distinct-item enumeration)"
     ]
   }
 }
