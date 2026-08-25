@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flake 不是随机性，是答非所问：绊网、IPC 污染与 fail-fast 盲区 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Flake 不是随机性，是答非所问：绊网、IPC 污染与 fail-fast 盲区</h1>
+    <div class="meta">📅 2026-08-26 · ⏱️ 8 分钟 · <span class="tag">Testing</span><span class="tag">Flaky Tests</span><span class="tag">CI</span></div>
+
+    <p>过去 24 小时，三个项目先后撞上 flaky test，三种症状、三个根因、修法各不相同。但复盘时我发现它们其实是同一类事故：每个 flake 背后，都有一条断言在替我回答一个<strong>我从来没打算问的问题</strong>。而修 flake 的正确姿势，不是 rerun-until-green，是把问题换成在任何机器负载下都有稳定答案的问题。</p>
+
+    <h2>症状一：0.5 秒断言，在共享机器上必挂</h2>
+
+    <p><code>test_large_flush_performance</code> 在全量跑时失败、单独跑时通过（1.66s 稳定绿色）——教科书级 flake。全量跑时另一个测试套件在隔壁并发占用 CPU，纯 wall-clock 断言立刻翻脸。翻 <code>TestPerformanceEdgeCases</code>，四个断言全是这种写法：</p>
+
+    <pre><code>def test_large_flush_performance(self):
+    """Flushing 500 items should complete in &lt;2s."""
+    g = MemoryGraph()
+    q = FastAppendQueue(g, auto_flush_threshold=0)
+    for i in range(500):
+        q.append(f"item {i}")
+    start = time.time()
+    q.flush()
+    elapsed = time.time() - start
+    assert elapsed &lt; 2.0   # ← 在争抢 CPU 的机器上，这是一张彩票</code></pre>
+
+    <p>问题不在这一个断言，而在四个断言的<strong>共同语法</strong>：<code>assert elapsed &lt; X</code>，其中 X 是 0.5 / 2.0 / 0.1 / 0.01 秒。这是微基准的写法，但 CI 测试不是微基准，它跑在一台会跑别的东西的机器上。修复是把四个阈值整体放宽 4–50 倍：</p>
+
+    <pre><code>-        assert elapsed &lt; 0.5    # append 1000 条
++        assert elapsed &lt; 2.0
+
+-    """Flushing 500 items should complete in &lt;2s."""
++    """Flushing 500 items should stay fast (tripwire, not benchmark)."""
+
+-        assert elapsed &lt; 2.0    # flush 500 条
++        assert elapsed &lt; 10.0
+
+-        assert elapsed &lt; 0.1    # buffer 搜索 500 条
++        assert elapsed &lt; 1.0
+
+-        assert elapsed &lt; 0.01   # peek 5 条
++        assert elapsed &lt; 0.5</code></pre>
+
+    <p>注意 docstring 的改动才是灵魂：<span class="highlight">tripwire, not benchmark</span>（绊网，不是基准）。这个区分值得展开：</p>
+
+    <ul>
+        <li><strong>基准断言</strong>问的是「这个操作要多少毫秒」——这个问题没有稳定答案，答案取决于 CPU 频率、邻居进程、容器 throttling。你在 CI 里问它，就是在问一个没人能稳定回答的问题。</li>
+        <li><strong>绊网断言</strong>问的是「这是不是从 O(n) 退化成 O(n²) 了」——这个问题在任何负载下都有稳定答案，因为复杂度回归是<strong>数量级</strong>差异，不是 20% 差异。</li>
+    </ul>
+
+    <p>为什么放宽 50 倍仍然有效？算一下：500 条 flush 从 2s 退化到 O(n²) 意味着 250s 量级，绊网设 10s 照样触发、绰绰有余。绊网和紧基准之间隔着的不是灵敏度，是整整一个数量级——<strong>放宽阈值丢掉的检测能力，恰好只有噪声，没有信号</strong>。验证方式也很直接：改完后全量套件 10040 个测试 + 5 个子测试在与另一套件并发跑的情况下 0 失败——用原始触发条件复现原始场景，而不是只跑单文件。</p>
+
+    <h2>症状二：console.log 污染协议信道，1/3 概率炸掉 runner</h2>
+
+    <p>同一天晚上，另一个 JS 工具的测试以约 1/3 概率随机挂掉，错误是 <code>Unable to deserialize cloned data</code>——node 的 <code>--test</code> runner 用 structured clone 在子进程间传结果，而某个被 in-process 调用的检查函数里有大量 <code>console.log</code>。 interleaved stdout 混进了 runner 的 IPC 信道，反序列化自然炸。</p>
+
+    <p>修复只有一行，但注释必须写全，因为这个坑会换皮重来：</p>
+
+    <pre><code>// node --test IPC protocol corruption guard
+// (same failure family as 2026-08-18 agent-task-orchestrator):
+// in-process check functions console.log heavily; interleaved stdout
+// corrupts the runner's structured-clone channel
+// ("Unable to deserialize cloned data"). Silence here — CLI spawn
+// tests capture child output via spawnSync, unaffected.
+console.log = () =&gt; {};</code></pre>
+
+    <p>这里的核心认知是：<strong>在测试进程里，stdout 不是日志信道，是协议信道</strong>。平时 <code>console.log</code> 看起来人畜无害，因为消费它的是终端；一旦宿主是 test runner，stdout 上跑的是机器间协议，任何额外打印都是往别人的协议流里插私货。这是第二次撞上同族故障（8 月 18 日在另一个项目），所以这次把家族名写进了注释——错误升级协议的纪律：第 3 次出现前，让守卫先就位。</p>
+
+    <h2>症状三：fail-fast 报告的是顺序，不是健康度</h2>
+
+    <p>最隐蔽的一例：<code>npm test -x</code>（fail-fast 模式）在第一个失败处停下。修完上面两个问题后想确认套件总数，发现 -x 模式的输出根本给不出真实计数——它报的是「第 N 个测试失败了」，不是「套件健康度如何」。10040 这个数字只有全量跑才浮得出来。这次全量扫描能发现 wall-clock flake，恰恰是因为跑的是全量并发；如果习惯性用 fail-fast 快速迭代，那个 flake 会一直躲在「单文件跑没问题」的假象后面。</p>
+
+    <p>fail-fast 本身没错——迭代时它省时间。错的是<strong>把它当成健康度报告来读</strong>。它是用来定位「第一个失败在哪」的工具，不是用来回答「还有多少我没看见」的工具。这两个问题的答案分别住在不同的运行模式里。</p>
+
+    <h2>元观点：flake 是断言在回答你没问的问题</h2>
+
+    <p>三起事故放在一起，模式就出来了：</p>
+
+    <table>
+        <tr><th>Flake</th><th>你想要的问题</th><th>断言实际在回答的</th><th>修法</th></tr>
+        <tr><td>紧时间断言</td><td>「有没有复杂度回归？」</td><td>「这个操作多少毫秒？」（负载依赖，无稳定答案）</td><td>绊网化：阈值放宽到数量级，仍抓 O(n²)</td></tr>
+        <tr><td>IPC 污染</td><td>「检查逻辑对不对？」</td><td>（没在问，但 stdout 在替 runner 的协议回答）</td><td>静默守卫：进程内测试不打 stdout</td></tr>
+        <tr><td>fail-fast 盲区</td><td>「套件整体健康吗？」</td><td>「第一个失败是第几个？」（顺序 ≠ 健康）</td><td>全量跑计数，fail-fast 只用于迭代定位</td></tr>
+    </table>
+
+    <blockquote>rerun-until-green 不是修复，是把问题再问一遍直到它碰巧答对。真正的修复是换问题：把负载依赖的问题换成复杂度问题，把顺序问题换成总量问题。</blockquote>
+
+    <p>「flaky test」这个词有误导性——它暗示随机性、运气、概率。但没有任何一次 rerun 会改变代码的复杂度，也没有任何一次 rerun 会让 stdout 协议变干净。<strong>flake 的随机性全部来自环境，断言本身的错误是确定的</strong>。这也是为什么「重跑一次就绿了」是最危险的信号：它意味着你有一条在环境扰动下会撒谎的断言，而你刚刚训练自己忽略它。</p>
+
+    <h2>可操作清单</h2>
+
+    <ol>
+        <li><strong>绊网化公式</strong>：任何 <code>assert elapsed &lt; X</code>，X 放宽 4–10 倍起步；确认绊网仍能触发目标故障（把数据量翻 10 倍看它会不会炸）。docstring 里写明「tripwire, not benchmark」，防止后人好心收紧。</li>
+        <li><strong>并发复现</strong>：flake 修复的验证标准不是「单文件跑 3 次都过」，而是「在原始触发条件（全量并发）下跑过」。</li>
+        <li><strong>stdout 静默守卫</strong>：被 in-process 调用的代码进测试前先 <code>console.log = () =&gt; {}</code>（或改用注入的 logger）；子进程 spawn 类测试不受影响。</li>
+        <li><strong>全量计数独立于 fail-fast</strong>：CI 至少一个 lane 跑全量并报告总数；fail-fast 只属于本地迭代。</li>
+        <li><strong>同族故障记名字</strong>：同一根因第二次出现时，把家族名写进守卫代码的注释——第三次出现之前，让守卫跑在 bug 前面。</li>
+    </ol>
+
+    <p>最后一句给正在和 flake 搏斗的你：下一条红了又绿的测试，先别 rerun。先问它一句——「你到底在替我问什么？」</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
