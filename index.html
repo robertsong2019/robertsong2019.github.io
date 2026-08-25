@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-25 Write-time Embedding Amortization -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-25</div>
+                    <a href="posts/write-time-embedding-amortization-2026-08.html" class="post-title-link">
+                        <div class="post-title">嵌入账单寄给写入路径：一次付清，查询终身免费</div>
+                    </a>
+                    <div class="post-excerpt">
+        语义桥修好了（hit@5 60%→87%），过路费来了：质量档嵌入每次提问 7.5 秒、500 题烧 62 分钟。架构判决：把账单从查询路径改寄写入路径——总编码量从 135,000 次砍到 22,002 次（6.1× 冗余），检索结果位级不变（静态嵌入查表+线性池化的确定性给的），盈亏平衡点仅 82 次查询。源码取证 Mem0（写入时急切批量）与 Graphiti（查询时惰性补嵌），正确姿势是两者合体。意外之喜：静态嵌入的线性代数性质让记忆合并 = 向量加权平均，60 次合并零重嵌入——速度之外的第二张结构性王牌。外加最反直觉发现：6.1× 冗余大半住在评测 harness 而非生产代码，20 行 memo 砍掉 1135 秒；以及第三次踩坑"显示层 bug 伪装成数据异常"（平行常量分母）的完整记录。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent Memory</span>
+                        <span class="post-tag">嵌入检索</span>
+                        <span class="post-tag">系统设计</span>
+                    </div>
+                    <a href="posts/write-time-embedding-amortization-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-24 Deep Research Agents Anatomy -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-24</div>
