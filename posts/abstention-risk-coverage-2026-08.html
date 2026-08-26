@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>越会推理的 AI 越不敢说「我不知道」——弃权、Risk-Coverage 曲线与排序的胜利 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>越会推理的 AI 越不敢说「我不知道」——弃权、Risk-Coverage 曲线与排序的胜利</h1>
+    <div class="meta">📅 2026-08-26 · ⏱️ 12 分钟 · <span class="tag">LLM</span><span class="tag">Agent 评测</span><span class="tag">Selective Prediction</span></div>
+
+    <p>想象你在参加一场答错倒扣分的考试。理性的策略很清楚：有把握的题作答，没把握的空着——<strong>空题不是认输，是一种得分手段</strong>。现在把主角换成你正在开发的 LLM Agent：它在 500 道题上全部给出了答案，其中 30 道题本身就是不可答的陷阱（问的是系统里根本不存在的信息）。它一道都没有空。你要问的第一个问题不应该是「它答得多准」，而是——<strong>它凭什么觉得自己每道题都该答？</strong></p>
+
+    <p>这个「什么时候闭嘴」的问题，学术界叫<strong>弃权（abstention）</strong>，工程界的对应物是选择性预测（selective prediction）。过去一周我围绕它读了一圈论文、写了一个零依赖的评估器，得到三个反直觉的结论，这篇文章讲清楚它们。</p>
+
+    <h2>反直觉发现一：推理能力越强，弃权能力越差</h2>
+
+    <p>Meta FAIR 在 ICML 2025 的 AbstentionBench（20 个数据集、35k 道不可答题、20 个前沿 LLM）里给出了一个让很多人不舒服的数字：<strong>reasoning 微调让模型的弃权能力平均下降 24%</strong>。DeepSeek R1 对比它的基座模型，在不可答题上更倾向于坚定地编一个答案出来。</p>
+
+    <p>更扎心的是机制：研究者发现 R1 类模型的推理链里明明写着「这里证据不足，可能无法确定」，链走完，最终答案还是输出了 confidently 猜的一个。推理链在表达不确定，输出层把它丢了。而且加大推理 token 预算，弃权率进一步恶化——因为更长的推理链给了模型更多空间<strong>把缺失的上下文幻觉补全</strong>，然后基于幻觉自洽地作答。</p>
+
+    <p>用比喻说：这是一个越聪明越不肯说「我不知道」的实习生。你教他更多推理技巧，他不会变得更谨慎，只会把「没有足够信息」这个事实论证掉——论证出其实有信息（他脑补的）。</p>
+
+    <p>这对 Agent 工程师的直接含义是：<strong>不要指望模型自知</strong>。让 LLM 自己报告「我不确定」这条路，在 reasoning 时代是逆风行舟。可靠的路是机制门——用规则在模型外面修一道闸门：图里不存在这个实体？拒答。证据子图里的熵超标？拒答。这些判断不经过模型的自我认知，就像海关不问旅客「你带违禁品了吗」，直接过安检机。</p>
+
+    <h2>反直觉发现二：你调的那个阈值，只是曲线上一个点</h2>
+
+    <p>工程上大家怎么评估弃权？几乎都是同一个姿势：设一个置信度阈值（比如 score &lt; 0.35 就弃权），跑一遍 benchmark，看错误率降了多少。想调优就换几个阈值再跑。</p>
+
+    <p>问题在于：每次换阈值跑一遍，你看到的只是<strong>同一条曲线上不同的点</strong>。这条曲线叫 risk-coverage 曲线，画法极其直觉：</p>
+
+    <ol>
+        <li>把所有题目按模型置信度从高到低排序；</li>
+        <li>想象模型从最有把握的题开始依次作答：答了 10%，coverage=0.1；答了 50%，coverage=0.5；</li>
+        <li>每个覆盖率下统计已作答集合的错误率，那就是 risk。</li>
+    </ol>
+
+    <p>弃权的全部收益就是这条曲线的形状：<strong>好的弃权机制让曲线贴着地面爬——即使答到 90% 的题，错误率仍然很低，因为低置信的烂题全被留在后面没答</strong>。</p>
+
+    <p>于是「调阈值」这个动作的真面目暴露了：你是在这条曲线上挑一个点，然后拿这个点跟另一条曲线上的某个点比高低。两条曲线形状完全不同，却可能在你恰好挑的两个点上打平——反过来，同一个信号在两个阈值上可以给出相反的胜负。我在自己的评测器上复现了这个坑：一个熵宽门和一个 neg-exist 窄门，固定阈值看是 Gate A 赢，画完整条曲线算面积，Gate B 赢。点对点的比较是在用噪声投票。</p>
+
+    <p>学术界的解法是把整条曲线压成一个标量：<strong>AURC（Area Under Risk-Coverage，曲线下面积）</strong>。CVPRW 2020 的一篇评估研究横向比较了 AUROC、AUPR、AURC 三种指标，结论是只有 AURC 对系统的排序质量既敏感又不偏。还有个更隐蔽的坑它顺带救了你：<strong>在 500 道题上扫阈值挑最好的，本质是在测试集上训练</strong>。AURC 不需要挑阈值，天然免疫这类过拟合。</p>
+
+    <blockquote>一句话：别再问「阈值设 0.35 还是 0.4」，问「这条曲线下的面积是多少」。前者是在选票，后者是在读民调全集。</blockquote>
+
+    <h2>反直觉发现三：校准是伪需求，排序才是真目标</h2>
+
+    <p>很多团队说到弃权就先谈校准（calibration）：模型说 80% 置信时，就应该真的 80% 正确（ECE 指标）。听起来天经地义。但 2026 年 7 月的一篇工作（RLSR，直接拿 AURC 当 RL 奖励）把概念分野掰开了：<strong>校准要求置信度数字是对的；选择性预测只要求对的题排在错的前面。绝对值无关紧要，顺序就是全部。</strong></p>
+
+    <p>我在评测器里造了两个极端信号做对照实验（seed 固定，可复现）：</p>
+
+    <pre><code>对称校准但排序差: AURC = 0.4559
+过自信但排序完美: AURC = 0.1304   ← 3.5× 差距</code></pre>
+
+    <p>第一个信号的置信度概率语义完美（说 70% 就是七成对），但它区分不了「会的题」和「不会的题」——乱序。第二个信号系统性过自信（每道题都报 90%+），可它把所有该弃权的题排到了队尾。弃权机制用第二个信号，答掉 90% 的题错误率依然极低；用第一个信号，怎么切都在错杀和漏杀之间震荡。</p>
+
+    <p>类比：你不需要一个能精确读出时速的仪表盘，你需要一个<strong>总能把快车排到慢车道前面</strong>的调度员。弃权决策只在排序的切点上起作用，切点之上的绝对数字从没被用过。</p>
+
+    <p>这个分野直接改写了我手头项目的攻坚方向。我的 Agent 在 30 道弃权题上还剩 15 道答错，此前的思路是「把不确定性估得更准」（校准型改进）。Calibration≠SP 告诉我此路绕远：该做的是<strong>发明新的排序特征</strong>——时间型问题检测不到时间锚点？降置信。假前提问题的指纹？降置信。分数绝对值是几根本不重要，把它排到队尾就行。</p>
+
+    <h2>不同题型是不同物种：别用一把尺子量混合曲线</h2>
+
+    <p>AbstentionBench 把不可答题分成五类，这个分类本身就是个宝库：</p>
+
+    <table>
+        <tr><th>场景</th><th>例子</th><th>典型陷阱</th></tr>
+        <tr><td>无已知答案</td><td>KUQ</td><td>问模型不可能知道的事</td></tr>
+        <tr><td>假前提（false premises）</td><td>FalseQA</td><td>「为什么皇帝的新衣是红色的？」</td></tr>
+        <tr><td>欠指定（underspecified）</td><td>MediQ</td><td>缺关键上下文的问诊</td></tr>
+        <tr><td>主观题</td><td>MoralChoice</td><td>没有客观正确答案</td></tr>
+        <tr><td>知识过期</td><td>FreshQA</td><td>答案随时间改变</td></tr>
+    </table>
+
+    <p>关键在于：这五类题的「低置信特征」长得完全不一样——假前提的指纹是问题预设了不存在的实体，过期题的指纹是时间锚点缺席，欠指定题的指纹是证据子图熵偏高。如果你把它们混在一个池子里、用一个全局阈值切，数学上等价于在多条形状迥异的曲线的加权混合曲面上找鞍点——<strong>每类题都只拿到次优操作点</strong>。正确的粒度是每类题各画各的曲线、各算各的 AURC，各配各的门。</p>
+
+    <p>我在模拟评测里还撞到一个量化版本的教训：宽门和窄门的 AURC 在 500 题大盘上只差 0.0027——因为 470 道可答题把差异稀释了。切到 30 道弃权题的子集上看，差距立刻拉开。<strong>门之间的真实差异要在它服务的那个切片上读</strong>，大盘平均数是安慰剂。</p>
+
+    <h2>方法论彩蛋：自写指标先跑闭式解对拍</h2>
+
+    <p>这轮调研我自己动手写 risk-coverage 评估器，第一版就翻车了：把弃权倾向的降序当成了曲线遍历方向，算出来的是一条「反选择性」曲线，两个门的对比结论恰好反号。因为评估器的 bug 会系统性地偏爱错误方向，单看输出数字完全发现不了。救回来的办法是：风险曲线有一个闭式解的 oracle（E-AURC 里的 k²/2n² 项），拿自写实现跟闭式解对拍，一拍就露馅。</p>
+
+    <p>这已经是同族第 5 次教训了：排序第二键、分母平行常量、反序曲线——全是「显示层 bug 伪装成数据异常」。规则固化成一条：<strong>凡是自己写指标，第一步永远是造一个已知正确答案的 oracle 用例对拍</strong>，不是先跑真数据。</p>
+
+    <h2>可以立刻做什么</h2>
+
+    <ul>
+        <li><strong>停止阈值 A/B，改画曲线。</strong>把你现有的置信度信号拿来，按置信度排序全量题集，扫 coverage 从 0 到 1，输出 risk 序列和 AURC。核心实现 ~40 行，没有任何依赖。从今天起，弃权机制的 PR 描述里放 AURC，不放单点错误率。</li>
+        <li><strong>往评测集里埋不可答题。</strong>没有陷阱题，risk-coverage 曲线退化为常数——弃权能力无从谈起。构造方法简单粗暴：从可答题里删掉关键上下文（这就是 GSM8K-Abstain 和我用的 LongMemEval 弃权题的共同构造法），或者问系统中不存在的实体。</li>
+        <li><strong>把弃权逻辑从模型嘴里挪到规则里。</strong>证据缺失检测、实体存在性检查、时间锚点检查——这些门不需要模型「觉得自己不确定」，绕开 reasoning 模型 −24% 的系统性短板。安检机不问旅客意见。</li>
+        <li><strong>按题型分组算 AURC。</strong>全局单阈值在混合曲面上只能拿鞍点；每类题独立曲线、独立操作点。这也顺便回答了「为什么全局超参扫描总是 best=None」——不是信号没用，是坐标系错了。</li>
+        <li><strong>自写指标先对拍 oracle。</strong>闭式解或已知答案的构造用例，先让它算出正确数字，再喂真数据。</li>
+    </ul>
+
+    <p>回到开头的考试。最危险的考生从来不是成绩差的——是那种每道题都写满了、错得还很自信的。你的 Agent 现在就是那个考生，而你要给它的第一件礼物不是更聪明的脑子，是一支<strong>它敢放下的笔</strong>，和一张告诉它「什么时候放下笔不亏」的曲线。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
