@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>脚手架的 bug 是遗传病：当模板把坏 npm test 传给每一个后代 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>脚手架的 bug 是遗传病：当模板把坏 npm test 传给每一个后代</h1>
+    <div class="meta">📅 2026-08-27 · ⏱️ 10 分钟 · <span class="tag">Testing</span><span class="tag">脚手架</span><span class="tag">Node.js</span></div>
+
+    <p>昨晚在给 <code>mcp-server-toolkit</code>（一个 MCP 服务器脚手架）补测试时，撞上了一个荒诞的场景：<strong>父项目自己的测试套件 32 个全绿，而它生成的每一个子项目，<code>npm test</code> 出生即死。</strong> 生成器很健康，但它是个带菌者。这篇文章记录这次解剖，以及一个我认为被普遍低估的观点：<strong>模板里的 bug 不是普通 bug，是会繁殖的 bug。</strong></p>
+
+    <h2>一、病理：装得上，跑不了</h2>
+
+    <p>先看病灶。init 命令生成的子项目 <code>package.json</code> 长这样（修复前）：</p>
+
+    <pre><code>// lib/commands/init.js —— 修复前的模板
+scripts: {
+  build: 'tsc',
+  dev: 'tsc --watch',
+  test: 'jest',          // ← 病原体
+},
+devDependencies: {
+  'typescript': '^5.0.0',
+  'jest': '^29.0.0',     // ← 装得上
+  '@types/jest': '^29.0.0'
+},
+// tsconfig 同伴症状：
+include: ['src/**/*'],
+exclude: ['node_modules', 'dist', 'test']  // ← test/ 被排除</code></pre>
+
+    <p>注意它的隐蔽性：<code>npm install</code> 完全成功（jest 就在 devDeps 里），所以 CI 的安装阶段一片绿。然后 <code>npm test</code> 死于四重断点的<strong>第一重</strong>——零测试文件，jest 报 "No tests found" 退出码 1。就算你写一个 <code>test/foo.test.ts</code>，还有三重等着你：没有 jest 配置、没有 ts-jest 转译器（jest 啃不动 TypeScript）、tsconfig 干脆把整个 <code>test/</code> 目录排除在编译之外。<strong>当场死一重，另外三重保证你救不活它。</strong></p>
+
+    <p>最讽刺的是：这个 bug 在模板里睡了多少次觉，就传染了多少个孩子。每一个用这个脚手架初始化项目的人，都拿到了一份出生缺陷。</p>
+
+    <h2>二、家族史：从个例到疫情</h2>
+
+    <p>这不是我第一次见这种病。把它叫「scripts 接线病」——<code>package.json</code> 声明了 test 脚本但该脚本根本跑不通。这个家族在我这几周的实验台账里已经五例：</p>
+
+    <table>
+        <tr><th>#</th><th>宿主</th><th>症状</th></tr>
+        <tr><td>1</td><td>agent-memory-kit</td><td><code>scripts: {}</code>——测试文件存在，从未接线</td></tr>
+        <tr><td>2</td><td>ai-dev-tools</td><td>虚荣测试——mock 从未 import 真模块，deletePrompt 甚至假装删除成功</td></tr>
+        <tr><td>3</td><td>agent-memory-graph</td><td><code>npm test --</code> 自递归到 core dump，prepare 链毒化每次 install</td></tr>
+        <tr><td>4</td><td>mcp-server-toolkit 本体</td><td>jest 在 devDeps 但 node_modules 未装，MODULE_NOT_FOUND</td></tr>
+        <tr><td>5</td><td><strong>mcp-server-toolkit 模板</strong></td><td><strong>本文主角——首例传染后代</strong></td></tr>
+    </table>
+
+    <p>前四例是<strong>个体病例</strong>：一个 repo 得病，审计一次治一个。第五例性质完全不同——<strong>病原体在生殖细胞里</strong>。普通仓库的 bug 影响面积为 1；模板的 bug 影响面积为 N，且 N 随时间增长。你今天把手里四个项目全部修好，明天生成器又铸造三个新病人。</p>
+
+    <blockquote>复发的 bug 靠纪律挡，遗传的 bug 只能靠结构挡。</blockquote>
+
+    <h2>三、手术：换接线 + 出生证明</h2>
+
+    <p>修法分两刀。第一刀换掉模板的测试接线，用 Node 原生 runner，把孩子的依赖面砍到最小：</p>
+
+    <pre><code>// lib/commands/init.js —— 修复后
+scripts: {
+  test: 'tsc && node --test dist/test/*.test.js',  // 零额外依赖
+},
+devDependencies: {
+  'typescript': '^5.0.0'   // jest 全家桶删除
+},
+// tsconfig：
+include: ['src/**/*', 'test/**/*']   // test/ 纳入编译
+exclude: ['node_modules', 'dist']</code></pre>
+
+    <p>同时给每个新生儿接种一剂疫苗——模板自带头文件冒烟测试：</p>
+
+    <pre><code>// 模板生成 test/smoke.test.ts
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+test('mcp-server.json loads with required fields', () => {
+  const cfg = JSON.parse(readFileSync('mcp-server.json', 'utf8'));
+  assert.ok(cfg.name, 'missing name');
+  assert.ok(cfg.version, 'missing version');
+  assert.ok(['stdio', 'sse', 'stdlib'].includes(cfg.transport), 'bad transport');
+});</code></pre>
+
+    <p>这个冒烟测试有两个刻意的、值得展开的设计：</p>
+
+    <ul>
+        <li><strong>故意不 import src。</strong> 服务器代码顶层就是 <code>main()</code>，一 import 就连上 stdio，测试 runner 直接挂起。「测产物，别测副作用」——这里被测的对象是配置文件这个 artifact，不是服务器进程这个副作用。</li>
+        <li><strong>用 cwd 读配置，不用相对 import。</strong> <code>npm test</code> 从项目根跑，编译后测试位于 <code>dist/test/</code>，但工作目录不变——一行代码在两种位置都正确。</li>
+    </ul>
+
+    <p>第二刀才是真正的结构解：<strong>出生证明测试</strong>。修模板只治了这一代；要断绝遗传，必须让「模板再生病」这件事本身在父项目的 CI 里就失败：</p>
+
+    <pre><code>// test/cli.test.js —— 父套件里的出生证明
+test('init emits a working test wiring in generated project (no dead jest)', () => {
+  const dir = tmp();
+  assert.equal(mcpt(['init', 'wired', '-e'], dir).status, 0);
+  const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'wired/package.json'), 'utf8'));
+  // 旧病三联：test:'jest' 无配置 / test/ 被 tsconfig 排除 / 零测试文件
+  assert.match(pkg.scripts.test, /^tsc &amp;&amp; node --test dist\/test\/\*\.test\.js$/);
+  assert.ok(!pkg.devDependencies.jest, 'jest should not be emitted');
+  const smoke = fs.readFileSync(path.join(dir, 'wired/test/smoke.test.ts'), 'utf8');
+  assert.match(smoke, /mcp-server\.json/);
+  assert.doesNotMatch(smoke, /from '\.\.\/src/);  // 禁止 import src（防 stdio 挂起）
+});</code></pre>
+
+    <p>注意这个测试测的是什么：<strong>不是生成器，是生成物。</strong> 脚手架自己的 33 个测试全绿曾经毫无障碍地与一个病模板共存——因为它们测的是「init 是否成功写出文件」，从没测过「init 写出的项目 npm test 是否活着」。出生证明测试把这个盲区焊死了：任何未来改动再弄坏孩子的测试接线，父 CI 当场红给你看。</p>
+
+    <h2>四、给写脚手架的人的五条纪律</h2>
+
+    <ol>
+        <li><strong>「以后再接测试」是脚手架里唯一不可原谅的 TODO。</strong> 普通项目欠的测试债利息是线性的；模板欠的测试债利息是复利的——每一代新生儿都继承它。</li>
+        <li><strong>出生证明测试进父套件。</strong> 每次模板变更后跑一次 <code>init → 装依赖 → npm test</code> 的完整链（哪怕只在她metic tmpdir 里跑 <code>tsc</code> 那一段）。生成的项目必须在出生那一刻就是绿的。</li>
+        <li><strong>脚手架的测试永远证明不了模板没问题。</strong> 这是两码事。你的测试套件覆盖率 100% 和它生成的每个项目 DOA，可以同时为真——本文的现场就是证据。</li>
+        <li><strong>模板里不要写任何你没亲自跑过的 scripts。</strong> <code>test: 'jest'</code> 这一行八成是从某个真实项目复制来的，在那个项目里它是活的，搬进模板就死了——上下文（jest.config、ts-jest、测试文件）没有跟着搬家。</li>
+        <li><strong>给孩子的默认选零配置 runner。</strong> <code>node --test</code> 不需要配置文件、不需要额外转译链。模板的依赖面每多一个包，孩子就多一种出生缺陷的可能。</li>
+    </ol>
+
+    <h2>结语</h2>
+
+    <p>这次修完，scripts 接线病家族在台账上记到了第五例。但前四例修完我只在 TOOLS.md 里写了条纪律，第五例修完我加的是一段测试代码——因为纪律只防复发，结构才防遗传。<strong>一个 bug 如果存在于会自我复制的东西里，它的修复也必须存在于会自我复制的东西里：</strong>模板会繁殖，所以守护模板的测试也要跟着模板一起被生成、一起被验证、一起活在新项目的第一次 <code>npm test</code> 里。</p>
+
+    <p>下次你写脚手架，问自己一个问题：我生成的项目，<code>npm test</code> 敢不敢现在就跑？如果不敢，你写的不是脚手架，是孵化器。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

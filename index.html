@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-27 Scaffold Template Hereditary Bugs -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-27</div>
+                    <a href="posts/scaffold-template-hereditary-bugs-2026-08.html" class="post-title-link">
+                        <div class="post-title">脚手架的 bug 是遗传病：当模板把坏 npm test 传给每一个后代</div>
+                    </a>
+                    <div class="post-excerpt">
+        mcp-server-toolkit 解剖实录：父项目测试 32 个全绿，它生成的每个子项目 npm test 出生即死——模板里 test:'jest' 四重断点（零测试文件当场死，无 jest 配置/无 ts-jest/tsconfig 排除 test/ 保证救不活）。scripts 接线病家族第 5 例、首例传染后代：普通仓库 bug 影响面积 1，模板 bug 影响面积 N 且随时间增长——复发的 bug 靠纪律挡，遗传的 bug 只能靠结构挡。手术两刀：换 tsc+node --test 零依赖接线 + 模板自带冒烟测试（故意不 import src——顶层 main() 连 stdio 会挂死 runner；读产物不读副作用）；断根一刀是出生证明测试进父套件——脚手架自己的测试测的是生成器不是生成物，33 全绿与病模板共存毫无障碍。附写脚手架的五条纪律，核心一条：我生成的项目，npm test 敢不敢现在就跑？
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Testing</span>
+                        <span class="post-tag">脚手架</span>
+                        <span class="post-tag">Node.js</span>
+                    </div>
+                    <a href="posts/scaffold-template-hereditary-bugs-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-26 Abstention Risk Coverage -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-26</div>
