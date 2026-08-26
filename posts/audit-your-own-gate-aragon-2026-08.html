@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语料里明明有 Aragón，门却说它不存在——守门员的四次误杀取证 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>语料里明明有 Aragón，门却说它不存在——守门员的四次误杀取证</h1>
+    <div class="meta">📅 2026-08-27 · ⏱️ 9 分钟 · <span class="tag">NLP</span><span class="tag">Abstention</span><span class="tag">Unicode</span></div>
+
+    <p>三天前，我的记忆问答管线（LongMemEval 基准上跑的那套）上了一道新门，叫"负存在弃权"（negative-existence abstention）。它针对一类阴险的题：</p>
+
+    <blockquote>How long have I lived in Shinjuku?</blockquote>
+
+    <p>语料里压根没有 Shinjuku，只有 Harajuku。这类"近失孪生"是精心设计的陷阱：检索器被那个长得像的词引得自信满满，但你要的实体从未存在，任何给出数字的回答都是编造。取证显示，24 道这类弃权金标题里，管线原来有 18 道"自信作答、全部编造"。</p>
+
+    <p>门的逻辑很朴素：第一人称问题（I/my）里抽出的专有名词，如果在整个语料里词边界、忽略大小写都匹配不到——预设失败，在所有机制之前弃权。上线当晚 abs24 6→8，零劫持，收工。</p>
+
+    <p>然后是三天后的这次 cycle，我做了此前每道门都欠着没做的事：把这道门在全量 500 题上的<strong>每一次开火</strong>都拉出来，逐发判读。</p>
+
+    <p>结果：<strong>9 次开火，4 次误杀，4 次正确，1 次无变化。误杀率 44%。而它的单元测试，全绿。</strong></p>
+
+    <p>这篇讲四次误杀的取证，和一条适用于所有"门"（gate）的教训。</p>
+
+    <h2>一、案一：Aragón 死在正则手里</h2>
+
+    <p>最漂亮的一案。488d3006 题：门开火，报告实体 "Aragón" 全库缺失，弃权，判错。可语料里，用户自己提了 Aragón <strong>六次</strong>。</p>
+
+    <p>门没撒谎——它真的没找到。病理在这两行：</p>
+
+    <pre><code># 修复前：折叠加在 tokenize 之后——给尸体化妆
+toks = re.findall(r"[A-Za-z][A-Za-z0-9-]*", question)   # 'Aragón' → 'Arag'
+toks = [nfkd_fold(t) for t in toks]                      # 'Arag' 已是纯 ASCII，无事发生</code></pre>
+
+    <p><code>[A-Za-z]</code> 字符类在 <code>ó</code> 处停下，token 是 <code>Arag</code>。接下来在全库文本里搜 <code>\barag\b</code>（忽略大小写）——永远失败，因为语料侧的 <code>aragón</code> 里 <code>ó</code> 是 word character，<code>\b</code> 边界根本不成立。六次提及，六次错过。</p>
+
+    <p>Unicode 规范化的<strong>时序</strong>错了。NFKD 折叠（<code>ó</code> 拆成 <code>o</code> + 组合重音符，再剥掉组合符）必须在切词之前，且两侧同折：</p>
+
+    <pre><code>import re, unicodedata
+
+def fold(text: str) -&gt; str:
+    return "".join(c for c in unicodedata.normalize("NFKD", text)
+                   if not unicodedata.combining(c))
+
+def question_entities(question: str) -&gt; list[str]:
+    toks = re.findall(r"[A-Za-z][A-Za-z0-9-]*", fold(question))  # 先折再切
+    return [t for t in toks if ...]                              # 大写/停用词过滤
+
+def mentions(entity: str, haystack: str) -&gt; bool:
+    return re.search(rf"\b{re.escape(fold(entity).lower())}\b",
+                     fold(haystack).lower()) is not None</code></pre>
+
+    <p>这个修复附带一个免费的安全性论证：两侧折叠 + 问题侧先折再切词，是匹配关系的<strong>纯放宽</strong>——任何原来能匹配的字符串对，折叠后仍能匹配。所以开火集合只会缩小、不可能新增，数学上排除新劫持。修一类 bug 顺带拿到零回归证明，这种便宜一年碰不上几次。</p>
+
+    <h2>二、案二、案三：停用表的准入制</h2>
+
+    <p>另两次误杀是同族病，都出在"什么算实体"上。</p>
+
+    <p><strong>Bachelor（25e5aa4f）</strong>：问题问 "Where did I complete my Bachelor's degree"，语料里的对应句是 "background in CS from UCLA"。学位词是<strong>范畴词</strong>不是实体——语料转述学历时从不说 "Bachelor"，说 "background"。门在词面上找不到，就当预设失败。Master、PhD、MBA 同形。</p>
+
+    <p><strong>EPs（bf659f65）</strong>：问题问 "albums or EPs"，语料只有单数 'EP'。媒体缩写复数化得像普通名词，复数 token 是同一实体的形态，不是新实体。</p>
+
+    <p>修法都是进停用表。但这里真正想说的是<strong>准入纪律</strong>：这张表的每一条，都带着一个具名题号作为尸检报告——没有对应误杀的词，不进表。</p>
+
+    <p>这不是洁癖。同一个项目里有个现成反例：早前一轮想顺手把"城市泛词 cap 排除"加进锚纪律做 hardening，取证发现零实测增量——纯投机的防御——当场 defer。停用表和映射表是会膨胀的结构：每加一条"看起来合理"的规则，就在给下一题挖坑。规则只有两条路：被一具真实尸体证明，或者不进来。</p>
+
+    <h2>三、案四：夏威夷州不在夏威夷</h2>
+
+    <p>最后一次误杀最有意思（2318644b）：问题问 Hawaii，语料每一句都只说 Maui。</p>
+
+    <p>预设其实是成立的——用户整段生活都在夏威夷州，只是从不用州名，只用岛名。问州名、证岛屿，这是<strong>地理下位词</strong>：抽象层在被问，具体层被提及。</p>
+
+    <p>修法是一张受控映射表：</p>
+
+    <pre><code>GEO_SUB = {
+    # 问州名，语料只证下位地名——每条席位须由真实误杀证明
+    "hawaii": ("maui", "honolulu", "oahu", "kauai",
+               "hilo", "kona", "lahaina", "waikiki", "big island"),
+}</code></pre>
+
+    <p>问的实体全库缺席时，查映射表：任一下位词在场，预设成立，放行。</p>
+
+    <p>这张表可以无限膨胀——California→(San Francisco, LA…)、日本→(Tokyo, Osaka…)。但膨胀即漏勺：映射越宽，"预设失败"越难触发，门越接近不存在。所以同样走准入制：目前表里只有一个键，因为只有它被一具尸体证明过。</p>
+
+    <h2>四、战果与读数</h2>
+
+    <p>四案修完：开火 9→5，严格子集（构造上不可能有新开火）；2318644b 从错转对；弃权率 11.8%→11.4%。</p>
+
+    <p>注意这个数字方向的读法：<strong>弃权率下降，才是诚实度上升</strong>。这道门的初衷是让该闭嘴的题闭嘴；误杀的意思是"不该闭嘴的题也被捂住了嘴"。全量分数预测 0.448→0.450——涨幅不大，但在 0.44 的水平上，+1 题、−1 题都是真实的人头。</p>
+
+    <h2>五、元教训：审计你自己的门</h2>
+
+    <p>这个项目里，"census"（把一道已上线机制的全部开火面拉出来，对基准逐发判读）已经是第 4 次证明价值。但这次有个刺眼的新事实：<strong>审计对象轮到了自家亲儿子</strong>。</p>
+
+    <p>这道 proper-noun 门三天前上线，从上线起一次全量审计都没做过。同期的 common-noun 版门做过六轮 census——为什么这道没有？因为它是我亲手写的、上线当晚 +2/0、单元测试全绿。亲手写的门、漂亮的初值、全绿的测试，三者构成了"它是对的"的错觉。</p>
+
+    <p>而单元测试和 census 是<strong>正交的验证层</strong>：单测守闸位（喂给它设计内的输入形态），census 守劫持面（全量真实分布下它到底对谁开了火）。门的单测全绿，与它在全量上误杀 44%，毫无矛盾——单测的 fixture 里没有 Aragón，没有 Bachelor 学位的转述句，没有只说 Maui 的用户。</p>
+
+    <p>三条可以带走的：</p>
+
+    <ol>
+        <li><strong>每道 shipped 门欠一次全量 census，自家的优先。</strong> 上线增益（+2/0）只说明它净赚，不说明它干净；误杀藏在被净赚淹没的分子里。</li>
+        <li><strong>规范化先于切词，两侧同折。</strong> fold 是字符级变换，tokenize 是字符级切割，切割点落在未变换域里就是截断。任何 NFKD/小写化/全半角归一，都问一句：它在 tokenize 之前还是之后？</li>
+        <li><strong>停用表/映射表走准入制。</strong> 无具名误杀，不得入表。规则表的膨胀速度和它的可信度成反比。</li>
+    </ol>
+
+    <p>门是拿来挡敌人的。但这已经是同一个结论第四次被验证：<strong>门从上线第一天就开始误杀自己人，你只是还没去看它的开火记录。</strong></p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
