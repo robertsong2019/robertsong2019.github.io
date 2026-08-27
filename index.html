@@ -610,6 +610,22 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-28 Bug Distributed Storage -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-28</div>
+                    <a href="posts/bug-distributed-storage-re-sub-twin-2026-08.html" class="post-title-link">
+                        <div class="post-title">修好的 bug 又活了 11 天：重复实现是 bug 的分布式存储</div>
+                    </a>
+                    <div class="post-excerpt">
+        同一个 re.sub 误用 11 天内现身两次：08-17 修了 models.Template.render()，而 CLI 实际走的 manager→utils 路径上的孪生实现 substitute_variables() 一直坏到 08-28——测试全绿与用户天天踩坑并存，因为测试验证的是修复所在的位置，不是用户所在的路径；re.sub 的 replacement 是微型语言（\1 组引用、\n/\f 合法转义静默改写数据、3.7+ 未知转义 re.error），把用户数据塞进去=把数据当模板执行，C:\new\folder 静默变 C:\new\x0colder 比崩溃贵十倍；同一行代码 re.escape(key) 防住了 pattern 侧注入、裸 value 漏掉 replacement 侧——正则有两笔独立注入债别只还一笔；一行修复 lambda replacement（函数返回值按字面量使用）+ 循环晚绑定 v=value 恰好刚需；重复实现是 bug 的分布式存储——修一份不触发另一份失效，杀模式类三件事：修完实例全仓 grep 同款 API 误用、回归测试打在 CLI 入口而非内部函数、重复实现删除/委托/对拍；str.replace 语义字面量连坑都不存在；修复和路灯一样，装在哪儿决定照亮谁。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Python</span>
+                        <span class="post-tag">Regex</span>
+                        <span class="post-tag">工程实践</span>
+                    </div>
+                    <a href="posts/bug-distributed-storage-re-sub-twin-2026-08.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-08-27 Answer Equivalence Judging -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-27</div>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>修好的 bug 又活了 11 天：重复实现是 bug 的分布式存储 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>修好的 bug 又活了 11 天：重复实现是 bug 的分布式存储</h1>
+    <div class="meta">📅 2026-08-28 · ⏱️ 9 分钟 · <span class="tag">Python</span><span class="tag">Regex</span><span class="tag">工程实践</span></div>
+
+    <p>8 月 17 日凌晨三点，我在自己的 prompt 管理项目里修掉一个 bug：模板渲染把变量值直接当作 <code>re.sub</code> 的 replacement 字符串，Windows 路径一进来就 <code>re.error</code>。修复干净：lambda 替换、回归测试、测试全绿、push、收工。</p>
+
+    <p>11 天后的凌晨三点，同一个 bug 又炸了。不是回归——<strong>它从没被修好过。那天修好的，是它的孪生兄弟。</strong></p>
+
+    <h2>一、案发现场：同一行代码，两种数据待遇</h2>
+
+    <p>出事的函数（简化后）长这样：</p>
+
+<pre><code>def substitute_variables(template_content: str, variables: Dict[str, str]) -> str:
+    result = template_content
+    for key, value in variables.items():
+        pattern = r'\{\{' + re.escape(key) + r'\}\}'
+        result = re.sub(pattern, value, result)    # ← bug 在这
+    return result</code></pre>
+
+    <p>先看一个耐人寻味的细节：写这个函数的人<strong>知道</strong> pattern 是正则——所以给 key 套了 <code>re.escape()</code>，防的是变量名里的 <code>.</code> 和 <code>*</code> 被当元字符执行。防护意识有，但只罩住了两个注入面之一。<strong><code>re.sub</code> 的 replacement 参数也不是普通字符串，它是另一门微型语言</strong>：<code>\1</code> 是组引用，<code>\n</code> <code>\t</code> <code>\f</code> 是合法转义，Python 3.7 起 <code>\U</code> 这类未知转义直接抛 <code>re.error</code>。</p>
+
+    <p>把用户数据塞进 replacement，等于把数据当模板执行。这和 SQL 拼接、HTML 拼接是同一个家族的 regex 分支，只是触发条件更低调。</p>
+
+    <h2>二、最贵的结局不是崩溃</h2>
+
+    <p>同一个坑，三种死法：</p>
+
+<pre><code># ① 崩溃：\U 不是合法的 replacement 转义（Python 3.7+）
+>>> re.sub(r'\{\{p\}\}', r'C:\Users\test', 'path={{p}}')
+re.error: bad escape \U at position 3
+
+# ② 静默腐蚀：\n 和 \f 都是合法转义
+>>> re.sub(r'\{\{p\}\}', r'C:\new\folder', 'path={{p}}')
+'path=C:\new\x0colder'      # \n→换行、\f→换页，数据被改写，无任何报错
+
+# ③ 崩溃：用户数据里一个 \1，触发组引用
+>>> re.sub(r'\{\{n\}\}', r'\1', 'Hello {{n}}')
+re.error: invalid group reference</code></pre>
+
+    <p>三种结局里最贵的是②。崩溃会有人报 bug；<code>C:\new\folder</code> 变成 <code>C:\new\x0colder</code> 不会——它只是悄悄多了一个看不见的控制字符，在配置文件深处躺上几周，等某天一次毫不相干的解析把它引爆。<strong>静默腐蚀的修复成本是崩溃的十倍，因为发现成本是十倍。</strong></p>
+
+    <p>顺带一提，最朴素的替代方案反而免疫：这个场景里 pattern 是自己拼的 <code>{{key}}</code>，根本用不上正则——<code>template.replace('{{' + key + '}}', value)</code> 的语义就是字面量，坑不存在。用正则不是错，但每次用它，pattern 和 replacement 是<strong>两笔</strong>独立的注入债，别只还一笔。</p>
+
+    <h2>三、11 天：修复与路径的错配</h2>
+
+    <p>8 月 17 日的修复没有修错任何东西。<code>models.py</code> 里的 <code>Template.render()</code> 确实有一模一样的 bug（同样的 <code>re.sub(pattern, value, result)</code>），也用一模一样的 lambda 修好了，回归测试也真的绿了。</p>
+
+    <p>问题是：CLI 的 render 命令根本不走那条路。调用链是 <code>manager.render_template()</code> → <code>utils.substitute_variables()</code>。<strong>修复落在 A 副本，用户每天走的是 B 副本。</strong></p>
+
+    <p>测试为什么全绿？因为测试 import 的是 <code>models</code>。<code>render()</code> 的回归测试诚实地验证了 A 副本的修复——A 副本确实修好了。<strong>测试验证的是"修复所在的位置"，而用户在"另一个位置"。</strong>这两个概念在重复实现面前会悄悄分叉，而所有绿灯都无法提示这种分叉。</p>
+
+    <p>我给这个现象起了个名字：<strong>bug 的分布式存储</strong>。一段逻辑写两遍，bug 就存两份，且互为备份——修掉一份，不会触发另一份的任何警报。修复的粒度是"文件 + 行号"，bug 的粒度是"模式实例"，你杀掉的是一个实例，模式本身还活在所有副本里。</p>
+
+    <h2>四、修复，以及修复之外</h2>
+
+    <p>真正的修复只值一个词——把 replacement 从字符串换成函数：</p>
+
+<pre><code>- result = re.sub(pattern, value, result)
++ result = re.sub(pattern, lambda m, v=value: v, result)</code></pre>
+
+    <p><code>re.sub</code> 的规则：replacement 是函数时，<strong>返回值按字面量使用，不再过 replacement 模板引擎</strong>。这是标准库给"数据是数据"留的官方逃生门。另外 <code>v=value</code> 不是老手艺的仪式感——lambda 在循环里，直接捕获 <code>value</code> 会让所有替换都用最后一轮的值（晚绑定陷阱），这一处恰好是刚需。</p>
+
+    <p>但比这两行更重要的，是把"模式类"杀掉的三件事：</p>
+
+    <p><strong>1. 修完实例，全仓 grep 同款误用。</strong>修 bug 的提交应该触发一次十秒钟的搜索：还有谁把动态数据直接塞进 <code>re.sub</code> 的第二个参数？8 月 17 日做了修复、没做搜索，代价是 11 天。<strong>bug 报告里是实例，你合入的应该是模式类的死刑判决。</strong></p>
+
+    <p><strong>2. 回归测试打在入口，不是内部函数。</strong>这次补的测试走的是 CLI 层：</p>
+
+<pre><code>result = runner.invoke(main, ["render", "winpath", "--vars", r"p=C:\Users\test"])
+assert result.exit_code == 0
+assert "C:\\Users\\test" in result.output</code></pre>
+
+    <p>CLI 测试照的是用户真正走的路——bug 藏在 A 副本还是 B 副本无所谓，路径通就行。单元测试仍然要有，但它回答"这个函数对不对"，回答不了"用户踩的路对不对"。</p>
+
+    <p><strong>3. 重复实现：删除、委托，或对拍。</strong>最好的结局是删掉一份；次好的是一份委托另一份（single point of implementation）；如果因依赖方向或性能必须并存，加一个对拍测试——同一组输入喂两个实现，输出必须逐字节一致。对拍的价值不在抓今天的 bug，而在两份实现漂移的<strong>任何未来时刻</strong>自动报警。</p>
+
+    <h2>五、路灯装在哪儿，照亮谁</h2>
+
+    <p>这个 bug 的两次现身相隔 11 天、两个文件、一套 327 个全绿的测试。它不是没被修——<strong>它被修在了一个没人走的路口。</strong></p>
+
+    <p>修复和路灯是一回事：装在哪儿，决定了它照亮谁。下次写下 <code>fix:</code> 的时候，值得多问一句：我修掉的是这个 bug，还是这个 bug 的一份拷贝？</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
