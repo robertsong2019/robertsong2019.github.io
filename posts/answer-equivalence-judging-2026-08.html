@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>120 分钟算不算两小时？——在 exact match 和 LLM 裁判之间修一层确定性判分 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>120 分钟算不算两小时？——在 exact match 和 LLM 裁判之间修一层确定性判分</h1>
+    <div class="meta">📅 2026-08-27 · ⏱️ 11 分钟 · <span class="tag">NLP</span><span class="tag">Evaluation</span><span class="tag">QA</span></div>
+
+    <p>想象你在一门考试里答了一道题：题目问"这件事花了多久"，标准答案写的是 <strong>two hours</strong>，你写的是 <strong>120 minutes</strong>。阅卷老师大笔一挥：错。</p>
+
+    <p>你大概想掀桌。但如果你现在正在评测一个问答系统——用 exact match 对答案——你就是那位老师。你的判分器每天都在干这件事："Jan 5th 2023" 不等于 "January 5, 2023"，判错；"$56,355" 不等于 "56355 dollars"，判错。模型明明答对了，分被扣了。</p>
+
+    <p>反过来，你若嫌 exact 太苛刻，把匹配放宽——让子串命中也算对——那你又成了另一种老师：题目问 "table tennis"（乒乓球），模型答 "tennis"（网球），你也给了分。<strong>冤案和放水，总得选一个？</strong></p>
+
+    <p>这是我在自己跑 LongMemEval 基准时撞上的真问题：exact 判分卡在 0.444，逐题排查发现有一整层分数卡在"答案语义正确但表面形式不同"上。而换 LLM 当裁判又贵、又不可复现。这篇讲的是中间那条路：<strong>一层确定性的"答案等价判分"，把能判的机械失配判掉，把判不了的显式交给上层</strong>。这条路在学术界有四年谱系，而且比想象中工程化得多。</p>
+
+    <h2>一、F1 的两个结构性撒谎点</h2>
+
+    <p>先说为什么"放宽 exact"的传统方案——F1 或 EM 加一堆补丁——本身就是问题。2022 年 EMNLP 的 <strong>Tomayto, Tomahto</strong>（Bulian et al.，Google）做了件朴素但没人做过的事：雇人标了 <strong>2.3 万条</strong>答案对（SQuAD 多系统候选 vs 参考答案），然后问——人类觉得"等价"的答案对，token 级度量给了多少分？</p>
+
+    <p>答案很惨。但比分数本身更有价值的是他们提炼出的两个结构性缺陷：</p>
+
+    <p><strong>伪渐进性</strong>：F1 给 0.7 分，不代表答案 70% 对。"Paris" 对 "Paris, France" 的 F1 是 0.67，人类判分是 100% 等价；而某些词序错乱的候选 F1 也是 0.67，人类判分是 0。同一个数字，两种现实。F1 的刻度盘是画上去的。</p>
+
+    <p><strong>问题盲</strong>：同样的 token 差异，在不同问题下等价性完全不同。问 "capital of France" 时答 "Paris" vs "Paris, France" 完全等价；问 "what cities did you visit" 时，两个答案就不等价了——一个只去了巴黎，一个去了巴黎和法国别处。F1 只看两个字符串长什么样，<strong>完全不知道问题是什么</strong>。它是个不读题的阅卷老师。</p>
+
+    <p>他们提出的修法是 BEM：一个 BERT 分类器吃三样东西——问题 + 参考答案 + 候选答案——学着判"在<strong>这道题</strong>的语境下，这两个答案等价吗"。效果显著优于 F1，数据集也开源了。但对工程侧，这篇论文真正的金矿是它的<strong>判分定义</strong>，往下看。</p>
+
+    <h2>二、关键概念：等价是不对称的</h2>
+
+    <p>我们直觉上把"答案等价"理解成对称关系：A 等价于 B，B 就等价于 A。Tomayto, Tomahto 的第一个反直觉结论是：<strong>判分语境下，等价不该对称</strong>。</p>
+
+    <p>他们的定义：候选答案<strong>等价于参考、或优于参考</strong>，都算对。方向是关键：</p>
+
+    <ul>
+        <li>候选 <strong>⊇</strong> 参考（信息更全、更具体）→ 算对，甚至是改进（IMPROVES）</li>
+        <li>候选 <strong>⊂</strong> 参考（更弱、更泛）→ 不算对，是残缺（PARTIAL）</li>
+    </ul>
+
+    <p>用考试类比：标准答案是"巴黎"，你答"巴黎，法国的首都"——没人会扣你的分，你还多答了。但如果标准答案是"巴黎和里昂"，你只答了"巴黎"，那就是没答全。人类阅卷天然这么运作，token 匹配天然不这么运作。</p>
+
+    <p>这条不对称原则一秒钟解决了我开头那道放水题。问 "table tennis"，模型答 "tennis"：候选比参考<strong>更泛</strong>（tennis 不包含 table），是 PARTIAL，不给分。反过来问 "tennis" 模型答 "table tennis"：候选比参考<strong>更具体</strong>，是 IMPROVES，给分。<strong>同一个字符串对，方向不同，判决不同</strong>——这恰好是 F1 问题盲缺陷在"短语级"上的投影。</p>
+
+    <h2>三、cheap 是合法设计点：PEDANTS 的启示</h2>
+
+    <p>有了 BEM 这种学习式判分器，为什么还需要规则？2024 年 EMNLP 的 <strong>PEDANTS</strong>（Li et al.）给了一个工程侧很解气的答案。</p>
+
+    <p>他们注意到一个有趣的事实：Trivia 社区（Quizbowl 那类问答社区）的志愿者人工判分已经跑了多年，判分 rubric 是现成的、社区共识的、可读的——什么算对、什么算错，写得像法条。他们就拿这套 rubric 实现了一个<strong>纯规则的判分管线</strong>：先判断问题类型（数字？日期？实体？），再按类型走专属的比对规则。</p>
+
+    <p>结论：这套 zero 推理成本、完全确定性、每条判决都能指着规则条文解释的判分器，比 EM、比 BERTScore 更稳定地接近人工判分。<strong>"cheap" 不是妥协，是合法设计点</strong>——前提是你把规则建立在问题类型条件化上。</p>
+
+    <p>问题类型条件化，说的就是 F1 的问题盲缺陷的解药：数字题走数值比对（"7" 和 "seventh" 折成同域）、日期题走日期元组（"Jan 5th 2023" 和 "January 5, 2023" 都折叠成 (2023,1,5)）、实体题走内容词包含。<strong>先读题，再判卷</strong>——这个朴素的顺序，token 度量到现在都没学会。</p>
+
+    <h2>四、LLM 裁判不是均匀更强的</h2>
+
+    <p>那为什么不一步到位，全用 LLM 当裁判？2026 年 <strong>LLM-as-a-Judge for Extractive QA at Scale</strong>（Ho Thi et al.，GEM@ACL）做了迄今最系统的回答：四个数据集、多个 LLM 家族、prompt 变体的全交叉。</p>
+
+    <p>总体数字一边倒：LLM 裁判与人工判分相关性 <strong>0.85</strong>，EM 只有 <strong>0.22</strong>，F1 也才 0.40。token 度量和 LLM 裁判不是同一档的东西。</p>
+
+    <p>但真正可操作的是它的分层读数：<strong>LLM 裁判按答案类型呈现强烈异质性</strong>。数字类答案判得最好，日期次之，而复杂实体（job title 这类一个头衔一堆成分的）最弱。还有几个反直觉的：无 self-preference bias（模型自答自判不偏向自己）；zero-shot、不给上下文的判法往往最好；prompt 措辞影响很小。</p>
+
+    <p>这个分布对架构设计是直接指令：<strong>数字题的 exact↔LLM 分歧，可以放心交给便宜的规则层仲裁；复杂实体题的分歧，必须留给 LLM</strong>。一个成熟的判分系统不是在"规则 vs LLM"里二选一，而是按答案类型把两种裁判各放到它们最强的辖区。</p>
+
+    <h2>五、判分器的诚实弃权：NEEDS_JUDGE</h2>
+
+    <p>把这些拼起来，得到一条完整的判分谱系：</p>
+
+    <table>
+        <tr><th>判决</th><th>含义</th><th>计分</th></tr>
+        <tr><td>EXACT</td><td>字面即等</td><td>✅</td></tr>
+        <tr><td>NORM_EQ</td><td>归一化后等（120 minutes ≡ two hours）</td><td>✅</td></tr>
+        <tr><td>IMPROVES</td><td>候选 ⊇ 参考（不对称包含）</td><td>✅</td></tr>
+        <tr><td>PARTIAL</td><td>候选 ⊂ 参考（更泛更弱）</td><td>❌</td></tr>
+        <tr><td>INCOMPATIBLE</td><td>数值/单位/币种冲突</td><td>❌</td></tr>
+        <tr><td><strong>NEEDS_JUDGE</strong></td><td>确定性层判不了 → 显式转交 LLM</td><td>⬆️</td></tr>
+    </table>
+
+    <p>前三档给分，后两档不给，最后一档最有意思：<strong>NEEDS_JUDGE 是一等公民判决</strong>，不是异常。</p>
+
+    <p>什么情况会落入它？代词指代（"she planned it herself"，she 是谁？）、相对时间（"yesterday"锚定在哪一天？）、频率同义（"once a week" vs "weekly"）。这些不是规则写得不够多——是<strong>它们本质上需要语料语境才能判定</strong>，规则层再膨胀也够不着。</p>
+
+    <p>错误的架构是把规则层当成万能判分器，逼它对所有输入给出判决——结果是规则表无限膨胀、每条规则都在制造新的误判。正确的架构是承认确定性层的管辖边界，<strong>把"判不了"显式写进返回值</strong>。这与问答系统里的弃权（abstention）是同一个原理的两面：作答侧的诚实是"不知道就说不知道"，判分侧的诚实是"判不了就说不判了，转交上面"。</p>
+
+    <p>而且 NEEDS_JUDGE 率本身是个健康指标。如果语义层 NEEDS_JUDGE 超过 15% 左右，说明规则覆盖不足——但解法不是放宽规则，是接受现状。PEDANTS 的稳定性教训值得抄在这里：<strong>宽松的规则层比没有规则层更糟</strong>，因为放水是静默的，冤案至少还能被审计出来。</p>
+
+    <h2>六、单位语义域：数值答案的正确打开方式</h2>
+
+    <p>数值答案的等价判定有个容易踩的坑：以为数值答案好判。其实数值等价 = <strong>(值, 单位域) 联合匹配</strong>，缺一半都不成立：</p>
+
+    <ul>
+        <li>时间单位要规范化换算：2 hours ≡ 120 minutes ≡ 7200 seconds（同一时间量的三种刻度）</li>
+        <li>货币符号必须一致：$5 ≢ 5 euros（数字同，世界不同）</li>
+        <li>距离单位不换算：5 miles ≢ 5 km（这俩换算比是 1.609，但判分语境下换算引入的宽容是伪等价）</li>
+    </ul>
+
+    <p>换句话说，"数值答案最好判"成立的前提是先把单位域建对。<strong>值相同单位不同 ≠ 等价</strong>——这条守卫恰好也挡住了最阴险的一类放水：7 和 17 是两个数字，$ 和 euros 是两种货币，规则层的价值不只在 rescue，也在守住这些不该给分的边界。</p>
+
+    <h2>七、判分与作答是镜像</h2>
+
+    <p>这次调研对我个人最大的意外发现是一条<strong>镜像律</strong>：判分系统的问题类型条件化，和检索/作答系统的 form-gating，是同一个原理在不同层的两次独立发现。</p>
+
+    <p>Tomayto, Tomahto 说 F1 不读题所以判不对；PEDANTS 说判分前先路由问题类型；而在我自己跑的记忆问答管线里，检索侧早就有 form 分类器（问题问 counting 就走计数检索、问 duration 就走时长检索）。把这套分类器搬去判分侧做类型路由，几乎零成本。<strong>上下文决定语义</strong>——在检索侧叫 form-gating，在判分侧叫 type-conditioning，在人类阅卷里叫"先读题"。</p>
+
+    <p>镜像律的实践含义是：如果你已经在作答侧建了问题类型体系，你的判分侧中间层几乎是免费的。反过来，如果你的 exact 分数和 LLM 裁判分数差距巨大，<strong>先别急着怀疑模型，先审你的判分器</strong>——gap 里可能有一大块是"归一化可救"的机械失配，只有剩下的才是真正的语义差距。把这两块分解开读，是评估叙事从"一个分数"进化到"一份诊断报告"的分水岭。</p>
+
+    <h2>八、可以立刻做什么</h2>
+
+    <ol>
+        <li><strong>先量化冤案率再动手</strong>：抽 50 道你被判为错的题，人工标注"语义是否其实正确"。冤案率 &gt;10%，中间层就值得建；&lt;5%，你的问题不在判分器。</li>
+        <li><strong>按答案类型分层读你的 exact 分数</strong>：把题目按答案形态（数字/日期/实体/自由文本）分组分别算 exact。如果数字组明显低于预期，机械归一化层（数字词折叠、月份折叠、货币吸附）能直接吃掉这块——一个下午的 Python，零依赖，可单测。</li>
+        <li><strong>不对称原则一票否决子串匹配</strong>：判"候选是否给分"时，检查候选 ⊇ 参考（内容词包含）而非双向子串。这一条单独就能消掉"tennis 冒充 table tennis"这类最尴尬的放水。</li>
+        <li><strong>给规则层配 NEEDS_JUDGE 出口和守门指标</strong>：判不了就显式转交 LLM，并监控转交率。转交率异常升高是规则退化的警报——解法是收紧，不是放宽。</li>
+        <li><strong>单位域先行</strong>：数值比对永远写成 (值, 单位域) 联合匹配。货币符号冲突、距离单位不同，直接 INCOMPATIBLE，不给换算机会。</li>
+        <li><strong>把判分规则写成 rubric 文档</strong>：像 Trivia 社区那样，每条规则对应一个可指认的判例。规则表走准入制——没有真实误杀案例支撑的规则，不得入表。</li>
+    </ol>
+
+    <p>回到开头的考卷：120 分钟当然算两小时，错的是阅卷老师。而好的判分系统，从承认"我判不了"开始变好。</p>
+
+    <h2>参考文献</h2>
+
+    <ul>
+        <li>Bulian et al., <em>Tomayto, Tomahto. Beyond Token-level Answer Equivalence</em>, EMNLP 2022 · <a href="https://aclanthology.org/2022.emnlp-main.20">aclanthology.org/2022.emnlp-main.20</a> · 数据集: <a href="https://github.com/google-research-datasets/answer-equivalence-dataset">google-research-datasets/answer-equivalence-dataset</a></li>
+        <li>Li et al., <em>Cheap but Effective and Interpretable Answer Equivalence Assessment (PEDANTS)</em>, EMNLP 2024 · <a href="https://arxiv.org/abs/2402.11161">arXiv:2402.11161</a> · 包: <a href="https://github.com/zli12321/qa_metrics">zli12321/qa_metrics</a></li>
+        <li>Ho Thi et al., <em>LLM-as-a-Judge for Extractive QA at Scale</em>, GEM@ACL 2026 · <a href="https://arxiv.org/abs/2504.11972">arXiv:2504.11972</a></li>
+        <li>Wu et al., <em>LongMemEval</em>, ICLR 2025 · <a href="https://arxiv.org/abs/2410.10813">arXiv:2410.10813</a></li>
+    </ul>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
