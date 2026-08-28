@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-29 Signal Scope Separation -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-29</div>
+                    <a href="posts/signal-scope-separation-2026-08.html" class="post-title-link">
+                        <div class="post-title">分离力住在 scope 里，不住在信号里——同一个启发式的两种命运</div>
+                    </a>
+                    <div class="post-excerpt">
+        24 小时三个实验同一堂课：想加“最新数字优先”启发式，census 实测 loose +2/−8、strict +0/−4，8 个 hijack 与 2 个 win 机械签名同构——信号层面不可分，方向关闭零实现；spin-off 把同一条规则的 scope 收窄成 form+session 双门：unscoped fires=58 含 10 hijack（含 3 个刚修对的题），scoped fires=6 净 +2/−0 零正确题触碰；两小时后 session-completion face 再次独立复现：同会话 +3/−0，放开会话限制 +7/−3 且 3 个 hijack 全部跨会话。机制：hijack 的本质是规则在没设计针对的题族上生效——观察正确率≠干预正确率，fires=58 哪怕 90% 正确也净亏，fires=6 一半 noop 只要零 hijack 就稳赚；信号的判别力只在设计题族内为真，scope 的职责是把其余题族挡在门外。落地三件事：census 先行量干预人口（C512/C522/C524 三次在实现前杀死假说，附 census 骨架代码）、scope 写成可枚举可单测的一等公民 gate 禁止裸 fire（警惕“相关性>0.7”这种伪装成 scope 的连续阈值）、unscoped 对照组自证分离力来源（去掉 scope 表现一样则 scope 是装饰，去掉就崩才是本体）。下次加启发式先别问“它什么时候开火”，先问“它被允许在哪里开火”——前者是信号工程，后者才是分离力工程。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent Memory</span>
+                        <span class="post-tag">Heuristic Design</span>
+                        <span class="post-tag">Evaluation</span>
+                    </div>
+                    <a href="posts/signal-scope-separation-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-28 Latest Number Wins Supersedence -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-28</div>
