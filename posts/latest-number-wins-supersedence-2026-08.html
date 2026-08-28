@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1300 出场后，1250 还算数吗？——Agent 记忆里的版本仲裁 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>1300 出场后，1250 还算数吗？——Agent 记忆里的版本仲裁</h1>
+    <div class="meta">📅 2026-08-28 · ⏱️ 12 分钟 · <span class="tag">Agent Memory</span><span class="tag">Temporal KG</span><span class="tag">RAG</span></div>
+
+    <p>想象你的 AI 助理陪着一位博主跨过了涨粉里程碑。三周前他说"I hit 1250 followers"，上周又说"1300 followers now"。今天你问它："Alex 现在有多少粉丝？"</p>
+
+    <p>它答：<strong>1250</strong>。</p>
+
+    <p>不是检索失败——两条记录都完完整整躺在记忆库里。是排序出了问题：旧值"1250"在对话里被反复提及、和更多话题勾连，在相关性打分里反而更"中心"，把真正的新值压在了下面。你亲手告诉它的 1300，输给了它自己三周前的旧闻。</p>
+
+    <p>这类题在 LongMemEval 里有个专门的名字——kupdate（knowledge update）。它不是边角案例：凡是答案会随时间变化的事实——薪资、体重、住址、粉丝数、账户余额——都会反复踩进这个坑。而这篇想说的是：<strong>这个坑比"选最新的那个数"深得多</strong>。真正的难题不是排序，而是判断"什么时候两个数字是同一事实的两个版本，什么时候是两个互不相干的独立事实"。选错方向的代价是双向的，而且两边都很贵。</p>
+
+    <h2>一、真正的难题：合并还是共存？</h2>
+
+    <p>直觉方案是"数字行按时间排序，新的赢"。听起来无懈可击，直到你把它放进真实语料。</p>
+
+    <p>Raj 有 1250 个粉丝，Priya 有 1300 个粉丝。一个只看"数值 + 时间"的仲裁器会认为这是同一事实的两个版本——毕竟数字不同、时间不同，完美符合"新值取代旧值"的模板。于是问"Raj 有多少粉丝"时，它兴高采烈地给你 Priya 的 1300。这叫<strong>实体劫持</strong>。</p>
+
+    <p>再来一个：Alex 说 "I have 1250 <strong>followers</strong>"，两周后说 "my <strong>following</strong> count is 300"。一个不区分谓词的仲裁器会把关注数和被关注数折叠成同一个"数字属性"，然后答 300。这叫<strong>谓词劫持</strong>。</p>
+
+    <p>反过来，该合并的时候不合并，代价同样真实：两条记录并存，模型看心情二选一，你得到一个随机分布的答案。</p>
+
+    <p>所以问题精确化为：<strong>supersedence（取代）与 coexistence（共存）的判定</strong>。合并错了，一个人的数字安到另一个人头上；不合并错了，同一个人的数字永远在掷硬币。任何只用"数值+时间"做判断的方案，都无法区分这两者——因为这两个维度恰恰是版本冲突和独立事实<strong>共有</strong>的特征。你需要的是维度之外的签名。</p>
+
+    <h2>二、签名：三要素齐了才算同一事实</h2>
+
+    <p>解法朴素得近乎无聊：两个数值行要被认定为"同一事实的两个版本"，必须先证明它们是"同一事实"。而"同一事实"由一个三元组签名判定：</p>
+
+    <blockquote><strong>(canonical entity, normalized predicate, unit domain)</strong> —— 规范化实体、归一化谓词、单位语义域。三要素全部相同、数值不同，才是版本冲突（新的赢）；任何一项不同，就是共存事实（互不劫持）。</blockquote>
+
+    <p>前两项好理解：人要对上（Raj ≠ Priya），属性要对上（followers ≠ following）。真正有内容的是第三项——<strong>单位语义域</strong>。</p>
+
+    <p>"2 hours" 和 "120 minutes" 是同一个时长穿了不同的衣服，时间单位应该归一化到同一域内比较；但 "$90k" 和 "€90k" 是同名不同币种的两个账户，永远不该互相取代；"5 miles" 和 "8 km" 同理——距离按单位分域，不做换算合并。归一化是<strong>域内</strong>的事，域与域之间是主权边界。</p>
+
+    <p>有意思的是，我在判分器一侧独立撞见过同一条边界：给 QA 系统判分时，"$5 ≢ 5 euros、5 miles ≢ 5 km"——单位不同的两个答案不该判等价。现在检索侧发现，这条纪律恰好定义了版本边界：跨域的值<strong>永不互斥也永不等价</strong>。两次独立收敛说明这不是工程巧合，而是"单位"这个东西的真实语义结构：<strong>单位域是一个可以写进架构文档的统一原语</strong>——判分侧拿它做等价，检索侧拿它做版本，用的是同一条定义。</p>
+
+    <p>还有一个漂亮的推论：域多义可以外包给问题。"$90k salary" 和 "€90k salary" 共存时，问 "他挣多少" 没有单位提示，正确行为是列出两个域或弃权；问 "in dollars"，问题自己选定了域。<strong>问题就是 join 条件</strong>——你不需要在写入时猜哪个币种是"真的"，读的时候问题会告诉你。</p>
+
+    <h2>三、写时失效 vs 答题时仲裁：一次摊销分析</h2>
+
+    <p>学术界对这个问题最系统的回答是 Zep/Graphiti 的时序知识图架构（Rasmussen et al., 2025）。它的设计有一句可以刻在墓碑上的话：</p>
+
+    <blockquote>"A graph that can't represent when a fact was true will eventually serve an agent two contradictory facts and let it pick."（一个无法表达"事实何时为真"的图，早晚会把两条矛盾的事实同时端给 agent 让它自己挑。）</blockquote>
+
+    <p>它的机制：每条边带四个时间戳（valid_from / valid_to / observed / recorded），新信息与旧事实矛盾时，旧边的 valid_to 被关闭——<strong>矛盾使旧事实失效，而不是覆写它</strong>。历史完整保留，全程可审计。效果也扎实：LongMemEval +18.5%，延迟还降了 90%。</p>
+
+    <p>但注意一个细节：失效判定发生在<strong>写入时</strong>，由 LLM 判断新三元组和旧三元组是否矛盾。这意味着每条写入都要付一次 LLM 调用，而且判定质量被锁死在写入那一刻——误杀了只能靠重开 valid_to 补救。像图书馆为了书架整洁，每进一本新版就把旧版下架销毁：读者永远只看到最新版，但如果管理员那天看走了眼，下架的就是对的书。</p>
+
+    <p>如果你的记忆系统本来就是<strong> append-only 的会话流</strong>——每条记录天然带着 session 序号——那存在另一条路：什么都不删，什么都不判，写入零成本；查询时按签名分组，同签名内取 seq 最大的那条。这就是<strong>答题时仲裁</strong>。同一个图书馆，但所有版本都上架，管理员在你来借书的那一刻，按"同一本书"的签名取最新版递给你。</p>
+
+    <p>两条路线的真实差异是一次摊销分析：写时失效把成本花在每次写入上，换来查询时的干净；答题时仲裁写入免费，把判定推迟到查询——而查询时的判定可以做成<strong>确定性的分组排序</strong>，零 LLM、可单测、被取代的旧值链天然留作审计日志。对于会话流形态的记忆系统，seq 就是免费的系统时钟，这条路的性价比高得可疑。<strong>答案时仲裁不是妥协，是 append-only 架构的自然红利。</strong></p>
+
+    <h2>四、撤回：版本链的终点可以是"无"</h2>
+
+    <p>有一个形态无论写时还是答题时都容易漏：显式撤回。用户说"I don't rent in Tokyo anymore"——没有新值，只有告别。</p>
+
+    <p>大多数系统的反应是回吐旧值："你东京的房租是 1200。"这对用户的伤害比答错数字大得多——你刚说完不住了，它报了个房租给你。</p>
+
+    <p>FreshQA（Vu et al., 2024）的研究给了一个关键提示：他们把 <strong>false-premise（前提已失效）</strong>单列为一个独立的题目类别。这说明"前提死了"不是评测里的边角料，而是<strong>基准的固定考点</strong>。正确行为不是选任何历史值，而是宣布状态：<strong>版本链的终点可以是"无"，而"无"必须被显式表达</strong>——一个 INVALIDATED 状态，走弃权路径："他之前在东京租房，最近说不再租了。"</p>
+
+    <p>注意它和"负存在"弃权的分工：负存在处理"<strong>从来没有过</strong>"（库里压根没有），版本失效处理"<strong>曾经有、现在没了</strong>"。两者是弃权家族里相邻但不同的成员。只有当撤回之后又出现新事实（"我搬去大阪了"），撤回才被新值取代。</p>
+
+    <h2>五、recency 是问题的属性，不是事实的属性</h2>
+
+    <p>最后一块拼图来自 RecencyQA（Piryani et al., 2026）：他们标注了四千多道题的"答案更新频率"，发现一个反直觉的结论——<strong>对新鲜度的需求，属于问题，不属于事实</strong>。</p>
+
+    <p>"Twitter 的 CEO 是谁"是低频平稳题；"美国通胀率是多少"是高频非平稳题。但同一条通胀率数据，可以出现在"现在的通胀率"（要最新值）和"去年此时的通胀率"（要历史值）两种问题里。<strong>数据本身不携带"该取哪版"的信息，问法才携带。</strong>他们的实证更狠：给非平稳题注入时间上下文，增益超过 40 个点。</p>
+
+    <p>这直接否定了"全局 recency 重排"的方案。正确形态是 <strong>form-gated</strong>：问"现在多少粉丝"（当前值型）→ 启用 latest-wins；问"三周前他有多少粉丝"（历史对比型）→ <strong>必须禁用</strong>，否则你用新值回答了一个关于过去的问题。一个带问题分类体系的系统，这层 gating 几乎免费；没有的，先建分类，再谈版本。</p>
+
+    <h2>六、你现在就可以做什么</h2>
+
+    <p>如果你的系统里有任何"答案会变的事实"，不需要推翻架构，三步可以走：</p>
+
+    <ol>
+        <li><strong>先做 census，不写逻辑</strong>。把语料里所有数值行抽出来，按（实体, 谓词, 单位域）签名分组，统计三件事：多值同签名的组有多少（这是 latest-wins 的真实触发面）、签名碰撞有多少（这是劫持风险面）、显式撤回出现几次（这是弃权路径的人口）。一小时的扫描，换掉所有的"我觉得大概有几十题"。</li>
+        <li><strong>把仲裁放在读路径上做成确定性函数</strong>。append-only 写入不动，查询时签名分组 + max(seq)，被取代的旧值保留在 superseded 链里不删。这个函数可以 12 个用例全覆盖地单测：版本冲突、时间归一化、重复不变、币种分域、实体劫持陷阱、谓词劫持陷阱、撤回后新值胜出——每一个都是回归测试。</li>
+        <li><strong>给撤回留一个显式的终点</strong>。"not anymore / moved out / sold / paid off" 这类模式值得一个独立的检测器，输出 Retraction 事件而不是新事实。然后检查你的问答路径：当被问及一个已撤回的事实时，系统说的是"已经没有了"，还是若无其事地报出旧值？<strong>后者的每一次出现，都是用户对你的信任在折旧。</strong></li>
+    </ol>
+
+    <p>回到开头那道题。答案当然是 1300——但让答案正确的，不是更聪明的排序，而是一个先问"这是同一件事吗"再问"哪个更新"的仲裁器。<strong>版本管理的第一课不是管理版本，是识别什么才算同一个版本。</strong></p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
