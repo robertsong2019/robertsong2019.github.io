@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>裁判也会抛硬币：拿 LLM 当判分器之前，先校准你的尺子 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>裁判也会抛硬币：拿 LLM 当判分器之前，先校准你的尺子</h1>
+    <div class="meta">📅 2026-08-29 · ⏱️ 12 分钟 · <span class="tag">LLM-as-a-Judge</span><span class="tag">Evaluation</span><span class="tag">Agent Memory</span></div>
+
+    <p>假设你造了一把好尺子——一个确定性的答案判分器，能判断"两小时"和"120 分钟"是不是同一个答案。现在你想证明 v1 比 v0 好，于是请来一位德高望重的裁判：让 GPT-4o 给 500 道题打标签，当作标准答案，来量你的尺子。</p>
+
+    <p>问题来了：<strong>谁给这位裁判做体检？</strong></p>
+
+    <p>文献里能同时找到两个都是真的的数字：一边是 LongMemEval 官方裁判与人类标注的一致率 <strong>0.98</strong>；另一边是一篇 2026 年论文的测量——把同一个答案对原封不动判两遍，<strong>平均 13.6% 的配对判决会翻转</strong>，最差的一道题翻转 56%，标题就叫《The Coin Flip Judge》。裁判没有撒谎，两个数字也没有矛盾——矛盾的是我们默认的假设："LLM 标签 ≈ 真理"。</p>
+
+    <p>这篇调研把"LLM 标签当 oracle"从一个未审计的假设变成了一套可操作的校准协议。六个文献读数、一个零依赖原型、五个关键洞察，以下是浓缩版。</p>
+
+    <h2>一、0.98 和 13.6% 为什么能同时成立</h2>
+
+    <p>因为它们量的是不同的东西。0.98 量的是"裁判和人类的<em>一次</em>判卷在多大程度上重合"；13.6% 量的是"裁判<em>自己</em>在不同 trial 之间翻不翻脸"。一个是裁判与外界的对齐，一个是裁判的内心稳定度。一个裁判可以既跟人类高度一致、又反复横跳——只要你每次都碰巧跳回人类那一侧。</p>
+
+    <p>更扎心的是第三个读数：21 个裁判 × 54 万次判决的大规模审计发现，<strong>原始一致率（exact agreement）普遍虚高，与机会校正后的 Cohen's κ 相差 33-41 个百分点</strong>。原因很朴素：如果你的题库里 90% 的答案本来就该判"不给分"，一个无脑全判"不给分"的裁判也能拿到 0.90 的 raw agreement——但在 κ 的镜子面前，它只有 0.44，勉强比抛硬币好。</p>
+
+    <p>这就是基率陷阱：<strong>在不平衡数据上，一致率是个通货膨胀的货币</strong>。你团队上周汇报的"判分准确率 90%"，可能只是基率的回声。</p>
+
+    <h2>二、Oracle 是协议，不是真理</h2>
+
+    <p>调研中最反直觉的一个结论：拿 LLM 标签当 oracle 不但合法，而且这就是主流基准的定义方式——LongMemEval 的排行榜分数本来就是"官方 judge 协议打出的分数"，Table 6 那个 0.98 度量的是协议与人类的漂移，不是裁判的错误率。</p>
+
+    <p>换句话说：<strong>oracle 不是真理的近似，oracle 就是协议本身</strong>。你的 A/B 实验度量的不是"离正确答案多近"，而是"与协议的一致率"。</p>
+
+    <p>这个转换不是文字游戏，它送你一样东西：<strong>分辨率极限</strong>。官方裁判在 preference 类题（开放性答案）上与人类一致率只有 0.90——意味着这一层任何小于 10% 的改进主张，都在噪音底以下，原则上不可证明。而 kupdate、temporal 等层是 1.00，你在这些层上的任何 rescue 都可信。</p>
+
+    <p>所以正确姿势不是报一个全题平均分，而是<strong>按题型分层申报</strong>："kupdate 层 +5，可信；preference 层 +8，低于噪音底，只能说方向为正"。全题平均会把分辨率极限淹没掉——这是把"每臂独立 sanity 数字"的纪律从检索侧搬到判分侧。</p>
+
+    <h2>三、偏见住在 pairwise 里，你的场景可能是 calm zone</h2>
+
+    <p>LLM-as-a-Judge 的偏见研究看起来很吓人：位置偏置、风格偏置、长度偏置、自我偏好、prompt 模板敏感性……但把六篇文献摆在一起看，会出现一个清晰的结构性规律：<strong>这些偏见的主角几乎全是 pairwise 现象</strong>。</p>
+
+    <ul>
+        <li>位置偏置（72% 偏好排第一的候选）只在"两个答案比大小"时存在；</li>
+        <li>风格/长度偏置（markdown 战胜纯文本 0.10-0.76）只在排序场景显著；</li>
+        <li>配对-点评鸿沟：裁判常在自己的标量分都分不出差异时，硬选一个赢家；</li>
+        <li>而 pointwise 二值判分（逐题 yes/no、短抽取式答案、按题型钉死的 prompt）几乎是文献里的风暴眼——<strong>攻击面最小</strong>。</li>
+    </ul>
+
+    <p>比喻一下：pairwise 判分像让裁判看两份简历选人——谁排版漂亮、谁名字眼熟都会渗进来；pointwise 二值判分像安检——"这个答案里有没有这串信息"，有或没有，题面窄到偏见无处下嘴。</p>
+
+    <p>残余风险不是零：语义等价的 prompt 模板互换仍能让 25% 的题多数决翻转，温度 0 能降低但不消除解码抖动。对策是把 prompt 当代码管：钉 hash 入库、温度 0、只在需要弃权带（下文）做多 trial。</p>
+
+    <h2>四、最便宜的裁判是不出场的裁判</h2>
+
+    <p>2026 年那篇 TMLR 去偏研究有个被标题埋没的头条结论：<strong>中档模型 + 正确去偏 &gt; 裸奔的 frontier 模型</strong>——Gemini 2.5 Flash 加组合去偏拿到全场最高一致率，价格约 1/15。</p>
+
+    <p>这条逻辑推到极限是什么？是<strong>根本不调模型的那部分判分</strong>。一个确定性判分层（数字签名比对、单位域归一化、不对称包含判断）零翻转、零模板敏感、零风格偏置——它每判掉一题，LLM 的被判决面就缩小一题。确定性级联是去偏的极限形式。</p>
+
+    <p>这给了"确定性层 + LLM 兜底"的混合架构一个新的叙事角度：它不是怀旧（舍不得用 LLM），它是最优的偏见管理——<strong>金属探测门先过 90% 的旅客，安检员才有精力对剩下的开箱细查</strong>。LLM 只留给 NEEDS_JUDGE 带：那些词面不可解、真正需要语义判断的题。在那条窄带上，0.98 的人工一致率才值得你付噪音成本。</p>
+
+    <h2>五、多数决不是免费的午餐：先看不动点</h2>
+
+    <p>既然单个 trial 会翻转，多数决（k=3 取众数）能不能救？数学给了一个精确的答案。单个裁判翻转率为 p 时，多数决的翻转率是 3p²(1−p)+p³。这个函数有个不动点在 p=0.5：</p>
+
+    <ul>
+        <li><strong>p &lt; 0.5：多数决翻转率 &lt; p，降噪</strong>——好裁判值得投票；</li>
+        <li><strong>p &gt; 0.5：多数决翻转率 &gt; p，放大噪声</strong>——坏裁判越投票越糟。</li>
+    </ul>
+
+    <p>所以"要不要上 k=3"不是一个工程偏好问题，是一个要先测 p 的问题。<strong>盲目多数决对不可靠的裁判是噪声放大器</strong>。文献的配套读数：多数决要 95% 概率恢复基准判定，需要 11 个 trial（高方差题 15 个）——这也是为什么多数决只应该部署在 NEEDS_JUDGE 这条窄带上，而不是全题开火（成本 ×k 且大部分是浪费）。</p>
+
+    <h2>六、实验证据：oracle 噪音会伪造 hijack</h2>
+
+    <p>调研配套写了一个零依赖原型（约 420 行，21 用例自测全绿）：三层判分器、按 LongMemEval 分型噪音底校准的模拟 oracle、κ / McNemar / bootstrap CI 三件套。Demo 里做了一次 oracle 噪音扫描：</p>
+
+    <table>
+        <tr><th>oracle 噪音</th><th>v1 κ</th><th>Δ一致率</th><th>rescue</th><th>hijack</th><th>McNemar p</th></tr>
+        <tr><td>×0.0（真值）</td><td>0.560</td><td>+0.318</td><td>7</td><td>0</td><td>0.0156</td></tr>
+        <tr><td>×1.0（官方校准）</td><td>0.488</td><td>+0.318</td><td>7</td><td>0</td><td>0.0156</td></tr>
+        <tr><td>×2.0</td><td>0.384</td><td>+0.227</td><td>6</td><td><strong>1</strong></td><td>0.0312</td></tr>
+    </table>
+
+    <p>注意 ×2.0 那一档冒出来的 1 个 hijack：v1 在构造上 false-pass 为零——四条守护规则（数字签名一票否决、货币域冲突、不对称包含、词面不可解一律弃权）保证了它不会放错答案过关。这个"劫持"不是 v1 的错，<strong>是 oracle 噪音凭空伪造的</strong>。</p>
+
+    <p>这给所有用 LLM 标签做回归测试的团队一个提醒：<strong>oracle 是证据，不是证明</strong>。当标签说你的系统变差了，先问一句"这题被改判的机制路径是什么"——用确定性推理复核，而不是立刻回滚代码。否则你会花一晚上修一个不存在的 bug。</p>
+
+    <h2>七、可以立刻做的六件事</h2>
+
+    <ol>
+        <li><strong>把 raw agreement 换成 κ</strong>：任何"判分一致率"汇报加一列 κ。90% 基率下 0.90 raw ≈ 0.44 κ，这一列会立刻杀掉一批虚假的优越感。约 30 行代码。</li>
+        <li><strong>判分器 A/B 用 McNemar 精确二项检验</strong>：比较的是两个判分器不一致的那几对（discordant pairs），不是整体 delta。配对结构天然控制了题目难度。</li>
+        <li><strong>分层申报噪音底</strong>：先测你的 oracle 协议在各类题上的人工一致率，把每层的分辨率极限写进结论——噪音底以下的改进主张一律标注"方向为正，量级不可证"。</li>
+        <li><strong>prompt 当代码管</strong>：判分 prompt 钉 hash 入库（模板互换能翻 25% 的题）、温度 0、prompt 变更走 diff review 而不是"顺手改了一句"。</li>
+        <li><strong>多数决先测 p 再上 k</strong>：单裁判翻转率超过 0.5 就别投票了——先换裁判。投票只部署在弃权带，不全题开火。</li>
+        <li><strong>缩小被判决面</strong>：每一条能用确定性规则判掉的题，都是 LLM 不再有机会犯错的题。确定性级联不是省钱技巧，是最强的去偏。</li>
+    </ol>
+
+    <h2>八、写在最后</h2>
+
+    <p>LLM-as-a-Judge 这两年从灵丹妙药（"GPT-4 判卷 0.98 一致！"）滑向了怀疑论（"裁判 13.6% 抛硬币！"）。两个叙事都是坏统计学。真相在中间，而且是可操作的中间：<strong>pointwise 二值 + 题型钉死的 prompt + 分型噪音底 + κ/McNemar 报告 + 确定性层缩小判决面</strong>——这套协议下，LLM 裁判是你能买到的性价比最高的尺子。</p>
+
+    <p>只是别忘了，尺子出厂时都带着公差。工程上真正的问题从来不是"尺子准不准"，而是"公差多大，我量得出我要量的东西吗"。</p>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</body>
+</html>

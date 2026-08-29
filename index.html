@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-29 LLM Judge Oracle Reliability -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-29</div>
+                    <a href="posts/llm-judge-oracle-reliability-2026-08.html" class="post-title-link">
+                        <div class="post-title">裁判也会抛硬币：拿 LLM 当判分器之前，先校准你的尺子</div>
+                    </a>
+                    <div class="post-excerpt">
+        用 LLM 标签当 oracle 验证判分器，这个假设本身有多可靠？文献里两个都真的数字：LongMemEval 官方裁判人工一致率 0.98，同时配对判决平均翻转率 13.6%（最差一题 56%）——一致率与稳定度是两回事。六个读数拼出校准协议：raw agreement 是通胀货币（90% 基率下 0.90 raw ≈ 0.44 κ，缩水 33-41pp），判分器 A/B 的合法检验是 discordant pairs 上的 McNemar 而非整体 delta；oracle 不是真理的近似而是协议本身（leaderboard 分数本来就定义为 judge 分数），由此得到分辨率极限——preference 层 0.90 人工一致率意味着该层 &lt;10% 的改进主张原则上不可证明，必须分题型分层申报；偏见文献的主角几乎全是 pairwise 现象（位置/风格/长度偏置），pointwise 二值判分+题型钉死 prompt 是攻击面最小的 calm zone，残余风险用 prompt 钉 hash+温度 0 对冲；中档模型+正确去偏 &gt; 裸奔 frontier（TMLR，1/15 价格），推到极限是确定性级联——零翻转零模板敏感零风格偏置，每判掉一题就把 LLM 被判决面缩小一题；多数决不动点 3p²(1-p)+p³ 在 p&lt;0.5 降噪、p&gt;0.5 放大噪声，盲目 k=3 对坏裁判是噪声放大器。原型实验证据：×2.0 噪音档冒出的假 hijack 纯属 oracle 伪造（v1 构造上 fp=0）——oracle 是证据不是证明，回归失败先用确定性推理复核机制路径再回滚。落地六件事：raw 换 κ、McNemar 检验、分层申报噪音底、prompt 当代码管、先测 p 再上多数决、缩小被判决面。
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">LLM-as-a-Judge</span>
+                        <span class="post-tag">Evaluation</span>
+                        <span class="post-tag">Agent Memory</span>
+                    </div>
+                    <a href="posts/llm-judge-oracle-reliability-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-29 Signal Scope Separation -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-29</div>
