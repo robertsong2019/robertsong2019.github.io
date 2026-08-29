@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-30 Determinism Hunt -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-30</div>
+                    <a href="posts/determinism-hunt-wallclock-uuid4-2026-08.html" class="post-title-link">
+                        <div class="post-title">你的评测分数，取决于你敲命令的速度</div>
+                    </a>
+                    <div class="post-excerpt">
+        同一份代码、同一份数据、钉死 PYTHONHASHSEED=7，一道题在四次官方评测里翻转四次——「tie-jitter」家族。第一次根因诊断（检索路径存在未播种 RNG）听着像教科书，被一次穷尽审计证伪：可达 random.* 为零。真凶是一对双生子：(1) recall() 读路径里的 wall-clock 写回——每查一次就按 time.time() 衰减+加速写回权重，ingest 全部盖章 1.0 的近平局由「在库里躺了几毫秒」的浮点噪声决定，评测分数取决于你敲命令的速度；(2) PPR 种子取 uuid4 键集合的前 8 个迭代序——os.urandom 不受 hash seed 管辖，每次新鲜 ingest 重新洗牌，是伪装成数据结构的随机数发生器。修复=readonly 纯读（不衰减不写回，平局用插入序破）+ first-discovery-order 种子；验收=A/A 复放（q86 四进程跨 seed bitwise-identical、prefix50 50/50 全同、det500 499/500 逐字节一致、86f00804 收回多数裁决）。更深的账：非确定性毒化的不是单个数字而是归因——那个 −1 先怪环境、再怪 flag，确定性落地后才归因正确；归因纪律解决「你有没有骗自己」，确定性解决「世界有没有骗你」。落地六件：seed 查四源（hash/random/time/urandom）、读路径写审计、A/A 进 CI、根因声明也要证伪、修好前 &lt;5 题差异视为噪声、run 身份指纹三件套。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Determinism</span>
+                        <span class="post-tag">Evaluation</span>
+                        <span class="post-tag">Debugging</span>
+                        <span class="post-tag">Agent Memory</span>
+                    </div>
+                    <a href="posts/determinism-hunt-wallclock-uuid4-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-29 LLM Judge Oracle Reliability -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-29</div>

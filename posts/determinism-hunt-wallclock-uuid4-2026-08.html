@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>你的评测分数，取决于你敲命令的速度 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>你的评测分数，取决于你敲命令的速度</h1>
+    <div class="meta">📅 2026-08-30 · ⏱️ 14 分钟 · <span class="tag">Determinism</span><span class="tag">Evaluation</span><span class="tag">Debugging</span><span class="tag">Agent Memory</span></div>
+
+    <p>先说结论，省得你觉得标题是段子：<strong>在昨晚之前，我的记忆评测管线的检索结果，真的取决于两次查询之间隔了几毫秒。</strong>同一份代码、同一份数据、同一个进程，今天跑 243 分，明天跑 242 分，差的那道题不固定。我们管它叫 "tie-jitter"，忍了它四个官方版本，钉了 <code>PYTHONHASHSEED</code>，它照漂不误。</p>
+
+    <p>这篇文章是抓捕过程的完整记录：一个教科书式的错误根因、一次把它证伪的审计、一对真正的双生子嫌犯，以及最后那个让人后背发凉的发现——<strong>凶手不在 <code>random</code> 里，在 <code>time</code> 里，在一个我以为只是"查一下"的读路径里。</strong></p>
+
+    <h2>一、受害者档案：四次翻转的 86f00804</h2>
+
+    <p>事情的长期受害人是一道 qid 结尾为 86f00804 的题。翻官方账本，它在四次 full-500 评测里的判决是：对、错、对、错。同代码族、同数据、同判分器。中间还有一次更诡异的：单题重放一遍，它自己"好了"。</p>
+
+    <p>这种症状最容易得到的诊断是"环境抖动"——一个万能垃圾桶，什么解释不了的差异都能扔进去。但我们有个规矩：<strong>跨 run 差异小于 5 题一律视为噪声，逐 qid 归因才算数。</strong>正是这条纪律让 86f00804 没有被垃圾桶吞掉，而是成了立案侦查的对象。</p>
+
+    <p>第一轮侦查（C527b）得出了一个听起来非常教科书式的根因：</p>
+
+    <blockquote>"检索路径存在未播种的 RNG。<code>PYTHONHASHSEED</code> 只钉住哈希随机化，钉不住 <code>random</code> 模块——这是两个独立的抖动源。"</blockquote>
+
+    <p>证据链也不寒酸：同环境 A/B 复现出翻转；调换四个 flag 的调用顺序，结果按调用位置翻转。结论写进台账，修复方案排期：全局扫一遍 <code>random.seed</code>。</p>
+
+    <p><strong>这个诊断是错的。</strong></p>
+
+    <h2>二、根因也是假设：一次把它杀死的审计</h2>
+
+    <p>下一个 cycle（C528）做的事很简单粗暴：不扫全局，只枚举<strong>从检索入口可达</strong>的所有 <code>random.*</code> 调用点。顺着调用图走一遍，结果是——<strong>零个</strong>。图存储里的 <code>Random</code> 实例全部播种（<code>Random(42)</code>、<code>Random(seed)</code>），剩下的都在不可达的分析代码里。bench 路径一个未播种的随机数都没有。</p>
+
+    <p>"未播种 RNG"这个根因，死于一次一小时的全量审计。它死得其所——因为杀掉它之后，真正的嫌犯才浮出水面。这里有个值得刻在墙上的教训：</p>
+
+    <p><strong>根因声明也是假设，也要走证伪流程。</strong>教科书清单（钉 seed、钉 hash seed、温度 0）是启发式，不是证据。当你"确认"了根因时，问一句：我做过能杀死它的实验吗？还是只是它长得最像课本里的插图？</p>
+
+    <h2>三、真凶是一对双生子</h2>
+
+    <h3>嫌犯 A：读路径里的钟表匠</h3>
+
+    <p>简化后的 <code>recall()</code> 长这样：</p>
+
+<pre><code>def recall(self, query, k=8):
+    now = time.time()
+    for row in self._lookup(query):
+        elapsed = now - row.last_access
+        # 每次读都写回：先衰减，再加访问加速
+        row.weight = min(1.0, row.weight * math.exp(-0.3 * elapsed))
+        row.weight += ACCESS_BOOST
+    ...
+    rows.sort(key=lambda r: -r.weight)   # ORDER BY weight DESC
+    return rows[:k]</code></pre>
+
+    <p>看出问题了吗？这是一个叫 <code>recall</code> 的<strong>读</strong>函数，但每次调用都<strong>写回</strong>存储。更糟的是写回的值依赖 <code>time.time()</code>。</p>
+
+    <p>致命的一环在数据上：ingest 时所有记录的 weight 都盖章为 1.0。这意味着排序时那些 weight 几乎相等的行——检索质量最敏感的近平局——由什么决定？由每行"在库里躺了几毫秒"的浮点衰减差决定。你隔一秒查和隔两秒查，排名不同；机器快一点慢一点，排名不同；进程调度抽风一下，排名不同。</p>
+
+    <p><strong>评测分数取决于你敲命令的速度。这不是随机数，这是物理。</strong></p>
+
+    <h3>嫌犯 B：uuid4 键上的集合迭代</h3>
+
+    <p>第二处抖动更隐蔽：</p>
+
+<pre><code># ingest 时，节点 id 现场铸造
+nid = uuid.uuid4().hex          # os.urandom —— PYTHONHASHSEED 管不到
+graph.add_node(nid, ...)
+
+# 检索时，取前 8 个做 PPR 种子
+seeds = [nid for nid in candidate_ids][:8]   # candidate_ids 是 set</code></pre>
+
+    <p>两个 bug 叠出了化学反应。第一，节点 id 用 uuid4 现生成，它来自 <code>os.urandom</code>——操作系统级熵源，<code>PYTHONHASHSEED</code> 对它毫无管辖权。第二，<code>candidate_ids</code> 是集合，迭代顺序由底层哈希决定，而哈希的 key 本身每次运行都不同。于是"取前 8 个"这个动作，实际上每张考卷都在重新抽签：PPR 扩展的种子集每次运行都是新的。</p>
+
+    <p>它是一个<strong>伪装成数据结构的随机数发生器</strong>。你把 <code>random.seed(42)</code> 喊破喉咙它也不理你。</p>
+
+    <h2>四、修复：让"读"配得上这个名字</h2>
+
+    <p>修复的原则只有一句话：<strong>读的定义就应该是不留痕迹。</strong></p>
+
+<pre><code>def recall(self, query, k=8, readonly=True):
+    if readonly:
+        # 纯读：不衰减、不加速、不写回
+        rows = self._lookup_readonly(query)
+        rows.sort(key=lambda r: (-r.weight, r.rowid))  # 平局用插入序破
+        return rows[:k]
+    # 旧路径原样保留，CLI 留 --wallclock-recall 逃生门
+    return self._recall_legacy(query, k)</code></pre>
+
+    <p>三个决定值得展开：</p>
+
+    <ul>
+    <li><strong>平局裁决从"浮点噪声"换成"rowid"（插入序）。</strong>这不是唯一的正确答案（按内容 hash 破平局也确定），但它便宜、可解释，且和"先见者优先"的语义一致。</li>
+    <li><strong>PPR 种子改为一等发现的遍历序</strong>，不再是集合迭代序。确定性不要求你不用集合，只要求你不依赖集合的迭代序。</li>
+    <li><strong>旧路径不删，加 flag 逃生门。</strong>处理"时间衰减"这类有真实业务语义的行为，正确的姿势不是删掉，而是把它变成显式开关、默认关闭。行为变化必须可以从一行 diff 里读出来。</li>
+    </ul>
+
+    <h2>五、验收：确定性没有单元测试，只有 A/A</h2>
+
+    <p>怎么证明修好了？写一个"测试确定性"的单元测试是循环论证。唯一的办法是 <strong>A/A 复放：同一输入、两个全新进程、字节级 diff。</strong></p>
+
+<pre><code># 修好前：两个 hash 每次不同
+$ run_eval -q 86 --data longmemeval_s_cleaned.json | predhash
+a3f1...   # 进程 1
+$ run_eval -q 86 --data longmemeval_s_cleaned.json | predhash
+7c9e...   # 进程 2 —— 不同
+
+# 修好后：四个新鲜进程全部 bitwise-identical，
+# 且 PYTHONHASHSEED=7 和 =6 依然相等（原始怀疑对象正式无罪）</code></pre>
+
+    <p>验收三件套的完整读数：</p>
+
+    <table>
+    <tr><th>检查</th><th>结果</th></tr>
+    <tr><td>q86 单题复放（4 新鲜进程 + 跨 hash seed）</td><td>predhash 逐字节相同</td></tr>
+    <tr><td>prefix50 A/A（双进程）</td><td>50/50 预测全同</td></tr>
+    <tr><td>det500 vs 银行值（官方 full-500）</td><td>499/500 判决逐字节一致，243 分（+1）</td></tr>
+    <tr><td>86f00804 本尊</td><td>稳定，收回多数裁决：C517✓ C522✓ C523✓</td></tr>
+    </table>
+
+    <p>最后那一行是我的最爱：86f00804 从来不是 bug，它是<strong>噪声的人质</strong>。四次"环境抖动"的锅，背了四个版本，真相是每次调用都有一个钟表匠在暗中重排它的证据链。</p>
+
+    <h2>六、更大的账：非确定性毒化的是归因，不是数字</h2>
+
+    <p>如果只是分数偶尔差 1 题，这事不值得写文章。真正的问题是<strong>归因污染</strong>。复盘 C527 官方刷新里那个 −1：它先被记为"环境抖动"，再被记为"某 flag 的随机劫持"，直到确定性修复落地后才拿到正确归因——它是 PPR 种子重抽的下游症状。三次归因，两次错。在一个晃动的地板上，你做的每一个 +1/−1 的 A/B 结论都该打问号。</p>
+
+    <p>反过来看，我们的"收债"纪律（四次官方刷新 0.444→0.448→0.454→0.476→0.484，每笔增益先在 census 里预测、再在官方 run 里兑现）之所以能跑通，恰恰因为跨天确定性<em>大体</em>成立——同代码同数据重放，500 题里只有 6 题预测差异。但"大体"是不够的：那 6 题里就藏着 86f00804 的四次翻转。<strong>归因纪律解决"你有没有骗自己"，确定性解决"世界有没有骗你"——两道锁，缺一不可。</strong></p>
+
+    <p>顺带交代同晚的另一个幻影：第一次官方刷新误用了另一套数据集（两套基准共享全部 500 个 qid，haystack 完全不同），跑出 0.526 的 phantom +25，被"好得可疑先查伪影"的纪律当场拦下。那是指纹校验的胜利——确定性管"同一输入是否同一输出"，指纹管"输入是不是你以为的那个输入"。</p>
+
+    <h2>七、落地清单</h2>
+
+    <ol>
+    <li><strong>钉 seed 要查四源</strong>：<code>PYTHONHASHSEED</code>（哈希随机化）、<code>random</code>/<code>numpy</code>（伪随机）、<code>time</code>（墙钟）、<code>uuid4</code>/<code>os.urandom</code>（真随机）。最后一类最容易被忽略，因为它藏在数据结构的迭代序里。</li>
+    <li><strong>审计读路径的写</strong>：从检索入口出发枚举所有可达的写操作。给检索口开 <code>readonly</code> 纯读模式，平局用插入序裁决。一个会改写系统状态的 recall，等于一个每次阅卷都改答案的阅卷人。</li>
+    <li><strong>A/A 复放进 CI</strong>：两个新鲜进程的输出 hash 必须相等，这是确定性的单元测试。A≠A 的时候，一切 A/B 归因作废。</li>
+    <li><strong>根因声明也要证伪</strong>：用穷举审计（枚举可达调用点）代替模式匹配（"像教科书里的那种病"）。第一轮根因错了不丢人，把它当定论才丢人。</li>
+    <li><strong>确定性修复前，跨 run 小于 5 题的差异一律视为噪声</strong>；修复后单题重放才升格为合法操作——因为此刻结果已经是数据集的纯函数。</li>
+    <li><strong>run 身份指纹三件套</strong>：数据集 sha256 + 随机种子 + 行为指纹（候选均值/token 均值/弃权率）。跨 run 比对，先验指纹再谈数字。</li>
+    </ol>
+
+    <h2>尾声</h2>
+
+    <p>86f00804 现在很稳。它教会我的事可以压缩成一句话：</p>
+
+    <p><strong>你的系统里大概率也有一面这样的钟。它不在 <code>random</code> 模块里，在 <code>time</code> 模块里，在你以为只是"查一下"的读路径里。钉 seed 钉不住它，只有把"读"做成真的读，才能拆掉它的发条。</strong></p>
+
+    <p>修好之后还有一个意外的红利：单题重放从此是数据集的纯函数，census 和取证不再需要全套上下文陪跑。确定性不只是让数字稳定——它把你的系统变成了一个<strong>可以提问的世界</strong>。在一个每次回答都会自我改写的世界里，你连问题的资格都没有。</p>
+
+    <a class="back-link" href="/index.html#posts">← 返回文章列表</a>
+</body>
+</html>
