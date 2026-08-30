@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>让降级路径在报告里自首 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>让降级路径在报告里自首</h1>
+    <div class="meta">📅 2026-08-31 · ⏱️ 12 分钟 · <span class="tag">Eval Engineering</span><span class="tag">Graceful Degradation</span><span class="tag">Measurement</span><span class="tag">Reliability</span></div>
+
+    <p>凌晨，官方 500 题评测跑完了。判分级联（exact 判定 → 语义守卫 → LLM oracle）的 raw 分数：<strong>262/500 = 0.524</strong>。前一晚的官方口径是 0.484。一夜 +4 个百分点，历史性站上 0.50。</p>
+
+    <p>按照惯例，下一步是把 0.524 记入台账，commit message 里写「进入 0.50 世代」。</p>
+
+    <p>没有这么写。因为逐行核对时发现了一件事：那晚机器上的 ollama 服务没有起来。判分层拿不准的 24 道题（NEEDS_JUDGE），被一个<strong>词法重叠度的 mock 裁判</strong>悄悄判掉了。24 个判定：20 个假 rescue，4 个假 kill——0.524 里有 3.2 个百分点是假的。真实可入账的数字是 246/500 = 0.492。</p>
+
+    <p>真正让人后背发凉的不是这个数字，而是一件事：<strong>报告看起来完全正常</strong>。两个 accuracy、分类明细、连 A/B 统计检验都在——McNemar p=0.0026，白纸黑字写着 cascade 显著优于 exact。任何下游读者——包括三个月后的我自己——都会毫无防备地读出一个胜利。</p>
+
+    <h2>一、这个 fallback 是怎么进来的</h2>
+
+    <p>先说清楚：mock 裁判当初的设计动机完全正当，注释里写得明明白白——「无 ollama 时保证管线永远可跑、可测试，<strong>不用于得出真实结论</strong>」。</p>
+
+    <p>判分级联本身是个三层结构：第一层 exact 判定（确定性），第二层语义守卫（数字签名否决、货币域冲突否决、非对称包含），守卫判不了的才路由到第三层 LLM oracle。第三层需要一个端点：</p>
+
+    <pre><code>def judge_llm(question, answer, reference, *, mode=None, n_judges=1,
+              **ollama_kw):
+    """Majority-vote LLM judge."""
+    global _JUDGE_MODE
+    if mode is None:
+        mode = _JUDGE_MODE
+    votes = []
+    if mode is None:
+        # One-time probe: a live ollama endpoint sticks for the run,
+        # a dead one degrades permanently to the mock judge.
+        v = judge_ollama(question, answer, reference, **ollama_kw)
+        mode = "ollama" if v != "ERROR" else "mock"
+        _JUDGE_MODE = mode
+        if v != "ERROR":
+            votes.append(v)
+    for _ in range(max(1, n_judges) - len(votes)):
+        if mode == "ollama":
+            votes.append(judge_ollama(question, answer, reference))
+        else:
+            votes.append(judge_mock(question, answer, reference))
+    valid = [v for v in votes if v != "ERROR"]
+    return "CORRECT" if valid.count("CORRECT") &gt; len(valid) / 2 else "WRONG"</code></pre>
+
+    <p>降级的接收端长这样——注意它返回的格式：</p>
+
+    <pre><code>def judge_mock(question, answer, reference):
+    """Deterministic mock judge — word-level containment.
+    Used to validate pipeline plumbing and calibration aggregation
+    without ollama; NOT for drawing real conclusions."""
+    a_toks = set(re.findall(r"[a-z0-9']+", answer.lower()))
+    r_toks = set(re.findall(r"[a-z0-9']+", reference.lower()))
+    overlap = len(a_toks &amp; r_toks) / len(r_toks)
+    return "CORRECT" if overlap &gt;= 0.35 else "WRONG"</code></pre>
+
+    <p>设计者（我）六周前就知道 mock 不能用于真实结论，白纸黑字写在 docstring 里。但<strong>知识在注释里，不在数据里</strong>。500 题 run 跑完，报告里没有任何一行提醒「本次有 24 个判定来自 mock」。注释是给人看的，前提是人记得去看。</p>
+
+    <h2>二、为什么静默降级对度量是毒药</h2>
+
+    <p>Graceful degradation 是生产系统的美德：端点挂了降级到缓存，模型超时降级到规则。服务的目标是可用性，降级保住了可用性。</p>
+
+    <p>但度量管线（eval pipeline）的目标不是可用性，是<strong>保真</strong>。评测跑在降级路径上，等于换了量具还在原刻度盘上读数。这个事故把「为什么静默」拆成了三层，每层单独看都无害：</p>
+
+    <p><strong>一、降级路径的输出与主路径同构。</strong> mock 判定返回的也是 <code>"CORRECT"</code> / <code>"WRONG"</code>，与 ollama oracle 逐字符相同。下游聚合器没有义务、也没有办法区分。</p>
+
+    <p><strong>二、降级的触发是环境性的，不是配置性的。</strong> ollama 起没起来、API key 在不在、quota 用没用完——这些不在你的 config 文件里，在环境里。同一份代码，不同机器跑出不同结论，且没有 config diff 可查。你甚至无法用「代码没改」来证明两次 run 可比。</p>
+
+    <p><strong>三、污染会被统计检验洗白。</strong> 这是最阴的一层。被污染的 McNemar 检验不是「报错」，它一本正经地报了 p=0.0026。统计检验校验的是「这些配对差异是不是噪声」，它校验不了「这些判定<strong>是谁做的</strong>」。垃圾进，p 值出。</p>
+
+    <p>事后重算的诚实数字：discordant 配对 b=8、c=5，McNemar 精确检验 p=0.581——不显著。cascade 升级的正当依据从来不是分数 delta，而是判分有效性（拦截了 containment 伪包含的事故得分）。同一个数据集，两种读法，一个通向幻觉，一个通向真相，分岔点只在报告里那一个字段。</p>
+
+    <h2>三、修复：让报告自证</h2>
+
+    <p>修复本体是一行：</p>
+
+    <pre><code>report["config"]["judge_llm_backend"] = _JUDGE_MODE or "unconsulted"</code></pre>
+
+    <p>再用三个测试把三种状态钉死：</p>
+
+    <pre><code>def test_run_eval_semantic_records_unconsulted_backend(monkeypatch):
+    """Decidable-only dataset: judge_llm never called. The backend
+    fingerprint must read 'unconsulted' regardless of prior state."""
+    monkeypatch.setattr(abq, "_JUDGE_MODE", None)
+    rep = abq.run_eval([SEM_Q], judge_mode="semantic")
+    assert rep["config"]["judge_llm_backend"] == "unconsulted"
+
+def test_run_eval_semantic_records_mock_backend(monkeypatch):
+    """NEEDS_JUDGE row + dead endpoint: the sticky mock fallback must
+    be visible in the report config — a mock-resolved run is NOT an
+    oracle-resolved one."""
+    abq._JUDGE_MODE = "mock"
+    monkeypatch.setattr(abq, "judge_semantic",
+                        lambda *a, **k: "NEEDS_JUDGE")
+    rep = abq.run_eval([SEM_Q], judge_mode="semantic")
+    assert rep["config"]["judge_llm_backend"] == "mock"
+
+def test_run_eval_exact_mode_has_no_backend_field():
+    """exact mode never consults an LLM, so no backend field."""
+    rep = abq.run_eval([SEM_Q])
+    assert "judge_llm_backend" not in rep["config"]</code></pre>
+
+    <p>值得单独说的是 <code class="highlight">unconsulted</code> 这个第三态。字段不是二值的，是三值：<code>ollama</code>（真 oracle 判过）、<code>mock</code>（降级判过）、<code>unconsulted</code>（LLM 根本没被咨询——全部题目在确定性层判完）。没有第三态的话，「LLM 没参与」和「LLM 参与了但是假的」无法区分。一个设计良好的指纹字段，连<strong>否证</strong>都要可枚举。</p>
+
+    <p>修复后：mock-resolved 的 run 从此在 report 里自白，不再需要离线重放取证才能发现。成本一行代码加三个测试；收益是把一次「几小时级 forensic」的检测成本降到「看一眼」。</p>
+
+    <h2>四、分账纪律：raw 与 bankable</h2>
+
+    <p>污染发现之后的审计本身也有教训。怎么知道 246 是对的、262 是假的？前三次尝试「重建 246 的账本分解」全部翻车（exact 里混着从不进 cascade 的 _abs 行、rescue 的毛/净口径不一致……）。第四次换方法一次成型：<strong>枚举 verdict-delta，不重算总数</strong>。管线已经是数据集的纯函数，predictions 冻结——对 500 行逐行重判，枚举出 verdict 变化的行，恰好 +8/−5。</p>
+
+    <blockquote>重算总数是陷阱，枚举 diff 是正道。平行口径每多一份，就多一个撒谎的地方。</blockquote>
+
+    <p>台账从此分两本：<strong>bankable</strong>（每个 verdict 变化逐 qid 在案：+8 rescue − 5 kill = 246）与 <strong>raw</strong>（262，拒收入账，理由：mock 判定非 oracle 证据）。第二天 census 复核又从那 5 个 kill 里救回 2 个真 false kill（subset 守卫把 either/or 题的完整答案误杀了）——246 → 247 = 0.494。每一分都是枚举出来的，不是估出来的。</p>
+
+    <h2>五、落地清单</h2>
+
+    <ol>
+        <li><strong>枚举你评测管线里的每一条环境探测分支</strong>：端点探活、API key 检查、模型可用性探测、缓存回退。每条一个 report 字段。</li>
+        <li><strong>指纹字段至少三值</strong>：primary / degraded / unconsulted。「没用到」和「用到了假的」必须可区分。</li>
+        <li><strong>用测试钉住每个指纹态</strong>。降级路径不触发就看不见——指纹必须随 run 自白，不能依赖人记得查日志。</li>
+        <li><strong>报告读数顺序：先验指纹，再看分数。</strong> 指纹不是 primary 的 run 一律不入台账。</li>
+        <li><strong>raw 与 bankable 分账</strong>，统计检验前先问一句：这些配对是谁判的？</li>
+        <li><strong>对降级审计用枚举 diff</strong>，别重算总数。</li>
+    </ol>
+
+    <p>最后回到那个 docstring。它的作者没有错，错的是把「不用于得出真实结论」写给了人看，而不是写给报告看。人会忘，报告不会。当三个月后的你打开那份数字漂亮得可疑的报告时，第一行就写着：本次有 24 个判定来自 mock。</p>
+
+    <p><strong>降级无罪，静默有罪。</strong></p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

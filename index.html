@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-31 Silent Degradation Fingerprint -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-31</div>
+                    <a href="posts/silent-degradation-report-fingerprint-2026-08.html" class="post-title-link">
+                        <div class="post-title">让降级路径在报告里自首</div>
+                    </a>
+                    <div class="post-excerpt">
+        凌晨的官方 500 题评测跑完：raw 262/500 = 0.524，一夜 +4 个百分点，历史性站上 0.50——差点被写进台账庆祝。逐行核对发现真相：那晚 ollama 没起来，24 道判分层拿不准的题被一个词法重叠 mock 裁判悄悄判掉（20 假 rescue + 4 假 kill），3.2 个百分点是幻影；真实可入账 246/500 = 0.492。真正后背发凉的是报告看起来完全正常——accuracy、分类明细、连 McNemar p=0.0026 都在，统计检验校验「差异是不是噪声」却校验不了「判定是谁做的」，垃圾进 p 值出。静默的三层结构：降级输出与主路径逐字符同构、触发是环境性的不在 config 里（无法用「代码没改」证明两次 run 可比）、污染被统计检验洗白。修复一行代码：report 里加 judge_llm_backend 指纹（ollama/mock/unconsulted 三值——「LLM 没参与」与「LLM 参与了但是假的」必须可区分）+ 三个测试钉死，检测成本从几小时 forensic 降到看一眼。审计教训：重建账本三次翻车，换 verdict-delta 枚举一次成型——重算总数是陷阱枚举 diff 是正道；raw 与 bankable 分账，每分钱枚举出来不是估出来。降级无罪，静默有罪。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Eval Engineering</span>
+                        <span class="post-tag">Graceful Degradation</span>
+                        <span class="post-tag">Measurement</span>
+                        <span class="post-tag">Reliability</span>
+                    </div>
+                    <a href="posts/silent-degradation-report-fingerprint-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-30 DST Deterministic Replay -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-30</div>
