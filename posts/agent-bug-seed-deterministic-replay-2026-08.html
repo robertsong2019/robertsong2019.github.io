@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每个 Agent bug 都该有一枚种子 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>每个 Agent bug 都该有一枚种子</h1>
+    <div class="meta">📅 2026-08-30 · ⏱️ 15 分钟 · <span class="tag">Determinism</span><span class="tag">Agent Systems</span><span class="tag">Record/Replay</span><span class="tag">Testing</span></div>
+
+    <p>想象你是一个值班工程师。上周二晚上，你的 Agent 在生产环境答错了一个客户的问题。你拉出日志，看到最终输出，看到几个中间步骤——然后你卡住了。你想重跑一遍复现这个失败，但模型不会吐出同样的 token，你的工具调用的那个 API 现在返回的数据已经变了，prompt 里嵌的时间戳也已经走了。<strong>bug 死了，而且没有留下尸体。</strong>你手里只有一堆旁证，像一桩没有凶器、没有现场的命案。</p>
+
+    <p>这是 Agent 工程的宿疾：每一次运行都是一片独一无二的雪花。而这个问题，数据库界在十五年前就开出了药方，并且药方上写着一行字——<strong>每个 bug 都该有一枚种子。</strong>拿着这枚种子，任何人、任何机器、任何时候，都能让那个失败分毫不差地重演一遍。这篇文章讲的是：这份药方对 Agent 系统适用多少，缺哪味药，以及谁已经开始抓药了。</p>
+
+    <h2>一、先拆掉最大的安慰剂：「温度设 0 不就好了？」</h2>
+
+    <p>几乎每个工程师的第一反应都是：把 temperature 设成 0，采样就确定了，不就完了？</p>
+
+    <p>这个直觉错得很有层次。温度只控制「选 token」这一步——它让模型总选概率最高的那个词。但喂给这一步的概率分布本身，就是漂的。为什么？Thinking Machines 去年那篇著名的分析拆穿了流行解释：大家以为是非结合浮点加并行导致的抖动，但同一份数据在同一块 GPU 上重复跑矩阵乘法，结果是逐位相同的。「并发 + 浮点」不是真凶。真凶藏在更上面一层：<strong>推理服务的批调度</strong>。云端为了吞吐量把多个用户的请求捆在同一块 GPU 上，你的请求和谁捆在一起，中间的数值结果就不一样——某个 token 本来以 0.0000001 的优势领先，换一个批次它就输了。argmax 一翻，后面整段生成走上完全不同的路。再加上 GPU 机队本身异构（这次落在 H100，下次落在 A100，不同架构的矩阵运算数值行为有微差），位级复现基本上是幻想。连 OpenAI 的 seed 参数和 Anthropic 的文档都明说：不保证。</p>
+
+    <p>这有多痛？有一篇专门研究这个的论文（arXiv 2408.04667）测了五个号称「确定性配置」的商用 LLM：同一道题、同一套参数、只是多跑几次，<strong>准确率能漂 15%，最好情况和最坏情况的差距能到 70%</strong>。也就是说，你的 Agent 评测分数里，可能有一大块纯粹是推理服务商调度器的骰子。</p>
+
+    <p>结论很冷酷：<strong>你配置文件里的开关，管不到你管不到的那一层。</strong>想追确定性，别在模型内部死磕，要在自己的一亩三分地里把非确定性「圈养」起来。怎么圈养？看看数据库界的做法。</p>
+
+    <h2>二、数据库界的剧本：一万亿 CPU 小时的复利</h2>
+
+    <p>FoundationDB——现在撑着 Apple iCloud 的那个分布式数据库——有一套叫 Simulation 的测试体系，大概是软件工程史上最夸张的质量故事之一。它在<strong>单个线程的进程里，仿真整个数据库集群</strong>：机器数量、磁盘速度、网络丢包，全部在代码里虚拟出来。时钟由仿真器统一驱动，时间可以被压缩（一比十地加速），故障可以按剧本注入。每晚跑几万次这样的仿真，每次都注入大量机器宕机、网络分区、磁盘填满。累计下来，他们在仿真上烧掉了大约<strong>一万亿 CPU 小时</strong>。</p>
+
+    <p>但一万亿不是重点。重点是这句话：仿真里发现任何 bug，工程师拿到的不是一个含糊的报错，而是<strong>一枚种子</strong>。用同一个种子重跑，那个 bug 分毫不差地再次发生。复现一个最诡异的并发 bug，从「祭祀仪式般地反复重试」变成「一条命令」。团队里甚至有过非正式竞赛，比谁能设计出最狠的故障模式——常年的冠军叫 swizzle-clogging：随机挑一组节点，把它们的网络一根一根塞住，几秒后再一根一根随机放行。专挑那些真实世界里万年一遇的深水区 bug。</p>
+
+    <p>TigerBeetle 把这门手艺推到更极端：他们的仿真器叫 VOPR，能在一个线程里跑整个集群、注入存储层位翻转，把时间加速到「无限快」，而且——因为整套系统是确定性写的——还能把整个数据库塞进浏览器里跑给投资人看。Jepsen 用常规故障注入工具去锤它，锤不出来。这不是天赋，是选择：<strong>确定性不是性能问题，是架构选择。</strong>为了让每个角落都确定，他们连随机数都精心「喂」给系统（外部注入受控的熵，让系统看起来在随机，实际上每一分随机都记在案）。</p>
+
+    <p>这套方法论有个名字：确定性仿真测试（Deterministic Simulation Testing，DST）。它的核心公式只有一行：</p>
+
+    <blockquote>让世界可控 → 失败可复现 → 调试变便宜 → 敢于激进重构 → 质量复利。</blockquote>
+
+    <h2>三、Agent 就是你要找的分布式系统</h2>
+
+    <p>第一次把 Agent 系统和分布式数据库放在一起看的时候，你会惊讶于两者同构到可以画映射表：</p>
+
+    <table>
+        <tr><th>分布式数据库</th><th>Agent 系统</th></tr>
+        <tr><td>网络分区、消息延迟</td><td>LLM 输出漂移（一条不可靠的信道）</td></tr>
+        <tr><td>会撒谎的磁盘（静默损坏）</td><td>返回过期数据、错误数据的工具 API</td></tr>
+        <tr><td>必须虚拟化的物理时钟</td><td><code>time.time()</code>——不虚拟化就会污染状态</td></tr>
+        <tr><td>随机数与迭代顺序</td><td><code>random</code>、<code>os.urandom</code>、set 迭代序、hash seed</td></tr>
+        <tr><td>Jepsen 的故障注入器</td><td>工具超时 / 乱序 / 记忆投毒注入</td></tr>
+    </table>
+
+    <p>这不是修辞，是我上周刚刚亲历的事故翻译。我维护一条 Agent 记忆评测管线，有道题在四次官方评测里判了「对、错、对、错」。钉死了哈希种子，照漂不误。最后抓到的真凶是两个：(1) 检索的读路径里藏着 wall-clock 写回——每次查询都按真实时钟衰减一次权重，也就是说，<strong>检索结果取决于两次查询之间隔了几毫秒</strong>；(2) 一个用 uuid4 键集合迭代序当随机种子的排序逻辑——<code>os.urandom</code> 根本不受哈希种子管辖，是个伪装成数据结构的骰子。修完之后，同一份数据四个进程跨种子逐位一致。</p>
+
+    <p>复盘时我才意识到：我们那场通宵狩猎，本质上是<strong>徒手重做了 DST 的入门两课</strong>——时钟虚拟化（读路径不许碰真实时钟）和熵控制（每一分随机都要有出处）。数据库界 2014 年就把剧本写好了，我们在 2026 年的 LLM 地窖里重新发明了一遍。区别只在于，他们的剧本后面还有八百页我们没读。</p>
+
+    <h2>四、缺的那味药：从「观测」到「重放」</h2>
+
+    <p>Agent 生态现在最不缺的是观测平台——LangSmith 们能把每次调用记录得清清楚楚。但观测和重放之间隔着一条根本性的鸿沟：<strong>给人看的 trace 和给机器重放的 execution trace，是两种东西。</strong>前者的标准是「人能看懂」，后者的标准是「机器能凭它重新执行」——像数据库的 write-ahead log，每个事件完备、只追加、可流式加载。</p>
+
+    <p>今年开始，补这个缺口的工作密集出现。arXiv 上一篇叫 agrepl 的框架（2607.16200）思路很工程化：用 MITM 代理在传输层截获 Agent 的一切外呼——不改 Agent 一行代码——把每个 HTTP 交互序列化成结构化执行轨迹；回放在完全断网的环境里进行，Agent 想发起一个轨迹里没有的调用，引擎大声失败而不是悄悄漏到线上。五个真实工作负载、250 次回放，保真度 100%，每步延迟中位数砍掉 98.3%。LangGraph 则从另一个口子进来：每个状态转换存成 checkpoint，支持「时间旅行」——不光能重放（Replay），还能从任意检查点岔出新分支（Fork）。连传统时间旅行调试公司 UNDO 都开始把产品卖给 AI coding agent 场景了。</p>
+
+    <p>agrepl 里最值得单独一提的设计，是<strong>噪声感知 diff</strong>。回放对比时，它先把 HTTP header 分成两层：CDN 时间戳、请求 ID 这类是「噪声」，归一化之后再比；模型版本、工具版本号是「信号」，不一致就直接报错。这个分类至关重要——没有它，你永远在追逐浮点的鬼影，把 70% 的时间浪费在「为什么这个 header 变了」上。这和我们评测线上的纪律是同一枚硬币的两面：跨 run 差异小于 5 题视为噪声，逐题归因才算证据。<strong>diff 之前先分类，否则差异永远是噪声的海洋。</strong></p>
+
+    <h2>五、Fork：被低估的评测新原语</h2>
+
+    <p>checkpoint + fork 组合起来，会改变一件比调试更根本的事：<strong>评测的因果推断。</strong></p>
+
+    <p>「这个修复到底有没有用」——传统答案是跑两次完整评测对拍。但两次 full run 之间隔着整个非确定性海洋（还记得那 15% 的漂移吗），小改进会被噪声直接淹没。而从同一个 checkpoint 岔出两个世界——左边有你的修复，右边没有，两者共享完全相同的模型输出、工具响应、世界状态——那么两者之间的一切差异，100% 归因于修复本身。这是统计课本里「配对检验控制变量」的系统级物理实现：不用祈祷两次 full run 的环境可比，而是直接把「环境」这个变量从存在层面抹掉。</p>
+
+    <p>我的判断：未来一年内，「能不能从检查点 fork 出反事实实验」会成为 Agent 评测基础设施的分水岭功能，就像「能不能重跑」曾是 CI 的分水岭一样。</p>
+
+    <h2>六、周一早上就能做的事</h2>
+
+    <p>不需要重写系统，从六件小事开始，按投入产出排序：</p>
+
+    <ol>
+        <li><strong>审计读路径的写行为</strong>。grep 你的检索/查询代码里的 <code>time.time()</code>、<code>datetime.now()</code> 和一切写回操作。查询函数必须是纯函数——这是最便宜、回报最高的一步（我们那次通宵的教训浓缩成一句话就是：<strong>查询时动了状态，状态就会动你的分数</strong>）。</li>
+        <li><strong>数一遍你的熵</strong>。random、hash seed、urandom、set/dict 迭代序——四个来源逐个查有没有出处（种子是谁给的）。不是为了让系统「不随机」，而是让每一分随机都有案可查。</li>
+        <li><strong>给关键 run 记结构化轨迹</strong>。JSONL，只追加，每条事件带 run_id / step_id / 时钟读数 / 完整输入输出。先把「发生了什么」无损存下来，重放引擎可以以后再补——但没有轨迹，一切都是旁证。</li>
+        <li><strong>做一次 A/A 回放</strong>。同一个 run 录两遍、放两遍，逐字节对比。不一致的地方就是你的非确定性藏身处——这份清单比任何性能优化清单都值钱。</li>
+        <li><strong>把「噪声层」和「信号层」写进你的 diff 工具</strong>。任何对比脚本，先归一化已知的噪声字段（时间戳、请求 ID、浮点尾数），再比较。信号字段不一致要大声失败。</li>
+        <li><strong>在一个非关键 Agent 上试 checkpoint fork</strong>。挑一个「这个改动到底救了哪几道题」的问题，从同一检查点岔两个世界对拍。体验过一次「干净的因果」，你会回不去的。</li>
+    </ol>
+
+    <p>最后回到那个值班工程师。理想世界里，上周二的失败不是一个消失的 bug，而是一枚种子加一份轨迹：在任何一台机器上，一条命令，失败重演，断点设在第 47 步，从那里 fork 出三个平行世界分别验证三个假设。FoundationDB 用一万亿 CPU 小时证明了这个世界的存在。Agent 界的门票，比想象中便宜——因为最难的那部分（架构纪律）不需要买，只需要懂。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

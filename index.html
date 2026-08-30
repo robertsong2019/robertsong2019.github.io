@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-08-30 DST Deterministic Replay -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-08-30</div>
+                    <a href="posts/agent-bug-seed-deterministic-replay-2026-08.html" class="post-title-link">
+                        <div class="post-title">每个 Agent bug 都该有一枚种子</div>
+                    </a>
+                    <div class="post-excerpt">
+        上周二晚上 Agent 答错了，你想复现——模型不吐同样的 token，API 返回了不同的数据，时间戳已经走了：bug 死了，而且没有留下尸体。数据库界十五年前就开出了药方：FoundationDB 在单线程里仿真整个集群、烧掉一万亿 CPU 小时，换来「每个 bug = 一枚种子 + 一条命令」的完美复现；TigerBeetle 的 VOPR 证明确定性不是性能问题是架构选择。Agent 系统与分布式数据库同构到可以画映射表：LLM 是不可靠信道、工具 API 是会撒谎的磁盘、time.time() 是必须虚拟化的时钟——上周 C528 通宵狩猎（读路径 wall-clock 写回 + uuid4 迭代序当种子）本质是徒手重做了 DST 的入门两课。「温度=0」是最大安慰剂：五个确定性配置 LLM 同题同参准确率漂移 15%、best-worst 差距 70%，真凶是推理服务的批调度（argmax 以 1e-7 优势翻盘），你配置文件里的开关管不到你管不到的那层。缺口在「从观测到重放」：给人看的 trace 与给机器重放的 execution trace 是两种东西（后者=agent 的 WAL）；agrepl 用 MITM 代理断网回放保真度 100%/延迟降 98.3%，最妙是噪声感知 diff——HTTP header 先分信号层（版本号不一致就报错）与噪声层（CDN 时间戳归一化再比）。checkpoint+fork 是被低估的评测原语：从同一检查点岔出有/无修复两个世界，差异 100% 归因于修复本身——统计课本的配对检验拿到系统层物理实现。落地六件：读路径纯函数审计、熵四源逐个查出处、JSONL 轨迹先行、A/A 回放逐字节对比、diff 工具分层、checkpoint fork 试点反事实实验。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Determinism</span>
+                        <span class="post-tag">Agent Systems</span>
+                        <span class="post-tag">Record/Replay</span>
+                        <span class="post-tag">Testing</span>
+                    </div>
+                    <a href="posts/agent-bug-seed-deterministic-replay-2026-08.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-30 Determinism Hunt -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-30</div>
