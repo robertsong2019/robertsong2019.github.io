@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>你的 MCP 服务器，只能服务第一个客户端 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>你的 MCP 服务器，只能服务第一个连上来的客户端</h1>
+    <div class="meta">📅 2026-09-01 · ⏱️ 12 分钟 · <span class="tag">MCP</span><span class="tag">TypeScript</span><span class="tag">Concurrency</span><span class="tag">Protocol Design</span></div>
+
+    <p>你写了一个 MCP 服务器。启动、curl 一发 initialize、调一次工具、拿到响应——一切正常。README 里的 hello world 复制粘贴，测试全绿，可以收工。</p>
+
+    <p>一周后，第二个客户端接进来。它发送一个完全合法的 initialize 请求，得到的却是：</p>
+
+    <pre><code>400 Bad Request: Server already initialized</code></pre>
+
+    <p>不是偶发，不是竞态——<strong>每一次都是</strong>。这个服务器从部署那一刻起，就只能服务第一个连上来的客户端。而你的测试永远抓不到它，因为测试宇宙里只有一个客户端。</p>
+
+    <h2>一、bug 长什么样：最自然的写法就是错的</h2>
+
+    <p>出问题的代码，是任何一个 TypeScript 开发者闭着眼都会写出来的「干净」结构：</p>
+
+    <pre><code>// 模块顶层：服务器、传输层在启动时建好，请求进来直接处理
+const server = new McpServer({ name: "my-server", version: "0.1.0" });
+// ...注册工具...
+
+const transport = new StreamableHTTPServerTransport({
+  sessionIdGenerator: () =&gt; randomUUID(),   // ← 开启 stateful 模式
+});
+await server.connect(transport);
+
+const httpServer = createServer(async (req, res) =&gt; {
+  // ...读取 body、JSON.parse...
+  await transport.handleRequest(req, res, parsed);
+});
+httpServer.listen(3001);</code></pre>
+
+    <p>看不到任何可疑之处：对象在顶层创建、只连接一次、请求无差别路由。这正是绝大多数示例代码的形状。</p>
+
+    <p>问题出在 <code>sessionIdGenerator</code> 这一行——它把 transport 切换到了 <strong>stateful 模式</strong>。此模式下，transport 内部持有会话状态：session id、已初始化标志、SSE 流。第一个客户端 initialize 成功后，这个全局唯一的 transport 状态变为「已初始化」。第二个客户端的 initialize 到达<strong>同一个</strong> transport，SDK 检查到已初始化，直接 400。</p>
+
+    <p>一个模块级单例，把 N 个并发会话焊成了一个会话。三个症状随之而来：</p>
+
+    <ol>
+        <li><strong>第二客户端 initialize 永远 400</strong>——"Server already initialized"，锁死；</li>
+        <li><strong>未知 session id 被静默接受（200）</strong>——MCP 规范要求 404。因为只有一个 transport，谁来都被路由到它，session id 从头到尾没被校验过；</li>
+        <li><strong>DELETE 无效</strong>——客户端发终止请求，但不存在 per-session 生命周期，没有任何东西可终结。</li>
+    </ol>
+
+    <h2>二、为什么 5 个测试全绿</h2>
+
+    <p>旧测试套件有 5 个测试，全部是「一个客户端顺序操作」：initialize → list tools → call tool。逻辑覆盖没有死角——但<strong>人口</strong>有死角：bug 只在「第二个客户端出现」时存在，而测试人口里没有第二个客户端。</p>
+
+    <p>这不是测试写得烂，是测试的宇宙太小。并发 bug 的可见性由测试人口定义：人口里只有一个身份，身份冲突在数学上就不可见。</p>
+
+    <h2>三、修复：factory + Map + 生命周期钩子</h2>
+
+    <p>修复的本质是把 transport 的生命周期从「进程级」降为「会话级」——每个 initialize 请求，现造一对 McpServer + transport：</p>
+
+    <pre><code>interface Session {
+  server: McpServer;
+  transport: StreamableHTTPServerTransport;
+}
+const sessions = new Map&lt;string, Session&gt;();
+
+const httpServer = createServer(async (req, res) =&gt; {
+  // ...读取 body、解析 JSON...
+
+  const sessionId = req.headers["mcp-session-id"];
+  const session = sessionId ? sessions.get(sessionId) : undefined;
+
+  // initialize 请求：为这个会话现造一对 server + transport
+  if (!session &amp;&amp; isInitializeRequest(parsed)) {
+    const server = createMcpServer();          // 每会话一个，不再是模块级单例
+    let newSessionId: string | undefined;
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () =&gt; {               // 闭包把 id 带出来
+        newSessionId = randomUUID();
+        return newSessionId;
+      },
+    });
+    transport.onclose = () =&gt; {                // 唯一的清理点
+      if (transport.sessionId) sessions.delete(transport.sessionId);
+    };
+    await server.connect(transport);
+    await transport.handleRequest(req, res, parsed);
+    sessions.set(newSessionId, { server, transport });
+    return;
+  }
+
+  // 带了 session id 但查无此会话 → 404；没带 → 400
+  if (!session) {
+    const status = sessionId ? 404 : 400;
+    res.writeHead(status, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ jsonrpc: "2.0",
+      error: sessionId
+        ? { code: -32001, message: "Session not found" }
+        : { code: -32000, message: "Bad Request: Mcp-Session-Id header is required" },
+      id: null }));
+    return;
+  }
+
+  // 正常请求路由到该会话自己的 transport
+  try {
+    await session.transport.handleRequest(req, res, parsed);
+  } catch {
+    if (!res.headersSent) res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ jsonrpc: "2.0",
+      error: { code: -32603, message: "Internal error" }, id: null }));
+  }
+});</code></pre>
+
+    <p>四个细节值得停下来看：</p>
+
+    <ul>
+        <li><strong>sessionIdGenerator 的闭包捕获</strong>。session id 是在 initialize 处理过程中才生成的，只能用闭包「带出来」，handleRequest 返回后再写进 Map——时序反了就拿到 undefined。</li>
+        <li><strong>onclose 是唯一的清理点</strong>。客户端 DELETE → transport close → onclose 触发 → Map 删除 → 该 session id 的后续请求 404。生命周期闭环不是文档里的一句话，是这条链路真的跑通。</li>
+        <li><strong>404 不是官僚主义</strong>。见下一节。</li>
+        <li><strong>try/catch 不只是礼貌</strong>。async 事件监听器里的 throw 是 unhandled rejection，Node 15+ 默认<strong>杀进程</strong>。一个 malformed 请求可以带走整个服务器，这一层 catch 是防弹衣。</li>
+    </ul>
+
+    <h2>四、三层教训</h2>
+
+    <h3>1. 生命周期错配是一个 bug 类，不是一个 bug</h3>
+
+    <p>会话状态（生命周期 = 一次连接）被装进模块级对象（生命周期 = 进程），等价于把所有会话焊成一个共享可变全局变量。这个 bug 类有一整排马甲：PHP 时代的模块级数据库连接、Servlet 时代的实例字段存 request 状态、React 模块顶层变量存组件状态。判定法则一句话——<strong>任何比使用方生命周期长的容器，装会话状态就是共享可变全局</strong>；「看起来没坏」只说明还没到第二个用户。</p>
+
+    <h3>2. 宽容的协议实现是调试的地狱</h3>
+
+    <p>未知 session id 返回 200 的那一刻，服务器失去了被调试的能力：客户端拿到 200 就认定会话有效，后续所有错误都被归因到别处。规范里的 404 不是形式主义，是给排障者的信号弹。<strong>静默接受一切输入的服务器，把所有 bug 都变成别人的 bug</strong>——而「别人的 bug」通常一周后才出现在你的 issue 列表里。</p>
+
+    <h3>3. 抓并发 bug 的测试，人口里必须有第二个客户端</h3>
+
+    <p>新写的 12 个测试里有 4 个在旧代码上红（先红后绿，bug 实存性验证）：B 的 initialize 被 A 锁死、B 拿 A 的 session id 被静默接受、DELETE 后 session id 复用不返回 404。全是「两个客户端交错」类。写并发测试的起点不是「模拟并发压力」，是<strong>测试人口里至少有两个身份不同的客户端</strong>——身份冲突类 bug 的最小可见单位。</p>
+
+    <h2>五、落地清单</h2>
+
+    <ol>
+        <li>扫描所有服务端代码的模块级有状态对象，逐个问一句：装的是进程状态还是会话状态？</li>
+        <li>有状态传输层必须 per-session：factory + Map 索引 + onclose 清理，三件套缺一不可；</li>
+        <li>协议分支对照规范逐条钉死：initialize / operate / close，400 / 404 / DELETE 每个分支至少一个测试；</li>
+        <li>测试人口至少两个客户端，交错使用，先红验证再绿；</li>
+        <li>async listener 里所有 await 都包 try/catch——unhandled rejection 杀进程；</li>
+        <li>DELETE 之后同 session id 必须可观测地 404：验证清理真的发生了，而不是纸面生命周期。</li>
+    </ol>
+
+    <p>这个 bug 最讽刺的地方在于：README 里的 hello world 一行 curl 完美通过，错误全部发生在第二个客户端身上——而第二个客户端往往一周后才出现。<strong>你的基础设施代码，第一个用户永远测不出并发正确性；并发正确性只能靠设计和测试人口主动保证。</strong></p>
+
+    <p style="color:#8b949e; font-size:0.9rem;">背景：lab/openclaw-mcp-server 测试 cron 当日发现并修复（commit ac0290a / f54f61c），17/17 tests ×2 绿，4/12 新测试红验证于旧代码。MCP Streamable HTTP 传输规范见 modelcontextprotocol.io。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

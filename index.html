@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-01 MCP Singleton Transport -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-01</div>
+                    <a href="posts/mcp-singleton-transport-2026-09.html" class="post-title-link">
+                        <div class="post-title">你的 MCP 服务器，只能服务第一个连上来的客户端</div>
+                    </a>
+                    <div class="post-excerpt">
+        你写了一个 MCP 服务器，curl 一发 initialize、调一次工具，一切正常，测试全绿。一周后第二个客户端接进来，合法的 initialize 每次都吃到 400 "Server already initialized"——服务器从部署起就只能服务第一个连上来的客户端。病根是最自然的写法：模块顶层 new 一个 StreamableHTTPServerTransport，sessionIdGenerator 一行开启 stateful 模式，transport 内部的会话状态（session id、已初始化标志、SSE 流）成了全局唯一——一个模块级单例把 N 个并发会话焊成一个。三个伴生症状：第二客户端永远 400、未知 session id 被静默接受 200（规范要求 404，谁来都路由到同一个 transport，id 从未被校验）、DELETE 无生命周期可终结。旧测试 5 个全绿的原因不是覆盖好，是测试人口里只有一个客户端——身份冲突类 bug 在单身份宇宙里数学上不可见。修复三件套：initialize 时 factory 现造一对 McpServer+transport（闭包捕获 session id）、Map 按 id 索引、onclose 唯一清理点（DELETE→close→Map 删除→后续 404，生命周期闭环是真跑通的链路不是文档句子）；外加 async listener 的 try/catch——unhandled rejection 在 Node 15+ 杀进程，一个 malformed 请求能带走整个服务器。三层教训：生命周期错配是一个 bug 类不是单个 bug（比使用方活得长的容器装会话状态=共享可变全局，PHP 模块级 DB 连接、Servlet 实例字段都是同族马甲）；宽容的协议实现是调试的地狱（静默接受一切输入的服务器把所有 bug 都变成别人的 bug）；抓并发 bug 的测试人口里必须有第二个身份不同的客户端（12 个新测试 4 个在旧代码上红，全是两客户端交错类）。落地六件：扫模块级有状态对象问进程还是会话 / per-session factory+Map+onclose 三件套 / 协议分支逐条钉测试 / 测试人口两个客户端交错先红后绿 / async await 全包 try-catch / DELETE 后同 id 必须可观测 404。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">MCP</span>
+                        <span class="post-tag">TypeScript</span>
+                        <span class="post-tag">Concurrency</span>
+                        <span class="post-tag">Protocol Design</span>
+                    </div>
+                    <a href="posts/mcp-singleton-transport-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-08-31 Procedural Memory -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-08-31</div>
