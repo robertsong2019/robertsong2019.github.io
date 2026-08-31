@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 的肌肉记忆 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Agent 的肌肉记忆：从轨迹到技能的编译之路</h1>
+    <div class="meta">📅 2026-08-31 · ⏱️ 14 分钟 · <span class="tag">Agent Memory</span><span class="tag">Procedural Memory</span><span class="tag">Skill Induction</span><span class="tag">LLM Agents</span></div>
+
+    <p>你搬进新家的第一周，每天出门去地铁站都要开导航：先右转，过两个红绿灯，看到便利店左转。三个月后，你闭着眼睛都能走到——但如果有人问你路上到底有几个红绿灯，你多半答不上来。<strong>这段「说不清、但走得对」的知识，就是程序性记忆。</strong>认知科学叫它 procedural memory，和「记得昨晚吃了什么」（episodic）、「知道巴黎是法国首都」（semantic）是两种完全不同的东西。</p>
+
+    <p>现在看看你的 Agent。它有一柜子的导航记录——每次对话、每条轨迹都存进了向量库，检索时翻出来塞进上下文。这是绝大多数「Agent 记忆」系统的全部： episodic 记忆 + RAG。但三个月后，它去地铁站<strong>还是要开导航</strong>。每一条成功轨迹都被当作一次性证据存档，从来没有被「练」进身体里。今天的 Agent 有海量的事实记忆，几乎没有肌肉记忆。</p>
+
+    <p>这篇文章讲的是一条正在快速成型的路线：把 Agent 的成功轨迹<strong>编译</strong>成可复用的技能——以及为什么这件事比往上下文里塞更多记忆难得多、也值钱得多。</p>
+
+    <h2>一、四种记忆，Agent 只有两种半</h2>
+
+    <p>先立一个坐标系。2023 年的 CoALA 框架（Cognitive Architectures for Language Agents，后来发在 TMLR）从认知科学借来了记忆四分法，把语言 Agent 的记忆划成四格：</p>
+
+    <table>
+        <tr><th>记忆类型</th><th>存什么</th><th>Agent 世界的对应物</th></tr>
+        <tr><td>Working（工作记忆）</td><td>当前正在想的事</td><td>上下文窗口</td></tr>
+        <tr><td>Episodic（情景记忆）</td><td>经历过的事</td><td>对话历史、轨迹存档、RAG 召回</td></tr>
+        <tr><td>Semantic（语义记忆）</td><td>世界的事实</td><td>知识图谱、Zep/Graphiti 这类时序 KG</td></tr>
+        <tr><td>Procedural（程序性记忆）</td><td>怎么做事情</td><td><strong>？？</strong></td></tr>
+    </table>
+
+    <p>第四格常年是问号，不是没有道理的。前三种记忆的「存取」都很直接：事实写下来、经历记下来、用的时候检索出来。而程序性记忆的麻烦在于——<strong>它不是被「存」进去的，是被「练」出来的</strong>。人类的肌肉记忆没法通过读一本《游泳教程》获得，它必须从大量成功与失败的动作中沉淀。Agent 也一样：你得有一堆轨迹，还得有一套办法把轨迹里的重复模式「蒸馏」出来。</p>
+
+    <p>过去两年，这条蒸馏管线从学术到产业逐渐补齐了。下面按时间线看三种形态。</p>
+
+    <h2>二、技能的三种形态：一段话、一套套路、一个程序</h2>
+
+    <h3>形态一：自然语言洞见（ExpeL，2023）</h3>
+
+    <p>最朴素的做法：让 Agent 自己复盘训练任务的成功与失败，把教训提炼成自然语言的 insight，比如「这个网站上搜索结果经常需要翻到第二页」。ExpeL（AAAI-24）就是这么干的——经验积累越多，提炼出的洞见越多，任务成功率单调上升，而且这些洞见还能跨任务迁移。便宜、直观，但有个致命弱点：<strong>没法验证</strong>。一段话读起来头头是道，注入 prompt 后到底帮忙还是帮倒忙，全凭信仰。它更像老师傅的口头禅，而不是可执行的手艺。</p>
+
+    <h3>形态二：工作流子程序（AWM，2024）</h3>
+
+    <p>往结构化走一步。AWM（Agent Workflow Memory）从网页操作轨迹里归纳出「常用套路」——比如「搜索商品 → 筛选 → 加购」这样的子程序——然后在遇到相似任务时，把工作流作为提示注入，Agent 照着既定步骤走，不用每次从零摸索。效果很硬：在 Mind2Web 和 WebArena 两个基准上，相对成功率分别提升 24.6% 和 51.1%，而且完成的任务步数更少。跨任务、跨网站、跨领域测试里，分布差距越大，AWM 的优势越明显（8.9 到 14 个绝对百分点）——<strong>分布外的世界里，套路比记忆值钱</strong>。</p>
+
+    <h3>形态三：可执行程序（Voyager → ASI，2023 → 2025）</h3>
+
+    <p>最激进的形态来自 Voyager：把技能直接写成<strong>可执行的代码</strong>，存进技能库，每个技能带 embedding，用的时候检索并组合调用。在 Minecraft 里，Voyager 拿到的独有物品是基线的 3.3 倍，解锁科技树的速度快到 15.3 倍——而且换一个全新世界，技能库照用不误。2025 年的 ASI（Agent Skill Induction）把这套搬到 WebArena 上，并补上了关键一环：<strong>归纳期验证</strong>。每个新提炼的代码技能必须先跑通验证，才准入库。结果：比静态基线高 23.5%，比「文本形态技能」高 11.3 个百分点，步数还省了 10% 以上。</p>
+
+    <p>三种形态摆在一起，能看到一条清晰的谱系：</p>
+
+    <table>
+        <tr><th></th><th>一段话（ExpeL）</th><th>一套套路（AWM）</th><th>一个程序（Voyager/ASI）</th></tr>
+        <tr><td>归纳成本</td><td>低</td><td>中</td><td>高</td></tr>
+        <tr><td>可验证性</td><td>无</td><td>半</td><td><strong>有（跑测试）</strong></td></tr>
+        <tr><td>可组合性</td><td>无</td><td>弱</td><td><strong>强（函数组合）</strong></td></tr>
+        <tr><td>类比</td><td>老师傅的口头禅</td><td>贴在墙上的 SOP</td><td>带测试的库函数</td></tr>
+    </table>
+
+    <h2>三、程序的特殊地位：可以被验证的经验</h2>
+
+    <p>ASI 那组对比数字值得单独盯一会儿：程序技能比文本技能高 11.3 个百分点，论文的归因不是「代码更精确」，而是<strong>归纳期的程序化验证门</strong>。文本洞见入库不需要通过任何检查；代码技能入库前必须真的跑一遍、断言通过。一道验证门，滤掉了多少想当然的伪经验。</p>
+
+    <p>这背后的原理我愿称之为「经验的类型系统」：自然语言经验是<strong>动态类型</strong>的——直到它在某次任务里炸了，你才知道它是错的；程序经验是<strong>静态类型</strong>的——入库前编译器（验证器）就替你把一批错误拦在门外。对一个要长期运行、自动积累经验的 Agent 来说，这个差别会复利放大：没有验证门的技能库，每个入库条目都是一枚潜在的定时炸弹，而且你不知道引信在哪；有验证门的技能库，每一条至少被证明「曾经真的跑通过」。</p>
+
+    <p>我前几天刚写过另一个领域的同一个教训：统计检验能校验「差异是不是噪声」，校验不了「判定是谁做的」——垃圾进，p 值出。技能库同理：<strong>检索和注入机制做得再精巧，也救不回一条没被验证过的伪经验。</strong>上游一道门，胜过下游十道补丁。</p>
+
+    <h2>四、技能会腐烂：被低估的失败模式</h2>
+
+    <p>有了蒸馏管线和验证门，是不是就齐了？还差最不性感的一环：<strong>淘汰</strong>。</p>
+
+    <p>今年 ACL 2026 Findings 上的 Memp 把这件事摆到了台面上。它把程序性记忆做成一个有完整生命周期的仓库：从轨迹蒸馏出细粒度步骤说明和脚本级抽象两层，然后——这是关键——持续地<strong>更新、纠错、淘汰</strong>过期条目。随着仓库被反复整理，Agent 在 TravelPlanner 和 ALFWorld 上的成功率和效率稳步上升。注意，上升的动力不只来自「加新技能」，也来自「删旧技能」。ASI 的跨站迁移实验也撞见了同一堵墙：换个网站，老技能不但可能失效，还可能<strong>主动帮倒忙</strong>，必须检测到不兼容并就地更新，而不是硬复用。</p>
+
+    <p>人类这边有对应的现象：肌肉记忆不训练会退化，而且退化的往往是「环境变了之后的旧动作」——你换了键盘布局，旧指法越熟练，新指法学得越痛苦。技能库没有淘汰机制，就是一座没有垃圾回收的堆：内存不爆，爆的是注意力——每条陈旧技能都在检索时竞争注入机会，稀释真正有效的那些。<strong>无限追加的技能库不是资产，是负债的复利。</strong></p>
+
+    <p>这和我在情景记忆侧反复撞见的 supersedence 问题（新事实如何取代旧事实）是同一个定律换了个格：记忆系统的成熟度，不看它能存多少，看它敢删多少。</p>
+
+    <h2>五、换车不换驾照：记忆是模型外的资产</h2>
+
+    <p>Memp 还给了一个容易被低估的发现：用强模型（比如 GPT-4 级）积累的程序性记忆，<strong>迁移给弱模型照样大幅涨分</strong>。技能没有跟着模型蒸发。</p>
+
+    <p>这件事的产业意义，看 Anthropic 的动作就知道了。2025 年 10 月他们推出 Agent Skills——一个目录、一个 <code>SKILL.md</code>，YAML 头写清名字和描述，正文是操作指引和脚本。两个多月后，这个东西被发布为跨平台开放标准（agentskills.io）。翻译成架构语言：领域 know-how 不进权重、不进系统提示，作为<strong>文件系统上可发现的资产</strong>存在。模型换代，资产不动——就像你换了车，驾照不用重考。</p>
+
+    <p>Anthropic 的设计里还有一个值得抄的细节：<strong>渐进披露</strong>。系统启动时只把所有技能的「名字 + 一句话描述」预载进上下文——每个几十个 token；Agent 判断某技能和当前任务相关，才去读它的全文。两级加载把成本从「全库常驻」降到「索引常驻、正文按需」。这和 AWM 的 selective providing 是同一门手艺：检索面纪律先于库的规模。<strong>记忆系统的价值不在存了什么，在注入边界画在哪。</strong></p>
+
+    <h2>六、周一早上就能做的事</h2>
+
+    <p>不需要自己训练模型，六件小事，按投入产出排序：</p>
+
+    <ol>
+        <li><strong>清点你 Agent 的「第四格」</strong>。问自己：我的 Agent 有哪些任务每周都要从零推理一遍？列一张表——那就是待蒸馏的原料。没有这张表，后面都是空谈。</li>
+        <li><strong>做一次手工蒸馏实验</strong>。挑一类高频任务（比如「发周报」「跑评测」「发布博客」），翻出过去 5-10 次成功轨迹，人工提炼成一个 SKILL.md 或一段 SOP 文档，注入系统提示。先验证「有套路 vs 没套路」的差距，再考虑自动化。</li>
+        <li><strong>给每条技能选对表征</strong>。经验能用代码表达的（操作流程、数据变换），坚决写成脚本 + 断言，配一个「跑通才算入库」的验证门；只有确实没法程序化的（判断、品味、取舍），才留成自然语言。别让口头禅冒充手艺。</li>
+        <li><strong>加生命周期字段</strong>。给每条技能记 <code>created / last_used / hit_count</code>，一个月后做一次盘点：从未命中的降权或归档，和任务环境指纹不再匹配的标记 deprecated。把「敢删」做进流程。</li>
+        <li><strong>控制注入面</strong>。技能多了以后，别全量塞。索引（名称+描述）常驻，正文按需加载；定期统计「注入后真的被用到」的比例，它就是你的技能库健康度指标。</li>
+        <li><strong>读两篇论文</strong>：AWM（arXiv 2409.07429）看工作流怎么归纳，Memp（arXiv 2508.06433）看生命周期怎么管——代码都开源了，两小时能扫完，性价比极高。</li>
+    </ol>
+
+    <p>最后回到开头那个搬家的人。三个月后他不用导航，不是因为他背下了路线图，而是因为路线「沉」进了身体。Agent 的成长也有这样一条路：不是更大的上下文、更全的检索，而是把重复的推理一次一次地沉淀成不需要推理的动作。<strong>检索是回忆，技能是本能——一个会成长的 Agent，最终要把回忆修炼成本能。</strong></p>
+
+    <p style="color:#8b949e; font-size:0.9rem;">引用：Voyager (arXiv 2305.16291) · CoALA (arXiv 2309.02427, TMLR) · ExpeL (arXiv 2308.10144, AAAI-24) · AWM (arXiv 2409.07429) · ASI (arXiv 2504.06821) · Memp (arXiv 2508.06433, ACL 2026 Findings) · Anthropic Agent Skills / agentskills.io</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
