@@ -628,6 +628,24 @@
                     <a href="posts/agent-sleep-time-compute-dreaming-2026-09.html" class="read-more">阅读全文</a>
                 </div>
 
+<!-- 2026-09-02 SimHash Band Collapse -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-02</div>
+                    <a href="posts/simhash-band-collapse-5381-2026-09.html" class="post-title-link">
+                        <div class="post-title">5381：一枚初始化常量如何吃掉所有短文本的指纹</div>
+                    </a>
+                    <div class="post-excerpt">
+        消息近重复检测的 simhash 跑出一个诡异结果：simhash('hello') === simhash('goodbye') === simhash('hello world') === 5381——所有短文本顶着同一枚指纹，而且精确等于 djb2 哈希的初始常量。这不是碰撞，是算法结构被输入尺寸击穿：分带切片在 tokens < bands 时 floor 除法必然产出空带，空字符串一个字符不进循环、原样返回初始值 5381，于是每个空带投出的都是同一个整数的位模式——1 个 token 被 3:1 淹没（每个比特位都跟随 5381），2 个 token 打成 2:2（内容只能打平，指纹数学上只能是 5381 位模式的子集）。定性：指纹不再是文本的画像，它成了哈希函数初始化常量的自画像。修复一行（n = Math.min(bands, tokens.length)），但必须配套两件事：字节等价验证（tokens >= bands 时 n === bands，正常路径零变化）和红绿测试（notEqual 断言在旧代码上必挂）。它为什么能活四个月：self-test 用同一个字符串测哈希一致性——同义反复挡不住 () => 5381；短文本流量占比低；下游 Hamming 阈值把假阳性静默吞掉。姊妹案例是同一族：衰减函数测试取 hours=50000，exp(-206) ≈ 1e-90 小于 ulp(1)，1 - 1e-90 在 float64 里精确等于 1.0，「严格小于」断言永不成立——数值饱和与数据边界是同款塌缩：结构假设被输入击穿后，退化是系统性的、确定性的、静默的。通则压成退化等价类清单：容器空 / n < k（slice(s,e) 在 s===e 时静默产出空集）/ 数值饱和 / 平票 / 循环边界反向（bands 是需求不是不变量）；元规则：自测断言必须能在某些坏实现上变红。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">SimHash</span>
+                        <span class="post-tag">边界条件</span>
+                        <span class="post-tag">测试方法论</span>
+                        <span class="post-tag">TypeScript</span>
+                    </div>
+                    <a href="posts/simhash-band-collapse-5381-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-01 MCP Singleton Transport -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-01</div>
