@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>你的 Agent 需要一场好梦：Sleep-time Compute 与记忆固化 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .toc { background: #f8f9fa; padding: 20px 25px; border-radius: 6px; margin-bottom: 30px; }
+        .toc-title { font-weight: 600; margin-bottom: 10px; color: #2c3e50; }
+        .toc ul { list-style: none; margin-left: 0; }
+        .toc a { color: #3498db; font-size: 0.95em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>你的 Agent 需要一场好梦：Sleep-time Compute 与记忆固化</h1>
+        <div class="meta">
+            2026-09-01 · 罗嵩 ·
+            <span class="tag">Sleep-time Compute</span>
+            <span class="tag">Memory Consolidation</span>
+            <span class="tag">Agent Architecture</span>
+            <span class="tag">深度调研</span>
+        </div>
+
+        <blockquote>基于 15+ 篇论文与系统的调研，梳理"睡眠时间计算"从 2025 年的范式命名，到 2026 年上半年三家巨头不约而同落地"做梦"功能的完整脉络。核心结论：记忆系统的价值在减法，不在加法。</blockquote>
+
+        <h2>引言：凌晨三点，机房里最安静的时候</h2>
+
+        <p>凌晨三点，你的 Agent 没有在服务任何人。用户睡了，GPU 闲着，但它名下那份记忆库正在腐烂——三个月的对话、几十个项目的笔记、被推翻又推翻的决定，全部以"追加"的方式堆在那里。明天早上用户问它"我们现在的 API 用什么框架"，它会先翻到一条<strong>两个月前的旧记忆</strong>："这个项目用 Express"——而事实上你们三周前就迁到 Fastify 了，只是那条新记忆排在旧记忆后面，权重还打不过它。</p>
+
+        <p>更荒诞的浪费发生在白天：同一份 500 页的技术文档，你今天问了 10 个问题，模型把同样的材料从头到尾"读"了 10 遍、推理了 10 遍，付了 10 次全款。</p>
+
+        <p>这两个问题的答案，2026 年上半年被三家巨头用几乎相同的方式回答了：<strong>让你的 Agent 做梦。</strong></p>
+
+        <p>这不是修辞。Anthropic 的 Claude Code 有 Auto Dream，OpenAI 在六月上线了 Dreaming，Google 的 Memory Bank 内置了异步记忆固化。而这一切的理论起点，是 Letta 和 UC Berkeley 在 2025 年 4 月发的一篇论文：<strong>Sleep-time Compute</strong>。</p>
+
+        <hr>
+
+        <div class="toc">
+            <div class="toc-title">📋 目录</div>
+            <ul>
+                <li>一、考前复习 vs 考场现推：核心思想</li>
+                <li>二、2026 上半年：三家巨头收敛到同一个架构</li>
+                <li>三、减法才是主角：遗忘的架构学</li>
+                <li>四、Learned Context ≠ 你的 CLAUDE.md</li>
+                <li>五、无人监督的记忆重写是下一个事故温床</li>
+                <li>六、今天能做什么</li>
+            </ul>
+        </div>
+
+        <h2>一、考前复习 vs 考场现推：核心思想</h2>
+
+        <p>Sleep-time Compute（arXiv:2504.13171）的洞察用一句话就能说清：<strong>把 prompt 拆成"静态上下文"和"动态查询"两部分，趁查询还没来，先让模型对上下文预推理。</strong></p>
+
+        <p>就像考试。学霸和学渣的差距不在考场上那两小时，而在考场之前——学霸已经把教材"消化"成了自己的笔记，考试时只需检索；学渣抱着一摞 raw context 进考场，每道题都从原文开始现场推理。</p>
+
+        <p>论文把这份预先消化好的笔记叫 <strong>learned context（c′）</strong>。数字很硬：达到同样的准确率，考场时间（test-time compute）省 <strong>5 倍</strong>；如果加大"复习"投入，GSM-Symbolic 准确率再涨 13%，AIME 涨 18%；当 10 个问题共享同一份材料时，平均每个问题的成本降 <strong>2.5 倍</strong>。</p>
+
+        <div class="highlight">关键细节：收益集中在<strong>可预测的查询</strong>上。研究者用 log-probability 评分来识别"用户大概率会问什么"，只对这些做预推理。这符合直觉——复习要押题，不押题的复习是白熬。</div>
+
+        <p>这里有個容易忽略的算术：推理模型时代，每次交互的算力成本是"每次都付"。而 sleep-time 用的是<strong>空闲时段 + 已付费的上下文资产</strong>。Anyscale 联合创始人、UC Berkeley 教授 Ion Stoica 的判断更激进：未来海量的算力会花在训练时或睡眠时的推理上，用来给具体用户/代码库建立"共享上下文"。这是继 test-time scaling 之后的一个新维度——而且是最便宜的那个。</p>
+
+        <h2>二、2026 上半年：三家巨头收敛到同一个架构</h2>
+
+        <p>有意思的不是某一家做了什么，而是三家<strong>不约而同</strong>做了什么。把 Claude Auto Dream、OpenAI Dreaming、Google Memory Bank 摆在一起看，共识架构清晰得像抄作业：</p>
+
+        <ul>
+            <li><strong>定时触发，不占用户时间。</strong>Claude Code 的 Auto Dream 大约每 24 小时、累计 5 个 session 后触发一个后台子代理；OpenAI 的 Dreaming 定时整理；Google 每 30 分钟跑一次 ConsolidateAgent。共同点：绝不在会话中同步整理——那会拖慢响应。</li>
+            <li><strong>重写而非追加。</strong>Auto Dream 的四个操作全是整理动作：把"昨天我们决定用 Redis"这种相对日期改写成绝对日期；<strong>删除被推翻的事实</strong>（迁到 Fastify 之后，"用 Express"的旧条目直接删）；剪掉失效记忆（被重构删掉的文件相关笔记）；合并重复条目。OpenAI 的版本会随时间更新条目状态——"要去新加坡出差"在行程结束后自动变成"去过了"。</li>
+            <li><strong>用便宜的角色干便宜的活。</strong>Letta 的实现是双代理：主代理面向用户、不许碰记忆；睡眠代理独占记忆编辑工具，异步干活。Google 的开源版直接用 Flash-Lite 级别的轻量模型。记忆整理不需要最聪明的模型，需要的是最便宜且勤快的。</li>
+        </ul>
+
+        <p> neurobiology 早已给出剧本：1994 年 Wilson 和 McNaughton 发现海马体在睡眠中重放白天的经验序列；1995 年 McClelland 等人提出互补学习系统理论——海马体快速记原始经验，新皮层慢速提炼成结构化知识。<strong>记忆固化本来就是一个离线过程</strong>，工程界只是花了三十年把这条生物学结论装进了调度系统。</p>
+
+        <h2>三、减法才是主角：遗忘的架构学</h2>
+
+        <p>如果把"做梦"理解为"趁闲着多做点总结"，你只看到了一半。另一半是<strong>遗忘</strong>，而且是刻意的、学会的遗忘。</p>
+
+        <p>今年 3 月的 SleepGate 论文（arXiv:2603.14517）把这件事推到了架构层面。它瞄准的问题叫<strong>前摄干扰（proactive interference）</strong>：上下文里被取代的旧值会持续干扰新值的检索，且检索准确率随陈旧条目累积<strong>对数线性</strong>下滑——这是一个与上下文长度无关的工作记忆瓶颈，prompt engineering 治不了。</p>
+
+        <p>SleepGate 的解法是在 KV cache 上训练出"睡眠微周期"：一个冲突检测器识别"新条目取代了旧条目"，一个学出来的遗忘门驱逐或压缩陈旧条目，一个固化模块把幸存者合并成紧凑摘要。理论结果漂亮：干扰半径从 O(n) 降到 <strong>O(log n)</strong>。实测更狠：PI 深度 5 时检索准确率 99.5%，而 full KV cache、sliding window、H2O、StreamingLLM 这些主流基线全部低于 18%。</p>
+
+        <div class="highlight">三条互相独立的证据链指向同一个结论：<br>① SleepGate：检索瓶颈靠<strong>驱逐陈旧条目</strong>解决；<br>② Auto Dream：核心操作清单前两条都是<strong>删除</strong>；<br>③ ETH Zurich 的 AGENTS.md 研究（下节）：往上下文里<strong>加</strong>东西，成功率反降 3%、成本反涨 20%。<br><strong>记忆系统的价值在减法，不在加法。无限追加的记忆库不是资产，是负债——爆掉的不是存储，是注意力。</strong></div>
+
+        <h2>四、Learned Context ≠ 你的 CLAUDE.md</h2>
+
+        <p>读到这里你可能会想：这不就是 CLAUDE.md 干的事吗？提前把项目上下文写好，agent 每次启动都能读到。</p>
+
+        <p>ETH Zurich 今年 2 月的一项研究（arXiv:2602.11988）专门检验了这个想法，结论相当打脸。他们拿 138 个真实仓库实例、四个前沿 coding agent 做对照实验：</p>
+
+        <ul>
+            <li>LLM 自动生成的 context 文件（<code>/init</code> 产物）：任务成功率<strong>下降</strong> 0.5%~2%，推理成本<strong>上涨</strong> 19%~23%；</li>
+            <li>人手写的 context 文件：仅 +4%；</li>
+            <li>最有信息量的对照组：把仓库自身文档全部删掉后，自动生成的 context 文件反而<strong>+2.7%</strong>——它们只在"填补仓库本身说不清的空白"时创造价值。</li>
+        </ul>
+
+        <p>为什么预缓存的上下文会帮倒忙？因为 agent 是"听话的"：文件里每多写一条要求（多跑测试、多搜文件），它就老老实实执行，烧掉 22% 更多的推理 token，却不会更快找到正确的代码。<strong>预缓存 agent 本可以自己发现的信息（目录结构、构建命令），等于在导航软件时代给人塞一张手绘地图——不是帮助，是噪声。</strong></p>
+
+        <p>这就划出了 sleep-time 与静态注入的本质区别：learned context 是从<strong>真实交互史</strong>中蒸馏、持续被修正、且知道何时该被删除的活文档；CLAUDE.md 是人猜 agent 需要什么的快照。前者随使用增值，后者随时间腐烂。</p>
+
+        <h2>五、无人监督的记忆重写是下一个事故温床</h2>
+
+        <p>说点冷静的。凌晨三点在你记忆库里动刀的那个后台进程，出错时<strong>不会报警</strong>。</p>
+
+        <p>固化错误是静默传播的：错误合并两条记忆、误删一条还没过时的事实、把某次会话的临时状态固化成永久偏好——没有任何一条会在明天的会话里报错，只会让 agent"莫名变蠢"，而你排查时甚至不知道从哪查起。Claude 的 Auto Dream 一上线就被指出 GDPR 层面的默认行为问题：它对你的<strong>全部</strong>会话历史跑固化，无论你是否有意让这些内容进入长期记忆。</p>
+
+        <p>社区里我看到的最精辟的一句评价是："<strong>Forgetting needs receipts too</strong>"——遗忘也需要收据。一个只会追加事实的记忆系统终将变成负债；正确的模式要无聊得多：把旧事实标记为 superseded 而非直接抹掉，保留源头链路，让人可以检视每一次清理。</p>
+
+        <p>目前做得最完整的是 Google Memory Bank 的三件套：<strong>memory revisions</strong>（记忆的版本历史，可检视它如何随时间被改写）、<strong>TTL 自动过期</strong>、按身份隔离。治理三件套 = 可审阅 + 可回滚 + 可过期。我判断这会很快从加分项变成合规刚需——毕竟"AI 趁你睡觉改了它对你的记忆"这件事，天然就该有审计日志。</p>
+
+        <h2>六、今天能做什么</h2>
+
+        <p>不需要等平台功能 rollout，这个模式的绝大部分你自己就能搭。按投入产出排序：</p>
+
+        <ol>
+            <li><strong>先做查询可预测性审计，再谈做梦。</strong>翻一下你的 agent 会话日志，统计"同一上下文被重复查询"的比例和 top 模式。Sleep-time 的收益集中在可预测查询上——如果查询分布是发散的，别做，白烧钱。三个启动信号：同一上下文被反复查询、查询分布稳定、上下文长期存活。</li>
+            <li><strong>给你的记忆系统加一个夜间整理任务。</strong>四操作就够：相对日期绝对化、删被推翻的事实、删失效条目、合并重复。用最便宜的模型跑，定时触发，绝不阻塞会话。OpenClaw、cron、GitHub Actions 都能承载。</li>
+            <li><strong>删除必须留收据。</strong>superseded 标记 + 源头 session id + 时间戳，写进 audit log。今天多花的一行日志，是三个月后你唯一能依靠的排查线索。</li>
+            <li><strong>给记忆加 TTL。</strong>不是所有事实都值得永生。会话状态的默认 TTL 短一点，偏好类的长一点，项目级的交给人工复核。</li>
+            <li><strong>瘦身你的 CLAUDE.md。</strong>按 ETH Zurich 的结论：删掉一切 agent 能自己发现的内容（目录结构、构建命令、跑测试的方法），只留"仓库本身说不清的空白"——为什么这么设计、历史决策、非显然的坑。文件越短，agent 越快。</li>
+            <li><strong>盯两篇论文：</strong>arXiv 2605.20616（Auto-Dreamer，把离线固化本身作为学习目标）和 2606.03979（Language Models Need Sleep，Google 的架构级睡眠）。当固化从提示工程下沉到 KV cache 和模型架构层，"做梦"就不再是功能，而是地基。</li>
+        </ol>
+
+        <hr>
+
+        <p>最后回到那个凌晨三点的机房。Agent 的"梦"一点也不神秘：一个定时的后台进程、一次对记忆文件的重写、几条被删掉的过时事实。但它的含义很重——<strong>我们终于承认，智能不只在回答的那一刻发生，也在没人提问的时候积累。</strong>下一次你的 agent 把一个陈年旧答案塞给你时，别急着骂模型笨，先看看它的记忆有多久没整理了。</p>
+
+        <p>毕竟对人来说也一样：长期不睡觉的人不是记不住新东西，而是旧的东西开始互相打架。</p>
+    </div>
+</body>
+</html>
