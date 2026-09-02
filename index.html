@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-02 Graph Memory -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-02</div>
+                    <a href="posts/graph-memory-agents-2026-09.html" class="post-title-link">
+                        <div class="post-title">记忆靠联想，不靠相似：Agent 图记忆的谱系与账单</div>
+                    </a>
+                    <div class="post-excerpt">
+        「我们三月份把订单系统迁走之前，负责对接的那个人叫什么来着？」——这道题有两半，答案散落在两次毫不相似的对话里，向量库按相似度找「长得像的片段」永远找不到：你举着照片在火车站按长相找人，而人类走的是「认识」的关系网。这是图记忆（Graph Memory）路线的起点：HippoRAG（NeurIPS 2024）直接搬用海马体索引理论——新皮层存内容碎片、海马体存一张索引图，工程翻译=LLM 抽三元组织成开放知识图谱+Personalized PageRank 让重要性从种子节点沿边扩散（多跳问题在向量空间是结构性盲区，在图上只是两跳）；HippoRAG 2 把段落节点也放进图里加识别记忆过滤，联想型 QA +7 F1 且纯事实型不掉分——纯图丢语篇感、纯向量丢多跳，两者必须在一张图里共存。索引谱系一图流：扁平向量（找相似）→RAPTOR 摘要树（多跳需多层：3层 73.7 vs 1层 57.9）→GraphRAG 社区摘要（全局概括问题之王，但 1M token 索引进 $1k-3k）→LightRAG 扁平双层砍到 1/10 成本保七成效果——越重的结构越是为越窄的一类问题付钱，没有全谱通吃，2026 共识=向量管语义+图管关系+重排器统一裁决。时间是最贵的维度：Zep/Graphiti 双时态 KG 给每条边挂 valid_from/valid_to/invalid_at，事实被推翻不删除打 superseded 标记，「搬家之前的地址」从看运气变成图上一条查询路径，与「Forgetting needs receipts」原则严丝合缝。经济学真相：PPR 毫秒级几乎免费，贵的是写入路径每 episode 三次 LLM 重活（抽三元组+实体消解+新旧判断），读多便宜写多昂贵——读多写少语料稳定上图划算，写入频繁事实翻新快则在持续放血。两个暗坑：实体消解是阿喀琉斯之踵（合并错毒化下游、不合并碎成孤岛断链，Tilores 判断 LLM 做一次性去重好用但生产级消解引擎在成本/准确率/可解释性上均不可行，ER 准确率才是系统真实质量上限）；基准已是营销战场（A-MEM 批 Mem0 依赖预定义 schema、两个月后 Mem0 全基准反超，LoCoMo 卷到 92 饱和，可迁移的资产是架构模式不是跑分）。落地六件按性价比排序：记忆 schema 加 valid_from/superseded_by 两字段（成本极低解锁全部时态题）→写入经济学核算（事件数×每次入库 LLM 调用数 vs 查询频率）→问题分型再选结构（八成相似型就别上图）→实验从 HippoRAG 2 开源起步→审计 50 例实体消解正确率→精读 arXiv:2502.14802 与 2501.13956。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Graph Memory</span>
+                        <span class="post-tag">Knowledge Graph</span>
+                        <span class="post-tag">Agent Memory</span>
+                        <span class="post-tag">深度调研</span>
+                    </div>
+                    <a href="posts/graph-memory-agents-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-01 Sleep-time Compute -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-01</div>

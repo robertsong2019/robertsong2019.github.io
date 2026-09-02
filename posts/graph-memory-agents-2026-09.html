@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记忆靠联想，不靠相似：Agent 图记忆的谱系与账单 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .toc { background: #f8f9fa; padding: 20px 25px; border-radius: 6px; margin-bottom: 30px; }
+        .toc-title { font-weight: 600; margin-bottom: 10px; color: #2c3e50; }
+        .toc ul { list-style: none; margin-left: 0; }
+        .toc a { color: #3498db; font-size: 0.95em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>记忆靠联想，不靠相似：Agent 图记忆的谱系与账单</h1>
+        <div class="meta">
+            2026-09-02 · 罗嵩 ·
+            <span class="tag">Graph Memory</span>
+            <span class="tag">Knowledge Graph</span>
+            <span class="tag">Agent Memory</span>
+            <span class="tag">深度调研</span>
+        </div>
+
+        <blockquote>基于 12 个系统与论文的调研（GraphRAG / LightRAG / HippoRAG 1&2 / RAPTOR / Zep-Graphiti / Mem0 / A-MEM / LongMemEval 等），梳理 Agent 图记忆这条路线的核心概念、成本结构与暗坑。核心结论：图的赢面不在"检索更准"，在"多答一类问题"；而账单几乎全在写入侧。</blockquote>
+
+        <h2>引言：一道向量检索永远答不对的题</h2>
+
+        <p>先看一个问题。你跟自己的 AI 助手聊了半年，某天你问它：<strong>「我们三月份把订单系统迁走之前，负责对接的那个人叫什么来着？」</strong></p>
+
+        <p>这个问题有两半：「三月份」「迁走之前」是一半，「对接人是谁」是另一半。答案的真实形态散落在两次毫不相似的对话里——一次是你抱怨迁移排期，一次是三个月前某次闲聊提到对接人换了人。你的向量库接到这个问题，会去找「和这段话长得像」的历史片段：它会翻出一堆关于「订单系统迁移」的段落，但对接人的名字很可能躺在一段跟迁移毫无相似度的对话里，比如「小林说他下周去新加坡」。</p>
+
+        <p>人类答这道题的方式完全不同：你想起了「订单系统」，顺着这条记忆想到「对接」，想到对接的人，想到换人那天的场景。<strong>你走的是"认识"的路径，不是"长得像"的路径。</strong>心理学管这叫联想记忆，解剖学管这套机制叫海马体索引——而 2024 到 2026 年，一批记忆系统正是照着这个思路给 Agent 造记忆的。这就是今天的主角：<strong>图记忆（Graph Memory）</strong>。</p>
+
+        <hr>
+
+        <div class="toc">
+            <div class="toc-title">📋 目录</div>
+            <ul>
+                <li>一、海马体的提示：联想不是相似</li>
+                <li>二、结构决定你能问什么：一条索引谱系</li>
+                <li>三、时间是最贵的维度：双时态</li>
+                <li>四、账单在写入侧：图记忆的经济学</li>
+                <li>五、两个暗坑：实体消解与基准战争</li>
+                <li>六、今天能做什么</li>
+            </ul>
+        </div>
+
+        <h2>一、海马体的提示：联想不是相似</h2>
+
+        <p>这条路线的理论起点是俄亥俄州立大学 2024 年的 <strong>HippoRAG</strong>（NeurIPS 2024，如今引用近九百次）。它直接搬用了认知科学里的<strong>海马体索引理论</strong>：人脑的记忆不是把每段经历完整存档，而是新皮层存内容碎片、海马体存一张「索引图」——回忆时先激活索引，再顺着索引把散落的内容碎片拼回来。</p>
+
+        <p>HippoRAG 的工程翻译分三步：离线时让 LLM 从语料里抽三元组（谁—干了什么—跟谁），织成一张开放知识图谱，LLM 扮演新皮层，图谱扮演海马体；在线时把问题映射到图上的几个种子节点，然后跑一个老掉牙的图算法——<strong>Personalized PageRank（个性化 PageRank，就是 Google 排序网页那套的近亲）</strong>——让"重要性"从种子节点沿着边扩散，最后落在高分的段落上。</p>
+
+        <p>这里有个比喻值得记牢：向量检索像<strong>在火车站的人群里按长相找人</strong>——你举着照片比对，找的是和你手里这张脸最像的；PPR 扩散像<strong>顺着"认识"的关系网打听人</strong>——你问站长，站长问他的熟人，两三跳之后，那个长得完全不像照片、但确实是你要找的人就被指出来了。多跳问题（"A 的合作者的导师是谁"）在向量空间里是结构性盲区，在图上只是两跳。</p>
+
+        <p>2025 年 2 月的 <strong>HippoRAG 2</strong>（论文标题就叫 <em>From RAG to Memory</em>）补上了关键的另一半：它把原始段落（passage）也作为节点放进图里，与短语节点共存，再加一道"识别记忆"过滤——用便宜的 LLM 先判断哪些三元组真的相关，再跑 PPR。结果是联想型 QA 比最好的稠密检索器高出约 7 个 F1，同时纯事实型问题不掉分。<strong>纯图会丢语篇感（sense-making），纯向量会丢多跳，两者必须在一张图里共存。</strong>这句设计判词值得抄在墙上。</p>
+
+        <h2>二、结构决定你能问什么：一条索引谱系</h2>
+
+        <p>把 2024 到 2026 年的系统排开，会发现它们其实是同一个问题的不同答案：<strong>离线搭什么结构，在线就便宜什么问题。</strong></p>
+
+        <ul>
+            <li><strong>扁平向量库</strong>：什么结构都不搭。只能答"和这个问题相似的内容"。就像一堆没有目录的书，只能靠翻。</li>
+            <li><strong>RAPTOR（2024）</strong>：递归地聚类、摘要，搭一棵树。低层是细节，高层是主题概括。它的实验很有说服力：只用叶子层答叙事问题 57.9 分，用满三层是 73.7 分——<strong>多跳、概括性的问题天生需要跨层的结构</strong>。这像图书馆有了树状目录：找"某个具体的数字"查底层，找"这本书讲什么"查顶层。</li>
+            <li><strong>GraphRAG（Microsoft，2024）</strong>：在知识图谱上跑 Leiden 社区检测，把耦合紧密的节点聚成社区，再对每个社区生成分层摘要。它是"这类数据里主要有哪些主题"这种全局概括性问题的王者——map-reduce 扫社区摘要即可。代价见第四节。这像图书馆不只编目，还按学科分区、每区贴一张导读。</li>
+            <li><strong>HippoRAG 1/2（2024-2025）</strong>：开放三元组图 + PPR。主场是联想多跳。像百科全书的交叉引用：任何词条都能沿着"参见"跳出去。</li>
+            <li><strong>Zep / Graphiti（2025）</strong>：在图上再叠加时间维度，见下一节。像档案馆里带修订记录的卷宗，而不是一张只反映"现在"的快照。</li>
+        </ul>
+
+        <p>一个反直觉的观察：LightRAG（港大 2024 年底的工作）把 GraphRAG 的社区检测扔掉，换成扁平的实体级/主题级双层检索加增量更新，索引成本砍到 GraphRAG 的 1/10 到 1/100，效果保住七到九成。这说明<strong>谱系上越重的结构，越是为越窄的一类问题付钱</strong>。没有全谱通吃的结构——2026 年的生产共识是混合：向量管语义相似，图管关系联想，最后用一个重排器统一裁决。</p>
+
+        <h2>三、时间是最贵的维度：双时态</h2>
+
+        <p>回到引言里那道题——它最难的部分其实不是"联想"，是「<strong>之前</strong>」。你的助手知道对接人是小林，也知道对接人现在是小陈，但如果它的记忆是"最新值覆盖旧值"，那"之前是谁"就永远丢了；如果是"全部保留"，那旧值新值一起命中，答案全凭运气。</p>
+
+        <p>Zep 的开源引擎 <strong>Graphiti</strong> 给出了一个我觉得被低估的设计：<strong>双时态知识图谱</strong>。每条事实边携带 <code>valid_from</code>、<code>valid_to</code>、<code>invalid_at</code> 和置信度；新事实推翻旧事实时，不是删除，而是打上 superseded 标记。于是"搬家之前的地址是什么"、"预算是什么时候从 A 改到 B 的"这类问题，从"看运气"变成图上一条明确的查询路径。所谓双时态，是数据库领域的经典建模：事件真实发生的时间，和系统得知这件事的时间，是两条独立的轴——"他五月就说要离职"和"系统七月才知道"，对推理有完全不同的含义。</p>
+
+        <p>这个设计和我在上一篇《你的 Agent 需要一场好梦》里写的记忆固化原则严丝合缝：<strong>Forgetting needs receipts——删除要留收据。</strong>固化负责重写记忆，时态边负责保留删除的痕迹，两者合起来才是一个可审计、可回滚的记忆系统。图不是必须的，但"边上的时间元数据"是任何想认真对待时态问题的记忆系统都绕不开的 schema 增强——哪怕你的底层只是关系数据库。</p>
+
+        <h2>四、账单在写入侧：图记忆的经济学</h2>
+
+        <p>这里有个普遍的误解需要拆掉：图记忆贵，贵的不在图算法。PPR 是二十多年前的老算法，毫秒级；图遍历也便宜。<strong>贵的是喂图的写入路径。</strong>每摄入一段新对话，系统要做三次 LLM 重活：抽三元组、做实体消解（"微软"和"Microsoft Corp"是不是一个节点？）、判断新旧事实的关系（新增？更新？推翻？）。读多便宜，写多昂贵——这是图记忆和向量库截然相反的成本曲线：向量库写入近乎免费，图写入每次都烧钱。</p>
+
+        <p>具体烧多少？GraphRAG 用 GPT-4o 处理 100 万 token 语料，全管线索引进 3 万到 1 亿输入 token、成本大约一千到三千美元；LightRAG 砍到十分之一。这直接推出一条决策规则：<strong>读多写少、语料稳定 → 图划算（文档库、代码库、机构知识库）；写入频繁、事实快速翻新 → 图在持续放血</strong>（高频对话流、实时事件流，这里的账要仔细算）。这也解释了为什么 2026 年生产化系统（Mem0、Zep）都把异步写入做成默认：重活不能挡在用户可感知的响应路径上，宁可晚几秒入库。</p>
+
+        <p>还有一类隐性成本：结构维护。文档变了，向量库删旧插新就完事；图要重新抽实体、跟已有节点对齐、更新受影响的边，可能还得重跑社区检测。<strong>图是活物，不是一次性的索引产物</strong>——养它的人得先想清楚谁付饲料钱。</p>
+
+        <h2>五、两个暗坑：实体消解与基准战争</h2>
+
+        <p><strong>暗坑一：实体消解是整套系统的阿喀琉斯之踵。</strong>合并错了节点，下游所有经过这条边的检索都被毒化；不合并，图碎成孤岛，多跳链路处处断链。一个来自实体消解专业厂商 Tilores 的清醒判断：LLM 做一次性去重相当好用，但作为生产级消解引擎——token 成本、准确率、可解释性——都还不可行；而传统图数据库在大规模消解上同样经常翻车。所以评估任何图记忆系统时，别只看检索算法多优雅，先问：<strong>它的实体消解准确率是多少？这个数字才是系统的真实质量上限。</strong></p>
+
+        <p><strong>暗坑二：基准数字已经是营销战场。</strong>2025 年的 A-MEM 论文（NeurIPS 2025，卡片盒笔记式的自组织记忆）点名批评 Mem0 依赖预定义 schema；两个月后 Mem0 团队发论文，全基准反超。LoCoMo 被各家卷到 92 分接近饱和，LongMemEval 上商用助手距 oracle 检索落差约 30 分，而 Mem0 宣称 94.4——同一基准，各家口径不一。我的建议是把这些数字当营销材料看，<strong>可迁移的资产是架构模式，不是跑分</strong>：离线结构决定在线问题域、写入侧付账、时态边留痕——这三条比任何 leaderboard 都耐用。</p>
+
+        <h2>六、今天能做什么</h2>
+
+        <p>如果你在构建带长期记忆的 Agent，以下是可以立刻动手的事，按性价比排序：</p>
+
+        <ol>
+            <li><strong>给你的记忆 schema 加两个字段</strong>：<code>valid_from</code> 和 <code>superseded_by</code>。成本极低，向后兼容（旧数据视为一直有效），直接解锁"X 之前是什么"这类时态问题，并天然获得"删除留收据"的审计能力。这是全清单里性价比最高的一件事。</li>
+            <li><strong>做一次写入经济学核算</strong>：数一数你的场景每天产生多少条记忆事件，乘上每次入库需要的 LLM 调用数（抽取+消解+更新判断，一般 3 次起步），再对照你的查询频率。如果写入量是查询量的十倍，先别上图，先把记忆写入做合并与批处理。</li>
+            <li><strong>把问题分型再选结构</strong>：拿一周的真实用户问题，手工分成三类——相似型（找相关片段）、联想型（跨片段多跳）、概括型（总结全局）。如果八成是相似型，向量库加重排就够，别为两成长尾上全套图基础设施；反过来，联想型占比高才是图的正当理由。</li>
+            <li><strong>想实验图路线，从 HippoRAG 2 的开源实现起步</strong>：它把段落节点、识别记忆过滤、PPR 扩散都做齐了，在小语料上跑通比从零自建便宜一个数量级。</li>
+            <li><strong>审计你的实体消解</strong>：从记忆库里抽 50 个疑似重复实体（同指不同名），人工判断合并正确率。低于九成的话，检索算法再好也白搭——先修地基。</li>
+            <li><strong>读两篇论文</strong>：HippoRAG 2（arXiv:2502.14802）看检索机制设计，Zep（arXiv:2501.13956）看双时态建模。两篇都不长，是这个领域密度最高的两份输入。</li>
+        </ol>
+
+        <p>最后收个尾：图记忆这条路线教给我们的，与其说是"图数据库很强大"，不如说是两个更朴素的道理——<strong>记忆的默认模式是联想，而联想需要结构；事实的默认命运是被推翻，而被推翻的事实比最新的事实更有审计价值。</strong>你的记忆系统有没有为这两件事留出位置，比它用什么数据库重要得多。</p>
+
+    </div>
+</body>
+</html>
