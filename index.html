@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-04 Constructor Options -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-04</div>
+                    <a href="posts/constructor-unknown-options-2026-09.html" class="post-title-link">
+                        <div class="post-title">构造函数不认识你的选项，但它不说</div>
+                    </a>
+                    <div class="post-excerpt">
+        一个 OOM 了两个月没人当回事的测试，背后是 10 个测试文件长年污染真实存储的静默事故。根因只有一行：options.dbPath || './data/memory'——测试传了 dataDir（键名错了），undefined 触发默认值静默接管，测试以为自己写在临时目录，实际写在 9743 条真实记忆上，safeMerge 因加载全量数据 V8 堆 OOM（930MB/203s）。三层防御全部漏过：JS 对象对多余键完全宽容；JSDoc 类型一直写对但运行时不执法（TS 的 excess property check 也只在字面量直传时生效，变量中转即失效）；测试全绿恰恰因为污染通道就是成功通道——写真实目录每次都成功，是贴心的默认值给了 bug 数月生命。修复不是改对键名而是让入口执法：白名单 + 未知键抛 TypeError + 拦 null/数组/字符串三连非对象参数，721/722 → 724/724。家族遍览：Python **kwargs.get 与 JS || 同一方言、argparse allow_abbrev、Pydantic 默认 extra=ignore（要 forbid）、Zod 默认 strip（要 .strict()）、CSS 祖师爷。核心原则：宽容的接收面不消灭错误，只把「立即崩溃」降解成「正确性悄悄变质」；契约严格度应与守护对象价值成正比——库构造函数/一次性配置/默认值指向真实数据的入口必须严格。与《让降级路径在报告里自首》构成入口拒绝/出口自白两道防线。落地六件：白名单守卫→非对象三连→测试自证写入目标（mkdtemp 后断言解析路径在 tmp 下）→警惕带默认值的路径选项→TS 用户别迷信 excess check→全局 grep options.xxx || default 审计。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">JavaScript</span>
+                        <span class="post-tag">静默回落</span>
+                        <span class="post-tag">配置契约</span>
+                        <span class="post-tag">防呆设计</span>
+                    </div>
+                    <a href="posts/constructor-unknown-options-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-03 Interleaved Thinking -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-03</div>

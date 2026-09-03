@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>构造函数不认识你的选项，但它不说 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>构造函数不认识你的选项，但它不说</h1>
+        <div class="meta">
+            2026-09-04 · 罗嵩 ·
+            <span class="tag">JavaScript</span>
+            <span class="tag">静默回落</span>
+            <span class="tag">配置契约</span>
+            <span class="tag">防呆设计</span>
+        </div>
+
+        <blockquote>一个 OOM 了两个月没人当回事的测试，背后是 10 个测试文件长年污染真实存储的静默事故。根因只有一行：<code>options.dbPath || './data/memory'</code>——传错键名不报错，默认值静默接管，测试以为自己写在临时目录，实际写在 9743 条真实记忆上。宽容的接收面不会消灭错误，只会把「立即崩溃」降解成「正确性悄悄变质」。</blockquote>
+
+        <h2>一个崩了两个月没人当回事的测试</h2>
+
+        <p>agent-memory-service 的测试套件长期停在 721/722：七百多个用例全绿，只有一个红的，谁也没急过。红的是 safeMerge 套件——跑起来 V8 堆顶到 930MB，203 秒后 OOM 崩掉。它看起来像一个「写得不够环保」的测试：加个 heap 限制、或者跳过、回头再优化，都是合理选项。</p>
+
+        <p>凌晨的例行测试循环终于把它当成了真问题。顺着内存曲线查下去发现，崩掉的那 203 秒里，测试在做一件它绝不该做的事：<strong>加载整个真实存储</strong>——9743 条真实记忆，全部反序列化、建索引、放进内存。一个本该在临时目录里造三四条假数据的单元测试。</p>
+
+        <p>然后是那个只有一行的真相。</p>
+
+        <h2>漏洞只有一行</h2>
+
+        <p>测试是这样写的：</p>
+
+        <pre><code>beforeEach(async () =&gt; {
+  dir = await mkdtemp(join(tmpdir(), 'mem-sm-'));   // 一次性临时目录
+  svc = new MemoryService({ dataDir: dir });        // ← 键名错了
+});</code></pre>
+
+        <p>构造函数是这样写的：</p>
+
+        <pre><code>constructor(options = {}) {
+  this.#dirPath = options.dbPath || './data/memory';   // ← 真名是 dbPath
+  this.#store = new MemoryStore(this.#dirPath);
+  // ...
+}</code></pre>
+
+        <p><code>dataDir</code> 不是 <code>dbPath</code>。于是 <code>options.dbPath</code> 是 <code>undefined</code>，<code>||</code> 右边的默认值顺理成章地接管。没有报错，没有警告，没有任何一行日志提到「你传了一个我不认识的键」。测试坚信自己写进了临时目录，实际上每一次写、每一次合并、每一次冲突，都落在 <code>./data/memory</code>——真实存储上。</p>
+
+        <p>这不是孤例。审计发现<strong>10 个测试文件</strong>在犯同一个错：8 个用 <code>dataDir</code>，1 个用 <code>{ dir }</code>，还有 1 个直接把路径字符串当第一个参数传进去（在字符串上访问 <code>.dbPath</code>，同样得到 <code>undefined</code>）。这些测试一路全绿，有的已经跑了很久。</p>
+
+        <p>为什么全绿？因为<strong>污染通道本身就是成功通道</strong>。写 <code>./data/memory</code> 不但不报错，而且每次都成功——断言该过的全过。测试隔离的目标是「不碰真实数据」，而它碰得比谁都勤快。唯一的症状是性能：每个测试都加载全量存储，套件整体慢到 91 秒，safeMerge 因为数据量最大第一个被堆预算掐死。OOM 是哨兵，但它把自己伪装成了性能问题。</p>
+
+        <h2>为什么每一层防御都没拦住</h2>
+
+        <p><strong>运行时层。</strong> JavaScript 对象对多余的键完全宽容——往任何对象上多塞一个键都不犯法。<code>options.dbPath</code> 取不到就返回 <code>undefined</code>，<code>|| default</code> 再补一刀。语言层面没有任何机制提示「你传了我不认识的东西」。</p>
+
+        <p><strong>类型层。</strong> 源码里其实一直有 JSDoc：<code>@param {{dbPath?: string, embedFn?: EmbedFn}} options</code>。类型写得清清楚楚——但 JSDoc 是给人看的注释，运行时不执法。就算换成 TypeScript 也别高兴太早：excess property check 只在<strong>对象字面量直接传参</strong>时生效，一旦先赋给变量再传入（测试代码最常见的中转写法），多余键检查静默失效。</p>
+
+        <p><strong>测试层。</strong> 这是最讽刺的一层：测试全绿不是覆盖好的证据。写默认目录是「成功路径」，断言全部通过。如果默认路径不存在、构造函数当场抛错，这个 bug 反而活不过第一次 CI——<strong>是那个贴心的默认值给了它长达数月的生命</strong>。</p>
+
+        <h2>修复：让入口执法</h2>
+
+        <p>修复本身只有八行，但思路值得写下来——不是「修正错误的键名」，而是<strong>让构造函数拒绝它不认识的一切</strong>：</p>
+
+        <pre><code>constructor(options = {}) {
+  const KNOWN = new Set(['dbPath', 'embedFn', 'maxCacheSize']);
+  if (typeof options !== 'object' || options === null || Array.isArray(options)) {
+    throw new TypeError('MemoryService: expected an options object, e.g. new MemoryService({ dbPath })');
+  }
+  const unknown = Object.keys(options).filter(k =&gt; !KNOWN.has(k));
+  if (unknown.length &gt; 0) {
+    throw new TypeError(`MemoryService: unknown option(s) '${unknown.join("', '")}' — valid: dbPath, embedFn, maxCacheSize`);
+  }
+  this.#dirPath = options.dbPath || './data/memory';
+  // ...
+}</code></pre>
+
+        <p>注意守卫顺序：先拦「根本不是对象」的参数（null、数组、字符串），再拦「对象但键不认识」。字符串那一拦不是多余——把 <code>new MemoryService('/tmp/x')</code> 写进代码的人，值得一个立刻的 TypeError，而不是一次静默写入默认目录。</p>
+
+        <p>修完立竿见影：十个文件改成正确的 <code>dbPath</code>，safeMerge 从 OOM+203 秒变成秒级 4/4，全套件 <strong>724/724</strong>。被污染的 <code>data/memory</code> 从 git 恢复。两个月的幽灵，一晚上清零。</p>
+
+        <h2>这是一个家族</h2>
+
+        <p>「接收面吞掉它不认识的输入」，跨语言都有亲戚：</p>
+
+        <ul>
+            <li><strong>Python <code>**kwargs</code></strong>：<code>kwargs.get('dbPath', default)</code> 与 JS 的 <code>||</code> 是同一个陷阱的两种方言；</li>
+            <li><strong>argparse</strong> 默认开 <code>allow_abbrev</code>，前缀匹配能把拼写误差变成另一个合法参数的静默命中；</li>
+            <li><strong>Pydantic v2</strong> 默认 <code>extra='ignore'</code>——要 <code>model_config = ConfigDict(extra="forbid")</code> 才会拒绝未知字段；</li>
+            <li><strong>Zod</strong> 默认 strip 掉未知键，要显式 <code>.strict()</code>；</li>
+            <li><strong>CSS</strong> 是这个家族的祖师爷：未知属性静默丢弃是浏览器的容错传统，代价是全人类几十年的「为什么这条样式不生效」。</li>
+        </ul>
+
+        <p>家族共性是同一个裂缝：<strong>调用方相信的事</strong>（我传的选项在起作用）和<strong>实际发生的事</strong>（键被扔掉，默认值接管）之间出了偏差。宽容的接收面不会消灭错误，只会把错误从「立即崩溃」降解成「行为正确性悄悄变质」。前者五分钟修好，后者两个月才见血。</p>
+
+        <div class="highlight">原则可以一句话说完：<strong>契约的严格程度，应该和它守护的东西的价值成正比。</strong> 应用内部随手传个 options，宽容无妨；但库的构造函数、一次性解析的配置、任何默认值指向真实数据的入口——这三类接收面必须严格。未知键不是噪音，是调用方错误信念的直接证据，最便宜的失败时机就是它出现的瞬间。</div>
+
+        <h2>和上一篇是同一战线的两个哨位</h2>
+
+        <p>上一篇《让降级路径在报告里自首》讲的是出口：降级发生了，报告必须承认，知识要放在数据里而不是注释里。这篇讲的是入口：别让静默回落轻易发生，把错误信念挡在构造函数门口。</p>
+
+        <p>入口拒绝是第一防线，出口自白是最后防线。两条都做，静默回落才没有生存空间。</p>
+
+        <h2>落地清单</h2>
+
+        <ol>
+            <li><strong>给 options 类构造函数加白名单</strong>：未知键 → TypeError。一段八行守卫，一次成本，永久收益；</li>
+            <li><strong>拦「非对象」三连</strong>：null、数组、字符串参数各自给出人话报错——传字符串的人不是傻子，是记错了签名的人；</li>
+            <li><strong>测试脚手架自证写入目标</strong>：<code>mkdtemp</code> 后立刻断言 service 解析出的路径在 tmp 下（或写入一条后断言 tmp 文件存在），让「写错地方」从静默变成秒红；</li>
+            <li><strong>警惕带默认值的路径选项</strong>：默认值是污染放大器——必填比默认安全；要给默认，就让它指向一个空目录，而不是真实存储；</li>
+            <li><strong>TypeScript 用户别迷信 excess check</strong>：字面量直传才检查，变量中转即失效，库的入口仍需运行时守卫；</li>
+            <li><strong>做一次全局审计</strong>：grep 所有 <code>options.xxx || default</code> 和 <code>kwargs.get(xxx, default)</code>，每个命中处问一句——传错键的人会得到什么？</li>
+        </ol>
+
+        <hr>
+        <p><em>本文基于 agent-memory-service 2026-09-04 修复的测试隔离事故（commit 3074c6d）整理。</em></p>
+    </div>
+</body>
+</html>
