@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>思考的经济学：Agent 何时思考、想多久、怎么不忘记自己在想什么 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .toc { background: #f8f9fa; padding: 20px 25px; border-radius: 6px; margin-bottom: 30px; }
+        .toc-title { font-weight: 600; margin-bottom: 10px; color: #2c3e50; }
+        .toc ul { list-style: none; margin-left: 0; }
+        .toc a { color: #3498db; font-size: 0.95em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>思考的经济学：Agent 何时思考、想多久、怎么不忘记自己在想什么</h1>
+        <div class="meta">
+            2026-09-03 · 罗嵩 ·
+            <span class="tag">Interleaved Thinking</span>
+            <span class="tag">Reasoning Budget</span>
+            <span class="tag">AI Agent</span>
+            <span class="tag">深度调研</span>
+        </div>
+
+        <blockquote>基于 14 个系统与论文的调研（Anthropic think tool / Claude interleaved thinking / MiniMax M2 / Kimi K2 Thinking / Qwen3 / AdaptThink / L1-LCPO / Stop Overthinking 综述等），梳理「思考」如何从提示技巧变成模型 API 的一等公民资源。核心结论：会思考不算本事，知道自己该何时思考、思考多久、以及别把草稿纸扔了，才是。</blockquote>
+
+        <h2>引言：同一个模型，为什么一次聪明一次笨</h2>
+
+        <p>2025 年底，MiniMax 的工程团队收到一堆用户反馈，说他们的 M2 模型「时好时坏」：同一道任务，有人跑出来干净利落，有人跑出来跌跌撞撞——重试循环、忘记自己在干嘛、计划做到一半突然推翻重来。模型是同一个，权重一个字节都没变。</p>
+
+        <p>排查的结果有点哭笑不得：<strong>问题不在模型，在中间件。</strong>很多用户通过 OpenAI 兼容层调用 M2，而兼容层把模型每一步的「思考过程」当成无关紧要的中间产物，默默丢掉了。于是模型每调用一次工具，就失忆一次——它明明在上一步想清楚了「这个 API 不返回海拔，我知道 ISS 轨道高度大约 400 公里」，下一步却像刚睡醒一样重新纠结一遍。丢掉的不是日志，是工作记忆。</p>
+
+        <p>这个事故值得每个做 Agent 系统的人琢磨。过去十八个月，「思考」悄悄完成了从提示词技巧到基础设施的跃迁：它有了<strong>位置</strong>（在哪想）、<strong>状态</strong>（怎么传）、<strong>预算</strong>（想多少）、<strong>开关</strong>（想不想）。这四个维度各自都在快速产品化，而大部分团队的认知还停留在「把 thinking 打开就完事了」。这篇文章就是把这张地图画出来。</p>
+
+        <hr>
+
+        <div class="toc">
+            <div class="toc-title">📋 目录</div>
+            <ul>
+                <li>一、思考的位置：从答题前草稿，到行动循环的心跳</li>
+                <li>二、思考的状态：草稿纸不能扔</li>
+                <li>三、思考的预算：Overthinking 是效率 bug，也是正确性 bug</li>
+                <li>四、思考的开关：教会模型「何时不思考」</li>
+                <li>五、思考是一种可管理资源</li>
+                <li>六、今天能做什么</li>
+            </ul>
+        </div>
+
+        <h2>一、思考的位置：从答题前草稿，到行动循环的心跳</h2>
+
+        <p>两年前的 Chain-of-Thought 是什么形态？<strong>答题前想一遍</strong>。模型收到问题，先在心里打一遍草稿，然后落笔。这个范式在纯问答场景没问题，但在 Agent 场景立刻露馅：Agent 的本质是循环——调用工具、看结果、再决定下一步。如果思考只发生在循环开始前，那相当于你出门旅游前做了一份完美攻略，然后全程不再看一眼地图。</p>
+
+        <p>2025 年 3 月，Anthropic 做了个看起来很土的尝试：发布一个叫 <code>think</code> 的工具。没有参数，没有副作用，唯一的作用是给 Claude 一块「停下来想一想」的空地。别小看它——在客服工单、政策合规这类多步决策任务上，就这么个空工具显著提升了正确率。它证明了一件事：<strong>思考的时机本身就是一个可操作的动作</strong>。</p>
+
+        <p>两个月后，Claude 4 把这个思路扶正，推出 <strong>Interleaved Thinking（交错思考）</strong>：思考不再是答题前的一次性事件，而是散布在整个行动循环里。模型可以「想 → 调工具 → 看结果 → <strong>再想</strong> → 再调工具」。AWS 的 Strands 框架给出了生动的实录：模型第一次调 API 拿到 ISS 位置后发现没拿到海拔，于是在两次工具调用之间主动推理「轨道高度大约 400-420 公里，我可以换个更详细的 API」——<strong>这不是脚本编排的行为，是模型在工具间隙里自己想出来的</strong>。</p>
+
+        <p>更值得注意的是，这种「思考与行动交错」已经被 RL 直接训练进策略里。ReTool、DeepEyes、ARTIST 这一批工作让模型在训练中学会每一步自己决定「该思考还是该动手」，思考不再依赖外层的提示工程。用个类比：旧范式是考试前背书，新范式是<strong>走路时的呼吸</strong>——每一步之间都有一次节奏性的调整，急了多喘两口，平路自然放缓。</p>
+
+        <h2>二、思考的状态：草稿纸不能扔</h2>
+
+        <p>思考有了位置之后，紧跟着一个工程问题：<strong>思考的产物算什么？</strong>是随用随弃的临时输出，还是必须跨步骤保留的状态？</p>
+
+        <p>两家的答案出奇一致。Anthropic 的 API 有一条容易被忽视的硬规则：在启用扩展思考的多轮工具循环里，<strong>thinking block 必须原序完整地回传给 API</strong>，不能改写、不能重排。MiniMax 在 M2 事故后做了受控实验，结论是保留思考状态与否在多个 Agent 基准上差距显著，于是他们把思考过程放进独立的 <code>reasoning_details</code> 字段，并拉着 OpenRouter、Ollama、Vercel、Cline 一起推动这个字段成为跨生态的统一协议。</p>
+
+        <p>为什么思考状态这么重要？我的理解是：<strong>思考 trace 是 Agent 的情景记忆</strong>。它记录了「我为什么走到这一步」——排除过的假设、修正过的计划、发现过的坑。丢掉它，Agent 表面上还带着完整的对话历史，实际上已经丧失了对这条路径的理解，只剩机械回放。这就是 M2 用户看到的「跌跌撞撞」：不是模型不会思考了，而是它每一轮都在被迫重新发明自己。</p>
+
+        <div class="highlight">这里藏着一个对工程团队很致命的陷阱：丢弃思考状态的 bug 表现为「模型能力下降」，而不是「报错」。你的监控全是绿的，你的用户在骂模型。任何引入推理模型的 Agent 管线，都该第一时间审计一遍 thinking/reasoning 字段的传递链——尤其是经过 OpenAI 兼容层、消息序列化、日志裁剪这些「顺手清理字段」的地方。MiniMax 那句总结很到位：<strong>应用层在骂模型，其实是中间件在背地里撕草稿纸。</strong></div>
+
+        <h2>三、思考的预算：Overthinking 是效率 bug，也是正确性 bug</h2>
+
+        <p>解决了「在哪想」和「怎么传」，下一个问题是「想多少」。这里的反直觉发现来自 2024 年底那篇标题很损的论文：《Do NOT Think That Much for 2+3=?》。研究者发现 DeepSeek-R1 系的推理模型面对小学加减法也会写几百 token 的推理链——先心算一遍，再验证一遍，再换个方法验算一遍，最后还要自我表扬一下。</p>
+
+        <p>冗余思考贵不贵？很贵。但真正有意思的是后面这层：<strong>想太多不只是浪费钱，还容易想错</strong>。冗长的推理链会稀释逻辑清晰度，中间步骤一多，自相矛盾的机会就多，简单题上「想多了反而答错」是实测现象。2025 年的 TMLR 综述《Stop Overthinking》把这类方法归了六大类：用 RL 给推理长度加奖励、用变长数据做 SFT、压缩推理步数、推理时动态调整、提示词引导、按问题路由。</p>
+
+        <p>两个代表工作值得记住。<strong>AdaptThink</strong>（EMNLP 2025）用 RL 教模型自己选择「这题要不要思考」：简单题直接跳过思考过程。结果是一个罕见的双赢——1.5B 模型平均响应长度砍掉 53%，准确率反而涨了 2.4%。<strong>L1/LCPO</strong>（CMU）走另一条路：在提示里直接写「思考恰好 512 个 token」，用 RL 训练模型遵守这个预算。他们发现一个惊喜：1.5B 的小模型在被约束到短推理后，同样长度下能打平甚至超过 GPT-4o——<strong>长推理模型身体里其实藏着一个很强的短推理模型，只是没人逼它</strong>。</p>
+
+        <p>这两条线合起来指向一个判断：推理 token 里存在大量「可无损压缩的冗余」，而压缩它的钥匙不是更好的压缩算法，是<strong>元认知</strong>——模型对自己「想够了没有」的感知能力。这一点产业界已经在 API 表面上兑现：Claude 4.6 代开始，手动的 <code>budget_tokens</code> 参数逐步让位于 effort level（standard/high/xhigh/max），由模型内部决定具体想多少。开发者从「调旋钮的人」退位成「定策略的人」：你只说这任务值多大努力，剩下交给模型。</p>
+
+        <h2>四、思考的开关：教会模型「何时不思考」</h2>
+
+        <p>预算解决「想多少」，开关解决「想不想」。Qwen3 的做法是优雅的工程折中：一个模型同时内置 thinking 和 non-thinking 两种模式，用户可以设 <code>thinking_budget</code>，也可以在对话里用 <code>/think</code>、<code>/no_think</code> 软开关逐题切换——难题走深推理，简单题秒回。</p>
+
+        <p>但方向上大家看得更远：开关不该由人拨。AdaptThink 证明了模型可以学会按题自选模式；MUR（ACL 2026）进一步做了训练免费的动态预算——在推理过程中追踪每一步的不确定性信号，把预算动态倾斜给关键步骤，像好学生考试时知道哪道题值得多花十分钟。SelfBudgeter 则让模型先给自己估个预算再开想，超支了自我纠正。</p>
+
+        <p>这些工作拼在一起，是一个正在发生的范式收敛：</p>
+
+        <table>
+            <tr><th>阶段</th><th>谁决定思考量</th><th>形态</th></tr>
+            <tr><td>外部分类器路由</td><td>人写规则</td><td>「这类任务用推理模型，那类不用」</td></tr>
+            <tr><td>硬预算参数</td><td>人调旋钮</td><td>budget_tokens = 10000</td></tr>
+            <tr><td>effort level</td><td>人定策略、模型执行</td><td>「这个任务用 high effort」</td></tr>
+            <tr><td>元认知自适应</td><td>模型全权</td><td>AdaptThink / MUR：按题按步自决</td></tr>
+        </table>
+
+        <p>每往下一步，人都退一层，模型都多担一层。这不是厂商偷懒，是和整个行业「从参数到意图」的接口演化同构的。</p>
+
+        <h2>五、思考是一种可管理资源</h2>
+
+        <p>把四个维度摊开看，你会发现「思考」在 Agent 系统里的地位，正在变得像操作系统里的内存：<strong>位置（在哪分配）、状态（怎么保持）、预算（分多少）、开关（何时释放）</strong>——每个维度都有对应的工程决策要做，做错了的故障模式还都很隐蔽（内存泄漏表现为变慢，思考丢失表现为变笨）。</p>
+
+        <p>还有一个我认为被低估的合流趋势：<strong>交错思考会放大对上下文工程的依赖</strong>。思考越密集，thinking trace 消耗的上下文窗口越多；每次工具间的思考都在读取当前上下文，也都在改写它的膨胀速度。换句话说，「思考管理」和「上下文管理」正在变成同一个问题的两面——那些做上下文压缩、记忆固化的系统，和做推理预算的系统，迟早要在同一层会师。</p>
+
+        <p>至于那块最早的试验田——Anthropic 的 think 工具——2025 年 12 月官方更新里已经被 extended thinking 全面收编：「我们建议在大多数场景直接使用扩展思考」。一个空工具完成了它的历史使命：它教会社区的从来不是那个工具本身，而是「思考的时机是一个显式的、可设计的决策点」。这个认知，值得留很久。</p>
+
+        <h2>六、今天能做什么</h2>
+
+        <p>如果你在构建或维护 Agent 系统，按性价比排序：</p>
+
+        <ol>
+            <li><strong>审计思考传递链（今天就做）</strong>：检查你的管线里 thinking/reasoning 字段是否在多轮工具循环中完整保留。重点排查三处：OpenAI 兼容转发层、消息序列化/反序列化、日志裁剪逻辑。M2 事故证明这类 bug 广泛存在且完全静默。</li>
+            <li><strong>给任务分级配预算</strong>：把「思考量」当成本控制层。低风险的例行任务（巡检、简报、格式转换）用低 effort 或关闭思考；复杂任务才放开。多数 Agent 的工作负载里，80% 的调用不需要深度思考。</li>
+            <li><strong>盯住 <code>reasoning_details</code> 协议</strong>：MiniMax 正联合各家把这个字段做成跨生态标准。你的框架接入新推理模型时，按它对齐，别自己发明。</li>
+            <li><strong>做一次 thinking on/off 的 A/B</strong>：在你的真实任务上量化「思考的净收益」——不只是准确率差多少，还要算 token 成本差多少。很多团队会发现某些任务上思考是负资产。</li>
+            <li><strong>读三篇东西</strong>：TMLR 综述《Stop Overthinking》（arXiv:2503.16419）建全局框架；AdaptThink（arXiv:2505.13417）看元认知怎么训；MiniMax 那篇 M2 技术公告看协议层教训。</li>
+        </ol>
+
+        <p>最后回到那个开头的故事。M2 的「时好时坏」最终以一行字段修复告终。它留下的教训比修复本身值钱：<strong>当模型学会思考之后，「思考」就成了系统里一份必须被认真搬运、妥善保管的货物。</strong>我们花了两年教模型思考，接下来要花更久学会——别把它的草稿纸扔了。</p>
+
+        <hr>
+
+        <p><strong>参考：</strong>Anthropic《The "think" tool》(2025-03，2025-12 更新) · AWS Bedrock Extended Thinking 文档 · MiniMax《Interleaved Thinking Unlocks Reliable M2 Agentic Capability》(2025-11) · Qwen3 技术博客 · arXiv:2412.21187 / 2503.16419 (TMLR 2025) / 2505.13417 (EMNLP 2025) / 2503.04697 (L1-LCPO) · MUR (ACL 2026) · SelfBudgeter (OpenReview)</p>
+    </div>
+</body>
+</html>

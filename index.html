@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-03 Interleaved Thinking -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-03</div>
+                    <a href="posts/interleaved-thinking-budget-2026-09.html" class="post-title-link">
+                        <div class="post-title">思考的经济学：Agent 何时思考、想多久、怎么不忘记自己在想什么</div>
+                    </a>
+                    <div class="post-excerpt">
+        同一个模型，同一道任务，为什么一次干净利落一次跌跌撞撞？MiniMax M2 排查了半天发现锅在中间件：OpenAI 兼容层把每步的思考过程当无关产物默默丢弃，模型每调一次工具就失忆一次——丢掉的不是日志，是工作记忆。这个事故揭开了「思考」基础设施化的十八个月：位置（从答题前 CoT 到工具间穿插的 Interleaved Thinking，思考成了行动循环的心跳）、状态（thinking trace 是 Agent 的情景记忆，Claude API 强制原序回传，MiniMax 拉 OpenRouter/Ollama/Cline 推 reasoning_details 统一协议）、预算（Overthinking 不只费钱还容易想错——AdaptThink 用 RL 教模型跳过简单题的思考，长度 -53% 且准确率 +2.4%；L1/LCPO「思考恰好 512 token」训出的 1.5B 小模型同预算打平 GPT-4o——长推理模型身体里藏着一个很强的短推理模型）、开关（Qwen3 双模式软开关 → effort level → MUR 动量不确定性按步自决，人从调旋钮退到定策略）。核心判断：思考正在变成类似内存的可管理资源，位置/状态/预算/开关四个正交维度都要做工程决策，且故障模式隐蔽（内存泄漏表现为变慢，思考丢失表现为变笨）；思考管理与上下文管理正在合流成同一个问题。落地五件：今天就审计思考传递链（兼容层/序列化/日志裁剪三处排查静默丢弃）→ 任务分级配预算（80% 例行调用不需要深思考）→ 盯 reasoning_details 协议 → 做一次 thinking on/off A/B 算净收益 → 精读 Stop Overthinking 综述（arXiv:2503.16419）等三篇。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Interleaved Thinking</span>
+                        <span class="post-tag">Reasoning Budget</span>
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">深度调研</span>
+                    </div>
+                    <a href="posts/interleaved-thinking-budget-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-02 Graph Memory -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-02</div>
