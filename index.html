@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-04 Context Engineering -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-04</div>
+                    <a href="posts/context-engineering-agent-2026-09.html" class="post-title-link">
+                        <div class="post-title">窗口越大，Agent 越笨？——上下文工程的四本账</div>
+                    </a>
+                    <div class="post-excerpt">
+        同一个 Agent，第一小时表现出色，第二小时开始重复读旧文件、忘记自己定过的方案——重启对话就恢复，模型权重一个字节没变，变的是上下文。Chroma《Context Rot》实测 18 个前沿模型全部随输入变长而退化且远未触顶：干扰项比长度更毒（几段语义相近的无关内容伤害超过几倍长度），LongMemEval 上只喂相关片段稳定赢塞全量——窗口是书桌不是硬盘，检索质量是上限，窗口大小只是入场券。第二本账是钱：Manus 实测 Agent 输入输出 token 比 ≈100:1，成本全在反复读上，缓存命中率是生产 Agent 单一最重要指标——前缀稳定、上下文 append-only、工具屏蔽而非删除（删中间工具定义会让后面所有缓存地址位移）、json.dumps sort_keys=True（键序不同=cache miss），缓存纪律正在反向重塑框架设计。第三本账是压缩：摘要必然蒸发细节，正解是结构化笔记+读回——compaction 后第一件事读自己的笔记文件（Anthropic 实测 Agent 靠此延续数小时策略），MemGPT 把上下文当 RAM、外部存储当磁盘、内存压力中断触发模型自管换页，φ-accrual 概率性丢弃旧工具输出=主动遗忘保护注意力预算；但压缩参数没有免费午餐，五种配置各有胜负必须 eval 驱动。第四本账是交接：Anthropic 多 Agent 研究 +90.2% 但 15x token vs Cognition「传话游戏」两原则（共享完整上下文/动作携带隐式决策），Harrison Chase 调和=读密集任务宜并行拆、写密集任务宜单线程，2026 收敛于单一决策者+只读子代理回传结构化摘要——多 Agent 的真正收益不是分工而是上下文隔离，要隔离不需要组织架构图，一个带 schema 的子任务函数就够。落地五件：量输入输出比（≈100:1 就该去优化缓存）→缓存体检（时间戳别混前缀）→验证 compaction 后笔记读回闭环（断了=静默变蠢日志全绿）→focused vs full 对照→精读 Chroma/Anthropic/Cognition 三篇。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Context Engineering</span>
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">KV Cache</span>
+                        <span class="post-tag">深度调研</span>
+                    </div>
+                    <a href="posts/context-engineering-agent-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-04 Constructor Options -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-04</div>

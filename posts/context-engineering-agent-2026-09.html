@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>窗口越大，Agent 越笨？——上下文工程的四本账 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .toc { background: #f8f9fa; padding: 20px 25px; border-radius: 6px; margin-bottom: 30px; }
+        .toc-title { font-weight: 600; margin-bottom: 10px; color: #2c3e50; }
+        .toc ul { list-style: none; margin-left: 0; }
+        .toc a { color: #3498db; font-size: 0.95em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>窗口越大，Agent 越笨？——上下文工程的四本账</h1>
+        <div class="meta">
+            2026-09-04 · 罗嵩 ·
+            <span class="tag">Context Engineering</span>
+            <span class="tag">AI Agent</span>
+            <span class="tag">KV Cache</span>
+            <span class="tag">深度调研</span>
+        </div>
+
+        <blockquote>基于 12+ 篇论文与工程报告的调研（Chroma Context Rot · Anthropic Effective Context Engineering · Manus Lessons · Cognition Don't Build Multi-Agents · MemGPT/Letta 等），梳理「上下文工程」这门新学科的四本账：注意力、缓存、压缩、交接。核心结论：Agent 的聪明不取决于它知道多少，而取决于这一刻它的书桌上摊着什么。</blockquote>
+
+        <h2>引子：重启就变聪明的 Agent</h2>
+
+        <p>一个做编码 Agent 的团队遇到了诡异的现象：Agent 刚启动的第一小时表现出色——读代码、定位 bug、干净利落。到第二个小时，它开始重复读三天前就读过的文件，忘了二十分钟前自己定的方案，把已经修好的问题又修了一遍。重启对话，一切恢复正常。模型没换，权重一个字节没变。</p>
+
+        <p>变的是什么？<strong>上下文。</strong>过去两年，行业的主流叙事是「上下文窗口越大越好」：128K、200K、1M——仿佛窗口是硬盘，装得越多，Agent 知道得越多，表现就越好。2025 到 2026 年积累的证据却说：这个直觉在系统层面是错的。窗口更像一张<strong>书桌</strong>——摊的纸越多，找任何一张都更慢；旁边再多放几张长得像的纸，你还会经常拿错。</p>
+
+        <p>于是有了一门新兴的工程学科：上下文工程（Context Engineering）。Anthropic 给它的定义是「为推理过程策划并维护最优 token 集合的艺术」——听起来玄，拆开其实就是四本账：<strong>注意力账、缓存账、压缩账、交接账</strong>。这篇文章一笔一笔算。</p>
+
+        <hr>
+
+        <div class="toc">
+            <div class="toc-title">📋 目录</div>
+            <ul>
+                <li>一、注意力账：窗口越大，注意力越被稀释</li>
+                <li>二、缓存账：最贵的 token，是你第一百次发进去的那些</li>
+                <li>三、压缩账：摘要丢细节，笔记救失忆</li>
+                <li>四、交接账：多 Agent 不是组织架构图，是上下文贸易</li>
+                <li>五、今天能做什么</li>
+            </ul>
+        </div>
+
+        <h2>一、注意力账：窗口越大，注意力越被稀释</h2>
+
+        <p>2025 年 7 月，向量数据库公司 Chroma 发了一份后来被广泛引用的技术报告《Context Rot》。他们测了 18 个前沿模型——GPT-4.1、Claude 4、Gemini 2.5、Qwen3 全家——结论干脆利落：<strong>全部模型都随输入长度增长而退化，而且退化发生在远未触及窗口上限的地方。</strong>连「把一个词重复 N 次然后数个数」这种小学生任务，长上下文下都会失手。</p>
+
+        <p>两个发现值得单独划线。第一，<strong>干扰项比长度更毒</strong>：往上下文里塞几段语义相近但无关的内容（「干扰项」），对正确率的伤害超过把文档加长好几倍。第二，也是对 RAG 从业者最有杀伤力的一条：在 LongMemEval 长对话基准上，<strong>只喂相关片段的 prompt，稳定优于把全量历史一股脑塞进去</strong>。用报告的原话说：决定成败的不是上下文里有什么，而是它周围围了多少东西。</p>
+
+        <p>这就是「最大有效上下文窗口」（MECW）概念的由来：复杂任务上，模型真正能稳定利用的长度，可能只有标称窗口的一个零头。所以回到开头那个 Agent——它不是「学了坏习惯」，而是被稀释了：每多一条工具输出、每一段废弃的思考草稿，都在摊薄那件真正重要的事能分到的注意力。</p>
+
+        <p>相应的工程对策叫 <strong>just-in-time 装载</strong>：别预装「可能有用」的全量资料，等任务走到那一步再取那一片。听起来就是 RAG 的老道理，但 Chroma 的数据第一次把账算实了：<strong>在这个范式下，检索质量是性能上限，窗口大小只是入场券。</strong></p>
+
+        <h2>二、缓存账：最贵的 token，是你第一百次发进去的那些</h2>
+
+        <p>第二本账跟钱有关。Manus 团队（就是那个爆火的通用 Agent）在复盘博客里给了一个行业里流传最广的数字：Agent 场景下，输入和输出的 token 比大约是 <strong>100:1</strong>。Agent 每走一步，都要把整个对话历史、系统提示、工具定义重新发一遍，而每步新增的输出只有几百 token。也就是说，Agent 的成本几乎全部花在「反复读同一坨东西」上。</p>
+
+        <p>这直接改写了优化优先级。各大推理厂商都有 KV 缓存机制——前缀没变的部分不重算，缓存命中的 token 只按原价一折左右计费（Anthropic 0.1 倍，DeepSeek 十分之一，OpenAI 便宜九成）。Manus 的结论是：对生产级 Agent 来说，<strong>缓存命中率是单一最重要的指标</strong>，没有之一。命中率从 30% 提到 90%，比换个便宜一档的模型省得多。</p>
+
+        <p>围绕命中率，Manus 总结了三条纪律，条条反直觉：</p>
+
+        <ul>
+            <li><strong>保持前缀稳定</strong>——时间戳、随机数这类每轮都变的东西，绝不能混在提示词前段；</li>
+            <li><strong>上下文只追加、不重排</strong>——「整理」历史消息顺序看似干净，实际是把整个缓存作废重来；</li>
+            <li><strong>不用的工具屏蔽而非删除</strong>——删掉中间的工具定义，会让后面所有内容的缓存地址整体位移。</li>
+        </ul>
+
+        <p>还有一个更隐蔽的坑：<strong>序列化必须确定</strong>。JSON 对象哪怕内容完全一样，键的顺序不一样，序列化出的字符串就不一样，缓存就 miss。一行 <code>json.dumps(x, sort_keys=True)</code>，是缓存问题，不是代码风格问题。有工程师总结得更狠：缓存纪律正在反向重塑 Agent 框架的设计——当全局缓存经济学和局部功能直觉打架时，赢的永远是前者。</p>
+
+        <h2>三、压缩账：摘要丢细节，笔记救失忆</h2>
+
+        <p>上下文终究会满，所以需要压缩。最常见的做法是摘要：窗口快满时，让模型把旧对话总结成一段短文字。Anthropic 在实践报告中很诚实地承认了这种做法的失败模式：<strong>细节会蒸发</strong>。那个 API 返回里的具体错误码、那次用户随口提的偏好、那半途而废的方案 B——多轮压缩之后全没了，而恰恰是这些细节，在几小时后突然变得关键。</p>
+
+        <p>他们的替代方案更接近人类的土办法：<strong>结构化笔记 + 读回</strong>。Agent 把重要状态主动写到文件里，压缩清空上下文后，第一件事就是去读自己的笔记。Anthropic 描绘过一个例子：Agent 跨越多次 compaction，靠读笔记延续了数小时的训练序列和探索策略——相当于每失忆一次，就翻一遍自己的笔记本。这条思路的产品化就是 Claude 的 memory tool 和各种 AGENTS.md / 记忆文件约定：把外部记忆文件化，已经是 2026 年的共识姿势。</p>
+
+        <p>学术源头上，这条线来自伯克利的 MemGPT（后来的 Letta）：把上下文当 RAM、外部存储当磁盘，内存快满时触发「内存压力中断」，由模型自己通过函数调用做换页。操作系统那套分层存储的隐喻，被原样搬进了 LLM。甚至还有更激进的 φ-accrual 技巧——对大概率不再需要的旧工具输出做<strong>概率性丢弃</strong>，主动制造遗忘来保护注意力预算。</p>
+
+        <p>但别以为压缩是银弹。Victor Dibia 做过一组很扎实实证对比：不压缩、8K 头尾保留、15K 头尾保留、子代理隔离……五种配置在不同任务上各有胜负。<strong>压缩参数没有免费午餐，只能靠 eval 驱动地调。</strong>一个可操作的经验法则倒是清晰的：中间过程可以摘要扔掉，关键状态必须写成笔记——摘要服务当下，笔记服务未来的自己。</p>
+
+        <h2>四、交接账：多 Agent 不是组织架构图，是上下文贸易</h2>
+
+        <p>最后一本账关于多 Agent——2025 年年中那场著名论战的遗产。Anthropic 阵营：他们的多 Agent 研究系统让子代理各持干净窗口并行深挖，每人烧几万 token，只向主代理回传一两千 token 的浓缩结论，效果提升 90%，代价是 token 消耗 15 倍。Cognition 阵营（Devin 背后的公司）标题就叫《Don't Build Multi-Agents》：多 Agent 是昂贵的传话游戏，两个原则几乎不可违背——<strong>共享完整上下文</strong>（每个参与者至少要知道前面发生过什么），以及<strong>动作携带隐式决策</strong>（并行写代码的两个 Agent 必然在命名、风格、边界处理上做出互相冲突的选择）。</p>
+
+        <p>LangChain 的 Harrison Chase 后来做了很好的调和：两家其实说的都对，分界线在任务性质——<strong>读密集型任务（调研、审查）适合拆给并行子代理，写密集型任务（编码、改状态）适合单线程</strong>。读错了大不了丢弃重来，写冲突了就是事故。</p>
+
+        <p>我自己的判断是：多 Agent 的真正收益从来不是「分工」，而是<strong>上下文隔离</strong>——子代理烧掉的十万 token 中间过程不进主代理的窗口，主代理只收一份浓缩回报。这也是「Agent 当工具用」（MapReduce 模式）逐渐成为幸存架构的原因：子代理被包成带结构化输出 schema 的函数，主代理调用它就像调用一段确定性的代码。Cognition 的 Walden Yan 在 2026 年的后续文章里也松了口：从「别做多 Agent」进化到「这些配置确实能活」——而能活的配置，几乎都是<strong>单一决策者 + 只读子代理</strong>。想拆 Agent 之前先问自己：我要的是分工，还是隔离？如果只是隔离，一个能被调用的子任务函数就够了，不需要一个组织架构图。</p>
+
+        <h2>五、今天能做什么</h2>
+
+        <p>如果你在构建或维护 Agent 系统，按性价比排序：</p>
+
+        <ol>
+            <li><strong>给上下文记一笔账（今天就做）</strong>：统计你的 Agent 输入/输出 token 比。如果接近 100:1——大概率如此——那么你最大的优化杠杆不在换模型，而在第二本账。</li>
+            <li><strong>做一次缓存体检</strong>：检查提示词前缀里有没有每轮变化的内容（时间戳、随机采样参数）；JSON 序列化加 <code>sort_keys=True</code>；确认你的框架没有「好心」重排历史消息。</li>
+            <li><strong>验证笔记-读回闭环</strong>：在 compaction/压缩发生之后，确认 Agent 真的会先读状态文件再干活。这个链路断了，Agent 就成了失忆后没有笔记本的人——静默变蠢，日志全绿。</li>
+            <li><strong>跑一次 focused vs full 对照</strong>：在你的真实任务上，对比「只喂检索片段」和「塞全量上下文」。Chroma 的结论是前者赢，但你自己的数据才算数。</li>
+            <li><strong>读三篇东西</strong>：Chroma《Context Rot》看证据；Anthropic《Effective Context Engineering for AI Agents》看工具箱；Cognition《Don't Build Multi-Agents》看反面清单。</li>
+        </ol>
+
+        <p>最后回到那个书桌的比喻。这两年厂商教我们盯着窗口大小——那张桌子的面积。但决定 Agent 表现的，从来是桌上这一刻摊着什么：哪些纸该留、哪些该扔、哪些该写进笔记本锁进抽屉、哪些活该外包给一张干净的新桌子。扩大窗口是厂商的事，管好注意力是我们的事。<strong>Agent 的聪明不取决于它知道多少，而取决于此刻它面前摊开的，是不是恰好那几张纸。</strong></p>
+
+        <hr>
+
+        <p><strong>参考：</strong>Chroma《Context Rot》Technical Report (2025-07) · Anthropic《Effective Context Engineering for AI Agents》(2025-09) · Manus《Context Engineering: Lessons from Building Manus》(2025-07) · Cognition《Don't Build Multi-Agents》(2025-06) 及 Walden Yan 2026 后续 · LangChain《Context Engineering for Agents》/《How and when to build multi-agent systems》 · Packer et al.《MemGPT: Towards LLMs as Operating Systems》 · philschmid《Context Engineering for AI Agents: Part 2》 · Victor Dibia《Context Engineering 101》 · Anthropic《How we built our multi-agent research system》</p>
+    </div>
+</body>
+</html>
