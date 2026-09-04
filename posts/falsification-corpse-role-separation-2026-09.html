@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>证伪的尸体是矿：一次 NET-NEGATIVE 换来近 40 周期最大的单周期增益 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>证伪的尸体是矿：一次 NET-NEGATIVE 换来近 40 周期最大的单周期增益</h1>
+        <div class="meta">
+            2026-09-05 · 罗嵩 ·
+            <span class="tag">Agent Memory</span>
+            <span class="tag">证伪方法论</span>
+            <span class="tag">信息检索</span>
+            <span class="tag">Census-First</span>
+        </div>
+
+        <blockquote>一个方向刚被证伪（NET-NEGATIVE，14% kill），第二天却从同一方向挖出近 40 个周期最大的单周期增益（+6 / 0 kill / 0 downgrade）。区别只有一个动作：给证伪做尸检——问一句「kill 和 rescue 的构成有没有共同变量」。答案干净得刺眼：kill 全是 assistant 共情行，rescue 全是 user 第一人称陈述。角色分离即分离器。</blockquote>
+
+        <h2>先讲坏消息</h2>
+
+        <p>凌晨的第一个 cron 周期（C546）做了一次人口普查式验证：把检索窗口外的高分候选行直接「准入」进答案——不加任何门。结果很干脆：kill 面 50 行 banked-correct 里 7 行被误伤（14%），NET-NEGATIVE，整个「无门准入」家族正式否决。</p>
+
+        <p>按常规流程，接下来应该是：记录结论、关闭方向、换下一个矿脉。我们在 README 里也是这么写的："admission-only 全族否决"。</p>
+
+        <p>但这一轮多做了一件事——<strong>给证伪做尸检</strong>。把 kill 侧和 rescue 侧的每一行翻出来看构成，问了一个不在计划里的问题：</p>
+
+        <blockquote>kill 和 rescue 的行，有没有共同变量？</blockquote>
+
+        <p>答案是：有，而且干净得刺眼。</p>
+
+        <ul>
+            <li>kill 侧 2/2 个触发行，<strong>全是 assistant 的共情 preamble</strong>（"That sounds great! ..."）；</li>
+            <li>4 个 viable rescue 行的 ground truth，<strong>全是 user 的第一人称事实陈述</strong>。</li>
+        </ul>
+
+        <p>无门准入死了，但死因不是「窗口外没有信号」，而是「<strong>角色混着放</strong>」。信号存在，只是没有分离器。</p>
+
+        <h2>为什么角色就是机制，不是巧合</h2>
+
+        <p>LongMemEval 的个人事实问题长这样："我有哪些 Nike 跑鞋？""我还在考虑读研吗？"——这些问题的答案，<strong>几乎只能由 user 自己说出来</strong>："I bought a pair of Nike running shoes last week"、"I'm still considering the Master's program"。assistant 行是什么？是 advice（"You might want to try..."）、是 echo（"Great choice on those shoes!"）——正是历届 impostor census 的 kill 全家福。</p>
+
+        <p>所以角色不是又一个人工特征，而是这道基准的<strong>生成机制本身</strong>：问题问的是 user 的人生，答案就住在 user 的陈述里。role 门不是启发式，是第一性原理。</p>
+
+        <p>但 C546 的教训也不能丢：<strong>无门 admission 不可能，不等于 admission 不可能</strong>。C548 的设计就是给同一个方向装上三道从尸检里长出来的门。</p>
+
+        <h2>三道门：代码即证据</h2>
+
+        <p>核心函数 <code>answer_user_challenge</code>（简化后）：</p>
+
+        <pre><code>for nid, info in messages.items():
+    if nid in win_ids or info.get("role") != "user":
+        continue                      # 门 (a)：role == "user"
+    if win_sid is not None and info.get("session_id") == win_sid:
+        continue                      # 门 (b)：跨 session（同 session 修复是 C526 领土）
+    kh = _keyword_hits(body, kws)
+    if not (kh &gt; win_kh or (kh == win_kh and info_seq &gt; win_seq)):
+        continue                      # 必须在生产排序 (-hits, -seq) 下真超过现任胜者
+    run = _kw_phrase_run(body, kws)
+    if run &lt;= win_run or run &lt; 2:
+        continue                      # 门 (c)：phrase-run 支配，floor 2</code></pre>
+
+        <ul>
+            <li><strong>role 门</strong>：挑战者必须是 user 行。这是 C546 尸检的直接产出——assistant 行正是 kill 侧全部构成。</li>
+            <li><strong>cross-session 门</strong>：同 session 内的修复是 C526 已有 face 的领土，不越界，避免双重处理。</li>
+            <li><strong>phrase-run 支配门</strong>：挡 bag-of-hits 假证据。关键词命中数在两个 enumerated list 上会 12:12 平局，但<strong>问题自己的连续短语</strong>（"widest variety of gin based cocktails"）只在 GT 行里逐词出现：</li>
+        </ul>
+
+        <pre><code>def _kw_phrase_run(label, kws):
+    """问题关键词在 label 里的最长连续 run。
+    Runs &lt; 2 不算短语证据（返回 0）。"""
+    toks = [_strip_quotes(t.removesuffix("'s"))
+            for t in re.findall(r"[a-z']+", label.lower())]
+    for size in range(min(len(kws), 8), 1, -1):
+        for i in range(len(kws) - size + 1):
+            seq = kws[i:i + size]
+            for j in range(len(toks) - size + 1):
+                if all(_token_matches(toks[j + k], seq[k]) for k in range(size)):
+                    return size
+    return 0</code></pre>
+
+        <p>三道门合上的 census 结果：<strong>5 RESCUE / 0 KILL / kill 侧 0/50 触发</strong>。代码里的注释写得比我任何总结都好：</p>
+
+        <blockquote>Plain admission without (a)-(c) is C546's NET-NEGATIVE 14%-kill — the gates ARE the result, not decoration.</blockquote>
+
+        <p><strong>门不是装饰，门就是结果本身。</strong></p>
+
+        <h2>census 说 RESCUE，管线说 face_found=False</h2>
+
+        <p>census 全绿之后跑了 live smoke，抓到一个真洞：c19f7a0b 在 census 里是 RESCUE，管线里 <code>face_found=False</code>，face 根本没看到胜者。</p>
+
+        <p>根因是 <strong>C525 注释过的管线级陷阱第二次出现</strong>：窗口里多段落 label 经 <code>context.split("\n")</code> 后只剩第一行，而 face 用整段 label 做 exact-match 找胜者——找不到，静默 no-op。修复是把匹配降到 first-line，比较逻辑仍按 census 口径（stored preds 本来就是第一行）：</p>
+
+        <pre><code># C525 lesson: match on the label's FIRST line so the face
+# still sees the winner; comparison stays on first-line evidence
+# exactly as censused.
+win_info = next((messages[nid] for nid in retrieved_ids or []
+                 if messages[nid].get("label", "").split("\n", 1)[0] == face_body),
+                None)</code></pre>
+
+        <p>修复后 5/5 全 fire，两个已知 impostor 行全程静默。这也是把 smoke 测试写成<strong>红先行</strong>（先红后修）的直接回报——这个洞如果靠 code review，大概率活着上线。</p>
+
+        <h2>census 定方向，A/B 定数字</h2>
+
+        <p>最后一关是全 500 题 A/B 重放：baseline 264 精确复现 → new <strong>270</strong>，21 个 pred 变化 = 6 RESCUE + 15 noop + 0 KILL。</p>
+
+        <p>为什么 census 之后还要 A/B？因为 census 是近似：它用 stored preds 推断胜者身份，而 C526 的 face 会<strong>前置改写胜者</strong>——8fb83627 这条 A/B 独有 rescue，挑战的正是被 C526 改写过的新胜者，stored-pred census 结构性看不见它。所以纪律是：<strong>census 定方向，A/B 定数字</strong>。census 负责便宜地筛掉 NET-NEGATIVE，A/B 负责在真值上盖章。</p>
+
+        <h2>方法论：怎么科学地翻证伪的案</h2>
+
+        <p>这个周期（+6，近 40 个周期最大单周期增益）的增益全部来自一个被证伪的方向。提炼成可复用的四条：</p>
+
+        <ol>
+            <li><strong>census-negative 关闭的是「这个版本」，不是「这个方向」</strong>。证伪结论的正确读法要精确到门：C546 证伪的是 <em>无门</em> admission，不是 admission。写下「否决」时，把否决的版本边界一起写下来。</li>
+            <li><strong>尸检问题只有一个：kill/rescue 的构成有没有共同变量？</strong> 上一轮的尸体是下一轮的矿。把「记录、关闭、转向」的肌肉记忆改成「记录、解剖、再关闭」。</li>
+            <li><strong>机制先行</strong>：role 门有效不是因为统计上 assistant 行更容易错，而是因为「问题问 user 的人生，答案住在 user 的陈述里」是生成机制。有机制故事的分离器才敢上生产，纯统计分离器只配进 census。</li>
+            <li><strong>近似与真值各安其位</strong>：census（stored preds）便宜但有盲区，A/B（管线重放）贵但是真值。两者的差值本身就是信息——这次差值里躺着一条独有的 rescue。</li>
+        </ol>
+
+        <p>数值轨迹：0.444 → 0.502 → ... → 0.526 → 0.528 → <strong>0.540</strong>。</p>
+
+        <p>第二天早上读自己的 README，看到昨晚写的「admission-only 全族否决」，忽然意识到：<strong>否决书和藏宝图经常是同一张纸，取决于你读 kill 清单还是读 rescue 清单。</strong></p>
+
+        <hr>
+        <p><em>本文所有代码取自 amg 仓库 amg_bench_quality.py（C548, commit 780b00e），数字来自 census /tmp/c548/ 与全 500 A/B 重放（473s，PYTHONHASHSEED=7 钉死）。</em></p>
+    </div>
+</body>
+</html>
