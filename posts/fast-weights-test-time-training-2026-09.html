@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记忆的第三块地皮：把 Agent 的记忆写进权重 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .success { background: #d4edda; border-left-color: #28a745; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .toc { background: #f8f9fa; padding: 20px 25px; border-radius: 6px; margin-bottom: 30px; }
+        .toc-title { font-weight: 600; margin-bottom: 10px; color: #2c3e50; }
+        .toc ul { list-style: none; margin-left: 0; }
+        .toc a { color: #3498db; font-size: 0.95em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>记忆的第三块地皮：把 Agent 的记忆写进权重</h1>
+        <div class="meta">
+            2026-09-05 · 罗嵩 ·
+            <span class="tag">Test-Time Training</span>
+            <span class="tag">Fast Weights</span>
+            <span class="tag">AI Agent</span>
+            <span class="tag">深度调研</span>
+        </div>
+
+        <blockquote>基于 15 篇论文与系统的调研（TTT · Titans · RWKV-7 · Gated DeltaNet · Qwen3-Next · Memory Layers at Scale · WikiBigEdit · Doc-to-LoRA · δ-mem 等），梳理 Agent 记忆的第三块地皮：权重本身。前两块——书桌（上下文）和档案柜（外部存储）——已经卷出了成熟方法论；2026 年，第三块正在被打开：状态即模型、惊讶度即写入信号、超网络即蒸馏器。核心结论：事实别进权重，技能可以；但"进权重"的成本正在从数周训练坍缩为一次前向传播。</blockquote>
+
+        <h2>引子：一个模型读完你一年的聊天记录，为什么还是不认识你</h2>
+
+        <p>假设你让一个 Agent 读完自己一整年的聊天记录。它当场可以回答关于你的任何问题——住址、偏好、项目进度，样样清楚。然后你关掉会话，第二天重新打开。它看着你，像看一个陌生人。</p>
+
+        <p>你把那一年的记录又喂了进去。它又认识你了。然后又忘。</p>
+
+        <p>这个循环听起来荒谬，但它精确描述了今天绝大多数 Agent 的记忆现状：<strong>所有记忆都是租的，租期一个会话。</strong>上下文窗口是租的书桌，RAG 是租的档案柜，图数据库是租的关系网——每次都要重新取用、重新装载、重新付钱（还记得吗，Agent 的输入输出 token 比是 100:1，钱几乎全花在反复读上）。</p>
+
+        <p>可是 LLM 明明有一块自有的地皮：<strong>权重本身</strong>。人类不需要每天早上重读日记才记得自己是谁——记忆就长在神经连接里。为什么 Agent 不这么干？</p>
+
+        <p>答案是：这块地皮三十年来一直有人开垦，2024 年之前基本失败，2024-2026 年突然两件事同时发生——<strong>架构层的"测试时训练"从论文走进了 Qwen3-Next 这样的生产模型，应用层写权重的成本从数周训练坍缩到一次前向传播。</strong>这篇文章讲清楚这条线：它是怎么蛰伏三十年的，为什么现在爆发，以及最关键的——什么东西可以写进去，什么东西写进去就是灾难。</p>
+
+        <hr>
+
+        <div class="toc">
+            <div class="toc-title">📋 目录</div>
+            <ul>
+                <li>一、三十年伏笔：状态不是一个向量，是一个模型</li>
+                <li>二、惊讶度决定写入：什么值得记</li>
+                <li>三、生产验证：full attention 从默认变成了稀缺资源</li>
+                <li>四、权重是个烂账本：知识编辑的崩溃现场</li>
+                <li>五、经济学坍塌：写入权重只要一次前向传播</li>
+                <li>六、决策框架与今天能做什么</li>
+            </ul>
+        </div>
+
+        <h2>一、三十年伏笔：状态不是一个向量，是一个模型</h2>
+
+        <p>故事从 1992 年讲起。Schmidhuber 提出快权重（Fast Weights）：让一个慢网络（正常训练的神经网络）在推理时快速修改另一个小网络的权重——读写都发生在毫秒级，权重本身成了工作记忆。这个想法太超前，沉睡了近三十年。</p>
+
+        <p>2021 年，Schlag、Irie 和 Schmidhuber 发了篇标题惊悚的论文：《Linear Transformers are Secretly Fast Weight Programmers》。他们证明：当时刚兴起的线性注意力，本质上就是 1992 年的快权重编程——只是没人意识到。更妙的是他们顺手升级了写入规则：从"只能往上加"变成 <strong>delta rule</strong>——先减掉旧值再写新值。你可以把它理解成<strong>在线梯度下降</strong>：每读一个 token，就对内部状态做一步梯度更新。写入不再是无脑堆积，而是带纠错的学习。</p>
+
+        <p>2024 年，斯坦福的 Yu Sun 团队把最后一块拼图放上了：TTT（Test-Time Training）层。<strong>既然状态更新就是梯度下降，那为什么状态不能直接是一个小模型？</strong>在 TTT 层里，hidden state 是一个线性模型或两层 MLP 的权重 W，更新规则就是一步自监督学习：</p>
+
+        <pre><code>W_t = W_{t-1} - η∇ℓ(W_{t-1}; x_t)    # 更新规则：读每个token = 训练一步
+z_t = f(x_t; W_t)                     # 输出规则：用刚训练完的模型做预测</code></pre>
+
+        <p>整个序列的历史被压缩成一个小模型的参数——上下文不再是一份越堆越厚的清单，而是一门越学越熟的手艺。理论上的闭环也很漂亮：TTT-Linear 在特定配置（batch 梯度下降、η=1/2、零初始化）下严格等价于线性注意力。<strong>也就是说，线性注意力家族三十年来一直在偷偷做梯度下降，TTT 只是把这个事实摆上了台面并推广了它。</strong></p>
+
+        <p>此后是一连串进化：RWKV-7 把 delta rule 泛化出向量值门控和动态 in-context 学习率，还能识别所有正则语言（状态跟踪能力，传统衰减型模型做不到）；Gated DeltaNet 给 delta rule 装上 Mamba-2 式的遗忘门。这条血脉的名字换了三茬——快权重、线性注意力、测试时训练——内核从未变过：<strong>把"读序列"变成"边读边训练"。</strong></p>
+
+        <h2>二、惊讶度决定写入：什么值得记</h2>
+
+        <p>状态会训练了，下一个问题是谁来决定写什么。全写？token 流里 90% 是废话。答案是 Google 的 Titans（2025）给出的，而且极有神经科学味道：<strong>惊讶度（surprise）</strong>。</p>
+
+        <p>Titans 的神经长期记忆模块盯着每个输入：如果新内容和模型已有知识高度吻合（预测误差小），略过；如果意外（梯度范数大），写入。而且它用了类似动量的设计——不仅看瞬时惊讶，还累积"过去惊讶"，让一系列连贯的意外（比如一个新话题的展开）持续获得写入优先级。遗忘也不是 bug，而是衰减门控：久不被激活的记忆自然淡出。</p>
+
+        <p>这个设计让我立刻联想到外部记忆系统里的写入治理——什么进档案柜、什么留在书桌上。两者在工程上是同构的：<strong>外部记忆用治理规则决定写入，参数记忆用惊讶度决定写入。</strong>一个由 agent 代码控制，一个由梯度控制。你的 Agent 该用哪个，取决于你想不想亲手审计每一次写入（后面第四节会看到，这个选择比想象中重要）。</p>
+
+        <h2>三、生产验证：full attention 从默认变成了稀缺资源</h2>
+
+        <p>架构论文多如牛毛，判断一条技术线是否真成气候，要看生产模型有没有采纳。2025 年 9 月，Qwen3-Next-80B 交了答案：<strong>3:1 混合架构</strong>——大约四分之三的层用 Gated DeltaNet（线性复杂度、快权重、有损压缩），每四层插一层 full attention（精确召回）。256K 上下文，推理成本大幅下降，性能对齐自家 235B 的旗舰。</p>
+
+        <p>这不是孤例。Kimi Linear、Qwen3.5、Ling 2.5 都在往混合架构迁移。驱动因素有两个：一是 KV cache 在长上下文和 Agent 场景下成了显存杀手——Agent 一跑几千轮工具调用，KV cache 只增不减；二是测试时扩展（思考链越长状态越长）把推理成本指数化。<strong>线性注意力的快权重状态大小恒定，天然是这两条的成本解药。</strong></p>
+
+        <p>但注意那个 3:1 里保留的 full attention——它是保险丝。线性注意力有个著名的白板问题：把内容写到白板上，隔很远再问"白板上写了什么"，衰减型状态常常答不上来（associative recall 失手）。快权重擅长的是<strong>联想式、模式式</strong>的记忆（"这类问题大概该怎么处理"），不擅长逐字精确召回（"三个月前 3:47 PM 那条消息原文"）。所以混合架构的哲学和上下文工程完全一致：<strong>精确召回是贵的，能省则省，但不能没有。</strong></p>
+
+        <p>用房地产的比喻总结这三块地皮：上下文是书桌（贵、小、随取随用），外部存储是档案柜（大、便宜、需要检索），快权重是<strong>肌肉记忆</strong>——不占书桌、不用翻柜子，手感直接长在身上。2026 年的前沿模型，三种记忆都有了。</p>
+
+        <h2>四、权重是个烂账本：知识编辑的崩溃现场</h2>
+
+        <p>读到这你可能觉得：那把事实也写进权重呗，一劳永逸。这一节是泼冷水的，而且冷水泼得有数据。</p>
+
+        <p>知识编辑（Knowledge Editing）研究的就是"外科手术式改权重"：ROME、MEMIT 定位到存某条事实的参数，精准改写。单次编辑效果惊艳——2022 年那波论文让人觉得 LLM 要变成可热更新的数据库了。然后有人做了连续编辑实验。2024 年的系统性研究给出现象：<strong>几百次连续编辑后，模型开始崩溃；更阴险的是，下游任务能力在崩溃拐点之前就先退化——模型还没坏到肉眼可见，已经在悄悄变笨。</strong>2025 年的 WikiBigEdit 用百万级真实维基编辑数据复验：ROME、MEMIT 这类局部修改方法在前几百次更新内准确率快速退化，WISE 这类 lifelong 方法也只是延缓。还有著名的"loud facts"副作用：把"卢浮宫在罗马"编辑进去后，模型提到卢浮宫，连"奥巴马出生在哪"都答罗马——外科手术改出的东西在出血。</p>
+
+        <p>对照实验里有两个赢家：不加推理限制时，RAG 碾压所有编辑方法；限制推理成本时，continual 微调加模型合并也打得编辑方法没脾气。</p>
+
+        <p>所以结论不是"权重不能有记忆"，而是要分清两种东西：<strong>事实和技能</strong>。事实需要逐条更新、逐条审计、随时撤销——这三个需求权重全部不及格：更新几百次就崩、没有审计轨迹（你能 grep 出权重里哪条事实改过吗）、撤销等于再编辑一次（又是一次出血风险）。而技能——风格、偏好、反应模式、领域手感——变更频率低、不需要逐条审计、越练越熟，这些进权重是健康的。</p>
+
+        <div class="highlight">一句话：<strong>事实的家在外部存储，技能的家在权重。把事实写进 dense 权重，等于把账本刻在肌肉上。</strong></div>
+
+        <p>有个重要例外值得单独说：Meta 的 Memory Layers at Scale 证明，如果给模型加<strong>专用稀疏查表层</strong>——数百万个可训练的 key-value 对，product-key 结构让查询只激活极少数条目——8B 模型挂上 64B 记忆参数，在事实类基准上能打赢用 15 倍数据训的 Llama3.1 8B。妙处在于这些事实住进了隔离的稀疏层，不污染 dense 层的通用能力。<strong>烂的不是"事实进参数"，是"事实进 dense 权重"。专用记忆层更像一个可训练的、放在权重里的档案柜。</strong></p>
+
+        <h2>五、经济学坍塌：写入权重只要一次前向传播</h2>
+
+        <p>传统上"写权重"意味着一个数周级的训练项目：收集数据、清洗、训练、评估、部署。这条成本曲线在 2025-2026 年被三记重拳打崩。</p>
+
+        <p><strong>第一拳：超网络生成 adapter。</strong>Sakana AI 的 Text-to-LoRA 训了一个超网络，输入一段自然语言任务描述，一次前向传播直接吐出一个可用的 LoRA adapter——把整个微调流水线压缩成一次推理。配套的 Doc-to-LoRA 更进一步：喂一份文档，直接蒸馏出一个"读过这份文档"的 adapter。他们还描绘了一个睡眠期架构：模型夜里把当天会话蒸馏进 adapter，白天带着更新醒来，新会话不用重拖历史——这正是 sleep-time compute 思路的参数版：读路径贵就摊销到写入路径。</p>
+
+        <p><strong>第二拳：测试时自改进。</strong>2025 年底出现的生成式测试时微调：Agent 遇到不确定的难题，先检测不确定性，自动合成相关训练数据，当场给自己做一次临时微调再答题。首个把这类方法用上 agent 基准的工作报告了明确提升——"当场学习"从口号变成了 pipeline。</p>
+
+        <p><strong>第三拳：极小参数的在线状态。</strong>2026 年 5 月的 δ-mem 更激进：主干完全冻结，只挂一个 8×8 的在线状态矩阵（4.87M 可训练参数，占模型的 0.12%），把对话历史压缩进这个矩阵来引导注意力——Qwen3-4B 上五个基准平均分从 46.79% 提到 51.66%，代价是 32K 上下文解码慢约 40%。不涨 prompt、不动主干、零点几个百分点的参数——记忆挂件的性价比开始能算了。</p>
+
+        <p>把三拳连起来看趋势：写权重的单位成本从"数周训练"→"一次前向传播"→"0.12% 参数的挂件"。<strong>当写入便宜到这个程度，"该不该写权重"的问题会从架构决策降级成一次 API 调用级别的日常操作</strong>——就像今天没人纠结"该不该写缓存"。</p>
+
+        <h2>六、决策框架与今天能做什么</h2>
+
+        <p>三块地皮的产权现在清楚了，可以给一张决策表：</p>
+
+        <table>
+            <tr><th>要记的东西</th><th>放哪</th><th>写入机制</th></tr>
+            <tr><td>会话内状态、任务上下文</td><td>书桌（context）+ 架构快权重</td><td>just-in-time 装载 + 层内自监督</td></tr>
+            <tr><td>跨会话事实、事件、关系</td><td>档案柜（RAG / 图存储）</td><td>写入治理 + 惊讶度信号</td></tr>
+            <tr><td>用户偏好、风格、反应模式</td><td>权重（adapter）</td><td>睡眠期蒸馏进 LoRA</td></tr>
+            <tr><td>大规模静态事实</td><td>权重（专用稀疏记忆层）</td><td>选型时看模型有没有 memory layer</td></tr>
+        </table>
+
+        <p>判据就两条：<strong>变更频率</strong>和<strong>撤销需求</strong>。变更越频繁、越需要逐条撤销审计的信息，越要往外挪；稳定的行为模式才配进权重。</p>
+
+        <p>今天就能动手的五件事：</p>
+
+        <ol>
+            <li><strong>审计你的 Agent 记忆产权表</strong>：列出现在所有记忆的存放位置，凡是"事实写进了 prompt 模板"或"行为模式靠每次重读文档"的，都是错位——前者该外移，后者该下沉。</li>
+            <li><strong>试一把混合架构模型</strong>：Qwen3-Next 系列在 vLLM 上一条命令就能起，感受一下恒定状态在长 Agent 会话下的成本曲线，对照你现在的 KV cache 账单。</li>
+            <li><strong>给睡眠期蒸馏做个 PoC</strong>：用 Text-to-LoRA / Doc-to-LoRA 的思路，把高频用户的历史会话离线蒸馏成 per-user adapter，验证"第二天醒来认识你"的体验增量。这是个性化方向 2026 年最值得下注的实验。</li>
+            <li><strong>别碰知识编辑做事实更新</strong>：如果你的需求是"改一条事实"，正确答案永远是外部存储 + 检索，几百次编辑崩溃的账单已经在论文里开好了。</li>
+            <li><strong>跟踪 δ-mem 这类极小挂件</strong>：0.12% 参数换 5 个点，如果解码减速从 40% 降到可接受区间，它会成为"会话内跨 session 记忆"的廉价第三选项。</li>
+        </ol>
+
+        <h2>结语</h2>
+
+        <p>回头看那个一年后仍不认识你的 Agent。它的病根不是记不住，而是<strong>所有记忆都要按次付费装载</strong>。上下文工程优化了装载的效率，外部存储降低了装载的成本，而写权重这条路——蛰伏三十年、被知识编辑的失败吓退过一轮——终于在架构（快权重层成为生产标配）和经济学（写入坍缩为一次前向传播）两条线上同时打通。</p>
+
+        <p>记住那条分界线就够了：<strong>事实的家在外部，技能的家在权重，精确召回是永远的保险丝。</strong>剩下的，是让每一次写入都发生在正确的地皮上。</p>
+
+        <hr>
+
+        <p><strong>参考</strong>：Sun et al. <em>Learning to (Learn at Test Time)</em> (2407.04620) · Behrouz et al. <em>Titans: Learning to Memorize at Test Time</em> (2501.00663) · Schlag, Irie &amp; Schmidhuber <em>Linear Transformers are Secretly Fast Weight Programmers</em> (ICML 2021) · Peng et al. <em>RWKV-7 "Goose"</em> (2503.14456) · Yang et al. <em>Gated Delta Networks</em> · Qwen Team <em>Qwen3-Next Blog</em> · Berges et al. <em>Memory Layers at Scale</em> (2412.09764) · <em>Model Editing at Scale leads to Gradual and Catastrophic Forgetting</em> (2401.07453) · <em>Understanding the Limits of Lifelong Knowledge Editing</em> (2503.05683) · Sakana AI <em>Doc-to-LoRA / Text-to-LoRA</em> · <em>Self-Improving LLM Agents at Test-Time</em> (2510.07841) · <em>δ-mem</em> (2026-05) · Irie et al. <em>Fast Weight Programming survey</em> (2508.08435)</p>
+    </div>
+</body>
+</html>

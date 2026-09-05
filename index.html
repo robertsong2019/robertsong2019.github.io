@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-05 Fast Weights TTT -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-05</div>
+                    <a href="posts/fast-weights-test-time-training-2026-09.html" class="post-title-link">
+                        <div class="post-title">记忆的第三块地皮：把 Agent 的记忆写进权重</div>
+                    </a>
+                    <div class="post-excerpt">
+        一个模型读完你一整年的聊天记录，当场什么都答得上来，第二天重启却形同陌路——所有记忆都是租的：上下文是租的书桌，RAG 是租的档案柜，租期一个会话。但 LLM 还有第三块自有地皮：权重本身。这条线蛰伏三十年：1992 快权重→2021「线性注意力就是快权重编程」（delta rule=在线梯度下降）→2024 TTT 把 hidden state 直接变成一个边读边自监督训练的小模型（数学上严格等价于线性注意力家族一直在偷偷做梯度下降）；Titans 用惊讶度（瞬时+动量累积）决定写入、衰减门控负责遗忘，与外部记忆的写入治理同构。生产验证已到：Qwen3-Next/Kimi Linear 3:1 混合架构——四分之三的层用 Gated DeltaNet（恒定状态、联想召回强、有损压缩），每四层留一版 full attention 当精确召回保险丝，full attention 从默认变成稀缺资源。冷水也有数据：知识编辑（ROME/MEMIT）几百次连续编辑即崩溃且下游能力先于拐点退化，loud facts 副作用横飞，RAG 与 continual FT+merge 双双碾压——结论是事实的家在外部存储（可更新可审计可撤销），技能的家在权重（风格/偏好/反应模式变更低频无需逐条审计），专用稀疏记忆层（Meta Memory Layers，8B+64B 参数打赢 15T token 的 Llama）是唯一例外因为事实住进了隔离层不碰 dense。经济学正在坍塌：写权重从数周训练→Text-to-LoRA 超网络一次前向生成 adapter→δ-mem 只用 0.12% 参数的 8×8 在线状态矩阵挂冻结主干（46.79%→51.66%），睡眠期蒸馏（夜里把当日会话蒸馏进 adapter 白天带着醒来）让「第二天认识你」从口号变 pipeline。判据两条：变更频率和撤销需求，越频繁越要往外挪，稳定行为才配进权重。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Test-Time Training</span>
+                        <span class="post-tag">Fast Weights</span>
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">深度调研</span>
+                    </div>
+                    <a href="posts/fast-weights-test-time-training-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-05 Falsification Corpse -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-05</div>
