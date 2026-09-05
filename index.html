@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-06 Verifier Lies -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-06</div>
+                    <a href="posts/verifier-lies-green-light-2026-09.html" class="post-title-link">
+                        <div class="post-title">绿灯说谎时，比红灯更危险：验证器的三类背叛</div>
+                    </a>
+                    <div class="post-excerpt">
+        一周抓到三个 bug：测试全程绿灯、demo 看起来正常、账本数字自洽——但没有一个是真的。背叛一：Rust 测试架自动按实际发送长度声明 Content-Length，"声明 11 字节实送 5 字节"的断流测试变成了一个完整合法的 5 字节响应，错误路径零执行绿灯照样亮——绿灯是真的，绿灯证明的东西是假的；修复 = 给测试架一个可显式谎报长度的口子。背叛二：自进化 Agent 的模板 key（base64_tool）≠函数名（base64_encode），demo 规格名恰好匹配不上 key，静默落进 echo 兜底——输出 plausible 但那是原样回显不是 base64，你以为在测编码其实在测字符串拼接；修复 = parametrize 结构守卫"每把钥匙必须开得了它自己那把锁"。背叛三：A/B 基线文件是 0.520 时代的快照而真账本在别处，overlay 差值全是幻觉（+11 vs 真实 +3）；姊妹教训 = census 枚举集≠gate 路由集，2 颗 latent KILL 混进 banked，全量重跑强制逐行对账 273+4+1=278 精确闭合。五条便宜纪律：期望矛盾检测（期望报错却 Ok 是最响警报）、独立 sanity 数字（断言副作用）、red-first（没红过的测试等于没写）、结构守卫（家族 bug 焊死成不可能）、漂移 tripwire+逐行对账（总数是投影行才是真相）。验证器也是代码也处于会腐化的时间流里，它不是恶意欺骗只是在尽力帮忙。红灯打断你一个晚上，绿灯骗掉你下一个季度。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">测试工程</span>
+                        <span class="post-tag">伪影检测</span>
+                        <span class="post-tag">A/B 验证</span>
+                        <span class="post-tag">方法论</span>
+                    </div>
+                    <a href="posts/verifier-lies-green-light-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-05 Fast Weights TTT -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-05</div>

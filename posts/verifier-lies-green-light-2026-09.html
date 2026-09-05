@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>绿灯说谎时，比红灯更危险：验证器的三类背叛 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>绿灯说谎时，比红灯更危险：验证器的三类背叛</h1>
+        <div class="meta">
+            2026-09-06 · 罗嵩 ·
+            <span class="tag">测试工程</span>
+            <span class="tag">伪影检测</span>
+            <span class="tag">A/B 验证</span>
+            <span class="tag">方法论</span>
+        </div>
+
+        <blockquote>最近一周抓到三个 bug，它们的共同点让人后背发凉：测试全程绿灯，demo 看起来正常，账本数字自洽——但没有一个是真的。三个 bug 分别来自 Rust 下载器、Python 自进化 Agent、评测管线，互不相识，却共享同一个名字：验证器说谎。红灯打断你的一个晚上，绿灯骗掉你的下一个季度。区别只在于红灯有声音。</blockquote>
+
+        <h2>背叛一：测试架太热心</h2>
+
+        <p>给一个 400 行的 Rust wget 原型补端到端测试，目标是模拟「mid-stream 断流」：服务器声明 Content-Length: 11，实际只送 5 字节然后断开连接，验证下载器必须通过重试恢复、重下完整文件。</p>
+
+        <p>测试架是一个手写的 <code>TcpListener</code>，handler 返回 <code>(status, headers, body)</code>，测试架负责拼 HTTP 响应。第一版拼响应的代码顺手写了：</p>
+
+        <pre><code>let resp = format!(
+    "HTTP/1.1 {status} {reason}\r\nConnection: close\r\nContent-Length: {}\r\n",
+    body.len() as u64   // ← 「热心」：自动按实际发送长度声明
+);</code></pre>
+
+        <p>看起来毫无问题——直到测试首跑全绿，而断言里藏着自相矛盾的数据：<strong>期望走错误路径的测试，文件内容却是"成功"的</strong>。</p>
+
+        <p>拆开看：handler 只返回 5 字节 body，测试架自动声明 <code>Content-Length: 5</code>。于是"中途断流"在协议层根本没发生——那是一个完整、合法、长度为 5 的响应。下载器读完 5 字节，CL 匹配，正常收尾，零重试。错误路径一行都没执行，绿灯照样亮。</p>
+
+        <div class="highlight">绿灯是真的，绿灯证明的东西是假的。你以为自己在测断流恢复，实际在测一次普通的 5 字节下载。</div>
+
+        <p>修复是给测试架一个"说谎能力"——允许 handler 谎报长度：</p>
+
+        <pre><code>let (status, extra, body, declared_len) = handler(n, &amp;raw, &amp;headers);
+// declared_len 允许谎报 Content-Length（模拟「声明 11 字节实际只送 5 字节」的流中断）
+let mut resp = format!(
+    "HTTP/1.1 {status} {reason}\r\nConnection: close\r\nContent-Length: {}\r\n",
+    declared_len.unwrap_or(body.len() as u64)   // 默认诚实，可显式说谎
+);</code></pre>
+
+        <p>测试才成为它声称的样子：声明 11、实送 5、断开，重试路径端到端走通。</p>
+
+        <p>这个伪影的检测器不是什么高深工具，而是两个便宜动作：<strong>期望矛盾</strong>（期望报错却拿到 Ok，数据自相矛盾比断言失败更响）和<strong>独立 sanity 数字</strong>（<code>request_count() == 2</code> 这种副作用断言会立刻揭穿"零重试"的事实）。</p>
+
+        <h2>背叛二：被测代码的静默 fallback</h2>
+
+        <p>第二个 bug 在一个 215 行的自进化 Agent 里。它维护一个模板字典，从自然语言 spec 生成工具函数：</p>
+
+        <pre><code>TOOL_TEMPLATES = {
+    "base64_tool": textwrap.dedent("""\
+        import base64
+        def base64_encode(text: str) -&gt; str:   # ← 函数名叫 base64_encode
+            ...
+    """),
+    ...
+}
+
+def _build(self, name, code):
+    namespace = {"json": json}
+    exec(code, namespace)
+    func = namespace[name]          # ← 按 key 取函数
+    return EvolvingTool(name=name, code=code, func=func, ...)</code></pre>
+
+        <p>模板 key 是 <code>base64_tool</code>，函数名却是 <code>base64_encode</code>——key 和函数名对不上。这个错位有两副面孔：</p>
+
+        <ul>
+            <li>spec 命中 <code>base64_tool</code>（比如用户说 "base64"）→ <code>_build</code> 里 <code>namespace["base64_tool"]</code> 抛 <code>KeyError</code>；</li>
+            <li>spec 说全名 <code>base64_encode</code>（demo 演示用的正是这个）→ 子串匹配失败 → <strong>静默落进兜底的 echo 工具</strong>，返回 <code>[base64_encode] → xxx</code> 格式的回显字符串。</li>
+        </ul>
+
+        <p>demo 因此"成功"：有输出、格式正常、不 crash。但你仔细看输出——那不是 base64，是原样回显。<strong>你以为在测 base64 编码，其实在测字符串拼接。</strong></p>
+
+        <p>这类静默 fallback 最恶的地方在于：它不 crash 给你看，它给你一个 plausible 的输出。跟测试架那次的区别只是说谎者换了人——上次是验证基础设施替你把 bug "修好"了，这次是被测代码自己把异常路径吞成了正常路径。</p>
+
+        <p>修复分两层。表层：key 改名对齐函数。深层：这个 bug 是<strong>家族级</strong>的——将来任何人加模板都可能再犯。所以补一个结构守卫，用 parametrize 遍历所有模板 key：</p>
+
+        <pre><code>@pytest.mark.parametrize("key", sorted(EvolutionEngine.TOOL_TEMPLATES))
+def test_template_defines_its_own_key(self, key):
+    """Every template key must name the function its code defines —
+    guards the dead-template KeyError family (base64_tool was unreachable)."""
+    tool = self.engine.generate(key)
+    assert tool.name == key
+    assert callable(tool.func)</code></pre>
+
+        <p>一句话：<strong>每把钥匙必须开得了它自己那把锁</strong>。从此这个家族的 bug 从"code review 靠眼力"变成"结构上不可能"。</p>
+
+        <h2>背叛三：基线是旧的</h2>
+
+        <p>第三个 bug 最隐蔽，出在评测管线的 A/B 对比里。新逻辑上线前，惯例做法是拿新预测 overlay 到基线预测上，数 rescue/kill。</p>
+
+        <p>管线里躺着一个 <code>live500_head.json</code>，里面有 500 行的 banked 标志（对/错）。问题：<strong>那份标志是 0.520 时代的快照</strong>（当时 259 行正确）。而当前链路早已走到 0.540，真正的账本在两个周期前的 <code>new_preds</code> 文件里。拿旧账本当基线做 overlay，差值全是幻觉——增益会被放大到 +11，而真实数字是 +3。</p>
+
+        <p>对策是给 overlay 加一条一行成本的 tripwire：</p>
+
+        <pre><code># 漂移 tripwire：旧臂每行的判定必须与基线存储值一致，
+# 不一致 = 基线文件不是当前账本，先修数据链再谈结论
+for row in baseline_rows:
+    assert ok_old(row) == row["banked_correct"], \
+        f"baseline drift @ {row['qid']}: 基线快照与重放判定不一致"</code></pre>
+
+        <p>同一条线上还有个姊妹教训。某轮做人口普查（census）验证新机制时，枚举集合取的是"旧机制的 fire 集合"，但生产代码的路由是按 gate 谓词走的——<strong>census 枚举集 ≠ gate 路由集</strong>，12 行真路由里漏了 2 行，两颗 latent KILL 就这么混进了 banked 数字。下一轮全量重跑，总数对不上，强制逐行对账才发现：</p>
+
+        <pre><code>273 (链上账本) + 4 (本轮 temporal 改动) + 1 (上轮漏算的 counting live 效果) = 278 (全量实测)</code></pre>
+
+        <p>18 行差异全部归因到行级，数字精确闭合。<strong>总数是投影，行才是真相</strong>——总数变了必须逐行对账，这条纪律把一个"好得可疑的数字"变成了三行清晰的因果。</p>
+
+        <h2>给验证器配验证器</h2>
+
+        <p>三个 bug，三个说谎者：测试基础设施、被测代码的兜底路径、过期的基线数据。统一起来看，它们都在利用同一个盲区——<strong>我们默认验证器是诚实的</strong>。但验证器也是代码、也是数据，也处于会腐化的时间流里。它不是在恶意欺骗，它只是在"尽力帮忙"：测试架帮你把响应合法化，fallback 帮你把异常吞掉，旧基线帮你免于重新跑分。</p>
+
+        <p>于是纪律可以归成五条，全部便宜：</p>
+
+        <ol>
+            <li><strong>期望矛盾检测</strong>：期望报错却拿到 Ok，是最响的警报。它不意味着被测代码写对了，而意味着你的世界模型错了。</li>
+            <li><strong>独立 sanity 数字</strong>：断言副作用（请求计数、文件 mtime、每臂独立核算），不只断言返回值。反常的零和反常的全一样可疑。</li>
+            <li><strong>red-first</strong>：新测试先想办法让它红一次。红灯从没亮过的测试，和没写一样——416 语义、IPv6 解析两个真 bug 都是先红后修抓到的。</li>
+            <li><strong>结构守卫</strong>：家族级 bug 用 parametrize 不变式焊死（"每把钥匙开得了自己的锁"），把"靠眼力"变成"不可能"。</li>
+            <li><strong>漂移 tripwire + 逐行对账</strong>：重放判定与基线存储值逐行 assert；总数变化必须行级归因，精确闭合才算数。</li>
+        </ol>
+
+        <p>红灯打断你的一个晚上；绿灯骗掉你的下一个季度。对绿灯保持一点生理性的怀疑，是工程师版本的体检意识——尤其是那些"首跑就全绿"的夜晚。首跑全绿值得警惕的程度，和首跑全红差不多。</p>
+
+        <hr>
+
+        <p><em>素材：wget-rust-prototype C4（测试架 Content-Length 伪影）、pocket-agent 首套测试（死模板 + echo fallback）、amg 评测链 C550/C551（基线时代错位 + census 枚举集≠路由集）。三个 bug 均为 red-first / 对账纪律当场抓获，零线上逃逸。</em></p>
+    </div>
+</body>
+</html>
