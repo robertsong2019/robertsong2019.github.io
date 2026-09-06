@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>真证据是怎么被饿死的：命名空间污染、家族错配与弃权契约 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+        <h1>真证据是怎么被饿死的：命名空间污染、家族错配与弃权契约</h1>
+        <div class="meta">📅 2026-09-07 · 标签：信息抽取 / Agent 记忆 / 评测工程 / 方法论</div>
+
+        <blockquote>评测分数从 0.560 爬到 0.564 的那个晚上，最值得记的不是 +2 题，而是一道题的尸检报告：GT 是 3.5 weeks，系统答 3 weeks。差的 0.5 从哪来？——真证据被一条垃圾匹配挤掉了。垃圾和真相共享同一个去重 key，垃圾先到，真相饿死。</blockquote>
+
+        <h2>引子：0.5 周的误差从哪来</h2>
+        <p>trace 到底发现：真证据 "a week and a half"（=1.5 周）根本没有进入账本——它被一条垃圾匹配挤掉了。同一晚另一道题：GT <strong>10-12 hours</strong>，系统答 <strong>0.5 hours</strong>。这次不是抽取失败，是答非所问：命中的 "went for a 30-minute walk" 是一句真话，但它回答的不是这道题。两具尸体指向三个主题：去重命名空间里的<strong>饿死</strong>、证据家族的<strong>错配</strong>、以及由此导出的<strong>弃权契约</strong>。</p>
+
+        <h2>一、饿死：垃圾先入册，真相靠边站</h2>
+        <p>先看机制。时长证据的账本用 dedup-by-key + any-overlap：同一话题 key 只保留一条证据，后来的与已入册条目 overlap 即丢弃：</p>
+        <pre><code>def register(evidence, ledger):
+    """同一 key 的时长证据互斥，先入册者赢"""
+    for old in ledger:
+        if overlap(old.key, evidence.key):   # any-overlap
+            return                            # 已被覆盖，丢弃
+    ledger.append(evidence)</code></pre>
+        <p>案发现场（真实对话，已脱敏）。用户在两处留下了时长证据：</p>
+        <ul>
+            <li><strong>毒行</strong>：聊到 "I read the subreddit for like a weekend…"。binge 正则把 "for like a" 捕获为时长，parse 出 <code>(1, None)</code>——数量 1，<strong>单位 None</strong>。该轮上下文提到 Star Wars，key 判成 <code>{starwars}</code>，先入册。</li>
+            <li><strong>真行</strong>：另一轮 "a week and a half"（=1.5 周），同样是 key=<code>{starwars}</code>，any-overlap 命中毒行，丢弃。</li>
+        </ul>
+        <p>求和：marvel 2 + 毒 1 = <strong>3</strong>。GT 3.5 = 2 + 1.5。差的 0.5 就是那半周。</p>
+        <p>最阴险的地方在于：毒行不是崩溃，不是异常，是正则的一次"合法"命中——"for like a" 在形态上确实像 binge 短语。它唯一的罪是<strong>没有单位</strong>。一个 <code>(1, None)</code> 的证据进了以周为单位求和的账本，单位悄悄落回了默认值。</p>
+
+        <h2>二、修复一：调去重，不如杀垃圾</h2>
+        <p>第一反应通常是调 dedup 规则：改成 latest-wins、改成取最大值、改成置信度优先。但那是治标——命名空间已经污染，规则怎么调都是在垃圾和真相之间做仲裁，而仲裁需要你事先知道谁是垃圾。你不知道。</p>
+        <p>正确的方向是把垃圾挡在入册之前——<strong>单位纪律</strong>：</p>
+        <pre><code>def register_binge(match, key):
+    count, unit = parse_duration(match.group('dur'))
+    if unit is None:        # unit-less capture 不是时长证据
+        return None         # 入册前杀掉，绝不占坑
+    if unit == 'hour':      # 输出单位是周，hour 计价无换算
+        return None         # 同样不入册
+    return (key, count, unit)</code></pre>
+        <p>修复后 2 + 1.5 = 3.5，精确命中。dedup 一行没动。</p>
+        <div class="highlight">一般化：凡是有"先到先得 + 互斥"结构的存储——dedup、cache、唯一索引、KV 表——垃圾的代价不是它自己错，而是它占坑。治理顺序永远是：先收紧入册标准，再（如有必要）调整仲裁规则。</div>
+
+        <h2>三、错配：plausible 的错误答案</h2>
+        <p>第二道题。问的是 "How many hours have I spent on my sculpture?"——物件上累计投入多少小时。GT "10-12 hours"，证据链是教科书级的知识更新：早期会话说 "5-6 hours"，最新会话两次说 "10-12 hours"，最新胜。</p>
+        <p>系统的答案 0.5 hours 来自 realized-activity 正则命中 "went for a 30-minute walk"。注意：这句话是真的，抽取也是对的。但它是<strong>另一个证据家族</strong>的东西：</p>
+        <ul>
+            <li><strong>realized-activity 家族</strong>回答：某次具体活动持续了多久（"那次散步 30 分钟"）</li>
+            <li><strong>object-NP 家族</strong>回答：在某物件上累计投入多少（跨会话、知识更新、最新胜）</li>
+        </ul>
+        <p>用 A 家族的正则回答 B 家族的问题，产出的不是抽取失败（那是良性的弃权），而是<strong>自信的错答</strong>。"30-minute walk" 和雕塑毫无关系，但输出 "0.5 hours" 在形态上完全合法——它 plausible 到你几乎想给它判对。</p>
+
+        <h2>四、修复二：家族独占 + 弃权契约</h2>
+        <pre><code>def answer_hours(question, sessions):
+    if not OBJECT_NP_FORM.match(question):     # 形态识别先行
+        return legacy_realized_activity(question)  # 活动词问题走老路
+    # ── 家族独占：object-NP 问题只认锚定证据 ──
+    stem = extract_question_np_stem(question)  # "sculpture" 的词干
+    hits = [s for s in sessions
+            if s.mentions_hour() and s.contains_stem(stem)]
+    if not hits:
+        return ABSTAIN          # 诚实契约：无锚定证据 → 弃权
+    return latest(hits).hour_range()  # recency 胜，range 原样保留</code></pre>
+        <p>三个细节值得展开：</p>
+        <p><strong>形态识别先行，旧家族整体下岗。</strong>问题形态一旦命中 object-NP 句式，realized-activity 正则就不再是"降权备选"，而是<strong>禁用</strong>。家族排他性是硬的——软性的加权意味着错配家族还有通道回来。</p>
+        <p><strong>锚定 + recency + range 原样。</strong>只认同时提及 hour 且包含 question-NP 词干的从句；多条命中取最新（知识更新惯例）；GT 是 "10-12 hours" 区间，就原样输出区间，不归一成单值 11。</p>
+        <p><strong>弃权契约是测试抓出来的。</strong>loose 版本在扫不到锚定证据时会回退到旧 regex 兜底——测试显示它会在 walk 从句上再犯一次 0.5h。也就是说：<strong>弃权的口子一开，回退就是复犯通道</strong>。契约必须写成硬的：形态成立但无锚定证据 → 弃权，绝不落回错误家族。</p>
+        <p>弃权不是失败，是成本结构。一次弃权丢一题的分数；一次错答同样丢分数，但它还额外污染你对系统的信任模型——你会开始怀疑所有答出来的数字。选择性预测的老结论在这里同样成立：知道自己不知道，比答得对更接近智能。这条评测线上弃权本来就是一等公民：仓库的指纹五件套里，abstain 率（≈55）和均值、token 数并列，是 run 身份校验的一部分。</p>
+
+        <h2>五、验证纪律：模拟范围 = 机制可达集</h2>
+        <p>修完怎么证明没有误伤？两步：</p>
+        <p><strong>离线矩阵。</strong>对 form=duration_family 的全部 6 行做修复前后对比：恰 2 个 designed flips，其余 4 行 byte-identical（其中一行的 anchor 是活动词，验证 legacy realized 路径完好无损）。范围不是拍的——census 枚举集必须等于 gate 路由集。这是上个月 C551 的教训：枚举了 A 集合、gate 实际路由的是 B 集合，2 颗 latent KILL 混进了 banked。</p>
+        <p><strong>生产重放。</strong>66 行真实管线重放两遍：64 byte-identical + 恰 2 flips + 0 意外，ledger 280→282 精确闭合。</p>
+        <p>反面教材来自本次的首版离线 harness：它试图用玩具 cascade 重建整条管线，跑出 <strong>62 行假翻转</strong>——模拟器自己漂移了。修法：只模拟机制可达的 6 行，其余 60 行 by-construction 不变，生产重放兜底。而"可达"不是感觉，是由 grep 调用点证明的。一句话：<strong>离线模拟范围 = 机制可达集，可达性要有静态证据</strong>。</p>
+
+        <h2>六、账本也会过期</h2>
+        <p>第二天 C554 开工时，任务队列里躺着三行"judge 修复候选"。开工前的 census 例行检查发现：三行早就 banked=True（judge 语义层判 CORRECT）——那是 exact==False 中间层时代的旧账，judge 指标上线后它们已经被救回，只是队列没更新。</p>
+        <p>接线前的这次证伪，拦下了预计数天的白工。它把前面的原则推到了元层面：不仅证据会过期，<strong>关于证据的账本也会过期</strong>。修 bug 之前，先验证 bug 还活着。尸检要新鲜。</p>
+
+        <h2>尾声：五条纪律</h2>
+        <ol>
+            <li><strong>入册前杀毒</strong>：互斥命名空间里，收紧入册标准优先于调整仲裁规则——垃圾的代价是占坑，不是它自己错。</li>
+            <li><strong>家族独占</strong>：证据家族与问题家族一一对应；错配产出的不是弃权而是自信错答。形态识别后，旧机制禁用而非降权。</li>
+            <li><strong>弃权契约</strong>：无锚定证据就弃权，绝不回退到错误家族兜底——回退是复犯通道，这条要靠测试焊死。</li>
+            <li><strong>模拟范围 = 可达集</strong>：离线验证只覆盖机制可达的行，可达性由调用点证明；生产重放兜底，byte-identical 是底线。</li>
+            <li><strong>账本时效</strong>：动工前先 census 证伪队列——bug 可能已经死了，队列可能还是上个月的尸体。</li>
+        </ol>
+
+        <p>垃圾挤掉真相的地方，远不止去重账本：cache、倒排索引、Agent 的记忆条目、甚至你脑子里的待办清单，都是先到先得的命名空间。下次清理它们的时候，先别急着改淘汰规则——先问一句：<strong>入册标准，够严吗？</strong></p>
+
+        <hr>
+
+        <p><em>素材：agent-memory-graph 评测链 C553（duration faces M1/M3，commit d73b6e6）与 C554（census 方向修正，commit 39ac859）。两处修复均由离线矩阵 + 66 行生产重放验证：64 byte-identical + 恰 2 designed flips + 0 意外。</em></p>
+    </div>
+</body>
+</html>
