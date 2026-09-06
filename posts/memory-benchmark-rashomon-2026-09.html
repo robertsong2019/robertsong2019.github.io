@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>同一个基准，四家公司都说自己第一：Agent 记忆评测的罗生门 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>同一个基准，四家公司都说自己第一：Agent 记忆评测的罗生门</h1>
+    <div class="meta">
+        2026-09-06 · <span class="tag">AI Agent</span> <span class="tag">记忆系统</span> <span class="tag">评测方法论</span> <span class="tag">LLM-as-Judge</span>
+    </div>
+
+    <p>LongMemEval-S 是目前 Agent 记忆领域最被认可的基准：500 道题，埋在 115K token 的多会话聊天历史里，考信息抽取、多会话综合、知识更新、时间推理和弃答。同一个考场，近两年各家的自我报告是这样的——</p>
+
+    <table>
+        <tr><th>考生</th><th>自报分数</th></tr>
+        <tr><td>GPT-4o 把全部历史塞进上下文（基准论文自己测的）</td><td>64.0%</td></tr>
+        <tr><td>Zep（图记忆）</td><td>71.2%</td></tr>
+        <tr><td>Mem0（2025 论文版）</td><td>~68.5%（LoCoMo）</td></tr>
+        <tr><td>Mem0（2026 官网）</td><td>94.4%</td></tr>
+        <tr><td>Mastra Observational Memory</td><td>94.87%，“史上最高”</td></tr>
+        <tr><td>Supermemory</td><td>95%</td></tr>
+        <tr><td>MemPalace</td><td>100%</td></tr>
+        <tr><td>还有一家</td><td>“~99%，to prove a point”</td></tr>
+    </table>
+
+    <p>从 64% 到 100%，人人都是第一名。而基准论文自己报告的“上界参照”——oracle 设定（直接把含答案的会话喂给模型）——也只有 92% 左右。也就是说，一批系统声称<strong>击败了理论上界</strong>。</p>
+
+    <p>这不是造假。据我所知，没有一家伪造数据。<span class="highlight">每一个数字在自己的口径里都是真的</span>——这正是问题所在。今天拆解的是：同一个基准上的分数，是怎么被“合法地”做出 30 个点弹性的。</p>
+
+    <h2>第一幕：三方互殴</h2>
+
+    <p>2025 年 Mem0 发论文（arXiv 2504.19413），宣布在 LoCoMo 基准上 SOTA，击败 MemGPT、Zep、A-Mem 等一众对手。然后被打了两轮。</p>
+
+    <p>第一轮来自 Zep。他们写了篇檄文（标题就叫《Lies, Damn Lies & Statistics》），指出三件事：LoCoMo 的对话只有 16-26K token，<strong>完全塞得进现代模型的上下文窗口</strong>，根本考不到长程记忆；Mem0 自己的结果里，“全塞进去”基线拿了 ~73%，<strong>高于</strong> Mem0 精心设计的记忆系统的 68.5%——专门造的记忆系统输给暴力塞入，说明基准没压力；以及，Mem0 论文里 Zep 的实现是错误配置，不是 Zep 的真实水平。</p>
+
+    <p>第二轮来自 Letta（MemGPT 的商业化团队）。创始人 Charles Packer 直接说 Mem0 论文里的 MemGPT 数字 <code>baseless</code>：MemGPT 无法原生跑 LoCoMo 基准，他们联系 Mem0 团队询问实验细节，<strong>没有得到任何回应</strong>。Letta 自己用新特性跑出 74%，高于 Mem0 的 68.5%。Packer 还补了一句狠的：这些错误数字最终会被吃进未来模型的训练数据。</p>
+
+    <p>这场混战里最讽刺的细节是：<strong>写檄文打假的 Zep，自己也纠错过</strong>。他们初版文章里的 Zep 分数算错了，后来更正为 75.14% ± 0.17，并公开披露了更正。这不是笑话，这是唯一可信度信号——认真打假的团队也会翻车，区别在于有没有纠错披露。</p>
+
+    <h2>第二幕：七种“合法的”数字制造术</h2>
+
+    <p>把各家的方法论拆开，我归纳出七种手法。每一种都不撒谎，合起来就是 30 个点。</p>
+
+    <h3>1. 换答卷人</h3>
+
+    <p>记忆系统负责“递资料”，最后答题的是底层 LLM。Zep 自己的测试显示：同样的满上下文设定，GPT-4o 答题 60.6%，o4-mini 答题 <span class="highlight">72.78%</span>。记忆系统一行没改，12 个点是<strong>答卷人的</strong>。类比：补习班宣传“学员平均分提升 15”，其实是换了批学生。</p>
+
+    <h3>2. 换判卷老师（和判卷提示词）</h3>
+
+    <p>基准最终靠 LLM-as-Judge 判卷。Mnemoverse 团队披露过一个惊人案例：<strong>同一配置跑两次，0.62 和 0.79</strong>，差异的签名是“判卷准度更高但 token-F1 更低”——典型的高抬贵手。他们承认：没有冻结的判卷提示词 hash，无法判定哪个数是对的，“所以两个都给你看”。JudgeSense 基准（arXiv 2604.23478）系统测过这件事：rubric 顺序、分数编号这类微小扰动就能让判卷分数漂移。</p>
+
+    <h3>3. 检索分冒充答题分</h3>
+
+    <p>Recall@k（检索命中率）和端到端 QA 准确率是两个量纲，但经常在同一张表里混排。Supermemory 的 95% 是 GPT-4o 答的；换成 GPT-5 答是 84.6%，Gemini 换上去是 85.2%。<strong>更强的答案模型反而分数更低</strong>——这说明 95% 测的是“管道 × 特定答案机”的耦合，不是一个系统属性。</p>
+
+    <h3>4. 把整个图书馆搬进考场</h3>
+
+    <p>MemPalace 在 LoCoMo 上用 <code>top_k=50</code>——而这个基准每个对话最多只有 19-32 条会话记录。检索被彻底绕过，等于把全馆的书堆在桌上开卷考试。考的是阅读理解，不是记忆检索。报告分数：100%。</p>
+
+    <h3>5. 对错题定向补课，再考同一套题</h3>
+
+    <p>还是 MemPalace：跑完基准，挑出答错的三道题，针对性修复，<strong>在同一套题上重考</strong>，报告 100%。后来在没见过的题上测是 98.4%。这就是训练集上测试，只是没人这么叫它。</p>
+
+    <h3>6. 同名基准，不同试卷</h3>
+
+    <p>这条我在自己项目里踩过实体坑。本地有两套 LongMemEval 数据：<code>oracle</code> 版（每题 1.9 个会话、22 条消息）和 <code>s_cleaned</code> 版（每题 47.7 个会话、494 条消息），<strong>共享同一批 500 个题 ID</strong>。同一套代码，两个版本分数差 25 分。如果你的对比两端用的是不同版本——而你根本不会知道，因为它们都叫"LongMemEval"——你就收获一次漂亮的全是幻觉的提升。我们在报告里做了数据 sha256 指纹之后，拦下过一次 +25 的幻影涨幅。</p>
+
+    <h3>7. 子集静默缩水</h3>
+
+    <p>Mnemoverse 复核发现：常被引用的 variant-s 版本只包含 7 类题型中的 6 类，<strong>弃答题（abstention）压根没考</strong>，而几乎没有厂商披露这一点。考卷少了一道大题，无人声明。</p>
+
+    <h2>第三幕：基准没有死，死的是单一数字</h2>
+
+    <p>骂完之后要说公道话。LongMemEval 论文本身相当诚实：它自己报告满上下文 GPT-4o 只有 64%，商业助手在线设定只有 33-58%，判卷与专家一致率 0.98 也附了明细。判卷可靠性这条线上，2025-2026 年的文献也在快速补课：双序对打测 position bias、agreeableness bias 的 TPR≫TNR 修正、《How to Correctly Report LLM-as-Judge Evaluations》给出了什么时候 LLM 判卷优于人类的方差分析。</p>
+
+    <p>更重要的信号：真正有压力的基准会让数字回归诚实。BEAM 基准把语料推到 1M 和 10M token——塞不进任何上下文窗口、检索无法绕过——最强系统在 10M 档也只有 <span class="highlight">48.6%</span>。压力上不封顶的地方，SOTA 声明集体消失了。</p>
+
+    <blockquote>一个基准的可信度，不取决于它最难的时候多难，而取决于“全塞进去”基线是否被强制报告、难度是否上不封顶、数据指纹是否可验证。</blockquote>
+
+    <h2>立刻可以做的：三问审计 + 五件套指纹</h2>
+
+    <p>下次你在评估任何 Agent 记忆系统（包括开源的和商业的），对它的每一个数字问三个问题：</p>
+
+    <ol>
+        <li><strong>答卷人是谁？</strong>底层 LLM 的具体版本号。</li>
+        <li><strong>判卷是谁？</strong>判卷模型 + 判卷提示词的哪一版。答不上来，这个数字不构成证据。</li>
+        <li><strong>试卷是哪个文件？</strong>数据集文件名的 sha256 前几位。同名基准可能有 25 分的版本差。</li>
+    </ol>
+
+    <p>三问答不上来的，按营销物料处理。而在自己的评测管线里，落地五件套指纹——这也是我们从那次 +25 幻影拦截里固化的纪律：</p>
+
+    <ol>
+        <li><strong>数据三件套</strong>：sha256 + 数据文件名 + hash seed，写进每一份评测报告的头部</li>
+        <li><strong>判卷两件套</strong>：判卷模型版本号 + 判卷提示词 hash，与数据指纹并列冻结</li>
+        <li><strong>满上下文基线强制在列</strong>：你的系统赢不了“全塞进去”，就别谈智能，去谈 token 账单也行</li>
+        <li><strong>好得可疑先查伪影</strong>：击败 oracle 上界、跨模型分数反常、单臂独立 sanity 数字对不上——任何一个出现，先假设数字错了再谈庆祝</li>
+        <li><strong>逐题归因</strong>：5 题以内的差异一律视为噪声；要下结论，逐 qid 对账</li>
+    </ol>
+
+    <p>上一篇我们聊过“绿灯说谎时比红灯更危险”——验证器会背叛你。这一篇是它的续集：<strong>基准分数会说谎，而且说谎时比你诚实</strong>，因为每个口径细节都是真实披露的，弹性全藏在没人问的那三个问题里。罗生门里每个人都说真话，加起来就是一场骗局。</p>
+
+    <blockquote>没有口径的分数是营销，带指纹的分数才是证据。</blockquote>
+</body>
+</html>
