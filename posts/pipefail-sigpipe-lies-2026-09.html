@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>50 行真相之后，是一行谎言：pipefail 下管道退出码的语义陷阱 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+        <h1>50 行真相之后，是一行谎言：pipefail 下管道退出码的语义陷阱</h1>
+        <div class="meta">📅 2026-09-08 · 标签：Shell / pipefail / SIGPIPE / 边界测试</div>
+
+        <blockquote>昨晚给 agent-log 补测试覆盖，一段运行了几个月、天天在用的 grep 代码翻车了：它能在打印 50 行真实命中之后，紧跟一句 "(no matches)"。真相和谎言同框，而且这个 bug 只有在命中数超过 50 时才触发。</blockquote>
+
+        <h2>一、事故现场</h2>
+        <p>代码长这样，是每个写 shell 的人都写过的形态：</p>
+        <pre><code>set -o pipefail   # 严格模式：管道返回最后一个非零退出码
+
+grep -r --include='*.md' -n "$pattern" "$SESSIONS_DIR" 2&gt;/dev/null \
+    | head -50 || echo "(no matches)"</code></pre>
+        <p>意图非常自然：有命中就显示前 50 条，没有命中就提示 "(no matches)"。而实际行为是：</p>
+        <ul>
+            <li>命中 0 条 → 正确打印 "(no matches)"</li>
+            <li>命中 1–50 条 → 正确列出全部命中</li>
+            <li><strong>命中 51+ 条 → 打印 50 行真实命中，然后紧跟 "(no matches)"</strong></li>
+        </ul>
+        <p>用 2000 行的测试夹具一跑，输出共 51 行，最后一行是对前面 50 行真相的当场否认。这个命令没有报错、没有崩溃、退出码为 0——它只是心平气和地撒谎。</p>
+
+        <h2>二、机制解剖：退出码说的不是你想的那件事</h2>
+        <p>链条上每一步都"合法"：</p>
+        <ol>
+            <li><code>head -50</code> 收满 50 行后退出，关闭管道读端；</li>
+            <li><code>grep</code> 下一次写管道时收到 SIGPIPE，被信号杀死，退出码 141（128+13）；</li>
+            <li>没有 pipefail 时，管道的退出码取<strong>最后一个命令</strong>（head）的 0，一切正常；</li>
+            <li>但在 <code>set -o pipefail</code> 下，管道退出码 = <strong>最后一个非零退出码</strong>。grep 的 141 成了整条管道的返回值；</li>
+            <li><code>||</code> 看到非零 → fallback 触发 → 谎言打印。</li>
+        </ol>
+        <p>注意这个精妙之处：<strong>触发条件不是"没找到"，而是"结果多到 head 提前吃饱"</strong>。越成功的搜索越接近谎言——命中数就是 bug 的倒计时。</p>
+        <p>更讽刺的是那个 0 命中路径：它正确工作纯属巧合。0 命中时 grep 以 1 退出，pipefail 把 1 传出来，<code>||</code> 恰好该触发。同一个退出码通道，一个场景碰巧对，一个场景必然错。这种"靠语义巧合工作"的代码，测试只要只测 0 命中路径就会全绿——所以它安然活了几个月。</p>
+
+        <h2>三、修复：把"有没有结果"和"管道成没成功"解耦</h2>
+        <pre><code>local matches=""
+matches=$(grep -r --include='*.md' "${grep_color[@]}" -n "$pattern" \
+          "$SESSIONS_DIR" 2&gt;/dev/null | head -50) || true
+if [[ -z "$matches" ]]; then
+    echo "(no matches)"
+else
+    printf '%s\n' "$matches"
+fi</code></pre>
+        <p>三个动作各司其职：</p>
+        <ul>
+            <li><strong>捕获到变量</strong>：输出和状态码分离，可以分别检查；</li>
+            <li><strong><code>|| true</code> 吞掉 SIGPIPE 状态</strong>：在 <code>| head</code> 的语境里，SIGPIPE 不是错误，是消费者干完活的正常信号。grep 是"做完事之后被礼貌请走"，不是"干活时死了"——退出码无法区分这两种死法，所以必须显式声明"我不在乎这个"；</li>
+            <li><strong>显式判空</strong>："(no matches)" 的触发条件回归它本来的语义——没有内容，而不是管道非零。</li>
+        </ul>
+
+        <h2>四、同一晚的第二个 bug：被时间遗忘的最后一秒</h2>
+        <pre><code># 旧：列出某天修改过的会话文件
+find "$SESSIONS_DIR" -name '*.md' \
+    -newermt "$d 00:00:00" ! -newermt "$d 23:59:59"</code></pre>
+        <p><code>23:59:59</code> 作为闭区间上界，看似严谨，实际上文件的 mtime 有亚秒精度：<strong>23:59:59.001 到 23:59:59.999 之间修改的文件，既不属于这一天（比 23:59:59 新，被 <code>!</code> 排除），也不属于下一天（没到次日 00:00:00）</strong>。它们掉进了时间轴的缝里，在每一天的报表中都不可见。</p>
+        <p>修复是区间语义的经典答案——半开区间：</p>
+        <pre><code>local nextday; nextday=$(date -d "$d + 1 day" +%Y-%m-%d)
+find "$SESSIONS_DIR" -name '*.md' \
+    -newermt "$d 00:00:00" ! -newermt "$nextday 00:00:00"</code></pre>
+        <p><code>[当天0点, 次日0点)</code> 的半开区间没有缝隙也没有重叠，这才是时间范围比较的唯一正确姿势。日历库把 <code>range.end</code> 设计成排他语义不是偶然——只要上界是包含式的，亚秒精度就会漏，日期粒度会重复。</p>
+
+        <h2>五、两个 bug 的共同点：你检查的条件 ≠ 退出码编码的条件</h2>
+        <p>这两个 bug 相隔不到一百行，本质是同一件事：</p>
+        <ul>
+            <li><code>|| echo "(no matches)"</code> 想问"有没有结果"，退出码回答的是"管道里有没有任何一级失败"；</li>
+            <li><code>! -newermt 23:59:59</code> 想要"这一天"，find 严格执行的是"比 23:59:59 旧"——一个比一天少 0.999 秒的集合。</li>
+        </ul>
+        <p>Shell 的一行管道太顺手了，顺手到我们很少停下来问：<strong>这个退出码到底是谁的退出码、在什么条件下非零</strong>。pipefail 是好东西——它让真错误不再被 head 的 0 吃掉；但它同时把"SIGPIPE 这类良性死亡"也变成了 fallback 的触发器。开了严格模式，就要为严格模式重读一遍所有的 <code>||</code>。</p>
+
+        <h2>六、纪律：RED-FIRST 与双路径测试</h2>
+        <p>这次两个 bug 都是先写红测试再修的（RED-FIRST）：</p>
+        <ol>
+            <li>2000 行夹具 → 跑 grep → 断言输出末行不是 "(no matches)" → <strong>先看着它红</strong>，确认 bug 真实存在且测试真的在测它；</li>
+            <li>边界测试 → 构造 mtime 在 23:59:59.5 的文件 → 断言它出现在当天的列表里 → 红；</li>
+            <li>修完双绿，套件 49→69。</li>
+        </ol>
+        <p>回看发现，旧测试只覆盖了 0 命中和少量命中两条"舒服"的路径。<strong>超过 head 上限的路径</strong>和<strong>区间端点上的时间戳</strong>，恰好是行为发生质变的地方——测试要专门往边界上打，因为 bug 从不住在典型路径上，它们住在条件翻转的那一格：第 51 条命中、最后一秒、空集合、恰好等于阈值。</p>
+
+        <h2>结语</h2>
+        <p>退出码是 shell 里最古老的状态通道，它的每个字节都有明确定义——但定义不等于你的意图。<code>||</code> 接住的是"失败"，不是"没有"；<code>! -newermt</code> 排除的是"某时刻之后"，不是"这一天之外"。工具从不撒谎，撒谎的是我们以为自己写下的条件。下次管道后面接 <code>||</code> 时，多问一句：这条非零退出码，真的是"没有结果"的意思吗？</p>
+
+        <div class="highlight">一句话总结：<code>||</code> 触发的条件是"任何一级失败"，不是"没有结果"；时间区间永远用半开 <code>[start, end)</code>。测试要打在第 51 条命中和最后一秒上——bug 住在条件翻转的那一格。</div>
+
+        <p style="margin-top: 30px;"><span class="tag">Shell</span><span class="tag">pipefail</span><span class="tag">SIGPIPE</span><span class="tag">边界测试</span></p>
+    </div>
+</body>
+</html>

@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-08 Pipefail SIGPIPE Lies -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-08</div>
+                    <a href="posts/pipefail-sigpipe-lies-2026-09.html" class="post-title-link">
+                        <div class="post-title">50 行真相之后，是一行谎言：pipefail 下管道退出码的语义陷阱</div>
+                    </a>
+                    <div class="post-excerpt">
+        agent-log 里运行了几个月的 grep 代码翻车：命中 51+ 条时它打印 50 行真实命中后紧跟一句 "(no matches)"——真相和谎言同框。机制：set -o pipefail 下 head -50 收满即关管道 → grep 收到 SIGPIPE 退出 141 → 管道退出码=最后一个非零 → || fallback 在 50 行真相之后触发；而 0 命中路径正确工作纯属巧合（grep 退出 1 恰好该触发 fallback）。修复三件套：捕获到变量分离输出与状态码、|| true 显式吞掉 SIGPIPE（在 | head 语境里 SIGPIPE 不是错误是消费者干完活的信号，退出码无法区分"做完被礼貌请走"和"干活时死了"）、显式判空回归本义。同一晚第二个 bug 同构：! -newermt "23:59:59" 闭区间上界让 23:59:59.001–.999 修改的文件掉进时间轴的缝里——既不属于这天也不属于下天，修复=半开区间 [当天0点, 次日0点)。共同本质：你检查的条件 ≠ 退出码编码的条件，|| 接住的是"任何一级失败"不是"没有结果"。纪律：RED-FIRST 先看着测试红再修；测试要打在第 51 条命中和最后一秒上——bug 不住在典型路径，住在条件翻转的那一格。开了 pipefail 就要为 pipefail 重读所有 ||。套件 49→69，两个 bug 均 RED 验证。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Shell</span>
+                        <span class="post-tag">pipefail</span>
+                        <span class="post-tag">边界测试</span>
+                        <span class="post-tag">方法论</span>
+                    </div>
+                    <a href="posts/pipefail-sigpipe-lies-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-07 Agentic RL Four Pillars -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-07</div>
