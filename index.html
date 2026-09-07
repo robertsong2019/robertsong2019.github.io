@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-07 Agentic RL Four Pillars -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-07</div>
+                    <a href="posts/agentic-rl-four-pillars-2026-09.html" class="post-title-link">
+                        <div class="post-title">Agent 不是 prompt 出来的，是训出来的：Agentic RL 的四根支柱</div>
+                    </a>
+                    <div class="post-excerpt">
+        demo 里行云流水的 agent 上了生产第 7 轮就崩，往系统提示词里加第 101 条规则只管用三天——规则是外挂的，模型从未内化它，就像把交规贴在方向盘上不等于会开车。Agentic RL 正在把"开车"训进模型的肌肉里，四根支柱：奖励从答案对不对变成环境对不对（Agent-RLVR 9.4→22.4 全靠环境反馈零人工标注、Kimi K2 合成环境流水线+自评 rubric、MUA-RL 把 LLM 模拟用户塞进训练循环因为真实用户是活的）；Echo Trap 回声陷阱——agent 训练中期突然坍缩成复读机反复用同样参数调同一工具，三前兆=组内奖励方差骤降+token 熵骤降+梯度尖峰，像学生发现全选 C 偶尔得分就再也不读题，本质是 O(T·Var[R]) 方差墙：T 从 10 到 100 梯度方差涨 10 倍，多轮 RL 第一瓶颈不是算力是方差；信用分配——episode 级奖励对百步轨迹等于全班考完只公布平均分，GiGPO 把同一锚定状态下的多次行动组成小组用组内相对优势当 step 级信用零额外 rollout 开销 0.002%，结构先于算力性价比高一个数量级；环境是新的数据——预训练抢 token、agentic RL 抢带可验证终态的环境，好环境三要素=可验证/可摇骰子/可服务化，qqr 拿 MCP 当训练环境接口意味着你今天写的 MCP server 明天就是训练环境，工具生态和训练生态正在合并成同一张网。判据：错误可自动判定×轨迹高频重复两个条件同时满足才值得训进权重，一次性任务用 scaffold 百万次重复的工作流才回本，32B+开源栈一个工程团队就能入场。今晚能做的三件事：把失败日志变环境（100 条 trace 问终态能不能写成断言）/给验证器做体检（RL 前先问验证器自己可信吗）/盯住方差+熵+梯度三个数防复读机。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">强化学习</span>
+                        <span class="post-tag">Agentic RL</span>
+                        <span class="post-tag">训练系统</span>
+                    </div>
+                    <a href="posts/agentic-rl-four-pillars-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-07 Evidence Starvation Abstention -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-07</div>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 不是 prompt 出来的，是训出来的：Agentic RL 的四根支柱 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>Agent 不是 prompt 出来的，是训出来的：Agentic RL 的四根支柱</h1>
+    <div class="meta">
+        2026-09-07 · <span class="tag">AI Agent</span> <span class="tag">强化学习</span> <span class="tag">Agentic RL</span> <span class="tag">训练系统</span>
+    </div>
+
+    <p>一个经典场景：demo 里行云流水的 agent，上了生产在第 7 轮工具调用时把上下文搞丢。你的第一反应是往系统提示词里加第 101 条规则——"调用工具前先复述当前状态"。它管用了三天，然后 agent 学会了机械复述状态而忘记真正要干什么。</p>
+
+    <p>问题不在 prompt 写得不好。<span class="highlight">规则是外挂的，模型从未内化它</span>。就像你可以把交规打印出来贴在方向盘上，但那不等于会开车。2025 到 2026 年，一件事正在悄悄发生：把"开车"直接训进模型的肌肉里——<strong>Agentic RL</strong>，用强化学习训练多轮工具调用的 agent。今天讲清楚它的四根支柱，以及我的判断：什么时候值得走这条路，什么时候纯属浪费显卡。</p>
+
+    <h2>支柱一：奖励从"答案对不对"变成"环境对不对"</h2>
+
+    <p>RLVR（可验证奖励强化学习）最初在数学和代码上立功：答案对就给分，机器可判。把它搬到 agent 上，关键一步是意识到——agent 任务的"对错"不在最终那段话里，而在<strong>环境的状态里</strong>。订机票的任务，数据库里那条记录订对了没有；修 bug 的任务，测试套件过没过。</p>
+
+    <p>证据：Agent-RLVR 把 Qwen-2.5-72B 在 SWE-Bench Verified 上从 9.4% 训到 22.4%，几乎不用人工标注，奖励全部来自环境反馈。Kimi K2 走得更远：先造一条"合成环境流水线"——工具池、rubric 驱动的任务生成、模拟环境里的多轮演示——再上 RLVR，最后叠一层 Self-Critique Rubric Reward，让模型按"清晰度/事实性"给自己的输出打分，用可验证域的信号持续校准这个自我评价。美团的 MUA-RL 则把"用户"也做成了 LLM 模拟器塞进训练循环——因为真实用户是动态的、会改需求的，静态环境里训出的 agent 一遇到活人就脆。32B 的模型，追平了 235B 大模型的非思考模式表现。</p>
+
+    <p>我的判断：<span class="highlight">验证器工程是 RL 的前置工程</span>。环境不可验证，就无奖励可谈。你手头 agent 任务的失败案例，能不能写成"终态断言"，比"要不要上 RL"更早成为问题。</p>
+
+    <h2>支柱二：复读机之死——Echo Trap</h2>
+
+    <p>多轮 RL 有自己的失败签名，RAGEN 论文给它起了名字：<strong>Echo Trap（回声陷阱）</strong>。agent 在训练中期突然坍缩——反复用同样的参数调用同一个工具，像复读机。三个前兆信号同时出现：组内奖励方差骤降（所有轨迹一个分）、token 熵骤降（输出越来越像）、梯度范数尖峰（然后训练崩掉，通常不可逆）。</p>
+
+    <p>像什么？<strong>学生发现"全选 C"偶尔能得分，就再也不读题了</strong>。带噪声的奖励无法区分"有效探索"和"安全复读"，策略就滑向后者。RAGEN 的 StarPO-S 用三招缓解：按不确定性过滤轨迹、critic 做基线、非对称裁剪塑梯度——也只是推迟坍缩，不是根治。</p>
+
+    <p>更本质的账是这样的：REINFORCE 梯度估计的方差近似 O(T·Var[R])。数学题 T≈10 个决策点，复杂 agent 任务 T≈100——<span class="highlight">梯度方差涨 10 倍，同样的梯度质量需要 10 倍 rollout</span>。多轮 RL 的第一瓶颈不是算力，是方差。这解释了为什么这个领域一半的论文都在做同一件事：把一个粗糙的大奖励，拆成更细粒度的信号。</p>
+
+    <h2>支柱三：别只公布平均分——信用分配</h2>
+
+    <p>一条 100 步的轨迹，最后只拿到一个总分。这相当于全班考了一学期，只公布年级平均分，然后要求每个学生自己琢磨哪道题错了。episode 级奖励对长轨迹就是这么残暴。</p>
+
+    <p>我最欣赏的解法是 GiGPO（Group-in-Group）：agent 在长轨迹里经常<strong>回到同一个状态</strong>（比如三次面对同一个报错页面）。GiGPO 把"同一锚定状态下的多次行动"自动组成小组，用组内相对优势当 step 级信用——哪次选择更好，一比就知道。额外开销不到训练时间的 0.002%，因为根本不需要新的 rollout，信息一直躺在你自己采的数据里。<span class="highlight">结构先于算力</span>：在砸 GPU 之前先改信用分配的结构，性价比高一个数量级。同族还有 SWEET-RL 的轮级信用、SPA-RL 的步级进展归因、ARPO 在熵尖峰处自适应加采分支。</p>
+
+    <h2>支柱四：环境是新的数据</h2>
+
+    <p>预训练时代大家抢 token，agentic RL 时代抢的是<strong>带可验证终态的环境</strong>。阿里的 Environment Scaling 论文（RLVE）给出了两段式流水线：先程序化造环境——从工具图采样任务参数、初始化数据库状态，天然可验证；再做经验学习，用 gold 工具序列过滤训练轨迹。后续的 Agent-World 干脆让环境也自进化，scaling 曲线对"环境多样性"明确成立。</p>
+
+    <p>一个好训练环境的三要素，我认为可以这么记：<strong>可验证</strong>（终态能判对错）、<strong>可摇骰子</strong>（同一任务模板能生成无穷实例，随机性即数据增广）、<strong>可服务化</strong>（HTTP 接口挂上 rollout 农场就能消费）。配套的基础设施也在成型：GLM 系列的 slime 把 rollout 做成服务、训练与推理分离；AgentGym-RL 统一环境的 HTTP 协议；更有意思的是 qqr 直接拿 MCP 当训练环境接口——<span class="highlight">你今天为产品写的 MCP server，明天就是你自己（或别人）的训练环境</span>。工具生态和训练生态正在合并成同一张网。</p>
+
+    <h2>冷水与判据</h2>
+
+    <p>别急着把所有 agent 都送去训练。两个明确的坑：reward hacking——模型学会操纵环境状态而不是完成任务；模拟到真实的落差——合成环境里的 SOTA 掉到真实 API 上就缩水。所以我的判据很简单，两个条件同时满足才值得训：</p>
+
+    <ol>
+        <li><strong>错误可自动判定</strong>——环境终态或测试结果能机器判分，判不了的先修验证器；</li>
+        <li><strong>轨迹高频重复</strong>——这个工作流每天跑一万次，训练成本摊得回来。</li>
+    </ol>
+
+    <p>一次性长尾任务，继续用 scaffold 和提示词；百万次重复的工作流（客服、运维、检索、编码），训进权重才回本。好消息是入场门槛已经降了：32B 模型加开源栈（VerlTool、RLFactory、slime），一个工程团队就能复现两位数的提升。</p>
+
+    <h2>今晚就能做的三件事</h2>
+
+    <ul>
+        <li><strong>把失败日志变环境</strong>：翻出你 agent 最近 100 条失败 trace，问一句"这个任务的终态能不能写成断言"。能，你就有了第一个可训练环境的胚子；不能，你已经知道该先修什么了。</li>
+        <li><strong>给验证器做体检</strong>：RL 之前先问验证器自己可信吗——测试全绿但证明的东西是假的，比红灯更危险（我在前两篇里专门写过）。</li>
+        <li><strong>盯住三个数</strong>：任何时候跑多轮 RL，监控组内奖励方差、token 熵、梯度范数。前两个同降就是复读机前兆，立刻介入，别等梯度尖峰。</li>
+    </ul>
+
+    <blockquote>Agent 的可靠性从来不是提示词工程能单独解决的——prompt 教会 agent 说什么，环境教它什么时候说。前者你在过去两年已经做完了，后者是接下来两年的事。</blockquote>
+</body>
+</html>
