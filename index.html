@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-08 Agent Prompt Injection Defense -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-08</div>
+                    <a href="posts/agent-prompt-injection-defense-2026-09.html" class="post-title-link">
+                        <div class="post-title">一封你从没打开的邮件，偷走了整个收件箱：提示注入攻防与架构防御的范式转移</div>
+                    </a>
+                    <div class="post-excerpt">
+        2026 年 1 月，你问 Gemini「我周二有会吗？」它如实回答——但就在回答之前的一瞬，它已把你全部私人会议打包进一个新建日历事件，可见名单里多了个陌生地址。你没点开任何东西，攻击者只是在三周前的日历邀请备注里用自然语言写了几句话。间接提示注入已成为 OWASP LLM 风险榜首，且攻击面三级扩张：从读的内容（CSS 隐藏/Unicode 隐形字符）到加载的工具（MCP 工具投毒藏进 description——LLM 可见用户不可见，读到即感染；rug pull 批准后静默换描述，7 个主流客户端 5 个零静态校验；今年 2 月 Claude GitHub Actions 链被注入产恶意 npm 包感染约 4000 台开发机）到记忆（Bedrock 会话摘要被 XML 闭合标签劫持成跨会话后门；MINJA 只靠聊天就能污染记忆库，MemoryGraft 植入假「成功经验」让 agent 主动复刻）再到多智能体权限链（注入沿委派链向上传播直至最高权限）。防御侧范式已死一层：写在 prompt 里的防御本身可被注入覆盖，自适应攻击打穿大多数已发表防御，85.2% 在野 payload 用社会工程话术——「让模型更努力」路线被判死，OpenAI/Anthropic/DeepMind 各自承认当前架构内无解。活下来的路线是架构：致命三要素（不可信输入×私有数据×对外通信=不可防御）与 Meta Rule of Two（三选二硬约束）；Dual-LLM 前台后台分离被 CaMeL 证明有洞（隔离模型提取的值仍能污染工具参数——改不了「发邮件」但能改「收件人」），修法是污点跟踪=给每个外部来源的值打放射性同位素标记，流动到哪跟到哪，寄出去的关口见标就拦：AgentDojo 67% 攻击中和、效用 77% vs 84%、2.8× token 开销——当前「架构防御税」的市场价。MELON 反事实重执行检测最优雅：遮蔽用户任务重放轨迹，工具调用不变=行为与意图解耦=被注入，ASR 0.32%。今晚五件事：画能力矩阵/封出口（域名白名单+禁外链图自动抓取+剥 U+E0000 区段）/MCP 工具描述 hash 快照 diff 治 rug pull/记忆条目加 origin 标签外部来源降权禁触发写操作/CI 挂遮蔽重放测谎仪。模型负责聪明，架构负责安全，谁也别替谁打工。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">Agent 安全</span>
+                        <span class="post-tag">提示注入</span>
+                        <span class="post-tag">MCP</span>
+                    </div>
+                    <a href="posts/agent-prompt-injection-defense-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-08 Pipefail SIGPIPE Lies -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-08</div>
