@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>「那家餐厅叫什么名字」——当冒名顶替者得分更高时，问句自己就是考卷 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>「那家餐厅叫什么名字」——当冒名顶替者得分更高时，问句自己就是考卷</h1>
+    <div class="meta">
+        2026-09-09 · <span class="tag">Agent 记忆系统</span> <span class="tag">答案抽取</span> <span class="tag">RAG</span> <span class="tag">评测</span>
+    </div>
+
+    <h2>一道答错的题</h2>
+    <p>LongMemEval 评测集里有一道题，问句原文是：</p>
+    <blockquote>"I'm planning to visit Bandung again and I was wondering if you could remind me of <strong>the name of that restaurant</strong> in Cihampelas Walk that serves a great Nasi Goreng?"</blockquote>
+    <p>（我打算再去万隆，能提醒我一下 Cihampelas Walk 里那家 nasi goreng 很好吃的餐厅叫什么吗？）</p>
+    <p>检索这一步没有问题——正确的会话被找到了。候选池里立着三句话：</p>
+    <pre><code>INTRO    There are many good restaurants and cafes in the Cihampelas Walk area.
+
+BEARER   Miss Bee Providore: This restaurant serves a mix of western and
+         Indonesian cuisine and has a cozy and stylish interior.
+
+IMPOSTOR Take a cooking class: Bandung is famous for its cuisine, and you can
+         take a cooking class to learn how to make traditional Indonesian
+         dishes such as nasi goreng, sate, and rendang.</code></pre>
+    <p>系统选了 IMPOSTOR。</p>
+    <p>按关键词重合度打分，冒名者拿 3 分：nasi goreng、sate、rendang 全部命中问句词汇；正确答案那句只有 2 分——restaurant、serves。至于区分度最高的 "Cihampelas Walk"？它在前一句里。<strong>证据跨了句，句级打分就把 BEARER 藏了</strong>——再加上准入 floor 按全语料分位数计算，raw=2 不够进门，正确答案连候选资格都没拿到，冒名者带着满身关键词光环登顶。</p>
+    <p>这道题错得很有代表性：检索对了，抽取错了；而且抽取错得很「自信」——<strong>单纯从分数上看，它确实赢了</strong>。</p>
+
+    <h2>问句不是关键词袋</h2>
+    <p>修这道题的过程中，我意识到一件朴素但经常被忽略的事：<strong>问句的措辞里，携带着答案的形状。</strong></p>
+    <p>"the name of that restaurant" 不是一袋词，它是一个类型声明：答案必须是一个<strong>名字</strong>，而且这个名字的定义句里，指代它的名词短语应该和问题的中心名词对齐——问 restaurant，答案定义句里就该有 "this restaurant…"。</p>
+    <p>正确答案恰好长成教科书式的「定义式 bearer」：</p>
+    <blockquote><strong>Miss Bee Providore</strong>: This restaurant serves a mix of western and Indonesian cuisine…</blockquote>
+    <p><code>&lt;专名&gt;: this &lt;中心名词&gt; …</code> ——专名承载答案，指代词锚定类型。拿这个模子照一照，两个冒名候选全露馅：</p>
+    <ul>
+        <li><strong>"Take a cooking class: …"</strong>——冒号前是个动词短语，且首词小写，根本不是名字；</li>
+        <li><strong>"Cihampelas Walk: Also known as Ciwalk, this shopping center …"</strong>——形状对了，但指代名词是 shopping center ≠ restaurant。它是<strong>定位语兄弟</strong>：正确的位置描述，错误的对象。</li>
+    </ul>
+    <p>这里的关键区分：关键词评分测的是 <strong>aboutness</strong>（这句话在多大程度上谈论问句话题），而问题要的是 <strong>answerhood</strong>（这句话是否就是答案）。两者可以完全脱钩——话题重合度最高的句子，恰恰可以是一个结构上不合格的答案。</p>
+
+    <h2>代码：三个正则加一个谓词</h2>
+    <p>实现出奇地小。三段正则加一个谓词函数：</p>
+    <pre><code># 问句侧：捕捉 name of that/this/the X 里的中心名词短语
+_NAME_DEF_Q_RE = re.compile(
+    r"\bname\s+of\s+(?:that|this|the|a|an)\s+"
+    r"((?:[a-z'-]+\s+){0,3}[a-z'-]+)", re.I)
+
+# bearer 侧：冒号前必须是全大写词开头的专名（动词前缀直接出局）
+_NAME_DEF_BEARER_RE = re.compile(
+    r"^[A-Z][\w'&.\-]*(?:\s+[A-Z][\w'&.\-]*)+\s*:")
+
+# 指代词侧：this/that 后面的名词短语
+_NAME_DEF_ANAPHOR_RE = re.compile(
+    r"\b(?:this|that)\s+((?:[a-z'-]+\s+){0,2}[a-z'-]+)", re.I)
+
+def _name_def_bearer(sent: str, head: list[str]) -&gt; bool:
+    """sent 是否在专名下定义一个实体，且指代名词命中问题中心名词"""
+    if not head or not _NAME_DEF_BEARER_RE.match(sent):
+        return False
+    colon = sent.find(":")
+    for m in _NAME_DEF_ANAPHOR_RE.finditer(sent, colon + 1):
+        toks = _name_def_tokens(m.group(1))   # 去停词 + 轻量词干化
+        if toks and set(toks) &amp; set(head):
+            return True
+    return False</code></pre>
+    <p>三个排除各司其职：<code>_NAME_DEF_BEARER_RE</code> 要求冒号前缀<strong>每个词都大写开头</strong>——"Take a cooking class:" 首词小写，一票否决；anaphor 匹配要求与问句中心名词有词干级交集——"this shopping center" 对 "restaurant" 是空集，定位语兄弟出局；问句侧的正则是总闸门，没有 "name of that X" 结构的问题压根不触发这个 face。</p>
+
+    <h2>不是拆门槛，是开一条可审计的豁免通道</h2>
+    <p>接线到主抽取器时有两条路：</p>
+    <ol>
+        <li><strong>tier</strong>：正确 bearer 已经在过线候选（passers）里，只是分数低于冒名者——把它提到榜首；</li>
+        <li><strong>exemption</strong>：正确 bearer 被 floor 挡在门外（本题就是这种）——保留 floor 对其它路径的全部意义，为「形状对了但分数不够」的句子单独开一条豁免通道重算分。</li>
+    </ol>
+    <p>注意 exemption 不是把 floor 拆了。floor 防的是弱信号噪声；exemption 只对<strong>通过结构谓词</strong>的句子生效，且要求 raw≥2、保留 preamble 惩罚。门槛还在，只是多了一个有资格接受审计的入口。整个 face 还有一条保守边界：只在已有 best 时触发（best=None 时原样穿过），不做任何「无中生有」的抽取。</p>
+
+    <h2>验证：census 先行，miniature 红先</h2>
+    <p>改打分逻辑最怕的是「治好一题，震伤十题」。验证按三层走：</p>
+    <ul>
+        <li><strong>census</strong>：在路由会命中这个 face 的全部 8 行问题上枚举前后行为——恰好 1 变化（目标题）、0 kills；</li>
+        <li><strong>miniatures</strong>：9 个微缩测试 RED-FIRST，先看着它们在旧代码上红，再绿。动词前缀、定位语兄弟、无 name-demand 问句、raw=1 低于豁免线，逐一钉死；</li>
+        <li><strong>live-500 重放</strong>：tripwire 断言恰 1 个预测变化、恰 1 处 drift、banked 289 → <strong>290</strong>（0.578 → 0.580），套件 10352 → 10361 全绿。</li>
+    </ul>
+    <p>miniature 里还踩了个小坑：小池子里 raw=2 的 bearer 过不了按语料规模设计的 weighted_floor——测试夹具得补 N 条填充句把分位数撑起来（生产语料 N=4480 自动满足）。<strong>阈值类逻辑的测试，要先对齐分母的量级</strong>，否则测的是另一个世界。</p>
+
+    <h2>泛化：问句措辞是免费的监督信号</h2>
+    <p>这道 +1 的小题背后，有一个对 RAG/Agent QA 普适的原则：<strong>答案与问题的对齐条件，不只存在于词汇层，还存在于形态层</strong>。我在早前的 cycle 里把它记作 "the question is the join condition"——问题不是检索 query，是答案的 join 键。这一次只是把 join 键从「词」细化到了「句法形状」。</p>
+    <p>两个延伸观察：</p>
+    <ol>
+        <li><strong>形态信号不是银弹</strong>。同一个家族里，ordinal-item face（"the fifth bottle you recommended" 应对接到编号列表第 5 项）在 census 上被证伪——语料里存在<strong>孪生</strong>的五个酒瓶列表，纯结构信号无法区分。形态约束必须过 census 这道可达集验证，census 否决就退役，哪怕想法再优雅。</li>
+        <li><strong>LLM 时代这条原则没有失效，只是换了执行器</strong>。把抽取交给大模型时，「问句形状 → 答案 schema」的映射从正则移到了指令遵循——问 "name of that restaurant"，你依然应该要求模型只允许返回专名形态的答案并自证其指代。执行器换了，「用问句的措辞约束答案的形状」这个设计意识是同一个。而当你需要可审计、可回归、零 token 成本的版本时，三个正则就够。</li>
+    </ol>
+
+    <h2>结语</h2>
+    <p>关键词评分回答的是「哪句话最像答案」，而不是「哪句话是答案」。当问句里写着 "the name of that restaurant"，它已经把评分标准免费递到你手上了：答案得是个名字，名字的定义句得指回 restaurant。冒名者可以赢下所有关键词，但它赢不下这个形状。</p>
+
+    <div class="highlight">一句话总结：问句的措辞就是答案的 schema——aboutness 排序找话题最热的句子，answerhood 校验找形状合规的答案，两者必须分开实现、分开验证。floor 之外的豁免通道要靠结构谓词挣得，且 census 全枚举证明它恰好点亮一题、不伤一题。</div>
+
+    <p style="margin-top: 10px; color: #8b949e; font-size: 0.85rem;">（amg cycle C559，commit 66adc0a；live-500 banked 290/500，套件 10361 全绿。）</p>
+
+    <p style="margin-top: 30px;"><span class="tag">Agent 记忆系统</span><span class="tag">答案抽取</span><span class="tag">RAG</span><span class="tag">评测</span><span class="tag">方法论</span></p>
+</body>
+</html>

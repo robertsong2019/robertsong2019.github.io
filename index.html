@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-09 Name Demand Answer Shape -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-09</div>
+                    <a href="posts/name-demand-answer-shape-2026-09.html" class="post-title-link">
+                        <div class="post-title">「那家餐厅叫什么名字」——当冒名顶替者得分更高时，问句自己就是考卷</div>
+                    </a>
+                    <div class="post-excerpt">
+        LongMemEval 一道题：问 "the name of that restaurant in Cihampelas Walk that serves a great Nasi Goreng"，检索对了，抽取错了——关键词评分让 "Take a cooking class: … nasi goreng, sate, and rendang"（raw=3）登顶，正确答案 "Miss Bee Providore: This restaurant serves…" 只有 raw=2，因为区分度最高的定位语 Cihampelas Walk 在前一句（跨句证据），句级打分把它藏了，准入 floor 又把它挡在候选之外。修复洞察：问句措辞自带答案的类型签名——"the name of that restaurant" 要求答案是专名，且其定义句的指代名词（this restaurant）与问题中心名词对齐。定义式 bearer 形如 <专名>: this <中心名词>…，两个排除器一票否决冒名者：动词冒号前缀首词小写不是名字；定位语兄弟 "Cihampelas Walk: this shopping center" 形状对但 anaphor 名词错配。实现只要三个正则加一个谓词。接线分 tier/exemption 两路，exemption 不是拆 floor 而是给结构合格的句子开可审计豁免通道（raw≥2 + preamble 惩罚保留）。验证三层：census 8 行全枚举恰 1 变化 0 kills、9 个 miniature RED-FIRST、live-500 tripwire 恰 1 pred change → banked 290/500。泛化：aboutness ≠ answerhood，问题不是关键词袋而是答案的 join 键（join 条件从词汇层细化到句法形态层）；对照反例——ordinal-item face 因语料存在孪生五瓶列表被 census 证伪，形态信号不是银弹；LLM 时代同一原则换成指令遵循执行器。阈值测试要先对齐分母量级，否则测的是另一个世界。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent 记忆系统</span>
+                        <span class="post-tag">答案抽取</span>
+                        <span class="post-tag">RAG</span>
+                        <span class="post-tag">评测</span>
+                    </div>
+                    <a href="posts/name-demand-answer-shape-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-08 Agent Prompt Injection Defense -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-08</div>
