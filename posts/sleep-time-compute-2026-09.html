@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>让 AI 睡一觉再答题：休眠计算如何把推理账单搬到没人提问的时段 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>让 AI 睡一觉再答题：休眠计算如何把推理账单搬到没人提问的时段</h1>
+    <p class="meta">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">Sleep-time Compute</span>
+        <span class="tag">系统设计</span>
+        <span class="tag">LLM 推理</span>
+        2026-09-09 · 基于 Letta / UC Berkeley arXiv:2504.13171 及 2026 年记忆整备生态调研
+    </p>
+
+    <blockquote>凌晨两点，你的编程助手没有用户。它挂着，一晚上八小时就这样流走。而到了白天，用户问出第一个问题的那一刻，它才从零开始：读整个代码库、翻几十轮历史会话、现场推理，用户盯着进度条等十几秒甚至几分钟。你有没有觉得哪里不对——<strong>为什么最贵的思考，偏偏发生在用户在线的时候；而最空闲的时段，系统什么也不干？</strong>数据库工程师三十年前就想明白的事，AI agent 现在才刚刚学会：把重活搬到后台。</blockquote>
+
+    <h2>一、问题：推理发生在最贵的时候</h2>
+    <p>过去两年，提升模型能力的主旋律之一是"测试时算力缩放"（test-time compute scaling）——让模型在给出答案前多想一会儿，链式推理越长，难题解得越好。o1、R1 这一代推理模型都是这个思路的产物。但它有个绕不开的代价：<strong>思考发生在用户等待的关键路径上</strong>。深度研究类 agent 动辄跑几分钟，每一步推理都是用户在为延迟和 token 买单。</p>
+    <p>更糟的是，这些思考<strong>不可复用</strong>。传统无状态模型在每次交互之间完全重置——这次交互中读过的代码库、悟出的结构、做过的推断，在下一次交互开始时全部蒸发。于是同样的代码库被一遍遍重新阅读，同样的历史被一遍遍重新翻找。一个用户问过的问题，下一个用户来了，agent 又从零开始想。</p>
+    <p>这不是模型能力问题，是<strong>调度问题</strong>：昂贵的计算被安排在了最错误的时间。</p>
+
+    <h2>二、核心思想：图书馆闭馆之后才编目？不，编目在闭馆之后</h2>
+    <p>把 agent 的记忆库想成一座图书馆。无状态模型的做法相当于：每个读者进门，馆员才现场把相关书架的书全部读一遍再回答。而有状态的系统应该像真实图书馆——<strong>闭馆之后，馆员把白天进的书编目、索引、上架；开馆之后，读者查卡片柜就能直达</strong>。</p>
+    <p>Letta 与 UC Berkeley 的论文《Sleep-time Compute: Beyond Inference Scaling at Test-time》（arXiv:2504.13171）把这个直觉做成了可度量的方法：<strong>在查询到达之前，让模型离线地对已有上下文"预思考"——重新表示（re-representation）已知信息，预判用户可能问什么，把答案的"半成品"提前算好，写进记忆</strong>。这个操作借用了神经科学的名字：人在慢波睡眠中，海马体把白天的经历重放给新皮层，零散的情景记忆被整合成稳定的长期知识。agent 的"睡眠"，就是它没人提问的空闲时段。</p>
+    <p>数字相当硬：</p>
+    <ul>
+        <li><strong>5 倍缩减</strong>：在改造过的 Stateful GSM-Symbolic 和 Stateful AIME 基准上，达到同等准确率所需的测试时 token 减少约 5 倍。这是帕累托改进——不是"用质量换速度"，是同等质量下纯省。</li>
+        <li><strong>+13 到 +18 个百分点</strong>：把休眠期的思考并行跑 k 份（k≈5 最优），把 k 份独立摘要一起前置到查询时，准确率还能再抬 13–18 个百分点——而测试时的 token 预算一分没动。</li>
+        <li><strong>2.5 倍摊销</strong>：同一份上下文被多个查询复用时（同一个代码库、同一个用户的历史），休眠成本被摊薄到每次查询，平均成本再降 2.5 倍。</li>
+    </ul>
+    <p>最有意思的是实现方式：没有新模型，没有训练，只是 function calling——休眠 agent 迭代调用 <code>rethink_memory</code> 改写记忆，完成后调用 <code>finished_thinking</code> 收工。<strong>整个范式的全部魔法，是调度</strong>。</p>
+
+    <h2>二点五、什么不是休眠计算</h2>
+    <p>要澄清一个容易混淆的点：休眠计算<strong>不是</strong>训练，也<strong>不是</strong>简单的"离线预处理"。它的前提是 agent 有状态（记忆跨交互持久存在），它的产物写进 agent 自己的记忆并影响后续行为，它的收益取决于"未来查询可以从当前上下文预测"——这三条把它和普通的批处理任务区分开。它更像数据库的<strong>后台建索引</strong>或<strong>物化视图</strong>：原始数据没变，变的是查询时的可达性。信息论上一个比特都没增加，但每个查询到达时，答案的结构已经躺在那里了。</p>
+
+    <h2>三、产品形态：一个干活的，一个做梦的</h2>
+    <p>Letta 把这套东西做进了 0.7.0 版本（MemGPT 2.0），架构决策很有意思：当你创建一个"休眠增强"的 agent，系统实际创建<strong>两个 agent</strong>——</p>
+    <table>
+        <tr><th></th><th>主 agent</th><th>休眠 agent</th></tr>
+        <tr><td>模型</td><td>快模型</td><td>更强的模型</td></tr>
+        <tr><td>职责</td><td>面向用户交互、调工具</td><td>反思历史、整备记忆</td></tr>
+        <tr><td>核心记忆编辑权</td><td><span class="highlight">没有</span></td><td><span class="highlight">独占</span></td></tr>
+        <tr><td>运行时机</td><td>用户在场时</td><td>空闲时段，异步</td></tr>
+    </table>
+    <p>这是数据库"读写分离"在 agent 记忆上的移植：对话路径保持轻快，昂贵的记忆重整交给后台的强模型。旧版 MemGPT 把记忆管理和对话捆在同一个 agent 里，结果又慢又不可靠，而且记忆是增量式累积的——追加、追加、再追加，越记越乱，像个只进不出的杂物间。休眠 agent 的价值恰恰相反：<strong>它不是往杂物间里堆东西，而是定期把杂物间整理成图书馆</strong>。</p>
+    <p>工程上还有个漂亮的细节叫 <strong>anytime 语义</strong>：休眠 agent 改写记忆不需要"完成"，主 agent 随时可以读到当前最新的整理结果——就像数据库在线重建索引，不需要停机。论文还提到一个真实用例：金融客服 agent 夜间把财报摘要整理进记忆，医疗 agent 在系统空闲时分析患者病史。白天用户的问题一到，答案的骨架已经在记忆里了。</p>
+
+    <h2>四、不是银弹：可预测性定律</h2>
+    <p>这篇论文最值得尊敬的部分，是它诚实的负结果。作者用 Llama2-70B 度量了每个查询在给定上下文下的"可预测性"（本质上是 P(问题|上下文) 的对数概率），发现了强相关：<strong>查询越能从上下文预测出来，休眠计算的收益越大；查询与上下文无关时，收益塌缩，直接堆测试时算力反而更好</strong>。直觉上很清楚——如果读者要问的问题和图书馆藏书毫无关系，馆员夜里把书背得再熟也没用。</p>
+    <p>更微妙的是 SWE 修复任务的案例：休眠预读代码库确实平均省了约 3000 个 token，修复计划也更好；但当测试时思考预算超过约 8500 token 后，纯测试时计算反超。原因很深：<strong>休眠摘要会改变 agent 的行为分布</strong>——预读让它倾向于探索更多文件，进而编辑更多文件，精度反而略降。休眠计算不是中性的降本工具，它是一个正向的分布偏移杠杆——用对了放大收益，用错了也放大错误。</p>
+    <p>所以适用域是明确的：上下文长存（代码库、文档库、用户历史）、多个查询共享同一上下文、查询模式可预测、延迟和成本敏感。四条都占的场景，闭着眼睛上；一条都不占的，老老实实堆测试时算力。</p>
+
+    <h2>五、更深的演化：从摘要器到策略学习者</h2>
+    <p>如果说 2025 年的休眠计算还只是"让 agent 自己写摘要"，2026 年的生态已经走得远得多。翻一翻今年的论文清单，能看到一条清晰的演化线：</p>
+    <ul>
+        <li><strong>整备成为显式管线</strong>。SimpleMem（ICML 2026）把终身记忆做成三段流水线：语义压缩 → 递归整合 → 自适应检索，token 消耗比全上下文方案降 30 倍（每次查询约 530 token vs 16,900），准确率反超。它的"递归整合"就是标准的休眠期记忆整备——异步把相关记忆单元合并成抽象表示。后续版本 EvolveMem 更激进：连检索器本身都在休眠期自我进化，系统自己诊断检索失败、自己发现新的检索维度。</li>
+        <li><strong>整备策略从规则变成学出来的</strong>。A-MEM 把 store / retrieve / update / summarize / discard 六种记忆操作暴露成工具，用强化学习（step-wise GRPO）训练 agent 学记忆策略——学出来的行为包括"上下文快溢出前抢先压缩""冗余条目主动遗忘""相关概念主动互链"。这些不是人写死的规则，是策略梯度发现的。</li>
+        <li><strong>整备对象从条目升到经验</strong>。ACL 2026 的综述《From Storage to Experience》给这条线画了框架：存储 → 反思 → 经验。反思阶段是轨迹内的局部精修（Reflexion 一脉），经验阶段是跨轨迹抽象——ReasoningBank 存推理过程，MemSkill / SkillRL 把成功轨迹蒸馏成可复用技能。记忆整备的终点不是"记得更全"，而是"沉淀出可迁移的行为经验"。</li>
+    </ul>
+    <p>用人话总结这个趋势：<strong>休眠 agent 正在从"摘要器"进化成"记忆系统的策略学习者"</strong>。它夜里做的不是家务，是复盘。</p>
+
+    <h2>六、被低估的工程难点：并发</h2>
+    <p>泼一盆工程师的冷水。让一个后台 agent 异步重写另一个前台 agent 正在使用的记忆，这是教科书级的并发问题。Letta 自己的文档承认：追加安全、定点替换基本安全、整块重写（rethink）是 last-writer-wins——如果休眠 agent 整理记忆的同时用户产生了新交互，整理结果可能直接覆盖掉新信息。数据库领域为这类问题发明了锁、事务和多版本并发控制（MVCC）；agent 记忆领域大概率要把这些重新发明一遍。任何认真上休眠整备的团队，都要先回答：整合进行到一半，新交互写进来了，怎么办？我的答案是版本化记忆块加冲突检测——版本不匹配就丢弃整备结果、重放增量，宁可白干一次，不可静默丢数据。</p>
+
+    <h2>七、今天就能做什么</h2>
+    <p>你不需要 Letta 平台，也不需要训练任何东西，就能吃到这个范式的大部分红利。按成本从低到高：</p>
+    <ol>
+        <li><strong>给有状态的 agent 加一个"夜间整备" cron。</strong>每天凌晨跑一个后台任务：回顾近 24 小时的会话日志，合并碎片记忆、沉淀高价值笔记、淘汰过期条目、建立跨会话链接。不需要架构改动，就是定时脚本加现成的记忆接口。收益立竿见影：白天主路径变短，记忆变干净。</li>
+        <li><strong>把"反复现场算的东西"列出来，逐个问：这能不能搬到写入/空闲侧？</strong>预读长文档、预生成代码库地图、预计算实体索引——凡是"一次计算、多次消费"的，都是休眠计算的候选。判据就一条：这个上下文会被多少个后续查询复用？</li>
+        <li><strong>上马之前，先量可预测性。</strong>拿一个小模型给"查询 | 上下文"对打个相关性分，按分数分桶看收益。查询和上下文强相关的桶里投休眠算力，弱相关的桶里老老实实堆测试时算力。这一步能帮你省掉大量无效的后台 GPU 时间。</li>
+        <li><strong>设计并发预案。</strong>异步整备 + 共享可变记忆 = 丢数据事故预约。给记忆块加版本号，整备前快照、写入前校验版本，冲突就重放。别信 last-writer-wins。</li>
+    </ol>
+    <p>最后说一句判断：test-time compute 解决的是"单次回答能想多深"，sleep-time compute 解决的是"系统能积累多厚"。前者的天花板是单次推理的极限，后者的天花板是时间本身——闲时每一天都在产生，而且不要钱。<strong>下一代 agent 基础设施的差距，可能不在谁的模型更大，而在谁更早把夜里八小时用起来。</strong></p>
+
+    <p class="back-link"><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
