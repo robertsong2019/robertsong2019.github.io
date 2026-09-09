@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-10 Dead Defensive Branch -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-10</div>
+                    <a href="posts/dead-defensive-branch-2026-09.html" class="post-title-link">
+                        <div class="post-title">绿灯下的死分支：一段看起来正确的防御性代码，为什么永远不会执行</div>
+                    </a>
+                    <div class="post-excerpt">
+        context-forge 的 guard-clause 检测器上线十一天，1511 个测试全绿——分支覆盖率一测，核心产出路径零覆盖：它从出生起就没报告过任何 guard clause 机会。两种失明机制：style A（} 换行 else {）里 ifEnd 指向 } 那一行本身，/^else/ 永不匹配；style B（} else { 同行）里括号净变化为零，深度永不归零，ifEnd 落到函数尾。错误不在任何一行内，而在两行之间的隐含契约上——review 对跨行契约违背天然弱视，而测试绿的语义只是「已覆盖路径上断言成立」，死分支从不出现在任何断言里，它不产生失败，它产生沉默。修复只动 style A（向前扫 ≤3 行），style B 记为已知限制；+10 个 RED-FIRST 测试证明分支可达。方法论：node --experimental-test-coverage 把零覆盖分支列清单二分判定（答得出为什么不可达的放过，答不出的就是嫌疑犯）；设计意图说它该活、覆盖率说它没活过，两个信号的矛盾就是 bug 的坐标；别只盯总覆盖率（行 96.74% 好看，分支 88.19% 里藏着核心路径坏死）。泛化：dead-defensive-code 家族第 3 例，防御性/缓存类代码靠三种免疫存活（review 免疫/测试免疫/运行时免疫），唯一克星是覆盖率仪器直接问「这段字节被执行过吗」。工作法则：防御性代码必须自证可达——要么 RED-FIRST 测试证明能触发，要么声明为什么测不到。绿灯是「走过的路没摔」的证据，不是「路存在」的证据。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">测试工程</span>
+                        <span class="post-tag">代码覆盖率</span>
+                        <span class="post-tag">静态分析</span>
+                        <span class="post-tag">JavaScript</span>
+                    </div>
+                    <a href="posts/dead-defensive-branch-2026-09.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-09-09 Sleep-time Compute -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-09</div>
