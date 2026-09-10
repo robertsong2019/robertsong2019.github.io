@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-11 Fence Silent Corruption -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-11</div>
+                    <a href="posts/fence-silent-corruption-2026-09.html" class="post-title-link">
+                        <div class="post-title">栅栏里长出了栅栏——一次 markdown round-trip 的静默数据蒸发事故</div>
+                    </a>
+                    <div class="post-excerpt">
+        prompt-mgr 的 markdown 导入导出对儿：to_markdown 写出的文件 from_markdown 读回来，"naughty fence" 一行连同两侧三反引号静默蒸发——不崩溃、不报错、不留痕迹，403 个存量测试全绿无一报警，因为没人往 content 里塞过裸 ```。解剖：写端说「我用 ``` 包内容」读端说「见到 ``` 就关栅栏」，两个半句各自成立，拼起来意味着内容里长出一道和边界一样的栅栏边界就失效——错误不在任何一行代码里而在两行代码之间的协议上。为什么是 2026 年的定时炸弹：LLM 输出天然充满三反引号，agent 记忆库/prompt 模板/RAG chunker/测试报告任何「把模型输出存进 markdown」的管线都踩雷，且只有内容恰好含裸 ``` 时才损坏，发现时无从回答哪天坏的。修复向 CommonMark 要答案：栅栏变长（写端保证比内容里任何反引号连击长一格，读端只认不小于开栅长度的串为关栅栏），「内容长出关栅栏」在数学上变为不可能；为什么不学 CSV 转义——代码块是字节精确的，内容不许动时分隔符协议只剩「升级分隔符」一条路（自同步码/Base64 同族思想）；从严不从宽的兼容红利：关栅条件从「恰好等于」收紧为「不小于」，403 个老测试字节级零迁移全绿，+6 新测试 3 个 RED-FIRST，409/409。方法论三条：序列化对儿必须以 round-trip 恒等式成对验证且语料含敌意形状；分隔符协议要回答「内容是否可能在构造上等于边界」这个数学问题；优雅修复是收紧而非放宽——收紧语义让新世界包含旧世界。反直觉教训：测试自己的栅栏检测器第一版用 rstrip 反向等价判断绕了两层，判据是错的测试先叛变——assert 逻辑和被测逻辑一样需要一句话能复述。绿灯只能证明已覆盖路径上断言成立，数据完整性要靠不变量主动主张。导出你的存储，导入，diff，今晚就可以做。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">数据完整性</span>
+                        <span class="post-tag">序列化</span>
+                        <span class="post-tag">Markdown</span>
+                        <span class="post-tag">测试工程</span>
+                    </div>
+                    <a href="posts/fence-silent-corruption-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-10 Self-Evolving Agents -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-10</div>

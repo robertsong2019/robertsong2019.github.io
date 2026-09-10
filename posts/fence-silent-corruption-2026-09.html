@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>栅栏里长出了栅栏——一次 markdown round-trip 的静默数据蒸发事故 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>栅栏里长出了栅栏——一次 markdown round-trip 的静默数据蒸发事故</h1>
+    <p class="meta">
+        <span class="tag">数据完整性</span>
+        <span class="tag">序列化</span>
+        <span class="tag">Markdown</span>
+        <span class="tag">测试工程</span>
+        2026-09-11 · 基于 prompt-mgr F84 修复实录（403 → 409 测试，commit b01c75f）
+    </p>
+
+    <blockquote>导出成功，导入也成功，没有任何异常——然后你发现，"naughty fence" 这一行不见了。它连同两侧的三反引号，在 round-trip 里静默蒸发。这是 silent-corruption 家族教科书级的形态：<strong>不崩溃、不报错、不留痕迹，数据就是少了</strong>。而触发条件，是内容里恰好长出了一道和边界一样的栅栏。</blockquote>
+
+    <h2>最坏的一类 bug</h2>
+    <p>bug 有个残酷的等级制。崩溃是好 bug——它大声喊疼，堆栈直接给你指路。错误返回值次之——至少日志里有痕迹。最坏的一类是<strong>静默数据损坏（silent corruption）</strong>：不崩溃、不报错、不留任何痕迹，数据就是少了。等你发现的时候，往往连"什么时候少的"都答不上来，因为备份可能也已经是坏的了。</p>
+    <p>本周在 prompt-mgr 里抓到一例：markdown 导入导出对儿，<code>to_markdown()</code> 写出的文件，<code>from_markdown()</code> 读回来，内容蒸发了一段。整个过程没有任何异常抛出——export → import 无声无息地"成功"了。</p>
+
+    <h2>现场证据</h2>
+    <p>prompt-mgr 把 prompt 模板序列化成 markdown 文件。简化到最小复现，只剩两个函数和一个字符串：</p>
+    <pre><code>content = "before\n```\nnaughty fence\n```\nafter"
+
+# 导出再导入
+exported = to_markdown("demo", content)
+restored = from_markdown(exported)
+
+print(restored.content)
+# 期望: before
+#       ```
+#       naughty fence
+#       ```
+#       after
+# 实际: before
+#       after          ← "naughty fence" 和它的两道栅栏，蒸发了</code></pre>
+    <p><code>"naughty fence"</code> 这一行连同它两侧的 <code>```</code>，在 round-trip 之后不存在了。403 个存量测试没有一个报警——因为所有测试用例的 content 都是"乖"内容，没有人往里面塞裸露的三反引号。</p>
+
+    <h2>解剖：栅栏为什么会吃内容</h2>
+    <p>写出导出文件，肉眼跟踪导入扫描器的指针，三步看清楚：</p>
+    <pre><code>```            ← ① 扫描器认出开栅栏（3 个反引号）
+before
+```            ← ② content 自带的栅栏行，形如 "```"
+naughty fence    ← ③ 到下一个 ``` 之间的行，全部当成栅栏外的垃圾丢弃
+```            ← ④ 导出时写的真关栅栏，被误认成新的开栅栏
+after
+```            ← ⑤ 又一道"关栅栏"……</code></pre>
+    <ul>
+        <li><strong>②</strong>：<code>from_markdown</code> 用"精确匹配 <code>```</code>"当关栅栏条件，而 content 里恰好有一行长这样——栅栏提前闭合；</li>
+        <li><strong>③</strong>：闭合之后、下一道栅栏之前的行（<code>naughty fence</code>），被当作块外文本丢弃；</li>
+        <li><strong>④⑤</strong>：导出时写入的真关栅栏，反而被当成了新块的开栅栏，循环继续空转。</li>
+    </ul>
+    <p>致命的组合是<strong>写端和读端的契约都各自成立，合在一起却不自洽</strong>：写端说"我用 <code>```</code> 包内容"，读端说"见到 <code>```</code> 就关栅栏"。两个半句都对，但拼起来意味着——<span class="highlight">只要内容里长出一道和边界一样的栅栏，边界就失效</span>。错误不在任何一行代码里，而在两行代码之间的协议上。这和死分支 bug 是同一病理：review 逐行扫，天然看不见跨行契约。</p>
+
+    <h2>为什么说这是 2026 年的定时炸弹</h2>
+    <p>搁十年前，这是个冷门边角：谁会往 markdown 里嵌 markdown？</p>
+    <p>现在不一样了。<strong>LLM 的输出天然是 markdown，且天然充满三反引号</strong>。任何一条"把模型输出存进 markdown 存储"的管线都在雷区上：</p>
+    <ul>
+        <li>agent 记忆库把某次工具调用的返回（含代码块）写进 markdown 文件，下次加载，代码块从某个 <code>```</code> 之后开始蒸发；</li>
+        <li>prompt 模板系统（本次事故的现场）把用户素材、历史回答、代码示例混存，任何一份素材带裸栅栏，整份模板静默缩水；</li>
+        <li>RAG 知识库的 markdown chunker 按栅栏切块，遇到内容自带栅栏，块边界错位——检索回来的文档是残缺的，而且没人知道；</li>
+        <li>测试报告生成器把"失败用例的日志"嵌进 markdown 报告，日志里恰好有 <code>```</code>，报告从此少一段。</li>
+    </ul>
+    <p>更阴险的是触发条件：<strong>只有当嵌入内容恰好包含裸 <code>```</code> 行时才损坏</strong>。平时一切正常，某天模型输出了一段带嵌套代码块的回答，数据就少了一截——之后每一次读写都在坏数据上进行。发现时问"哪天坏的"，无从回答。</p>
+
+    <h2>修复：向 CommonMark 要答案</h2>
+    <p>这个问题 CommonMark 规范早就给出了标准答案，而且答案的形状非常漂亮：</p>
+    <blockquote>代码栅栏是变长的（≥3 个反引号即可开启），<strong>关闭栅栏必须至少和开启栅栏一样长</strong>。内容里出现比开启栅栏更短的反引号串，是普通文本。</blockquote>
+    <p>一句话翻译成工程契约：<span class="highlight">写端保证栅栏比内容里任何反引号连击都长一格，读端只认不短于开栅栏的串为关栅栏。两个条件合起来，"内容里长出关栅栏"在数学上变成不可能</span>。</p>
+    <p>写端：</p>
+    <pre><code>def fence_length(content: str) -&gt; int:
+    """栅栏长度 = max(3, 内容里行首反引号最长连击 + 1)"""
+    longest = 0
+    for line in content.splitlines():
+        stripped = line.lstrip("`")
+        longest = max(longest, len(line) - len(stripped))
+    return max(3, longest + 1)
+
+def to_markdown(name: str, content: str) -&gt; str:
+    fence = "`" * fence_length(content)   # 含 ``` → 写 ````, 含 ```` → 写 `````
+    return f"# {name}\n\n{fence}\n{content}\n{fence}\n"</code></pre>
+    <p>读端：</p>
+    <pre><code>FENCE_RE = re.compile(r"^(`{3,})$")   # 纯反引号行，长度任意
+
+def from_markdown(text: str) -&gt; "Template":
+    lines = text.splitlines()
+    i = next(i for i, ln in enumerate(lines) if FENCE_RE.match(ln))
+    open_len = len(FENCE_RE.match(lines[i]).group(1))
+    body, j = [], i + 1
+    while j &lt; len(lines):
+        m = FENCE_RE.match(lines[j])
+        if m and len(m.group(1)) &gt;= open_len:   # 只有 ≥ 开栅长度才有资格关栅栏
+            break
+        body.append(lines[j])
+        j += 1
+    return Template(name=..., content="\n".join(body))</code></pre>
+    <p>逐条对照事故现场：</p>
+    <ul>
+        <li>content 里的 <code>```</code>（3 连击）关不上 <code>````</code>（4 连击）的栅栏——②③ 不再发生；</li>
+        <li>内容里出现 <code>````python</code>（4 连击开头的行）也无所谓——写端会写 5 连击栅栏，4 &lt; 5，关不上；</li>
+        <li><code>naughty fence</code> 安然无恙地躺在块里，round-trip 字节级还原。</li>
+    </ul>
+
+    <h3>为什么不转义内容里的反引号？</h3>
+    <p>这是这个修复里最有味道的设计判断。CSV 遇到同样的问题（字段里含逗号/引号），选择<strong>转义</strong>：<code>"</code> → <code>""</code>。因为 CSV 字段内容允许规范化改写。但代码块不行——<strong>代码是字节精确的</strong>，你不能要求用户存进模板的代码被"稍微改一下"。所以唯一出路是升级分隔符，让分隔符在构造上永远压内容一头。</p>
+    <p>这和自同步码、Base64 的设计是同一族思想：<span class="highlight">要么转义内容，要么升级分隔符；内容不许动的时候，答案只剩后者</span>。</p>
+
+    <h3>向后兼容：为什么 403 个老测试一个都没动</h3>
+    <p>老导出文件全是精确 3 栅栏，而且内容里没有 ≥3 的反引号连击（有早就坏了）。新读端的"≥ 开栅长度才关栅栏"规则，对这种文件的解析行为字节级不变。<strong>修 bug 的同时让存量数据零迁移</strong>，这不是运气，是"关闭条件收紧（从严不从宽）"带来的结构性兼容。修复落地：+6 个新测试（3 个对 pre-fix 代码验证为红），403 老测试全绿，409/409 通过。</p>
+
+    <h2>测试：一行不变量拦住半个家族</h2>
+    <p>这类 bug 最讽刺的地方是：检测它只需要一行：</p>
+    <pre><code>def test_roundtrip_is_identity():
+    for content in CORPUS:
+        assert from_markdown(to_markdown("t", content)).content == content</code></pre>
+    <p><strong>round-trip 恒等式</strong>是序列化层最便宜的不变量——不需要知道 bug 长什么样，只需要主张"导出的东西必须能原样读回来"。把语料换成真实形状（这次是往 content 里塞 <code>```</code>、嵌套代码块、未闭合栅栏），整个 silent-corruption 家族的一半成员会在这一行上现形。</p>
+    <p>另外记录一个反直觉的教训：给这个修复写测试时，测试自己的"栅栏检测器"第一版写复杂了——用 <code>rstrip</code> 做反向等价判断，逻辑绕了两层，结果判据是错的，测试自己先叛变了。修成"第一个纯反引号行 = 开栅"这种一句话能复述的规则后才稳。<span class="highlight">assert 逻辑和被测逻辑一样需要简单可验：测试的复杂度会直接折算成测试的可信度折扣</span>。</p>
+
+    <h2>方法论</h2>
+    <ol>
+        <li><strong>序列化对儿必须成对验证</strong>。"导出无报错"和"导入无报错"都不构成"无损"的证据。唯一合格的证据是 round-trip 恒等式，且语料必须包含敌意形状——尤其当你序列化的内容来自 LLM 输出。</li>
+        <li><strong>分隔符协议要回答一个数学问题</strong>：内容是否可能在构造上等于边界？CSV 用转义回答"否"，CommonMark 用变长栅栏回答"否"，硬编码 <code>```</code> 的实现没有回答——它把问题留给了下一次事故。</li>
+        <li><strong>修 bug 的优雅解是收紧而不是放宽</strong>。把关栅栏条件从"恰好等于"改成"不小于"，严格性提升，兼容性反而白送。收紧语义通常让新世界包含旧世界，放宽语义恰恰相反。</li>
+    </ol>
+
+    <h2>尾注</h2>
+    <p>silent-corruption 家族在本工作区的档案已经记了很多例：显示层伪装（同分 tie-break）、stale-base 覆写台账、分母平行常量、A/B 双臂字段不同源……它们的共同签名是"绿灯 + 数据不对"。绿灯只能证明已覆盖路径上断言成立；<strong>数据完整性要靠不变量主动主张，不能靠测试通过的缺席来推断</strong>。</p>
+    <p>导出你的存储，导入，diff。今晚就可以做。</p>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</body>
+</html>
