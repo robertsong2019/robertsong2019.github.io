@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>十四小时与三十五分钟：Agent 长时程能力的另一本账 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>十四小时与三十五分钟：Agent 长时程能力的另一本账</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">Time Horizon</span>
+        <span class="tag">长时程可靠性</span>
+        <span class="tag">上下文工程</span>
+        2026-09-12 · 基于 METR Time Horizon、SWE-Bench Pro、CompactionRL 等 18 项研究/系统调研
+    </p>
+
+    <blockquote>今年二月，评测机构 METR 的数据说前沿 agent 的自主工作时长跨过了一整天：约十四小时。同一个春天，无数在生产环境真用过 agent 的工程师都在讲另一个故事：三十几分钟之后，它开始重复读已经读过的文件、忘记任务开头给它的约束、用几乎一样的参数反复调同一个工具。十四小时和三十五分钟，哪个是真的？<strong>这篇文章的答案是：两个都是真的——而把它们捏在一起的那个维度，几乎所有 agent 能力的新闻标题都没有告诉你。</strong></blockquote>
+
+    <h2>一、先看那条著名的指数曲线</h2>
+    <p>2025 年 3 月，METR 发表了一篇后来被引用烂了的研究：别再问模型考多少分了，问一个更朴素的问题——<strong>这个 agent 能以 50% 的成功概率，自主完成一件人类专家要做多久的事？</strong>他们拿 2019 到当时的旗舰系统，在两百多个真实软件任务上测，用人类专家完成每件任务所需时长做横轴、agent 成功率做纵轴拟合曲线，然后取 50% 交点，起了个名字叫"时间视界"（time horizon）。</p>
+    <p>结果是一条漂亮的指数：过去六年，时间视界<strong>每 7 个月翻一倍</strong>。任务时长和成功率的相关性强得离谱（R²=0.83）。不到 4 分钟的任务 agent 接近全对，超过 4 小时的任务成功率跌到 10% 以下——能力的边界不是"会不会"，而是"撑多久"。</p>
+    <p>2026 年 1 月 METR 更新了任务集（170→228 题），重新拟合后发现趋势还在加速：2023 年之后翻倍周期缩到约 4.3 个月，只看 2024 年以来甚至只有约 3 个月。按这个速度外推，2027 年一个工作日、2028 年一个工作周。AI Digest 管它叫"agent 界的摩尔定律"。</p>
+    <p>曲线很振奋人心。但这条曲线有个藏在脚注里的小数字，才是本文真正的主角。</p>
+
+    <h2>二、50% 是个什么概念？——被标题省掉的那个维度</h2>
+    <p>时间视界的官方定义是<strong>50% 可靠度</strong>下的任务时长。五五开。抛硬币。</p>
+    <p>对于看新闻，50% 够了；对于生产系统，50% 意味着一半的任务会死在半路。你真正需要的是 90%、95% 的可靠度。而同一个模型在不同可靠度档位下的时间视界，差距是断崖式的。看一组后来被修正过的真实数据：某旗舰模型在 50% 档的时间视界约 12 小时，在 80% 档只剩约 <strong>1 小时 10 分</strong>。可靠度要求从"一半成功"提到"五分之四成功"，可工作时长塌缩了一个数量级。</p>
+    <p>这就是十四小时与三十五分钟的和解：实验室新闻报的是 50% 档，生产 SLA 要的是 90%+ 档，两条曲线之间隔着一条指数沟。<strong>以后再看到任何"agent 能自主工作 X 小时"的数字，先问一句：这是哪个可靠度档的？</strong>不问这一句，你就是在拿抛硬币的成绩做项目排期。</p>
+    <p>至于为什么生产环境的墙看起来来得这么早（35 分钟就开始劣化），那是因为长任务是串联系统，错误会复利——这是下一节。</p>
+
+    <h2>三、串联的灯泡：失败率为什么翻倍时长就翻两番</h2>
+    <p>2026 年一份生产数据综述给了一个冷冰冰的经验规律：任务时长翻倍，agent 失败率不是翻倍，是<strong>翻两番</strong>。</p>
+    <p>电工早就懂这个道理。串联电路里挂一百个灯泡，每个灯泡可靠性 99%，整条电路的可靠性是 0.99 的一百次方——大约 37%。每一步都"基本对"，整条链路基本必死。长任务就是串联电路：一次十小时的自主开发是几百个决策步骤的连乘，单步错误率 p 稍微高一点，整体成功率就按指数滚下去。</p>
+    <p>这个模型直接告诉你长时程问题的两条出路，而且都不是"把模型练聪明"：</p>
+    <ol>
+        <li><strong>降单步错误率 p</strong>——每步之后挂验证器、把大动作拆成小原子、失败早暴露。p 从 1% 降到 0.3%，同样的步骤数下整体成功率完全换一个世界。</li>
+        <li><strong>把长串联切成可恢复的短段</strong>——checkpoint、断点续跑，让第 N 步的失败不再是"全部重来"而是"回退三步"。通信工程里这叫 ARQ 重传协议：不追求信道零错误，追求错误发生时重传的成本足够低。</li>
+    </ol>
+    <p>注意这个视角的推论：<strong>长时程可靠性主要是系统工程，不是智力工程</strong>。这也是为什么各家的 agent 时间视界在涨，但每一年撞的墙都不一样——2024 年撞的是上下文窗口长度，2025 年撞的是 context rot（窗口没满、但模型用不好窗口里的信息了），2026 年撞的是我们下面要讲的两堵新墙。曲线爬升的方式不是推倒一堵墙，而是把墙换成一个新兴工程学科。</p>
+
+    <h2>四、第一堵新墙：压缩悬崖——有损压缩丢掉的恰好是过敏史</h2>
+    <p>context rot 的标准解法在 2026 年已经被各大实验室收敛：<strong>compaction（压缩）</strong>。窗口快满时，把旧对话摘要成一份压缩状态，替换掉原文，agent 无感知地继续。Anthropic 把它做成了服务端 API，可以设触发阈值（默认 150K token）。听起来很优雅。</p>
+    <p>然后有一篇论文专门研究了压缩到底丢了什么。它的开场案例是这样的：一个医疗 agent 的历史里有一行字——"患者对青霉素过敏"。会话很长，上下文满了，压缩触发，这行埋在几十条事实里的关键信息被摘要改写、稀释、然后丢掉。三轮对话之后，agent 推荐了阿莫西林——青霉素家族的抗生素。</p>
+    <p>这篇论文测了 50 个真实 agent 配置，结论：生产环境主流的"层次截断式"压缩，平均只保住了 <strong>50% 的安全约束</strong>。这堵墙后来有了名字：<strong>压缩悬崖</strong>（compaction cliff）。</p>
+    <p>直觉上它不难理解——压缩就是有损 JPEG，问题不在"有损"，在于损失分布不均匀。均匀摘要天然优待高频冗余信息（反复出现的文件内容、常规操作记录），天然亏待<strong>低频高价值</strong>信息（开头说过一次的约束、某个再也没被提起的决策理由）。而长时程任务里最要命的恰恰是后者。</p>
+    <p>那压缩策略能学吗？2026 年 7 月的 CompactionRL 给了肯定的答案，还有一个漂亮的反直觉发现。他们把"写摘要"这个动作直接纳入强化学习目标，和任务执行联合训练。结果训练出来的 agent 写的摘要<strong>越写越长、越写越细</strong>——因为终端奖励（任务成没成）教会了它：中间变量的状态、上次编译错误的精确语法，这些细节是活下来所必需的。论文里"学会给未来的自己留面包屑"这个说法我觉得可以进教科书。对照组更说明问题：一旦屏蔽摘要部分的梯度（允许写摘要但不据此优化），摘要会迅速退化成又短又没用的默认风格——<strong>模型的默认偏好（省 token）和长时程生存需求（留细节）方向相反，压缩策略必须被任务结果校准，不能交给默认</strong>。</p>
+
+    <h2>五、第二堵新墙：状态漂移——内心剧场与现实分岔</h2>
+    <p>比压缩悬崖更隐蔽的是状态漂移（state drift）。有一篇 2026 年的论文专门做了受控实验，结论一句话：<strong>agent 内心用自然语言维护的那个"世界模型"，会和环境的真实状态持续发散——哪怕每一步局部推理都看起来完全合理，哪怕上下文窗口还有大量富余</strong>。</p>
+    <p>注意"窗口富余"这个条件，它排除了最自然的解释（"记不下所以忘了"）。状态漂移不是容量问题，是<strong>对账问题</strong>：agent 对世界的认知是它自己生成的文本，环境是环境，中间没有任何机制强制两者保持一致。它以为文件已经改名了（其实那次 rename 失败了），以为测试是绿的（其实上周就红了），然后在错误的世界模型上继续做出局部完全合理的决策。这就像一家公司从不盘点，账面库存和仓库实际库存各走各的——每个出入库单据都签得整整齐齐，账就是错的。</p>
+    <p>对状态漂移，加长上下文无效，换更强的模型也只是延缓。真正对症的只有一招：<strong>外置真值源定期对账</strong>——以文件系统、数据库、测试结果为准，agent 的"信念"必须周期性地被现实覆盖。</p>
+    <p>这里有一个我觉得是整片研究领域最扎心的对照实验。一位独立开发者做了个 8B 级模型的长时程连贯性基准（LHC），其中一类任务是"工作流恢复"——任务做到一半被打断，问 agent：这个订单处理到哪一步了？下一步该干什么？结果：<strong>一个确定性的字符串解析程序拿满分，四个 8B 大模型全部落败</strong>。因为"处理到哪一步了"本质是个状态查询——状态明明就写在文件里，让语言模型从几千行上下文里"回忆"出来，是用概率机器干数据库的活。</p>
+    <p>这给了我们一条性价比极高的工程规则：<strong>凡是能用确定性数据结构回答的问题，就不要让模型从上下文里回忆。</strong>状态放外面，模型只负责决策，不负责记忆。</p>
+
+    <h2>六、顺便泼盆冷水：基准也在塌缩</h2>
+    <p>就算你接受 50% 档、就算你解决了压缩和漂移，还有一个容易踩的坑：你看到的分数是哪个时程基准上的？</p>
+    <p>去年秋天 Scale AI 发了 SWE-Bench Pro：同样的旗舰模型，在老的 SWE-bench Verified（平均 11.6 行改动、单文件）上 70%+，在 Pro（平均 107 行改动、4.1 个文件）上只剩 <strong>23%</strong>。今年专门测多文件重构的 ProMax 上，最好的模型也才 41%。70 分和 23 分是同一个模型、同一个季度、同一批评测团队——区别只在任务时长分布。</p>
+    <p>所以"某 agent 得分 X"这种句子，脱离任务时长分布就是无信息量的。评测报告的正确姿势是按时长分桶报价：短任务桶、中任务桶、长任务桶各多少分。差值本身还是个健康指标——简单集和长时程集的分数差距拉大，说明你的迭代在优化"考试"，没在优化"干活"。</p>
+
+    <h2>七、今晚就能做的五件事</h2>
+    <p>写到这里，判断已经清楚了：时间视界的指数曲线是真的，生产环境的 35 分钟墙也是真的，连接两者的是可靠度分层、串联复利、压缩损失、状态漂移这四个工程问题。它们每一个都有不依赖训练新模型的便宜解法。按成本从低到高：</p>
+    <ol>
+        <li><strong>给你的长任务 agent 加一个"面包屑文件"。</strong>每完成一步，把当前状态（目标、已完成、未完成、关键假设、上一步的教训）写进一个外置的 <code>status.md</code>，每轮决策前强制重读。这是 CompactionRL 那个"留面包屑"发现的零训练版本，Claude Code 的 PostCompact hook 就是这个模式。一个文件，成本几乎为零。</li>
+        <li><strong>做一次压缩审计。</strong>如果你的管线用了任何形式的 compaction，做这个测试：往长任务里埋 10 条关键约束，压缩之后问卷式检查还剩几条。保持率低于 90%，就把约束、决策理由、安全信息从均匀摘要里拆出来单独建区——分层保留，不进通用压缩。</li>
+        <li><strong>把"中断恢复"变成常规评测项。</strong>任务跑到一半 kill 掉，看 agent 能不能从面包屑文件恢复。如果你的 agent 恢复成功率明显低于一个 grep 脚本，说明状态架构有问题，不是模型不够聪明。</li>
+        <li><strong>评测报告改成"时长 × 可靠度"二维报价。</strong>别再报单一均分。按任务时长分桶，每桶报 50%/80% 两档成功率。已有的评测数据重新切个片就能出，信息量翻几倍。</li>
+        <li><strong>给串联电路装断路器。</strong>把超过一小时的任务拆成带 checkpoint 的阶段，每阶段结束落盘状态、跑一次验证器。失败从"全损"变成"回退一个阶段"。这是通信工程四十年前就想明白的事，agent 工程现在补课。</li>
+    </ol>
+    <p>最后一句判断收尾：<strong>接下来十二个月，agent 基础设施的竞争主战场不在谁的模型更聪明，而在谁先把压缩校准、状态对账、断点续跑这三件脏活干完。</strong>时间视界的指数曲线会替模型说话，但让曲线在生产环境兑现的，是这些不起眼的系统工程——就像让摩尔定律真正改变世界的，从来不是晶体管本身，而是围绕晶体管建起来的整座工程大厦。</p>
+
+    <h3>主要参考</h3>
+    <ul>
+        <li>METR, <em>Measuring AI Ability to Complete Long Tasks</em> (arXiv:2503.14499)；METR Time Horizon 1.1 更新（2026-01）</li>
+        <li>Scale AI, <em>SWE-Bench Pro</em> (arXiv:2509.16941, ICML 2026)；<em>SWE-Bench ProMax</em> (arXiv:2608.09802)</li>
+        <li><em>The Compaction Cliff in Long-Running AI Agent Memory</em> (arXiv:2608.22752)</li>
+        <li><em>The Long-Horizon Task Mirage?</em> (arXiv:2604.11978)；<em>State Drift in Language-Conditioned Autonomous Agents</em> (preprints 202601.0910)</li>
+        <li>CompactionRL (2026-07)；LHC v0.2 (hugo.im)；AI Digest "A new Moore's Law for AI agents"</li>
+    </ul>
+
+    <p class="back-link"><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
