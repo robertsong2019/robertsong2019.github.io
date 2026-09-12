@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>416 变 6：一段正则如何偷走一枚数字，还让你测试全绿 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>416 变 6：一段正则如何偷走一枚数字，还让你测试全绿</h1>
+    <p class="meta">
+        <span class="tag">正则表达式</span>
+        <span class="tag">信息抽取</span>
+        <span class="tag">回溯</span>
+        <span class="tag">测试工程</span>
+        2026-09-13 · 基于 amg C568 page-count sum lane 事故复盘
+    </p>
+
+    <blockquote>原文写着 "a 416-page novel"，正则捕获组交回来的是 <code>'6'</code>。不报错、不抛异常、类型正确、语义上完全说得通——6 本来就可以是一本书的页数。这篇文章完整解剖这次偷窃：引擎的任务是找到<strong>一个</strong>匹配，从来不是找到<strong>你的</strong>匹配。</blockquote>
+
+    <h2>一、值合法的错误，是最深的错误</h2>
+    <p>bug 有个残酷的等级制。崩溃是好 bug——大声喊疼，堆栈指路。异常次之——至少留了痕迹。静默失败再次之——好在它产出空值，空值容易在下游撞出 TypeError。<strong>最深的一档是：错误产出了一个类型正确、语法合法、语义上完全说得通的值。</strong></p>
+    <p>这周在 amg（agent-memory-graph）评测管线里抓到一例，属于这一档的教科书形态：一段正则要从对话记录里抽取小说页数，原文是 "a 416-page novel"，捕获组交回来 <code>'6'</code>。格式正确、<code>int('6')</code> 完全合法。如果这道题的答案恰好对容差不敏感，这个 bug 会永远活着。</p>
+    <p>它不巧很敏感。下面从头讲。</p>
+
+    <h2>二、现场：一条"把自由文本算成账"的抽取任务</h2>
+    <p>amg 的 live-500 基准里有这样一道题：<em>"What was the page count of the two novels I finished in January and March?"</em>——从约五十万 token 的对话记录里，找出用户"刚读完"的两本小说的页数并求和。标准答案 856 = 440 + 416。</p>
+    <p>haystack 里的证据长这样：</p>
+    <pre><code>s9:  "just finished … The Nightingale … 440 pages"   （×2，需 distinct 去重）
+s33: "just finished a 416-page novel"
+诱饵: The Power, 341 pages —— 十二月读的，句中没有 just-finished 标记</code></pre>
+    <p>顺带一提这道题本身的设计就很有性格：全语料没有一处提及 January，March 的命中全是诱饵（Chicago 行程、Marchmont、阿拉莫 1836），会话日期全在五月。所以抽取器被刻意设计成 <strong>month-blind</strong>——只承诺"刚读完的页数求和"，不承诺语料撑不起的月份语义。<strong>抽取器的承诺范围，以语料能支撑的下界为准</strong>，这是另一条纪律，今天不展开。</p>
+    <p>展开的是：第一版实现里，负责"锚定 just-finished 标记、捕获其后页数"的，是一段 mega-alternation 锚点正则。简化掉所有分支，病灶只剩一行：</p>
+    <pre><code>import re
+
+line = "just finished a 416-page novel"
+
+pat = r"finished .{0,40}?[\w'\"]+(\d+)[- ]?page"
+m = re.search(pat, line)
+
+print(m.group(1))   # 期望 '416'</code></pre>
+    <p>跑一下：输出 <code class="highlight">'6'</code>。</p>
+
+    <h2>三、解剖：引擎找到的是"一个匹配"，不是"你的匹配"</h2>
+    <p>要理解这枚数字是怎么被偷走的，得先纠正一个广为流传的误解：正则不是"模式匹配器"，<strong>正则引擎是一个分划搜索器</strong>。给定模式和文本，它的任务是在文本的所有可能切分方式里，找到任意一种能让整个模式成立的切分。它搜索的对象不是"页数"，是"切分"。</p>
+    <p>逐步回放引擎的搜索过程。模式有三个关键部件：</p>
+    <ul>
+        <li><code>.{0,40}?</code> —— <strong>懒惰</strong>通配符：先占 0 个字符，不够再一格格扩</li>
+        <li><code>[\w'\"]+</code> —— <strong>贪婪</strong>前缀类：尽可能多吃，而 <code>\w</code> <strong>包含数字</strong></li>
+        <li><code>(\d+)</code> —— 捕获组：至少要 1 个数字</li>
+    </ul>
+    <p>引擎从锚点 <code>finished </code> 之后开始，懒惰通配符先占 0 个字符，前缀类从字母 <code>a</code> 起吃——吃到空格停，捕获组在空格处要数字，失败。通配符扩 1 格、2 格，前缀类起点滑到 <code>4</code>：</p>
+    <ol>
+        <li>前缀类贪婪吞下 <strong><code>416</code></strong>（<code>\w</code> 吃数字，理直气壮）</li>
+        <li>捕获组 <code>(\d+)</code> 面对下一个字符 <code>-</code>：要至少一个数字，<strong>失败</strong></li>
+        <li>引擎回溯：让前缀类吐出<strong>恰好一个</strong>字符——前缀变 <code>41</code></li>
+        <li>捕获组接过吐出来的 <code>6</code>：满足最低要求，<strong>贪婪吃下</strong></li>
+        <li><code>[- ]?page</code> 对上 <code>-page</code>——整个模式<strong>成立</strong></li>
+    </ol>
+    <p>引擎宣布成功，捕获组里的值是 <code>'6'</code>。注意第 3 步的阴险之处：<strong>回溯的步长是"满足下一个部件的最低要求"</strong>。捕获组要 1 个数字，前缀就只吐 1 个。你要 416，引擎只欠 1。只要存在一种切分能让模式成立，引擎就交付那种切分——<strong>它对"哪一种切分是写模式的人心里想的那种"没有任何义务</strong>。</p>
+    <p>更妙的是对称性：把前缀类改成懒惰的 <code>[\w'\"]+?</code>，偷法就变了——前缀只占 <code>4</code>，捕获组拿到 <code>'16'</code>。贪婪版偷尾数，懒惰版偷中间，<strong>两种写法都错，且错得不一样</strong>。只要那个含 <code>\w</code> 的字符类和数字捕获组贴在一起，数字的切分权就不在你手里。</p>
+
+    <h2>四、为什么它比 ReDoS 更值得害怕</h2>
+    <p>正则回溯的"著名亲戚"是灾难性回溯（catastrophic backtracking / ReDoS）——指数级回溯把 CPU 拖死。但 ReDoS 其实是良性亲戚，因为它偷的是<strong>性能</strong>：请求超时、服务挂掉、告警响起来，全世界都知道出事了。有 lint 工具、有安全公告、有一整个 CVE 类目盯着它。</p>
+    <p>这个亲戚偷的是<strong>语义</strong>，且三个免疫一样不缺：</p>
+    <ul>
+        <li><strong>不超时</strong>——回溯深度只有个位数，性能毫秒级</li>
+        <li><strong>值合法</strong>——<code>6</code> 是个完全合理的页数，类型检查、范围检查、形状检查全过</li>
+        <li><strong>测试绿灯</strong>——单元测试断言"返回一个 int"就过；只有把断言钉到具体真值上，灯才会红</li>
+    </ul>
+    <p>一句话总结两者的差别：<strong>ReDoS 是拒绝服务，这个是伪证。</strong>前者让你的系统停下来，后者让你的系统继续跑——带着一个错误的数字。</p>
+
+    <h2>五、LLM 时代，这类正则的密度翻了几个数量级</h2>
+    <p>搁十年前，"从自由文本里抽数字"是日志解析和爬虫的 niche。现在，几乎每一条 agent 管线的中枢都是这类代码：从模型输出里抽 JSON 字段值、从对话记录里抽事实、从 RAG chunk 里抽元数据、从工具返回里抽 ID 和金额。</p>
+    <p>而 LLM 的输出有一个统计上的残酷特征：<strong>数字密度极高，且语法上"说得通"的错误切分无穷多</strong>。人写的语料里页数稀疏、金额规整；模型生成的文本里 <code>416-page</code>、<code>v2.3.1</code>、<code>$1,204.50</code>、<code>Room 302</code> 比肩接踵。每一个"字符类含 <code>\w</code> + 紧邻数字捕获组"的写法，都是把切分权拱手让给回溯搜索——而回溯搜索交付的第一种合法切分，统计上几乎不可能是你想要的那种。</p>
+    <p>这不是假设。amg 的这条 lane 单题分值就是被它咬掉 410 分的（856 的答案被算成 446），而全套件一万多个测试全绿——直到一个把断言钉到真值的 pin 站出来。</p>
+
+    <h2>六、修复：朴素的位置扫描，胜过聪明的巨型 alternation</h2>
+    <p>修复没有用更聪明的正则。用了更笨的代码：</p>
+    <pre><code>import re
+
+_NUM = re.compile(r"\d+")
+
+def pages_after_marker(line, marker="finished"):
+    """锚定标记位置，取其后首个数字短语。"""
+    i = line.lower().find(marker)
+    if i < 0:
+        return None
+    m = _NUM.search(line, i + len(marker))
+    return int(m.group()) if m else None
+
+print(pages_after_marker("just finished a 416-page novel"))   # 416
+print(pages_after_marker("just finished it -- 980 pages"))    # 980</code></pre>
+    <p>两步：<code>str.find</code> 锚定标记，<code>re.search(text, pos)</code> 取其后第一个数字短语。没有 alternation，没有跨部件协商，<strong>每一步都能用一句话复述</strong>——"标记之后的第一个数"就是题面语义本身。原来的 mega-alternation 为什么错？因为它把"锚定"和"抽取"焊在同一次回溯搜索里，锚定的贪婪和抽取的贪婪在搜索空间里互相讨价还价，没人能复述那笔交易。</p>
+    <p>外围再加一道题面基数 guard：题目说 "two novels"，<code>_CNT_WORD2NUM</code> 把基数钉死为 2，distinct 抽取结果不等于 2 就整体 fall-through 弃权——<strong>宁可交白卷，不交错卷</strong>。</p>
+    <p>这个形状在抽取器家族里反复出现：<strong>alternation 只做锚定，不做抽取；抽取交给位置扫描</strong>。凡是"锚点 + 贪婪通配 + 捕获组"三件套焊在一起的写法，都值得警惕。</p>
+
+    <h2>七、防御清单</h2>
+    <p>这次事故之后，四条纪律固化进管线：</p>
+    <ol>
+        <li><strong>真值钉死（value pin）</strong>。单事实抽取的测试，断言必须钉到真实语料的具体值：这道题的 416 必须恰为 416，不是 <code>isinstance(x, int)</code>，不是 <code>0 &lt; x &lt; 5000</code>。形状断言防崩溃，值断言防伪证。陷阱本身已固化为永久回归 pin——谁再写出含 <code>\w</code> 前缀贴数字捕获组的模式，测试当场变红。</li>
+        <li><strong>正则评审的一句话判据</strong>：含 <code>\w</code> 的字符类紧邻数字捕获组，等于把数字的切分权交给回溯。看到这个形状，先问：这个类会不会吃到本该属于捕获组的数字？</li>
+        <li><strong>优先位置扫描</strong>。锚定和抽取分离：<code>find</code> 锚、<code>search(pos)</code> 抽。每步一句话能复述的代码，才配进入抽取管线。</li>
+        <li><strong>敌意语料常态化</strong>。测试语料必须包含数字黏连形态：<code>416-page</code>、<code>980 pages</code>、<code>page 217</code>、<code>v2.3.1</code>。乖语料（数字两边永远有空格）测不出回溯偷窃。</li>
+    </ol>
+
+    <h2>尾声</h2>
+    <p>那条 lane 最终 keep：banked 303→304，0.606→0.608，全套件 10476 测试 0F/0E，full-500 回放确认预测变化恰好且只有这一题——<code>'6'</code> 再没出现过。</p>
+    <p>复盘时最触动我的是那个不对称：<strong>引擎找到的是 a match，工程要的是 the match，两者的差距恰好等于回溯搜索空间的大小</strong>。把搜索空间压到一句话能复述，差距就消失了。正则很强，但它的强项是搜索，不是理解——当你需要的是"那个"数字而不是"某个"数字时，别让一个搜索器替你做切分决定。</p>
+    <p>你的管线里那段"从模型输出里抽数字"的正则，今晚就可以拉出来跑一遍 <code>416-page</code>。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

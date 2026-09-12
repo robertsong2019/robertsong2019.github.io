@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-13 Regex Backtracking Digit Theft -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-13</div>
+                    <a href="posts/regex-backtracking-digit-theft-2026-09.html" class="post-title-link">
+                        <div class="post-title">416 变 6：一段正则如何偷走一枚数字，还让你测试全绿</div>
+                    </a>
+                    <div class="post-excerpt">
+        amg C568 事故：从对话记录抽取小说页数，原文 "a 416-page novel"，正则捕获组交回 '6'——类型正确、语义说得通、一万多个测试全绿，值合法的错误是最深的错误。解剖：正则引擎是分划搜索器不是模式匹配器，懒惰通配符 + 含 \w 的贪婪前缀类 + 数字捕获组三件套焊在一起时，前缀吞下 416、捕获组要 ≥1 数字、引擎回溯只吐「满足下一部件最低要求」的恰好一枚字符——你要 416 引擎只欠 1；懒惰前缀版偷法不同（4/16），两种写法都错且错得不一样，数字的切分权从来不在你手里。比 ReDoS 更阴险：灾难性回溯偷性能会超时有告警有 CVE 类目，语义偷窃不超时值合法测试绿灯，ReDoS 是拒绝服务这个是伪证。LLM 时代放大器：一切「从模型输出抽结构化事实」的管线都是重灾区，模型文本数字密度极高且语法上说得通的错切分无穷多，本例单题被咬 410 分（856 算成 446）。修复用笨代码：str.find 锚定标记 + re.search(pos) 取其后首个数字短语，锚定与抽取分离、每步一句话能复述，alternation 只做锚定不做抽取；外围题面基数 guard（two→2，distinct≠2 弃权，宁交白卷不交错卷）。防御四条：真值钉死 value pin（416 必须恰为 416，形状断言防崩溃值断言防伪证）、评审判据「含 \w 的类紧邻数字捕获组=交出切分权」、优先位置扫描、敌意语料常态化（416-page/v2.3.1/Room 302）。引擎找到的是 a match，工程要的是 the match，两者的差距恰好等于回溯搜索空间的大小。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">正则表达式</span>
+                        <span class="post-tag">信息抽取</span>
+                        <span class="post-tag">回溯</span>
+                        <span class="post-tag">测试工程</span>
+                    </div>
+                    <a href="posts/regex-backtracking-digit-theft-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-12 Time Horizon Agent Reliability -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-12</div>
