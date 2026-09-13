@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-13 Agent Skills Ecosystem -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-13</div>
+                    <a href="posts/agent-skills-ecosystem-primitive-2026-09.html" class="post-title-link">
+                        <div class="post-title">一个 Markdown 文件如何长成 190 万个包的生态：Agent Skills 标准战复盘</div>
+                    </a>
+                    <div class="post-excerpt">
+        一个装着 SKILL.md 的文件夹，八个月内被 40+ 平台采纳为标准、长出 190 万个包、累计安装 1.7 亿次——Agent Skills 用 MCP 同一套剧本打完第二场标准战，而赢的原因恰恰是格式简陋：没有 API 没有运行时只有结构化文本，「实现一个 reader 要多少行代码」才是互操作标准的胜负手。渐进式披露三层加载（name+description 常驻 30-50 token → 触发时全文 → 执行中按需读资源）把上下文成本从 O(n) 压到 O(1) 起步，装几百个技能才物理上成立；与 MCP 的分工是门禁卡与入职手册——MCP 给能力，Skills 给「何时用什么方法」的程序性知识。有效性证据看 SkillsBench：策展 skills 平均 +16.6pp（33.9%→50.5%），但领域极不均匀（软件工程 +4.5pp vs 医疗 +51.9pp，价值与模型先验成反比）、16/84 任务负增益（认知税）、自生成 skills 平均零收益（模型还写不好自己的技能，专家杠杆在上升）、Haiku+skills 打赢 Opus 裸跑（scaffolding-over-scaling 最硬实证）；洪水分析题 1.9%→68.5% 只因写明「用 Log-Pearson Type III」——一行方法学胜过一次模型升级。真正的软肋在安全面：Snyk ToxicSkills 实测 36.8% 有缺陷、13.4% critical、76 个确认恶意 payload，91% 恶意 skills 把提示注入与恶意代码焊在一起同时绕过 AI 安全与传统扫描两道门；description 字段是永驻注入面（渐进式披露第一层永远加载），Agent Skills 是一条治理水平停在 npm 2013 年的软件供应链。落地五件事：团队 SOP 转 SKILL.md（优先模型先验弱的领域）、写 skill 三纪律（≤3 模块/带可执行代码/description 双重身份要审计）、第三方 skill 当 npm 包审计、自建技能做 paired evaluation 防负增益、盯信任基础设施成熟节点。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">Agent Skills</span>
+                        <span class="post-tag">SKILL.md</span>
+                        <span class="post-tag">供应链安全</span>
+                    </div>
+                    <a href="posts/agent-skills-ecosystem-primitive-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-13 Regex Backtracking Digit Theft -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-13</div>

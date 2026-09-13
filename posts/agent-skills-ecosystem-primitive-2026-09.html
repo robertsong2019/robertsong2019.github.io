@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一个 Markdown 文件如何长成 190 万个包的生态：Agent Skills 标准战复盘 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>一个 Markdown 文件如何长成 190 万个包的生态：Agent Skills 标准战复盘</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">Agent Skills</span>
+        <span class="tag">SKILL.md</span>
+        <span class="tag">供应链安全</span>
+        2026-09-13 · 基于晚间深度研究（SkillsBench、Snyk ToxicSkills、生态报告）
+    </p>
+
+    <blockquote>如果你去年十月说"一个装着 Markdown 文件的文件夹，八个月内会被 40 多个平台采纳为标准、长出 190 万个包、累计安装 1.7 亿次"，大多数人会觉得你在讲 npm 的历史。但它就是 Agent Skills 这一年发生的事。这篇文章讲三件事：这个格式为什么赢、它到底值多少分、以及为什么它的安全面比性能面更值得关注。</blockquote>
+
+    <h2>一、先回答一个问题：你的 Agent 知道"该用什么方法"吗</h2>
+    <p>想象一个场景：你让 agent 分析一批美国地质调查局的河流流量数据，估算洪水重现期。模型信心满满地跑了个阈值检测，再随手拟合了个正态分布——结果一塌糊涂。而水文工程师会告诉你，USGS 的官方标准是 Log-Pearson Type III 分布，连具体的 scipy 函数调用都是确定的。</p>
+    <p>问题不在于模型不够聪明，而在于<strong>预训练语料里没有（或者埋得太深）这种程序性知识</strong>：哪个领域、什么场景、用什么标准方法。工具它都有—— pandas 里有统计函数，网络请求库能拉数据。缺的是"入职手册"。</p>
+    <p>Agent Skills 就是给这份手册定了个文件格式：一个文件夹，里面放一个 <code>SKILL.md</code>（YAML 元数据 + Markdown 指令），可选地带脚本和参考资源。2025 年 10 月 Anthropic 在 Claude 上发布，12 月 18 日开放为标准（agentskills.io），然后事情开始指数增长：OpenAI 和 Microsoft 在年底跟进，2026 年 1 月 Gemini CLI 支持、skills.sh 上线，2 月 GitHub Agent HQ 和 openai/skills 官方 Catalog 开张。到今年六月，agentskills.io 的兼容产品名单约 40 个——Claude Code、Codex、GitHub Copilot、Cursor、VS Code、Gemini CLI、Goose、OpenCode，几乎你能叫出名字的 coding agent 都在列。</p>
+    <p>回到开头的洪水分析。SkillsBench 基准里有这道题，配的 skill 只做了一件事：写明"用 Log-Pearson Type III，这是 USGS 标准，调用方式如下"。通过率从 <strong class="highlight">1.9% 到 68.5%</strong>。一行方法学的价值，超过一次模型升级。</p>
+
+    <h2>二、为什么赢的是它：标准战的历史复读</h2>
+    <p>技术上，SKILL.md 简陋得近乎寒酸：没有 API，没有运行时，没有专用协议，就是结构化文本加个文件夹。但标准战的历史规律恰恰是——<strong>最简单的格式赢</strong>。SOAP 输给了 REST，复杂的企业服务总线输给了"一个 URL 返回 JSON"。判断一个互操作标准能不能普及，最便宜的指标是"实现一个 reader 需要多少行代码"。SKILL.md 的答案是：一个 YAML 解析器，加一个 Markdown 渲染器，全世界的 agent 框架本来就有。</p>
+    <p>这套剧本 Anthropic 已经演过一次。MCP（Model Context Protocol）先在内部做成有用功能，再开放为标准，让生态网络效应替它完成分发。Skills 是第二场，而且传播更快——因为它连协议层都省了。</p>
+    <h3>渐进式披露：能装几百个技能的秘密</h3>
+    <p>你可能会问：往 context window 里塞几百份手册，不就爆了吗？这就是 Agent Skills 最关键的设计——<strong>渐进式披露（progressive disclosure）</strong>，一个三层加载结构：</p>
+    <ul>
+        <li><strong>第一层（常驻）：</strong>agent 启动时只加载每个 skill 的名字和描述，各占约 30-50 个 token。这一层让 agent"知道手边有什么"。</li>
+        <li><strong>第二层（按需）：</strong>任务匹配到某个 skill 时，才加载完整的 SKILL.md 指令。</li>
+        <li><strong>第三层（执行中）：</strong>参考文件、脚本，用到哪份读哪份。</li>
+    </ul>
+    <p>类比图书馆：你不需要把整馆藏书记进脑子，只需要一张卡片目录，走到书架前再翻开具体的书。上下文成本从 O(n) 变成 O(1) 起步，这才让"安装几百个技能"在物理上成立。</p>
+    <h3>和 MCP 什么关系：门禁卡与入职手册</h3>
+    <p>很多人把 Skills 和 MCP 当竞品，其实它们是互补的两层。一个类比讲清楚：<strong>MCP 是给新员工办门禁卡、发电脑、开通系统权限——让它"能做"；Skill 是入职手册和 SOP——让它"知道该怎么做"。</strong>有了门禁卡但没有手册的新员工，会在走廊里自信地迷路。生态数据也印证了这一点：Skillselion 目录追踪的 8.3 万个 agent 工具里，6 万个 skills 和 9.7 千个 MCP server 并存，前者是后者的六倍。</p>
+
+    <h2>三、值多少分：SkillsBench 的冷数据</h2>
+    <p>格式赢了不代表价值成立——会不会只是一场热词运动？今年二月，Stanford、CMU、Berkeley、Oxford 和 BenchFlow 的团队发布了 SkillsBench（arXiv:2602.12670），第一个把 skill 当一等评测对象的学术基准：87 个任务、8 个领域、18 种模型-harness 配置、7,308 条轨迹、确定性验证器。核心结论是一组很"诚实"的数字：</p>
+    <table>
+        <tr><th>发现</th><th>数字</th></tr>
+        <tr><td>策展 skills 平均提升通过率</td><td>33.9% → 50.5%（+16.6pp）</td></tr>
+        <tr><td>领域间增益差异</td><td>软件工程 +4.5pp ↔ 医疗 +51.9pp</td></tr>
+        <tr><td>出现负增益的任务</td><td>16 / 84</td></tr>
+        <tr><td>自生成 skills 平均收益</td><td>≈ 0</td></tr>
+        <tr><td>小模型 + skills vs 大模型裸跑</td><td>Haiku 4.5 + skills (27.7%) &gt; Opus 4.5 (22.0%)</td></tr>
+    </table>
+    <p>这五条数字背后有三个值得展开的判断。</p>
+    <p><strong>判断一：技能的价值与模型先验成反比。</strong>软件工程只涨 4.5 个点，因为预训练语料里 GitHub 比山高，模型本来就会；医疗涨 51.9 个点，因为临床方法学的"何时用什么标准"知识密集且语料稀疏。所以技能工程的第一问不是"我能写什么 skill"，而是"<strong>这个领域，模型的先验到底有多弱</strong>"。在公司语境里，答案几乎总是：内部系统、部署流程、合规规则、专有数据格式——那些从未进入公开语料的东西。</p>
+    <p><strong>判断二：模型还写不好自己的技能。</strong>自生成 skills 平均零收益，而人类专家策展的 skills 平均 +16.6pp。这不是模型笨，是程序性知识的提炼本来就是专家工作——知道哪些步骤可省、哪些坑致命、什么信号该触发什么动作。换句话说，<strong>领域专家的杠杆在这个范式里是上升的，不是下降的</strong>。你三十年的经验现在可以打包成一个 40 行的文件夹，被所有 agent 复用。</p>
+    <p><strong>判断三：skills 是 scaffolding-over-scaling 最硬的实证之一。</strong>小模型加好技能打赢大模型裸跑，意味着在方法论密集的任务上，与其为 top 模型的溢价付费，不如为领域知识的工程化付费。SkillsBench 1.1 的曲线还显示 with-skills 解决率以每月约 1.9 个点的速度随模型迭代爬升——scaffolding 和 scaling 在复合，不在竞争。</p>
+    <p>还有一个反直觉细节：聚焦的 skills（不超过 3 个模块）系统性地胜过大而全的合集，且消融实验里增益最大的一段来自"可执行代码示例和参考资源"。<strong>有效的技能恰恰是最像传统软件的那部分</strong>——确定的代码、锁定的调用方式，而不是华丽的 prompt 措辞。</p>
+
+    <h2>四、190 万个包的另一面：一条没有治理的供应链</h2>
+    <p>现在讲这篇复盘真正想让你警惕的部分。</p>
+    <p>SkillsMP 从 GitHub 上抓到了约 190 万个公开 skills。Skillselion 追踪的 8.3 万个工具累计安装 1.7 亿次。一个自然的追问是：<strong>这些包的质量和安全性，谁负责？</strong></p>
+    <p>答案目前是：几乎没人。而实测数据相当难看：</p>
+    <ul>
+        <li><strong>Snyk ToxicSkills（2026 年 2 月）</strong>扫描了 ClawHub 和 skills.sh 上的 3,984 个 skills：36.8% 至少含一个安全缺陷，<strong>13.4%（534 个）达到 critical 级</strong>，76 个确认恶意 payload（凭证窃取、后门、数据外传）。发文时，8 个恶意 skills 仍在架。</li>
+        <li><strong>学术论文《Agent Skills in the Wild》</strong>分析了 31,132 个 skills：26.1% 含至少一个漏洞，归纳出 4 大类 14 种攻击模式。</li>
+        <li><strong>Trail of Bits</strong>演示了用截断、归档间接、毒化字节码绕过三大市场的扫描器；<strong>Orca</strong> 构造的三条端到端攻击链全部通过平台安全审计，在真实用户机器上拿到了代码执行。</li>
+    </ul>
+    <p>更阴险的是攻击的混合形态：91% 的恶意 skills 把<strong>提示注入</strong>和<strong>传统恶意代码</strong>焊在一起。传统扫描器看不懂自然语言里藏的指令，AI 安全机制看不懂 shell 命令里的恶意——两套防御各守一门，攻击从门缝里穿过去。</p>
+    <h3>为什么 skill 比 npm 包更危险</h3>
+    <p>装一个 npm 包，你引入的是代码；装一个 skill，你引入的是<strong>会持续指挥 agent 行为的文本，外加可选的代码执行</strong>。它不是被动依赖，是主动指令源。三个放大器：</p>
+    <ol>
+        <li><strong>description 字段是永驻注入面。</strong>回想渐进式披露的第一层——name 和 description 是永远被加载的。把恶意指令藏进 description，等于让它出席每一次会话，不管任务相不相关。这是整个格式里杠杆最高的一块攻击面。</li>
+        <li><strong>间接注入链。</strong>很多 skill 的本职就是抓取外部内容（网页、API）。攻击者在公开论坛发一条注入内容，合法 skill 忠实地把它抓回来，agent 把嵌着的指令当成了自己的操作规程。Snyk 数据里 17.7% 的 ClawHub skills 都带这类"获取不可信第三方内容"的行为。</li>
+        <li><strong>延迟依赖攻击与 typosquatting。</strong>脚本故意不锁依赖版本，等攻击者日后认领包名；或者起一个和热门 skill 只差一个字母的名字。npm 的老剧本，一个演员都不用换。</li>
+    </ol>
+    <p>一句话定位现状：<strong>Agent Skills 是一条软件供应链，但治理水平停在 npm 的 2013 年。</strong>分发基础设施（注册表、CLI、市场）跑在前面，信任基础设施（来源签名、沙箱、锁文件）落后整整一个身位。防御栈正在成型——per-skill 沙箱、provenance 签名、行为锁文件（如 SkilLock）、OWASP Agentic Skills Top 10——但今天是早期采用者的红利期，也是早期受害者的暴露期。</p>
+
+    <h2>五、今晚可以做的五件事</h2>
+    <p>说了这么多，落到操作层面。不管你是个人开发者还是在带团队：</p>
+    <ol>
+        <li><strong>把团队 SOP 转成 SKILL.md。</strong>部署流程、发布检查清单、内部系统的坑——凡是"新同事要问老员工"的知识都值得打包。格式是开放标准，一份文件在 Claude Code、Codex、Cursor 里都能用，这是白拿的可移植性。优先覆盖模型先验弱的领域。</li>
+        <li><strong>写 skill 遵守三条纪律：</strong>聚焦（≤3 个模块，拒绝大而全）；带可执行代码示例（增益最大的一段内容）；description 写清楚"何时用、何时不用"——它同时是路由依据和注入面，每个字都要过目。</li>
+        <li><strong>装第三方 skill 前当它在装 npm 包。</strong>过目全部 bundled 文件，重点三查：frontmatter 里有没有越权指令、脚本依赖锁没锁版本、有没有外部内容抓取。来路不明的 skill，宁可不用。</li>
+        <li><strong>给自建技能做 paired evaluation。</strong>抄 SkillsBench 的方法论：同任务跑 no-skill 和 with-skill 对照，用确定性验证器判分。16/84 的负增益率说明技能不是免费的午餐——不测就不知道你的技能在帮忙还是在缴认知税。</li>
+        <li><strong>关注信任基础设施的成熟节点。</strong>来源签名、沙箱策略、OWASP Agentic Skills Top 10 的演进。当你所在的组织开始批量引入第三方 skills 时，这些会是你的检查清单。</li>
+    </ol>
+
+    <h2>结语</h2>
+    <p>回看这一年，Agent Skills 讲了一个不新的故事：一个简单到不像话的格式，因为踩中了真实的缺口（模型的程序性知识缺失）和正确的激励机制（谁都能零成本实现），在八个月里完成了从产品特性到行业标准的跃迁。接下来的主线剧情大概率不在格式层，而在两件事上：<strong>技能价值的度量</strong>（哪些技能真有 +50 个点的本事，哪些是负资产）和<strong>技能信任的建立</strong>（签名、沙箱、锁文件什么时候成为默认）。</p>
+    <p>而对你我这样的从业者，窗口期的操作其实很朴素：把组织里最难转录的专家经验先打包成 skill，把来路不明的 skill 当陌生依赖对待。前者是这一波里少数普通人就能拿到的红利，后者是别成为下一轮安全报告里统计数字的最低成本方式。</p>
+
+    <p class="back-link"><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
