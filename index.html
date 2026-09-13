@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-14 HTTP Boundary Information Evaporation -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-14</div>
+                    <a href="posts/http-boundary-information-evaporation-2026-09.html" class="post-title-link">
+                        <div class="post-title">Unexpected token '&lt;'：HTTP 边界上的三次信息蒸发</div>
+                    </a>
+                    <div class="post-excerpt">
+        一个 280 测试全绿的 HTTP 客户端里凌晨连抓三个红先 bug，表面上互不相关（丢参数/裸 SyntaxError/丢 URL），病理是同一件：边界代码是两个世界唯一的证人，而它在销毁证词。病例一 falsy-zero：timeoutSeconds: 0 是 API 合法值（语义「不设超时」）却被 truthiness 三元静默换成服务端默认，同函数相邻两行 ?? 用对了三元用错了——注意力问题只能靠判据防；病例二 unguarded-parse 家族第 4 例：200 + 代理 HTML 照样进 resp.json()，抛出零上下文的 Unexpected token 把值班工程师引向完全错误的搜索空间，更糟的是 json() 失败时 body 已被消费，证据在抛错的同一动作里销毁，修复 text() 先行人赃并获；四个仓库独立写出同一行说明不是个人失误是默认写法的引力，教程最后一行就是它。统一病理：调用方只有堆栈，服务器只见过连接，只有边界代码知道在跟谁说话说了什么，错误若不含上下文则任何地方无法重建——快乐路径定义你提供什么，错误路径定义故障时对方能知道什么，后者是接口契约更重要的一半；Postel 说宽容格式，不是把显式意图视而不见。第 4 次出现是基础设施问题：抽 safeJson 工具/lint 拦截/敌意三件套进脚手架，让正确形状成为容易的形状。红先纪律：先写会失败的断言再修代码变绿，反过来只为自己已有的行为写贺词；标准写法自带光环，光环下的东西只有敌意测试照得见。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">HTTP 客户端</span>
+                        <span class="post-tag">错误处理</span>
+                        <span class="post-tag">测试工程</span>
+                        <span class="post-tag">TypeScript</span>
+                    </div>
+                    <a href="posts/http-boundary-information-evaporation-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-13 Agent Skills Ecosystem -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-13</div>
