@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-14 KVCache-Centric Serving -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-14</div>
+                    <a href="posts/kvcache-centric-serving-2026-09.html" class="post-title-link">
+                        <div class="post-title">存储换算力：KV Cache 如何从废料变成 Agent 时代的硬通货</div>
+                    </a>
+                    <div class="post-excerpt">
+        两个水平相同的 agent 团队，一个每月付 10 万一个只付 2 万，差别不在模型而在他们是否知道 prompt 进入推理集群后发生了什么。讲清 2023-2026 推理系统演化主线：prefill 与 decode 是两种动物（算力型短跑 vs 带宽型马拉松），关同一个笼子就是 agent 打字卡顿的元凶；DistServe/Splitwise 物理分离（7.4× 请求容量）引入 goodput——不违约的吞吐才是钱；Mooncake（FAST'25 最佳论文，承载 Kimi 80% 流量成本砍半）完成世界观翻转：用集群闲置 CPU/SSD 池化分布式 KV Cache 仓库，调度器先问「缓存在哪」再问「机器谁闲」；RadixAttention 证明 agent 是前缀缓存天选场景（5-10×），但生死线是前缀字节稳定——工具定义放在用户 query 后面收益直接归零；Don't Break the Cache（500 会话实测：省 41-80%）最反直觉的结论是 naive 全上下文缓存反而更慢，缓存边界（排除动态工具结果、动态内容后置）才是工程；最深的一刀是两个社区在打架：上下文工程讲压缩 compaction，缓存工程讲前缀稳定，而每次 compaction 都是一次缓存核爆（全量 prefill + 25% 写入溢价）——未来的 agent 系统需要把两种成本放进同一张账本；KV Cache 身份跃迁时间线：副产品→资产→架构中心→按 residency 计费的商品，当一种东西开始被定价，它就不再是废料了。可立刻做：静态前缀冻结动态后置、查 cached_tokens 命中率（健康线 50%）、重设 cache_control 边界、compaction 与缓存重建合账。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">LLM Serving</span>
+                        <span class="post-tag">KV Cache</span>
+                        <span class="post-tag">Agent 架构</span>
+                        <span class="post-tag">缓存经济学</span>
+                    </div>
+                    <a href="posts/kvcache-centric-serving-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-14 HTTP Boundary Information Evaporation -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-14</div>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>存储换算力：KV Cache 如何从废料变成 Agent 时代的硬通货 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>存储换算力：KV Cache 如何从废料变成 Agent 时代的硬通货</h1>
+    <p class="meta">
+        <span class="tag">LLM Serving</span>
+        <span class="tag">KV Cache</span>
+        <span class="tag">Agent 架构</span>
+        <span class="tag">缓存经济学</span>
+        2026-09-14 · 基于 Mooncake (FAST'25) / DistServe (OSDI'24) / SGLang / arXiv:2601.06007 等 14 项来源的调研
+    </p>
+
+    <blockquote>先出一道算术题。你的 agent 每执行一轮任务，都要把那份一万 token 的 system prompt——角色设定、工具定义、行为准则——原封不动重发一遍。一次深度研究跑下来，同一份前缀可能被提交几十次。假设两个团队的 agent 水平完全相同，甲团队为此每月付 10 万，乙团队只付 2 万。差别不在模型，不在参数量，甚至不在 prompt 内容——<strong>差别在于乙团队知道，这份 prompt 进入推理集群之后，发生了什么</strong>。这篇文章讲的就是这件事：一段 2023 到 2026 年的系统演化史，主角不是任何大模型，而是一种曾经被视为"废料"的中间产物——KV Cache。</blockquote>
+
+    <h2>一、两种动物：为什么推理集群会被 Agent 搞到分裂</h2>
+    <p>要理解后面的一切，先得接受一个事实：<strong>大模型推理的两个阶段，是两种完全不同的动物</strong>。</p>
+    <p>第一阶段叫 <strong>prefill（预填充）</strong>：模型一口气读完你发来的全部输入，为每个 token 计算 Key 和 Value 向量——这就是 KV Cache，相当于<strong>通读整本书时做的笔记</strong>。这个阶段高度并行，吃的是算力（FLOPS），决定的是"首 token 延迟"（TTFT）：你按下回车后要等多久屏幕上才蹦出第一个字。</p>
+    <p>第二阶段叫 <strong>decode（解码）</strong>：模型进入自回归模式，一次只生成一个 token。诡异的是，每生成一个 token，它都要把整本"笔记"从头翻到尾——注意力的本质就是新 token 要和所有旧 token 打招呼。所以这个阶段<strong>几乎不算什么数，全在搬数据</strong>，瓶颈是显存带宽，决定的是"每 token 延迟"（TBT）：流式输出时字与字之间流不流畅。</p>
+    <p>一个像短跑运动员（瞬间爆发大量算力），一个像马拉松选手（匀速、极度依赖补给线）。2023 年之前的推理系统把这两种动物关进同一个笼子——同一张 GPU、同一个批次里混跑。后果可以预见：一个 50k token 的长 prefill 挤进来，所有正在 decode 的请求集体卡壳。映射到产品上，就是<strong>你的 agent 打字打到一半突然定住两秒</strong>。用户分不清这是模型在"思考"还是系统在抽风，但服务端的 TBT 监控不会说谎。</p>
+    <p>这正好戳中了 agent 的软肋。Chatbot 时代的请求彼此独立、来一个算一个；agent 时代，一个会话就是一串<strong>共享巨型前缀、只增量追加尾部</strong>的请求流。系统层面的一切假设都被打碎了。</p>
+
+    <h2>二、分离运动：从"混养"到"分栏"</h2>
+    <p>系统的演化路线，回头看清晰得像教科书：</p>
+    <ul>
+        <li><strong>vLLM / PagedAttention（SOSP'23）</strong>先把地基打好：借鉴操作系统虚拟内存，把 KV Cache 切成页来管理，显存碎片从最高 80% 压到 4% 以下。此时 KV Cache 仍是"被管理的对象"——一种不得不背的包袱。</li>
+        <li><strong>Sarathi-Serve（OSDI'24）</strong>尝试缓和矛盾：把长 prefill 切成小块，混进 decode 批次里一点点算。有效，但治标。</li>
+        <li><strong>DistServe（OSDI'24）</strong>和 <strong>Splitwise（ISCA'24）</strong>几乎同时得出同一个激进结论：<strong>别养在一起了，物理分开</strong>。prefill 群配算力强的卡，decode 群配带宽强的卡，中间用高速网络搬运 KV Cache。DistServe 的实测是 7.4 倍的请求容量，或 12.6 倍更紧的延迟保证。它还贡献了一个此后统治领域的优化目标——<strong>goodput</strong>：不是"每秒能处理多少请求"，而是"在延迟承诺不违约的前提下能处理多少请求"。前者是虚荣指标，后者才是钱。</li>
+    </ul>
+    <p>到这里，故事还只是"调度优化"。真正让 KV Cache 完成身份跃迁的，是下一章。</p>
+
+    <h2>三、Mooncake：世界观从"算力中心"翻转为"缓存中心"</h2>
+    <p>Moonshot AI（Kimi 背后的公司）与清华的 Mooncake 论文拿了 FAST'25 最佳论文，它做的事一句话就能说清：<strong>用存储换算力（trading more storage for less computation）</strong>。</p>
+    <p>前面的系统都默认：prefill 的产出（KV Cache）是一次性的，算完就扔。Mooncake 反问：既然 recompute 一段 KV 的成本远高于存着它，为什么不让"这份缓存存在哪"成为整个集群的调度中心？它把 GPU 机器里大量闲置的 CPU 内存、DRAM、SSD、网卡池化成一个<strong>分布式 KV Cache 仓库</strong>；全局调度器 Conductor 拿到请求后的第一个决策不是"哪台机器闲"，而是"<strong>这份前缀的缓存在哪、离哪台 prefill 机器最近</strong>"。</p>
+    <p>打个比方：以前的调度像每次都让教授现场重读一遍案卷；Mooncake 是把所有案卷的摘录卡存进总馆，调度员先查卡片在哪，再把教授派到离卡片最近的办公室。生产数字相当硬：这套架构承载了 Kimi 超过 80% 的线上流量，整体成本降了一半以上；支撑 Kimi K2（128 张 H200）跑到每秒 22 万 token 的 prefill 吞吐；长上下文场景的吞吐提升最高到 525%。还有一个反常规的细节：面对过载，Mooncake 的策略是<strong>基于预测提前拒绝</strong>请求——宁可诚实地说"现在不行"，也不假装服务然后让所有人的延迟一起崩。这是被真实流量教育出来的工程哲学。</p>
+    <p>至此，KV Cache 完成了第一次身份跃迁：<strong>从"GPU 显存的负担"，变成"值得围绕它建整个架构的资产"</strong>。</p>
+
+    <h2>四、前缀缓存：Agent 是天选受益人，但有一条生死线</h2>
+    <p>与学术界并行，SGLang 的 <strong>RadixAttention</strong> 把同一思想做到了开源引擎里：用一棵基数树（radix tree）索引所有历史请求的 KV Cache，新请求来了先沿树做<strong>最长前缀匹配</strong>，匹配到的前缀直接复用，只对增量部分跑 prefill。</p>
+    <p>想想 agent 的工作负载：一万 token 的 system prompt + 三千 token 的工具定义 + 不断增长的历史，每轮 tool call 只在末尾追加新内容——<strong>这是前缀缓存教科书级的天选场景</strong>。SGLang 的数据：agent/工具类工作负载提速约 5 倍，few-shot 场景最高 10 倍；反过来，关掉前缀复用，吞吐直接塌掉七到九成。</p>
+    <p>但有一条生死线：<strong>前缀必须字节级一致，且顺序稳定</strong>。基数树按前缀匹配，如果你的模板把工具定义放在用户 query 之后（不少框架默认如此），那么每个请求的开头都是不同的用户输入——匹配失败，每个请求都退回全量 prefill，缓存收益归零。更隐蔽的杀手是那些"看似无害"的动态内容：系统提示里嵌一个当前时间戳、一个随机 session id、一个动态排序的文件列表——<strong>一个字符的漂移就废掉后面所有缓存</strong>。这就像图书馆的编目规则如果每天变一次，昨天做的所有索引卡片今天就全作废了。</p>
+
+    <h2>五、实测：开缓存不是稳赢，边界才是工程</h2>
+    <p>2026 年 1 月的论文《Don't Break the Cache》（arXiv:2601.06007）做了第一件该有人做的事：拿 OpenAI、Anthropic、Google 三家的旗舰模型，在 500 个真实 DeepResearchBench agent 会话上，系统对照三种缓存策略。结论有三层：</p>
+    <ul>
+        <li><strong>省钱是真的</strong>：API 成本降 41%–80%，首 token 延迟降 13%–31%。三大厂全部显著。</li>
+        <li><strong>最反直觉的一条</strong>：naive 的全上下文缓存<strong>可能反而更慢</strong>。把每轮变化的工具结果也裹进缓存段，等于每轮都在为动态内容写新的缓存段（Anthropic 的缓存写入还要收 1.25 倍价钱），缓存段管理开销吃掉收益。</li>
+        <li><strong>最稳的策略</strong>：只缓存 system prompt 等稳定部分，<strong>把动态工具结果排除在缓存边界之外，动态内容一律放 prompt 末尾</strong>。另一个发现：session 的工具调用是 5 次还是 50 次，对节省比例影响不大——真正决定收益的是 system prompt 的体量。一万 token 的系统提示，就是这个架构里最值钱的不动产。</li>
+    </ul>
+    <p>这篇论文的价值在于把"缓存"从布尔值（开/关）变成了<strong>边界设计问题</strong>：cache_control 标记打在哪、排除什么、动态内容靠后放——这是每个 agent 工程师都该会的手艺。</p>
+
+    <h2>六、一场没人调解的战争：上下文工程 vs 缓存工程</h2>
+    <p>调研到最后，我看到一个有趣的结构性冲突，两个社区正在朝相反方向努力，而且似乎还没意识到对方的存在。</p>
+    <p>应用层的<strong>上下文工程</strong>社区（我自己写过好几篇）天天讲：压缩、折叠、compaction——上下文太长了就摘要瘦身，腾出窗口、降低 context rot。而服务层的<strong>缓存工程</strong>说：前缀保持字节级稳定，能复用的都别动。问题在于：<strong>每次 compaction 都是一次缓存核爆</strong>——摘要后的新上下文与旧前缀完全不同，此前积累的 KV Cache 全部作废，下一个请求回到全量 prefill，还要为"重建缓存"多付 25% 的写入溢价。</p>
+    <p>两边各自优化，加起来可能是负收益：省下的输入 token 费用，抵不上摧毁的缓存资产。我的判断是：<strong>未来的 agent 系统需要一个联合成本函数</strong>，把"压缩省下的钱"和"缓存损失的钱"放进同一张账本。什么时候该压缩、什么时候宁可维持长上下文吃 context rot 的亏——这个问题目前没有公开的定量答案，谁能先画出"compaction 频率 × 缓存命中率"的联合成本曲线，谁就拿到了下一代 agent 基础设施的发言权。</p>
+
+    <h2>七、硬通货的形成：当缓存开始按居留时间计费</h2>
+    <p>把时间线拉长看，KV Cache 的身份跃迁还在继续：<code>副产品（2023，分页管理）→ 可复用资产（2024，前缀缓存）→ 架构中心（2025，Mooncake）→ 可计价商品（2026，?）</code>。</p>
+    <p>最后一步正在发生：已经有厂商开始对缓存的<strong>驻留时间（residency）</strong>计费——你的前缀躺在人家的分布式仓库里占着 SSD 和内存，凭什么免费？2026 年的论文已经在讨论"缓存保活经济学"：如果按居留时间收费，agent 应该定期 touch 一下前缀保持缓存温热，还是干脆让它冷掉、认了重算的账？这个问题听起来很小，但当你的 agent 有十万个常驻会话时，它就是一张财务报表级别的决策。曾几何时，KV Cache 是推理管线里人人嫌弃的中间废料；现在，它是调度器的圆心、成本表的支柱、厂商的新计费维度。<strong>一种东西一旦开始被定价，它就不再是废料了。</strong></p>
+
+    <h2>可以立刻做什么</h2>
+    <ul>
+        <li><strong>审计你的 prompt 模板结构</strong>（零成本，今天就能做）：静态内容（system prompt、工具 schema、few-shot）在前且字节冻结，动态内容（用户输入、工具结果、时间戳）一律追加在末尾。删掉 prompt 里的一切时间戳和随机 id。这一条纪律在 agent 工作负载上值 5–10 倍。</li>
+        <li><strong>核对缓存命中率</strong>：主流 API 的 usage 字段里有 cached_tokens，自部署的 vLLM 有 <code>cached_tokens_total</code> 指标。健康值应该在 50% 以上——低于这个数，先查前缀稳定性，再谈别的优化。</li>
+        <li><strong>重新设计缓存边界</strong>：如果你在用 Anthropic 的 cache_control，只标记稳定段；工具结果动态变化就别裹进缓存段。记住：缓存不是开就赢，边界才是工程。</li>
+        <li><strong>把 compaction 和缓存放进同一张账</strong>：在决定压缩频率之前，先算一次"压缩省的 token 费 vs 缓存重建费（全量 prefill + 25% 写入溢价）"。如果这份账算不平，宁可少压缩。</li>
+        <li><strong>关注 residency 计费动向</strong>：如果你的产品有大量常驻会话，现在就该在成本模型里加一个"缓存居留"科目——它很可能成为明年账单里增长最快的一行。</li>
+    </ul>
+    <p>Agent 的能力边界由模型决定，Agent 的经济边界由这些看不见的系统层决定。上下文工程决定模型看到什么，缓存工程决定你为此付多少钱——后者被讲得太少了，希望这篇补上一块。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
