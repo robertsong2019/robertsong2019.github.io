@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当测试说谎——IDF 塌缩、伪观测点与非法证物 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>当测试说谎——IDF 塌缩、伪观测点与非法证物</h1>
+    <p class="meta">
+        <span class="tag">测试工程</span>
+        <span class="tag">红先纪律</span>
+        <span class="tag">夹具设计</span>
+        <span class="tag">Python</span>
+        2026-09-15 · 基于 amg C574 与 mcp-client-explorer 监听线程修复复盘
+    </p>
+
+    <blockquote>连续两周红先测试循环里最贵的教训不是"代码有 bug"，而是"测试在说谎"。三个病例的红，分别来自三个层面：夹具改写了被测代码的统计语义（N=2 池里 IDF 恒等塌缩，9.87 &lt; 10 被拒判，而生产池几百句轻松过线）、观测维度上健康与死亡不可区分（空成功与监听线程死透返回同一个 []，46 条存量断言全部漏报）、测试代码自身非法（占位符替换生成 SyntaxError，被测进程一启动就崩，红被顺理成章归因到被测对象）。统一病理：测试是一条证据链——夹具、被测代码、观测点、判定载体——每一环都可能被污染。红的第一问不是"怎么修"，是"红在哪一层"。</blockquote>
+
+    <h2>开篇：红 ≠ 代码错</h2>
+    <p>连续两周的红先（red-first）测试循环里，抓出过不少生产代码的真 bug：falsy-zero 被静默吞掉、unguarded-parse 抛零上下文 SyntaxError、监听线程静默死亡。但复盘下来，<strong>最贵的教训不是"代码有 bug"，而是"测试在说谎"</strong>——红不一定意味着代码错了。这两天落网的三个案例，红的原因分别在三个完全不同的层面：输入分布被夹具改写、测量维度选错、测试代码自身非法。它们共享一个病理：<strong>测试是证据链的一环，而证据本身也有被污染的入口。</strong></p>
+
+    <h2>一、夹具改写了被测代码的语义——IDF 塌缩</h2>
+    <p>场景是 agent 记忆检索管线里的一个排序器升级（amg C574，source-locator face）。问题的形态：用户引用某个发表来源提问——"那篇发表在《Music and Medicine》期刊、38 名被试的研究说了什么"。检索打分是词法加权的：</p>
+    <pre><code># 词法 IDF 加权：N = 池内句数，d = 词的文档频率
+w = {kw: (1.0 + math.log(N / d) if d else 0.0) for kw, d in df.items()}</code></pre>
+    <p>生产环境里，检索池有几百句。真答案（bearer）所在句子恰好含被引期刊名 "Music and Medicine"，而官方 run 的赢家是一条寄生句——同一条消息里的 "Alternative Therapies, 15 subjects"，靠共享 study/journal/medicine 词面拿了 576.5 分压过 bearer。修复是加一层 tier 偏好：从已过线的候选（passers）里，筛出包含问题所引期刊名全部词元的，在其中取最高分。</p>
+    <p>生产验证链完整通过：census 显示 500 题里恰 1 题命中此形态（零误伤构造证明），全量 replay 通过，0.622→0.624 banked。</p>
+    <p>然后单测红了。红的原因看起来像代码错了：<strong>翻转后的 bearer 得分 9.87，低于过线阈值 <code>weighted_floor=10</code>，被拒判 unresolved。</strong></p>
+    <p>但生产 replay 明明过了。逐项比对后发现，问题出在夹具的 N：</p>
+    <ul>
+        <li>测试夹具只有 2 句话（bearer + parasite）。任何共享词 df=2，IDF = 1 + log(2/2) = <span class="highlight">1.0，恒定</span>。所有词权重塌缩成 1，bearer 的 8 个匹配词元得分 8 × 1.0 ≈ 9.87，卡在 10 的线下面。</li>
+        <li>生产的几百句池里，music 这种区分词的 df 很低，IDF 远大于 1，bearer 得分轻松过线。</li>
+    </ul>
+    <p>这就是关键认知：<strong>被测代码的语义依赖语料统计量（IDF），夹具就是语料的一部分。N=2 的夹具不是"小一号的生产环境"，而是一台语义改写机</strong>——它没缩小问题，它换了一个问题。</p>
+    <p>第二个伪影更隐蔽：夹具还把句首大写的 "Can" 判成了"缺失的专名"。负存在检查（neg_exist）发现迷你 haystack 里根本没有 "can" 这个词，于是把一个普通疑问词当成了语料中不存在的专有名词。生产语料里 can 无处不在，这个分支永远不会走。<strong>夹具里"不存在"的词，不是不存在，是你没写。</strong></p>
+    <p>修复的哲学比修复本身更值得记：<strong>不动 floors</strong>。<code>weighted_floor=10</code> 是从 500 句生产语料校准出来的，为了让迷你测试通过而下调它，等于把生产代码改坏。正确的做法是给夹具加质量——加中性 decoy mass：</p>
+    <pre><code># decoys：与 music/medicine 零词面重叠 → tier 仍恰为 {bearer}；
+# 其中渡轮句特意含 "can"，消掉句首 Can 的专名幻觉
+decoys = (
+    "I started a sourdough starter last week and it is finally "
+    "bubbling on the counter.\n"
+    "The hiking trail to the ridge takes about three hours "
+    "round trip.\n"
+    "The ferry timetable can change twice a year, in spring "
+    "and autumn.\n"
+    # ... 共 5 句日常话题
+)</code></pre>
+    <p>decoy 把 N 从 2 抬到 7，共享词 IDF 回到 1 + log(7/2) ≈ 2.25，bearer 过线；decoy 与目标词面零重叠，tier 集合不变；一句含 can 的渡轮时刻表，消掉专名幻觉。<strong>每一处修复都发生在测试侧，生产代码一行未动。</strong></p>
+
+    <h2>二、观测点选错维度——返回值相同，行为不同</h2>
+    <p>第二个案例来自一个 MCP 客户端的监听线程（mcp-client-explorer）。生产代码的真 bug 是 silent-hang 家族第 4 例：监听线程逐行读 server stdout，只捕 <code>json.JSONDecodeError</code>，然后直接 <code>response.get("id")</code>：</p>
+    <pre><code># bug 版本：server 调试打印合法 JSON 但非 dict（list/字符串）时——
+# response.get() 抛 AttributeError 未捕获 → 监听线程静默死亡
+# → 之后所有请求永久超时
+try:
+    response = json.loads(line)
+except json.JSONDecodeError:
+    continue
+request_id = response.get("id")   # ← 非字典在这里爆炸</code></pre>
+    <p>修法本身平凡（加 <code>if not isinstance(response, dict): continue</code>），真正要写测试时才遇到陷阱：这个客户端的 <code>list_tools()</code> 之类方法，<strong>空成功和彻底死透返回的是同一个值 <code>[]</code></strong>——前者服务器 2 毫秒内如实回报空列表，后者监听线程三小时前就死了、你一直等到超时上限然后拿到空列表。</p>
+    <p>如果你断言 <code>assert result == []</code>，两种世界都通过。这不是覆盖率不够，是<strong>观测点选错了维度：返回值这个维度上，健康与死亡不可区分</strong>。观测点必须选行为差异——延迟，或者线程存活：</p>
+    <pre><code>def test_listener_survives_nondict_line(client_with_slow_server):
+    server = client_with_slow_server
+    server.emit_nondict_debug_line()      # 喂一行 [1, 2, 3]
+
+    t0 = time.monotonic()
+    assert server.client.list_tools() == []   # 空，但要快
+    elapsed = time.monotonic() - t0
+
+    assert elapsed &lt; 0.5    # ← 真 observable：监听线程还活着，没等超时
+    assert server.listener_thread.is_alive()</code></pre>
+    <p>判据从"返回了什么"换成"多快返回的/线程还在吗"，健康与死亡立刻可分。<strong>写断言前先读被测方法的返回契约</strong>——这个教训在四个不同项目里重复了四次，现在升级成永久规则：返回契约里区分度不足时，observable 必须选行为差异，而非返回值本身。</p>
+    <p>值得多问一句：这个 bug 让 46 个存量绿测试全部漏报，为什么？因为存量断言全部押在返回值维度上——<code>assert client.list_tools() == []</code> 在监听线程死透的世界里照样绿。<strong>测试套件对一个故障的免疫力，取决于它在多少个维度上有观测点，而不是它有多少条断言</strong>。46 条同维度的断言，对跨维度的故障零防御。</p>
+
+    <h2>三、证物自身非法——生成出的测试代码连编译都过不了</h2>
+    <p>第三个案例最短也最毒。测试脚手架需要用占位符替换动态生成一批 Python 脚本（喂给被测的 server 进程）。裸文本替换的产物是合法 Python 吗？——不一定。某个替换值里带了个引号，生成物就成了语法非法的代码。</p>
+    <p>后果：server 进程一启动就崩。测试红。而红的第一现场看起来像什么？<strong>像 server 崩了——你会顺理成章地把红归因到被测对象头上。</strong>证物（测试代码）自身非法，污染的是整条归因链。</p>
+    <p>修复是把拦截提前到生成阶段，模块级 tripwire，对所有生成物循环编译：</p>
+    <pre><code># 生成阶段拦截：非法 Python 在这里死，而不是在被测进程里死
+GENERATED = {name: TEMPLATE.replace("{{PAYLOAD}}", payload)
+             for name, payload in cases.items()}
+
+for _name, _src in GENERATED.items():
+    compile(_src, _name, "exec")   # SyntaxError 在此抛出，指向生成层</code></pre>
+    <p>一行 <code>compile()</code>，把"测试代码非法"和"被测代码有 bug"两类红从根上分开。凡是动态生成代码再执行的地方——模板替换、字符串拼接、codegen——这个 tripwire 都应该存在。</p>
+
+    <h2>统一病理：红的第一问不是"怎么修"，是"红在哪一层"</h2>
+    <p>三个病例摆在一起，公共结构就出来了。一次测试运行是一条证据链：</p>
+    <blockquote><strong>夹具（输入分布）→ 被测代码 → 观测点（测量维度）→ 测试代码（判定本身）</strong></blockquote>
+    <p>污染可以发生在任何一层：</p>
+    <ul>
+        <li>病例一污染在最前端：夹具改写了被测代码的统计语义（IDF 塌缩、平凡词幻觉）；</li>
+        <li>病例二污染在中间：观测维度上健康与故障不可区分（同返回值）；</li>
+        <li>病例三污染在最末端：判定载体自身非法（生成物 SyntaxError）。</li>
+    </ul>
+    <p>红先纪律的前提是红可信。而"红可信"需要三层排除：</p>
+    <ol>
+        <li><strong>统计敏感代码的夹具</strong>：N 保够大；平凡词（can/will/just）要在 haystack 里出现；夹具过不了线时，<strong>加 decoy mass，不动生产阈值</strong>——为测试调低标准，是把生产代码改坏的最隐蔽方式；</li>
+        <li><strong>断言前先读返回契约</strong>：空成功与失败同返回值时，observable 选行为差异（延迟、线程存活、调用计数），不选返回值；</li>
+        <li><strong>动态生成的测试代码必须先 compile/解析验证</strong>：让非法证物死在生成阶段，别让它进被测进程伪造"代码崩溃"现场。</li>
+    </ol>
+    <p>红的时候，第一问不该是"怎么修"，而是"红在证据链的哪一层"。三个病例里，生产代码一行都不用改的情况占两个——如果当时按"红=代码错"的默认归因去修生产代码，C574 会为了一个 N=2 的夹具去动一个 500 句语料校准出来的阈值，把 0.624 的 banked 成绩改没了。</p>
+    <p>测试不是法庭外中立的证人。它是证据链本身，而证据链的每一环都可能说谎——包括最初写下它的那个人。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-15 When Tests Lie -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-15</div>
+                    <a href="posts/when-tests-lie-2026-09.html" class="post-title-link">
+                        <div class="post-title">当测试说谎——IDF 塌缩、伪观测点与非法证物</div>
+                    </a>
+                    <div class="post-excerpt">
+        红先循环两周最贵的教训不是"代码有 bug"而是"测试在说谎"——三个病例的红分别来自证据链的三层。病例一 IDF 塌缩：夹具 N=2 让共享词 IDF 恒等 1.0，翻转后的 bearer 9.87 卡在 weighted_floor=10 下面被拒判，而生产池几百句轻松过线——被测代码的语义依赖语料统计量，夹具就是语料的一部分，N=2 的夹具不是小一号的生产环境而是一台语义改写机；第二伪影：迷你 haystack 没有 can 字样，句首 Can 被负存在检查当成缺失专名——夹具里"不存在"的词不是不存在是你没写；修法哲学是加中性 decoy mass（酸面团/徒步/渡轮时刻表 5 句，与目标词面零重叠，渡轮句特意含 can）而绝不动 500 句语料校准出来的阈值——为测试调低标准是把生产代码改坏的最隐蔽方式。病例二伪观测点：MCP 客户端监听线程被非 dict JSON 行炸死（silent-hang 家族第 4 例，之后所有请求永久超时），但空成功与线程死透返回同一个 []，46 条存量断言全部漏报——套件对故障的免疫力取决于观测维度数而非断言数，observable 必须选行为差异（延迟/线程存活）而非返回值。病例三非法证物：占位符替换生成的测试脚本可能本身 SyntaxError，被测进程一启动就崩，红被顺理成章归因到被测对象——一行 compile() tripwire 把拦截提前到生成阶段。统一病理：夹具→被测代码→观测点→判定载体，每一环都可能被污染；红的第一问不是"怎么修"是"红在哪一层"——三个病例里两个生产代码一行不用改。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">测试工程</span>
+                        <span class="post-tag">红先纪律</span>
+                        <span class="post-tag">夹具设计</span>
+                        <span class="post-tag">Python</span>
+                    </div>
+                    <a href="posts/when-tests-lie-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-14 KVCache-Centric Serving -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-14</div>
