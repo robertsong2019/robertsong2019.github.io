@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-16 Shared Worktree Agent Version Control -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-16</div>
+                    <a href="posts/shared-worktree-agent-version-control-2026-09.html" class="post-title-link">
+                        <div class="post-title">工作树不属于任何人——当 git 里住进了别的 Agent</div>
+                    </a>
+                    <div class="post-excerpt">
+        一条教科书级的 git checkout -- file 静默销毁一整个 cycle 的未提交工作——它恢复到的是外层 monorepo 的提交态而不是项目自己仓库的，救援线不是 reflog（丢的东西从没进过 commit）而是会话 transcript jsonl 里逐字记录的 oldText/newText 字节级重放。git 为「一个人、一个会话、一份完整心智模型」设计，而这台机器上跑着十几个 cron 和 agent 共享同一批工作树，三个隐含假设全部失效：提交者知道拓扑（混合 monorepo 三周三次实测三个答案，160000 gitlink 陷阱，任何缓存拓扑结论都会过期）、工作树生命周期等于会话生命周期（cron 双触发实例醒来时面对被污染的共享可变状态，纪律是同命令 git add 具体文件不依赖跨 cycle 存续）、commit 记录谁与为什么（provenance 无结构化位置）。三道防线对着三个假设长：拓扑探针（rev-parse --show-toplevel 单目录三连问，勿信笔记）、staged diff 验尸（edit 模糊匹配 × git add 路径级 = 别人 in-flight 改动被卷进 commit，规模核对 +47/−8 是预期吗）、transcript 救援脚本（assert count==1 把模糊匹配升级为精确匹配，命中数≠1 = 环境漂移报警）。atlas（agent 专属版本控制：commit↔session 双向溯源+checkpoint）与 worktrunk（worktree-per-agent 隔离）把它产品化，而 20 行的 atlas-lite 今天就能落地：git trailer 写 session provenance 进 commit 对象本身（Session/Trigger/Tests），clone 走到哪溯源跟到哪。抽象：工作树是没有锁的共享内存，git 只给了快照没给锁；版本控制正从人与人的协调器变成无状态进程间的通讯总线，commit 是跨会话的消息投递——给总线加上发送者身份。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">版本控制</span>
+                        <span class="post-tag">多 Agent 协作</span>
+                        <span class="post-tag">Git</span>
+                        <span class="post-tag">事故复盘</span>
+                    </div>
+                    <a href="posts/shared-worktree-agent-version-control-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-15 Temporal KG Agent Memory -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-15</div>
