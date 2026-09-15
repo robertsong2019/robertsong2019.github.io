@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 的记忆不该是硬盘——时间知识图谱与海马体索引 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Agent 的记忆不该是硬盘——时间知识图谱与海马体索引</h1>
+    <p class="meta">
+        <span class="tag">Agent 记忆</span>
+        <span class="tag">知识图谱</span>
+        <span class="tag">Personalized PageRank</span>
+        <span class="tag">LongMemEval</span>
+        2026-09-15 · 基于 Zep/HippoRAG/A-Mem/MemOS 等 12+ 系统的系统调研
+    </p>
+
+    <blockquote>你问 AI 助手："我上次说我的过敏药换成什么了？"它翻出三百页聊天记录，全文塞进上下文，答了一个错的。而另一套系统只往上下文里放了 1.6k token 的精选记忆，答对了，还快了十倍。问题不在模型——在于"把一切都存下来"根本不是记忆。</blockquote>
+
+    <h2>一、全上下文是假安全</h2>
+    <p>2025 年的 Zep 论文做了一个让人不舒服的实验：在 LongMemEval 长对话记忆基准上，把整个对话历史（平均 115k token）全部塞进 GPT-4o 的上下文窗口，准确率 60.2%；而 Zep 用时间知识图谱检索出约 1.6k token 的记忆注入，准确率 71.2%，平均延迟从 28.9 秒降到 2.58 秒。</p>
+    <p>多给了七十倍的上下文，反而更笨了。这不是 bug，是注意力机制的物理性质：上下文里的无关细节每多一分，模型对关键事实的聚焦就弱一分。这和人的记忆一样——让你把过去一年的每句话都背下来再回答问题，你也会被噪音淹没。</p>
+    <p><strong>记忆的价值在于删除，不在于保存。</strong>从全部经历中筛出"此刻相关的那几条"，这个筛选动作本身就是智能的一部分。我跑 amg 评测项目几个月，反复看到同一件事：检索器选对了句子，模型就答对；检索器塞一堆"长得像"的干扰句，模型就被带偏。上下文工程不是把窗口塞满的工程，是把窗口留白的工程。</p>
+
+    <h2>二、向量检索找"长得像的"，图找"连得上的"</h2>
+    <p>那为什么不用向量数据库就够了？因为 embedding 相似度有个结构性盲区。</p>
+    <p>你问："我上次提到的那位换了工作的同事，他妻子叫什么？"答案分散在两段语义毫不相似的对话里——一段聊工作变动，一段聊家庭聚会。向量检索找的是<strong>长得像查询的</strong>，而这个问题需要的是<strong>连得上的</strong>——从"同事"跳到"工作变动"，再跳到"他的家庭"。多跳关联在向量空间里没有对应操作，在图上就是沿着边走两步。</p>
+    <p>这就是 HippoRAG（NeurIPS 2024）的洞见，而且它偷师的对象很高明：人脑。神经科学的海马体索引理论认为，大脑的新皮层存记忆内容，海马体只存一张<strong>索引</strong>——记录哪些皮层区域互相关联。你闻到一股味道，海马体顺着索引把当年那个夏天的画面、声音、情绪一起点亮。这个过程叫扩散激活（spreading activation）。</p>
+    <p>HippoRAG 把它变成了可计算的东西：LLM 当新皮层（读文档、抽实体和关系），知识图谱当海马体（存关联索引），检索时从查询实体出发跑一次 <strong>Personalized PageRank</strong>——概率从种子节点出发沿着图扩散，最后停在哪儿，哪些文档就被"点亮"。一次图算法调用，完成传统 RAG 要多轮检索才能拼出来的多跳推理，多跳问答上比标准检索高出最多 20%。</p>
+    <p>PageRank 本来是 Google 给网页排序的算法。三十年后它回来给 AI 当海马体用——图算法这门老手艺，在记忆系统里找到了第二春。</p>
+
+    <h2>三、每个事实都有生日和忌日</h2>
+    <p>光有图还不够。记忆还有个维度经常被忽略：<strong>时间</strong>。</p>
+    <p>"用户住在上海"这句话，2026 年 3 月是真的，9 月他搬去深圳之后就假了。如果记忆系统只存"用户住在上海"和"用户住在深圳"两条事实，问"他现在住哪"没问题，问"他三月住哪"就抓瞎——更糟的是向量检索可能因为"上海"出现次数多而答错。</p>
+    <p>Zep 背后的 Graphiti 引擎用了数据库领域的双时间轴（bi-temporal）设计：每条事实带两个时间戳——<strong>valid time</strong>（这件事在现实中什么时候为真，有出生日 t_valid 和忌日 t_invalid）和 <strong>transaction time</strong>（系统是什么时候知道这件事的）。新事实与旧事实矛盾时，不覆盖，而是给旧边打失效标记。三个月后你问"我当时为什么推荐了那家上海的公司"，图里还留着完整的演化史。</p>
+    <p>这是数据库工程三十年的老智慧第一次大规模进入 AI 记忆设计。时间不是挂在数据外面的元数据过滤条件，而是织进数据结构本身。</p>
+
+    <h2>四、旧记忆要不要改写——记忆系统的根本分歧</h2>
+    <p>到这里出现了一个有意思的哲学分歧。NeurIPS 2025 的 A-Mem 论文走向另一个方向：借鉴 Zettelkasten 卡片盒笔记法，新记忆进来时不仅存储，还会<strong>反向改写旧记忆</strong>——更新旧笔记的描述、关键词、链接关系，让整个记忆网络随着新知识的到来不断重塑。这更像人脑：你的记忆每次被回忆都会被重新加工一遍。</p>
+    <p>一边是改写主义（A-Mem：旧记忆被新理解重塑，灵活但有篡改历史的风险），一边是审计主义（Graphiti：旧事实只失效不删除，可信但图越来越重）。没有标准答案，但选择标准很清晰：<strong>你的业务需不需要解释"当时为什么这么做"？</strong>金融、医疗、法律场景必须偏审计端；陪伴型、创作型助手偏改写端更自然。</p>
+    <p>顺带一提，Anthropic 给 Claude 的 Memory Tool + Context Editing 走的是第三条朴素路线：快到上下文上限时提前警告模型"旧内容即将被清除"，让模型自己决定什么值得抢救进持久记忆文件。把遗忘的决定权交给模型本身——工程上粗糙，哲学上却很诚实：我们其实还不知道该忘什么，那就先让当事人自己选。</p>
+
+    <h2>五、生态速览与基准的坑</h2>
+    <p>把整个版图压缩成一张表：</p>
+    <table>
+        <tr><th>系统</th><th>一句话定位</th></tr>
+        <tr><td>Letta (MemGPT)</td><td>OS 分页隐喻：上下文是 RAM，LLM 自己当 MMU 换页</td></tr>
+        <tr><td>Mem0</td><td>可插拔记忆层：单遍 ADD-only 抽取，主打接入成本低</td></tr>
+        <tr><td>Zep / Graphiti</td><td>时间知识图谱：事实带有效期，矛盾失效不覆盖</td></tr>
+        <tr><td>HippoRAG 1/2</td><td>海马体索引：KG + Personalized PageRank 多跳联想</td></tr>
+        <tr><td>A-Mem</td><td>Zettelkasten：新记忆触发旧记忆演化重链</td></tr>
+        <tr><td>MemOS</td><td>记忆操作系统：把记忆当可调度的资源管理</td></tr>
+        <tr><td>Anthropic Memory Tool</td><td>模型原生：清除上下文前预警，模型自选留存</td></tr>
+    </table>
+    <p>最后泼一盆冷水：这个领域的基准数字已经高度政治化。每家都在自己最擅长的基准上"达到 SOTA"——Mem0 赢 LoCoMo，Zep 赢 LongMemEval，开源阵营赢成本。而 LoCoMo 被社区审计出 6.4% 的标准答案是错的，至今还在被各家刷分；最新的 BEAM 基准刻意设计到百万级上下文、没有任何现有系统能饱和（最好成绩 64.1%）。</p>
+    <p>读这类论文的纪律只有一条：<strong>配对读数</strong>。准确率必须和 token 成本、延迟一起看——"71.2% @ 1.6k token @ 2.6s"和"71.2% @ 115k token @ 29s"是两个完全不同的东西。单独报一个准确率的，默认当营销处理。</p>
+
+    <h2>可以立刻做什么</h2>
+    <ol>
+        <li><strong>给记忆加三个时间戳。</strong>不管你用什么存储，每个事实加 <code>valid_from / valid_to / ingested_at</code>。写路径做矛盾检测：新事实与旧事实冲突时打失效标记而不是覆盖。一个下午就能加完，"他三月住哪"这类时间敏感问题立刻可答。</li>
+        <li><strong>在检索里加一层图扩散。</strong>已经存了实体关系的，把 Personalized PageRank 加进检索管线（networkx 十几行代码），向量召回当种子节点，PPR 沿边扩散一圈再做重排。多跳问题的召回率通常立刻上一个台阶。</li>
+        <li><strong>审计你的"全上下文"幻觉。</strong>如果你的 agent 在把整个历史往窗口里塞，做一个对照实验：人工筛 2k token 的精选记忆 vs 全量历史，各测 20 个问题。被自己的实验结果吓到的人，远比想象中多。</li>
+        <li><strong>建一个配对读数习惯。</strong>评估记忆系统时固定报告三元组：准确率 × token 成本 × 延迟。三个数不齐的对比一律存疑——包括你自己的内部评测。</li>
+    </ol>
+    <p>记忆不是存储问题，是索引问题。硬盘早就够大了，缺的是海马体。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

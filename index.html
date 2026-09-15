@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-15 Temporal KG Agent Memory -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-15</div>
+                    <a href="posts/temporal-knowledge-graph-agent-memory-2026-09.html" class="post-title-link">
+                        <div class="post-title">Agent 的记忆不该是硬盘——时间知识图谱与海马体索引</div>
+                    </a>
+                    <div class="post-excerpt">
+        LongMemEval 上把 115k token 全塞进上下文反而只有 60.2%，而 Zep 用 1.6k token 精选记忆拿 71.2% 且延迟降 90%——记忆的价值在于删除不在于保存，从全部经历中筛出「此刻相关的那几条」这个动作本身就是智能。为什么向量数据库不够：embedding 找「长得像的」回答不了「A 的同事的妻子是谁」这种跨事实关联跳转，HippoRAG 借神经科学海马体索引理论（新皮层存内容、海马体只存关联索引）把 LLM 当新皮层、KG 当海马体、检索时跑一次 Personalized PageRank 做扩散激活，单步图算法完成多跳联想，比标准检索高最多 20%——PageRank 给网页排序三十年后回来给 AI 当海马体。时间维度：Graphiti 的双时间轴设计让每条事实有生日（t_valid）和忌日（t_invalid），矛盾不覆盖只打失效标记，是数据库三十年老智慧首次大规模进入 AI 记忆设计；而 A-Mem 走 Zettelkasten 反向改写旧记忆的路线更像人脑——改写主义 vs 审计主义的取舍标准是业务是否需要解释「当时为什么这么做」。生态表：Letta/Mem0/Zep/HippoRAG/A-Mem/MemOS/Anthropic Memory Tool 各代表一种哲学；基准已政治化（LoCoMo 6.4% 错误答案键仍在被刷分，BEAM 刻意无人饱和），唯一纪律是配对读数：准确率 × token 成本 × 延迟三件套不齐默认当营销。可立刻做：事实加三时间戳+矛盾失效、检索加 PPR 图扩散层（networkx 十几行）、对照审计全上下文幻觉、评测固定三元组报告。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent 记忆</span>
+                        <span class="post-tag">知识图谱</span>
+                        <span class="post-tag">Personalized PageRank</span>
+                        <span class="post-tag">LongMemEval</span>
+                    </div>
+                    <a href="posts/temporal-knowledge-graph-agent-memory-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-15 When Tests Lie -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-15</div>
