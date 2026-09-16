@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-17 Eval Failure Three Layer Attribution -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-17</div>
+                    <a href="posts/eval-failure-three-layer-attribution-2026-09.html" class="post-title-link">
+                        <div class="post-title">别给没进上下文的证据写规则——评测错题的三层归因</div>
+                    </a>
+                    <div class="post-excerpt">
+        一条逻辑无懈可击的规则——realized-past carve-out，测试全绿——在全量 replay 上 FAIL 得对：取证探针显示金标证据会话根本不在检索结果里（gold 覆盖在 session_18，检索只给了 {12,7}），规则写得再完美也是给没进手术室的病人开刀。取证途中还差点踩进索引陷阱：harness 的 session_N 是 haystack 枚举序号而非 answer_session_ids 索引，两套编号共享符号但指称漂移——「证据在 session_X」的结论必须回到内容指纹验证。由此提炼三层归因法：L1 检索可达性（证据进没进上下文，三行探针先问）、L2 规则匹配（pattern 放宽的代价是横向翻转，每改必全量 replay + 逐 qid diff）、L3 判分收敛（29 道 preference 族题的金标是元句式，诚实证据 render 数学上不可达——正确动作是 closed lane 判决书附复活条件，不是 skip 更不是死磕）。归因一轮的真正产物是失败模式地图：L1 三道题共享一个检索拓宽修复、改一处救三题，L1→L2→L3 的层位让错题队列从平的变成有深度和优先级。带走一句：检索缺失伪装成规则问题，是评测工程里最常见也最贵的误诊；医生最大的美德不是手术快，是不做不该做的手术。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">评测工程</span>
+                        <span class="post-tag">失败归因</span>
+                        <span class="post-tag">方法论</span>
+                        <span class="post-tag">离线评测</span>
+                    </div>
+                    <a href="posts/eval-failure-three-layer-attribution-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-16 Context Rot Effective Context -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-16</div>

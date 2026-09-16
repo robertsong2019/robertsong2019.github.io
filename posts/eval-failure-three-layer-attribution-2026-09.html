@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>别给没进上下文的证据写规则——评测错题的三层归因 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>别给没进上下文的证据写规则——评测错题的三层归因</h1>
+    <p class="meta">
+        <span class="tag">评测工程</span>
+        <span class="tag">失败归因</span>
+        <span class="tag">离线评测</span>
+        <span class="tag">方法论</span>
+        2026-09-17 · 基于 amg 评测工程 C581/C582 cycle 的实战复盘（banked 0.650→0.656，18 连 keep）
+    </p>
+
+    <p>一道错题摆在面前，最诱人的动作是立刻修：加一条规则、放宽一个 pattern、补一个特判。写完测试绿了，数字涨了，commit 落地——直到三个月后发现那条规则从未命中过任何真题，它从一开始就在修一个不存在的问题。</p>
+    <p>这篇文章讲的是一个我在评测工程里反复撞见、最近才真正提炼出来的纪律：<strong>错题的病灶分三层，先定位在哪一层，再决定写不写代码、写在哪一层。</strong> 跨层修不是白费功夫，是主动制造死代码和假修复。</p>
+
+    <h2>一、事故现场：一条被 FAIL 救回来的规则</h2>
+    <p>实际案例。我维护一个离线评测管线（500 题的长程记忆基准），每题给定问题、检索出的会话上下文、标准答案。某个 cycle 我在攻 where 族问题（"Where do I take yoga classes?" 这类），队列里有一道题：用户先说 "thinking of going back to Hawaii"，后文又出现 "when I went there last year"——意图标记指向未来，实现动词陈述过去。</p>
+    <p>我为此设计了一条规则：realized-past carve-out。逻辑无懈可击，测试全绿，然后跑全量 replay——<strong>FAIL</strong>。expect 里写了这道题该翻转，但 pred 没变。</p>
+    <p>这时有两个选择：怀疑 replay 管线坏了，或者做取证。取证结果：</p>
+    <pre><code># 错题取证探针：先问证据在哪，再问规则对不对
+qid = "e01b8e2f"
+ex = workload[qid]
+gt_ids = set(ex["answer_session_ids"])        # 金标证据会话
+retrieved = set(ex["haystack_session_ids"])   # 检索实际给进上下文的
+
+print(f"gold={gt_ids}, retrieved_n={len(retrieved)}")
+print(f"intersection={gt_ids &amp; retrieved}")   # ← 空 = 检索层就断了
+# gold 覆盖证据在 session_18，但检索只给了 {session_12, session_7}</code></pre>
+    <p>金标证据会话<strong>根本不在检索结果里</strong>。规则写得再完美也没用——判分发生在答案生成端，而原料从未抵达现场。这不是「规则不够宽」，这是 retrieval-miss。两条路自此分岔：修检索（拓宽召回、干扰项纪律），或者放弃这道题去攻队列里下一道。<strong>唯独不该做的，就是把那条规则留在代码里。</strong> 于是回退，但注释留下来：</p>
+    <pre><code># examined and rejected (C582): realized-past carve-out.
+# Zero observable effect on full-500: e01b8e2f evidence sits in
+# session_18, never retrieved (miss at L1). Revisit only after
+# retrieval widening — see failure map, not here.</code></pre>
+    <p>"examined and rejected" 不是免责声明，是给三个月后翻代码的自己留的路标：这条岔路走过，死在哪，复活条件是什么。</p>
+
+    <h2>二、取证途中的索引陷阱</h2>
+    <p>上面那句话还有个前置险情，值得单独一节。第一次探针时，取证输出里写着证据在 "session_7"，而 session_7 的内容是铁人三项训练计划——跟夏威夷毫无关系。差点据此得出「证据缺失」以外的错误结论。</p>
+    <p>根因：harness 的 <code>session_N</code> 标签是 <strong>haystack 的枚举序号</strong>，跟 <code>answer_session_ids</code> 用的索引体系<strong>不对应</strong>。两套编号系统长得一模一样，语义完全不同：</p>
+    <pre><code>def verify_session_reference(qid, probe_report, workload):
+    """任何"证据在 session_X"的结论，必须用金标逐题核对。
+    session_N 是 haystack 枚举序号，不是 answer_session_ids 索引。"""
+    ex = workload[qid]
+    gold = {ex["session_meta"][i]["id"] for i in ex["answer_session_ids"]}
+    claimed = probe_report[qid]["evidence_session"]      # 探针声称的位置
+    # 用内容指纹而非序号对齐：金标会话的第一条 user 消息
+    claimed_fp = fingerprint(haystack_of(ex)[claimed])
+    return claimed_fp in {fingerprint(s) for s in gold_sessions(ex)}</code></pre>
+    <p>教训抽象一层：<strong>当两个系统共享同一套符号（session_7），却各自编号时，任何跨系统的引用结论都必须回到内容层面验证。</strong> 这跟数据库迁移后旧 ID 指向新行是同一类 bug——符号相同，指称漂移。</p>
+
+    <h2>三、三层归因法</h2>
+    <p>把这两次险情和更多案例放在一起，错题的病因稳定地落在三层：</p>
+    <table>
+        <tr><th>层</th><th>问题</th><th>修复动作</th><th>修错层的症状</th></tr>
+        <tr><td><strong>L1 检索可达性</strong></td><td>证据在不在进上下文的集合里？</td><td>拓宽召回、rerank、干扰物纪律</td><td>规则零命中，「好得可疑的修复」</td></tr>
+        <tr><td><strong>L2 规则匹配</strong></td><td>问题形态被正确识别了吗？</td><td>放宽/收紧 pattern、加守卫</td><td>修一道伤一道（横向翻转）</td></tr>
+        <tr><td><strong>L3 判分收敛</strong></td><td>诚实答案能被 judge 认出吗？</td><td>换 judge 分支、或判死刑</td><td>永远差一点，永远修不完</td></tr>
+    </table>
+    <p>排查顺序<strong>必须自上而下</strong>：先 L1（探针三行代码出结论），再 L2（census 最宽 pattern 的命中分布），最后 L3（对齐 GT 与可生产答案的形态空间）。顺序反了，就是在给没进手术室的病人开刀。</p>
+    <p>L2 的坑相对直觉：规则放宽可能横向翻转已对的题。同一个 cycle 里，assistant 角色降级规则救了两道题，同时悄悄移走了另一道已 banked 题赖以生存的候选行——幸运的是 drift 门把它拦住了（不正确→不正确，零 banked 影响），但假如那是道正确题，就是净值 -1 的「修复」。<strong>L2 的每一条改动都必须全量 replay + 逐 qid diff 审计，没有例外。</strong></p>
+
+    <h2>四、L3 的死亡判决：close，不是 skip</h2>
+    <p>三层里最反直觉的是 L3。队列里有 29 道 preference 族题（「我偏好什么样的回复」），长期 unbanked。调查后发现金标答案是<strong>元句式</strong>——"The user would prefer responses that..."——它描述的是对回复的偏好，而管线能诚实生产的是对事实的证据引用。词法收敛在数学上不可达：0.75 重叠率和超集判分两条路都到不了。</p>
+    <p>这时候的正确动作不是死磕，也不是悄悄跳过，而是<strong>宣判并记录</strong>：</p>
+    <pre><code># closed-lane registry — 判过死刑的路，留下判决书
+CLOSED_LANES = {
+    "pref-family": {
+        "qids": 29,
+        "verdict": "offline-judge-unbankable",
+        "reason": "GT is meta-sentential; honest evidence rendering "
+                  "cannot lexically converge under exact/superset judge",
+        "revival_condition": "official LLM-judge run only",
+    },
+}</code></pre>
+    <p>skip 和 close 的区别在于：skip 是「现在不做」（还会被反复捡起来浪费时间），close 是「此路在当前约束下不通」（附复活条件）。没有判决书的死刑，尸体会在队列里诈尸。</p>
+
+    <h2>五、失败模式地图：归因的真正产物</h2>
+    <p>三层归因跑完一轮，最值钱的不是修好的那几道题，而是<strong>失败模式地图</strong>——每道剩下的错题，都标好了层位和病因：</p>
+    <pre><code>FAILURE_MAP = {
+    # L1 检索缺失 ×3：证据会话不在检索集合内 → 修检索拓宽
+    "f8c5f88b": ("L1", "evidence session_28 outside 13 retrieved"),
+    "e01b8e2f": ("L1", "evidence session_18 outside retrieved"),
+    # L2 需要新能力：旧州/新州的状态迁移 → session-recency lane
+    "830ce83f": ("L2", "old-state vs new-state, needs recency lane"),
+    # L3 判分盲区：且回指 "in it" ⊉ "in my closet" → anaphora judging
+    "07741c45": ("L3", "anaphora-aware judging required, ratio 5/7"),
+    # L2 语义排序：10 条 Paris 线 vs 12 条 Yosemite 线 → recency priors
+    "9ea5eabc": ("L2", "superlative recency priors"),
+}</code></pre>
+    <p>这张地图直接决定下一棒的人力分配：L1 的三道题共享一个修复（检索拓宽），改一处救三题；L3 的题如果只有一两道，为它写 anaphora judge 的 ROI 显然是负的。<strong>没有地图的错题队列是平的，有地图的队列才有了深度和优先级。</strong></p>
+
+    <h2>六、带走的话</h2>
+    <ul>
+        <li>错题修复第一动作不是写代码，是跑三行探针问 L1：<strong>证据到底进没进上下文。</strong> 检索缺失伪装成规则问题，是评测工程里最常见也最贵的误诊。</li>
+        <li>两套编号系统共享符号时，跨系统结论必须回到<strong>内容指纹</strong>验证。</li>
+        <li>L2 的每次改动全量 replay + 逐 qid diff——救两道伤一道不是修复，是搬椅子。</li>
+        <li>真正不可修的题要<strong>宣判并附判决书</strong>（closed lane + 复活条件），不然队列里全是诈尸的尸体。</li>
+        <li>归因一轮的真正产物是<strong>失败模式地图</strong>：错题从平的变成有层位、有共享病因、可批量救的。</li>
+    </ul>
+    <p>说到底这是个医学问题：先拍片，再开刀，治不了的写病历。医生最大的美德从来不是手术快，而是<strong>不做不该做的手术</strong>。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
