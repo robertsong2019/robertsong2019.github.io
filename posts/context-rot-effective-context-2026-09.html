@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>你的上下文窗口是营销数字——Context Rot 与有效上下文长度 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>你的上下文窗口是营销数字——Context Rot 与有效上下文长度</h1>
+    <p class="meta">
+        <span class="tag">长上下文</span>
+        <span class="tag">Context Rot</span>
+        <span class="tag">注意力机制</span>
+        <span class="tag">评测</span>
+        2026-09-16 · 基于 Chroma Context Rot、NoLiMa、RULER、FLenQA、Anthropic Context Engineering 等 12 项调研
+    </p>
+
+    <p>你的模型说它能读一百万 token——一整本《战争与和平》塞进去还有富余。演示也确实漂亮：大海捞针测试，99% 的召回率，全绿的图表。但它没有告诉你的是：读到第三百页的时候，它已经记不清第三页讲了什么了。</p>
+    <p>这不是个别模型的缺陷。2025 年 7 月，向量数据库公司 Chroma 的研究团队给这个现象起了个名字——<strong>Context Rot（上下文腐烂）</strong>。他们测了 18 个前沿模型（GPT-4.1、Claude 4、Gemini 2.5、Qwen3 全在列），无一幸免：任务不变、答案还在原地，光是让输入变长，准确率就持续下滑。而更早的一系列研究拼出了完整的证据链：这些模型从<strong>三千 token</strong> 就开始退化了。三千 token，大概是这篇博文的前半部分。</p>
+    <p>「窗口够大」和「窗口好用」之间隔着一整个研究领域。这篇想把这件事讲清楚：退化为什么发生、营销数字和真实规格差多远、以及为什么「等更大的窗口」在策略上就是错的。</p>
+
+    <h2>一、会 Ctrl-F 不等于会阅读：字面匹配的幻觉</h2>
+    <p>先说为什么 99% 的大海捞针截图会骗人。</p>
+    <p>大海捞针测试的做法是往长文本里埋一句话（「魔术数字是 7351」），然后问模型魔术数字是多少。问题在于：问题和针共享大量字面词汇——「魔术数字」这几个字在问题和针里一模一样。模型要做的其实是模式匹配，不是阅读理解。</p>
+    <p>2025 年初的 <strong>NoLiMa 基准</strong>（No Literal Matching）把这层窗户纸捅破了。他们构造了消除字面重叠的联想型问题：答案埋在「萨克森州立歌剧院由建筑师戈特弗里德·森佩尔设计」这样的句子里，但问题问的是「住在森佩尔设计过的建筑里的人养的狗叫什么」——问题和答案之间隔着「萨克森州立歌剧院 = Semper Opera House = 森佩尔设计」这样的联想链，没有可以直接抄的词。</p>
+    <p>结果：13 个声称支持 128K 上下文的模型里，<strong>11 个在 32K 处跌到短上下文基线的一半以下</strong>。表现最好的 GPT-4o 也从 99.3% 掉到 69.7%。研究者还做了一个狠毒的对照：往上下文里混入几句「含问题关键词但无关」的句子，GPT-4o 的有效长度直接掉到 <strong>1K token</strong>。</p>
+    <p>这个数字值得停一下。1K token，两页纸。顶尖模型，在有几个干扰句的情况下，联想能力只覆盖两页纸。</p>
+    <blockquote>大海捞针及格证明模型会 Ctrl-F；真实世界的问题和答案很少共享词汇，那时候才见真章。</blockquote>
+
+    <h2>二、名义窗口 vs 有效窗口：50% 到 65%</h2>
+    <p>如果 NoLiMa 是「最难的一科」，NVIDIA 的 <strong>RULER</strong> 基准则给出了全景成绩单。它的思路很朴素：别只测捞针，测 13 种任务（多针、聚合、变量追踪、常见词提取……），然后定义一个「有效长度」——模型还能保持在某个质量线以上的最大输入长度。</p>
+    <p>几个代表性数字：GPT-4（1106 版）声称 128K，在 4K 处 96.6 分，128K 处 81.2 分——全场最抗衰减，仍然掉了 15 个点。Llama3.1-70B 声称 128K，128K 处只剩 66.6 分，有效长度约 64K。声称 ≥32K 的所有模型里，只有大约一半真的能在 32K 上过线。后来 2026 年的各种复测给出的工程经验值是：<strong>多数模型可靠可用的长度大约是标称窗口的 50%–65%</strong>，多跳任务取下限。</p>
+    <p>关键在于理解「有效长度」的性质：它不是一个悬崖（悬崖以内安全、以外崩塌），而是一条<strong>斜坡</strong>——从第一个多余 token 开始，你就在付费。Chroma 的数据里，所有 18 个模型在 113K token 处全线退化，而 113K 只是一百万窗口的十分之一。腐烂追踪的是<strong>绝对长度</strong>，不是窗口填充率：同样 100K 的输入，塞进 128K 的窗口和塞进 1M 的窗口，退化程度一样。窗口变大不稀释毒性，只改变你标称上的心理安慰。</p>
+
+    <h2>三、病理：固定瓦数的手电筒</h2>
+    <p>为什么？机制上其实不难理解，一个好用的比喻是：<strong>注意力是一支固定瓦数的手电筒</strong>。</p>
+    <p>Transformer 的注意力经过 softmax 归一化，权重总和恒等于 1。这个 1 就是预算总额——房间（上下文）越大，单位面积分到的光越暗。关键信息在 4K 上下文里能分到的注意力权重，到 128K 上下文里被一百多个位置摊薄，信噪比大致按 1/N 衰减。这就是<strong>注意力稀释（attention dilution）</strong>。</p>
+    <p>ACL 2024 的 <strong>FLenQA 研究</strong>（Same Task, More Tokens）做了一个堪称诛心的实验来隔离「长度」这一个变量：同一道推理题，用不同长度、不同类型的填充文本扩展成多个版本，任务难度和关键信息完全不变。结果所有模型——GPT-4 也在内——随长度稳定退化，几百 token 到三千 token，平均准确率从 0.92 掉到 0.68。最惊人的一组对照：填充内容用的是<strong>相关文本的重复</strong>，也就是把有用信息多复制几遍——照样退化。长度本身就是毒性，和填充的是什么无关。</p>
+    <p>在这条主线之上还有两个加重的并发症：</p>
+    <p><strong>位置退化。</strong>著名的 Lost in the Middle 效应：同样的信息放在上下文开头或结尾，召回远好于放在中间，呈 U 形曲线。机制可以拆成两半：开头占便宜是因为 softmax 必须把概率花出去，模型学会把过剩的注意力泼给第一个 token（所谓 attention sink）；结尾占便宜是因为因果掩码和旋转位置编码天然偏向近处。中间两头不沾，最惨。这解释了为什么「把重要信息放开头结尾」是民间偏方——它真的有用，但它是止痛药，治不了病。</p>
+    <p><strong>干扰项非线性。</strong>Chroma 发现，中性填充（无关的废话）伤害有限；真正致命的是<strong>语义相似但事实无关</strong>的干扰项——长得像答案但不是答案的内容。一个就降基线，四个复合放大。而且有结构、连贯的上下文比打乱的更伤：一个真实代码库比等长乱序文本更难搜，因为代码库里到处都是「长得很像」的片段。这对 agent 是坏消息：多轮会话的历史里，用户被撤回的错误猜测、走过又放弃的岔路、看起来相关其实过时的结论——每一轮都是潜在干扰项。<strong>Agent 的上下文不是一个精心策展的提示词，而是一个有机生长的垃圾场。</strong></p>
+
+    <h2>四、为什么「等更大的窗口」是策略性错误</h2>
+    <p>我见过很多长上下文架构决策的逻辑是：「先把整个代码库塞进去凑合用，等窗口再大一点、再便宜一点，就彻底解决了。」</p>
+    <p>这条路线有一个致命假设：窗口大小是瓶颈。但上面的证据链说的是相反的事情——预算总额（那个恒等于 1 的 softmax）不随窗口变大，稀释规律（1/N）不随窗口变大，干扰项毒性不随窗口变大。Anthropic 在他们 2025 年 9 月那篇被广泛引用的工程文章里说得很直白：在可预见的未来，<strong>任何尺寸的窗口都逃不开上下文污染</strong>；追求最强性能的 agent，永远要做上下文工程，而不是等窗口。</p>
+    <p>反过来说，这也解释了过去两年一个反直觉的实证结果。Zep 在 LongMemEval 上用 1.6K token 的精选记忆拿到 71.2% 的准确率，而把 115K token 的完整上下文全部塞给模型只有 60.2%——<strong>信息少 98%，效果反而好 11 个点</strong>。当时这被当作记忆系统的营销案例，现在看它就是注意力稀释的直接推论：记忆系统的本质是压缩系统，删除不是损失，删除就是性能。</p>
+    <p>所以 RAG 和记忆系统不是「长窗口成熟之前的过渡方案」，而是长期正确的架构。检索的价值不在召回（塞得越多），在精度（喂得越准）。Rerank 到 top-5 比 top-50 更好，不是因为省 token，是因为那 45 个「还行」的候选全都是语义相似的干扰项——Chroma 告诉我们那正是最毒的东西。</p>
+
+    <h2>五、工程对策：把 token 移出注意力预算</h2>
+    <p>所有有效的对策，归结起来是同一个动作：<strong>减少进入 softmax 的 token 数，而不是增加窗口</strong>。Anthropic 给出的三板斧，加上各自落地的难度：</p>
+    <table>
+        <tr><th>技术</th><th>做法</th><th>适用</th></tr>
+        <tr><td>压缩</td><td>工具调用结果清除、旧轮次摘要重建</td><td>最便宜，先做这个：深层历史里的原始工具输出，为什么还要留着？</td></tr>
+        <tr><td>结构化笔记</td><td>把中间结论写到文件里，按需取回，而不是全程挂在上下文里</td><td>迭代式开发、有清晰里程碑的任务</td></tr>
+        <tr><td>子代理隔离</td><td>搜索等脏活在子代理的独立上下文里完成，父级只收摘要</td><td>并行探索、研究型任务</td></tr>
+    </table>
+    <p>三板斧背后是同一个原则，Anthropic 的表述是：<strong>寻找最大化目标达成概率的最小高信号 token 集</strong>。翻译成工程师的语言：上下文是内存不是硬盘，要当预算审计，不要当仓库填满。</p>
+    <p>还有一条容易被忽略的对称建议：查询也要 just-in-time。Claude Code 不在启动时把整个数据库结构倒进上下文，而是在需要时查一次、用完即弃。区别在于污染的半衰期——预先塞进去的信息会毒害接下来的每一轮，按需查询只影响当下。</p>
+
+    <h2>六、现在就能做的五件事</h2>
+    <ol>
+        <li><strong>量一下你自己的有效长度。</strong>别信厂商的 NIAH 截图。拿你的真实工作负载，造同一任务的短/长两个版本（FLenQA 方法论：加填充、保难度），加上多针和干扰项，20 行脚本能跑出一个属于你的「1K 现象」测量值。选模型时看 NoLiMa、RULER、HELMET 这类混合任务基准的成绩，NIAH 单科满分只说明会 Ctrl-F。</li>
+        <li><strong>实现工具结果清除。</strong>这是性价比最高的一步：深层历史里 tool call 的原始输出清空或截断，只保留结论。Claude 平台已经把这个做成了产品功能，说明它是共识级的低垂果实。</li>
+        <li><strong>检索管线 rerank 到小 k。</strong>从 top-50 改 top-5，多花的 rerank 延迟换掉的是 45 个语义相似干扰项——按 Chroma 的数据，这是拿掉毒性最强的部分。</li>
+        <li><strong>给长会话加修剪。</strong>旧轮次摘要化、被撤回的猜测删除、与当前目标无关的岔路折叠。多轮 agent 会话的每一轮历史都是潜在干扰项，修剪不是丢失信息，是排毒。</li>
+        <li><strong>把「上下文 token 数」做成监控指标。</strong>你的 agent 每轮带着多少 token 出门？这个数字如果没人看，它就是那个没人审计的内存泄漏——只是泄漏的不是内存，是注意力。</li>
+    </ol>
+
+    <p>最后回到那个手电筒的比喻。窗口厂商的营销话术是「我们的房间更大了」；但你的手电筒还是那一支，瓦数没变。在房间里堆满东西然后抱怨看不清，还是学会只照亮现在需要的那一平方米——这是 prompt 工程和 context 工程的分水岭，也差不多是「用模型」和「建系统」的分水岭。</p>
+    <p>上下文不是越大越好。上下文是越<strong>准</strong>越好。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

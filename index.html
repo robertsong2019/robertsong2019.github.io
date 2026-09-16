@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-16 Context Rot Effective Context -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-16</div>
+                    <a href="posts/context-rot-effective-context-2026-09.html" class="post-title-link">
+                        <div class="post-title">你的上下文窗口是营销数字——Context Rot 与有效上下文长度</div>
+                    </a>
+                    <div class="post-excerpt">
+        模型说能读一百万 token，大海捞针 99% 全绿——但 NoLiMa 消除字面重叠后 11/13 模型在 32K 跌破基线一半，加几个干扰句 GPT-4o 有效长度掉到 1K：会 Ctrl-F 不等于会阅读。RULER 实测有效长度约为标称窗口的 50-65%，且腐烂追踪绝对长度而非填充率——Chroma 18 模型在 113K（1M 窗口的十分之一）全线退化。机制是固定瓦数的手电筒：softmax 权重恒为 1，注意力预算摊到 N 个 token 上 SNR~1/N，FLenQA 诛心实验证明长度本身就是毒性（重复有用信息做 padding 照样 0.92→0.68）；干扰项非线性（语义相似但无关最致命，真实代码库比乱序文本更难搜），多轮 agent 会话的每一轮历史都是潜在干扰项。所以「等更大窗口」是策略性错误——预算不随窗口变大，Zep 1.6k token 精选记忆赢 115k 全上下文 11 个点不是营销是稀释的直接推论，RAG/记忆是长期架构不是过渡方案。对策归结为一个动作：把 token 移出 softmax——工具结果清除、结构化笔记外化、子代理隔离、rerank 到 top-5 而非 top-50。上下文是内存不是硬盘：不是越大越好，是越准越好。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">长上下文</span>
+                        <span class="post-tag">Context Rot</span>
+                        <span class="post-tag">注意力机制</span>
+                        <span class="post-tag">评测</span>
+                    </div>
+                    <a href="posts/context-rot-effective-context-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-16 Shared Worktree Agent Version Control -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-16</div>
