@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>别再让 Agent 填表了——代码即行动空间的范式转移 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>别再让 Agent 填表了——代码即行动空间的范式转移</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">CodeAct</span>
+        <span class="tag">上下文经济</span>
+        <span class="tag">沙箱安全</span>
+        2026-09-17 · 深度研究笔记转化
+    </p>
+
+    <blockquote>想象你雇了一位能力极强的助理，但他只能通过填表格干活：每做一件事，先查一本厚厚的表格目录，选一张表，逐栏填参数，交上去，等结果，再领下一张表。你想让他"把会议纪要从网盘下载、挑出待办、写进 CRM"，他得来回填五张表，而那份五万字纪要在其中两次被原样誊抄。这不是假设——2024 年到 2025 年间，绝大多数 LLM Agent 就是这么工作的。改变这一切的，是一个看起来很朴素的发现：让 Agent 写代码，而不是填表。</blockquote>
+
+    <h2>开篇：你的 Agent 在填表，还是在写程序？</h2>
+    <p>今天构建 Agent 的默认姿势是 <strong>JSON tool-calling</strong>：预先定义一堆工具，每个工具有 JSON Schema，模型每次输出一个结构化调用，框架解析后执行，把结果塞回上下文，如此往复。这套范式来自 ReAct（2022）的"思考-行动-观察"循环，它让 LLM 第一次拥有了与世界交互的手和脚。</p>
+    <p>但它有一个与生俱来的形状：<strong>行动空间是一张有限菜单</strong>。模型不能"循环调用工具直到成功"——循环得靠外层框架模拟；不能"把工具 A 的输出直接喂给工具 B"——中间结果必须穿过上下文窗口，让模型亲眼誊抄一遍；更不能"组合出菜单上没有的新动作"。填表的人再聪明，也只是在表格允许的格子里聪明。</p>
+    <p>2024 年有一篇论文正面挑战了这个形状，用可执行代码替代 JSON 作为 Agent 的统一行动空间；2025 年工具生态爆炸后，Anthropic 和 Cloudflare 在互不知情的情况下给出了同一个答案；到 2026 年，"沙箱 + 模型原生 harness"已经成为三大阵营平台的标配架构。这条线索值得从头讲一遍——因为它回答的不只是"怎么调工具"，而是一个更根本的问题：<strong>Agent 的"行动"本身，应该用什么语言表示？</strong></p>
+
+    <h2>一、2022 年的伏笔：把推理外包给解释器</h2>
+    <p>故事要从代码侧说起。PAL（Program-aided Language Models，ICML 2023 的工作，思想成型于 2022）做了一个极简的实验：让 LLM 面对数学题时不要用自然语言一步步推理，而是<strong>生成一段 Python 程序，把求解交给解释器</strong>。结果惊人——用 Codex 驱动的 PAL 在 GSM8K 上超过了 PaLM-540B 的思维链，绝对优势 15 个百分点。</p>
+    <p>一个几十亿参数的模型加上一个 Python 解释器，打赢了一个五千四百亿参数模型的纯推理。这说明什么？说明<strong>LLM 在算术、日期推算、字符串精确匹配这些任务上天生不可靠，而"写出生成答案的程序"和"亲自算出答案"是两种完全不同的能力</strong>。前者只要求模型懂问题结构，后者要求模型在每一步 token 采样中都保持精确。把确定性的部分外包给解释器，模型只需要负责它擅长的：理解意图、翻译成代码。</p>
+    <p>ChatGPT 的 Code Interpreter（后来改名 Advanced Data Analysis）在 2023 年把这套东西产品化，所有做过数据分析的人都有体感：让它"算这份数据的月度环比"，与其指望模型的乘法，不如让它写 <code>pandas</code>。此时代码还只是"推理的脚手架"。真正把它升格为"行动本身"的，是 CodeAct。</p>
+
+    <h2>二、CodeAct：从"有限菜单"到"一门语言"</h2>
+    <p>CodeAct（Wang et al., ICML 2024）的核心主张一句话可以说完：<strong>Agent 的所有行动，统一表示为一段可执行的 Python 代码</strong>。调用工具是 <code>import</code> 后的函数调用；组合工具是写一个函数；重试是 <code>try/except</code>；分支是 <code>if</code>；看到执行报错后修正再跑，就是多轮交互里的自我调试。</p>
+    <p>这个统一带来了三个质变：</p>
+    <ul>
+        <li><strong>行动可以组合</strong>。"先搜索、筛前十条、逐条摘要、汇总成表"在 JSON 模式下是外层框架的编排逻辑，在代码模式下就是模型直接写出来的一个 for 循环——编排逻辑从框架层消失，被吸收进模型的输出里。</li>
+        <li><strong>行动可以自我修正</strong>。代码跑挂了，解释器给出带行号的 traceback，这是比任何自然语言反馈都精确的纠错信号。CodeAct 论文实测了 17 个 LLM，代码行动比 JSON/文本行动的成功率最高高出 20%。</li>
+        <li><strong>行动空间可以自我扩张</strong>。菜单式 Agent 面对没封装过的 API 只能干瞪眼；代码 Agent 可以当场写一个客户端脚本。工具从"预定义的集合"变成"随时可以发明的语言"。</li>
+    </ul>
+    <p>论文同时发布了 CodeActInstruct——7k 条多轮代码交互的指令微调数据，证明用"代码行动"训练模型能提升 agent 能力而不损伤通用能力。这条路线的直系后代就是 OpenHands（前 OpenDevin）：它的默认 Agent 执行器就叫 CodeAct，以"跑 Python 和 bash"为唯一动作原语，长年占据开源软件 Agent 的第一梯队。同一年的 CodeAgent（ACL 2024）把这套思想用到仓库级代码生成，连基准都换成了 CodeAgentBench——因为 repo 级任务里"读文件、跑测试、看报错、改代码"的循环，本来就是代码行动的主场。</p>
+
+    <h2>三、工具爆炸逼出的 Code Mode：一场上下文经济学</h2>
+    <p>如果说 2024 年代码行动还只是"更聪明的选择"，2025 年它变成了"不得不做的选择"。推手是 MCP（Model Context Protocol）：开放标准一出，工具生态瞬间长到几千个 server。而 JSON 模式的成本是 <strong>O(工具总数)</strong> 的——所有工具定义都要预加载进上下文。接上千个工具，还没读用户请求就要先吃掉十几万 token。</p>
+    <p>第二个爆点是中间结果。JSON 模式下每次工具调用的返回值都要完整穿过上下文：取一份一万行的表格，模型在上下文里看到一万行，再亲手把"待处理的那几行"誊进下一个调用。两小时的会议纪要在"从网盘到 CRM"的路上被全文搬运两次。数据像货物在无中转站的铁路上运输，每一段都必须经过模型这唯一的枢纽。</p>
+    <p>Anthropic 2025 年 11 月的工程博客给出了答案，Cloudflare 同期独立发表，结论一致到像是商量好的——后来被社区统称 <strong>Code Mode</strong>：<strong>不要把工具暴露成直接的 tool-call，把工具暴露成文件系统上的代码 API，让 Agent 写代码来用</strong>。</p>
+    <p>具体长这样：每个 MCP server 的每个工具是一个 <code>.ts</code> 文件，躺在虚拟文件系统的目录树里；Agent 需要 Gmail 工具时，<code>ls</code> 一下目录、<code>cat</code> 一下定义，按需加载——Anthropic 实测把工具定义的上下文开销从 15 万 token 压到 2 千，<span class="highlight">节省 98.7%</span>。取数那一步更漂亮：一万行表格在沙箱里 <code>filter</code> 完，只把 5 行结论打印回上下文。</p>
+    <pre><code>// 数据在执行环境内流转，只有结论进上下文
+const allRows = await gdrive.getSheet({sheetId: 'abc123'});
+const pending = allRows.filter(row =&gt; row["Status"] === 'pending');
+console.log(`待处理订单 ${pending.length} 条`, pending.slice(0, 5));</code></pre>
+    <p>这一步的深层含义是：<strong>上下文窗口是稀缺资源，而代码是压缩比最高的行动与数据表示</strong>。JSON 模式把"工具说明书"和"数据本体"都摊在上下文里；代码模式让它们在沙箱里流转，上下文里只留下意图和结论。工具越多、数据越大，这个差距越是指数级拉开。它和长上下文研究的结论殊途同归：模型标称窗口在膨胀，但有效注意力是固定的——<strong>能不进上下文的，就别进上下文</strong>。</p>
+
+    <h2>四、沙箱：安全边界从提示词层搬到运行时层</h2>
+    <p>让 Agent 执行自己写的代码，听起来就是安全事故的配方。但这恰恰是这场范式转移里被低估的收益：<strong>它把安全模型从"信任模型的自觉"变成了"不信任任何代码、靠运行时强制隔离"</strong>。</p>
+    <p>对比一下。JSON 模式时代的安全实践是：工具清单里标注哪些危险、提示词里写"不要泄露密钥"、参数校验拦住明显的恶意值——本质上是<strong>靠模型听话</strong>。代码模式时代的实践是：Firecracker microVM、WASM、gVisor、E2B 这类沙箱给你一个一次性的、文件系统和网络都可策略化的隔离环境——本质上是<strong>假设每一行生成的代码都可能是敌意的</strong>，然后在运行时层面让它即使敌意也无害。前者是君子协定，后者是监狱围墙。E2B 上已经跑着数以亿计的沙箱会话，超过半数的财富 500 强在用；而 Ona.com 那次著名的红队事件证明，Agent 不会因为你的提示词写了"不要绕过安全边界"就不绕过——能拦住它的只有边界本身。</p>
+    <p>到 2026 年，这条路线完成了平台化收敛。OpenAI 的 Agents SDK 把沙箱执行（隔离的 Unix 工作区、文件系统、可恢复状态）和 model-native harness（工具分发、多步执行、状态持久）做成了 SDK 一等公民；Claude Code 的源码级分析显示它本质就是"分层代码执行环境"的平台化；OpenHands 开箱即用。三大阵营在"要不要让 Agent 跑代码"上已经没有分歧，剩下的分歧只在沙箱实现和生态入口。<strong>Agent 的运行时形态收敛为：一个会写代码的大脑 + 一个不可信但可控的执行环境。</strong></p>
+
+    <h2>五、判断：代码行动不是免费午餐</h2>
+    <p>作为平衡，有三条清醒剂：</p>
+    <ol>
+        <li><strong>简单单步调用，JSON 仍然占优</strong>。查个天气、发条消息，为这一次调用拉起一个沙箱、生成一段代码，延迟和基础设施成本都更贵。实践中合理的形态是混合的：高频简单动作用原生 tool-call，复合数据任务才升级到代码执行——Anthropic 自己的实践也是让模型在两种模式间切换。</li>
+        <li><strong>代码行动把一部分可靠性压力转移给了模型的编程能力</strong>。模型写出的代码本身会有 bug，而调试一段生成代码的 Agent 循环比调试一次 JSON 调用复杂一个量级。好消息是 traceback 是精确反馈，执行环境让"试错-修正"变得便宜——但这依赖模型本身够强，2024 年之前很多模型在代码行动下反而更差，这也是 CodeAct 当年被质疑的原因。</li>
+        <li><strong>评测明显滞后于实践</strong>。MINT、CodeAct 论文内置的分析、CodeAgentBench 衡量的都是任务成功率；而生产环境里 Code Mode 最硬的收益——token 经济、上下文保持、可审计的执行日志——至今没有标准化基准。谁先做出"成功率 × token 成本 × 延迟"三位一体的代码行动基准，谁就补上了这个领域最明显的空白。</li>
+    </ol>
+
+    <h2>结语：可以立刻做什么</h2>
+    <p>这场范式转移不需要重构你的整个 Agent 栈才能受益。四件事，按投入产出排序：</p>
+    <ol>
+        <li><strong>给大体积工具返回值加一道"沙箱内过滤"</strong>。任何超过几 KB 的表格、日志、网页抓取结果，先在代码环境里 filter/aggregate，只把摘要回传上下文。这是 Anthropic 那个 98.7% 故事的单点版本，一天就能落地。</li>
+        <li><strong>把 MCP 工具映射成文件树</strong>。用脚本把 server 的工具定义生成为目录树里的代码文件，让 Agent 按 <code>ls</code>/<code>cat</code> 按需发现——工具越多，这一步的收益越大。</li>
+        <li><strong>给不可信执行加一层沙箱</strong>。E2B、WASM 运行时或一台 Firecracker microVM，把 Agent 生成的代码从你的主进程里搬出去。安全模型的升级是这次范式转移里最被低估的红利。</li>
+        <li><strong>在 Agent 评测里加上 token 和延迟维度</strong>。如果你的 Agent 框架要选型，"成功率"之外先看同一任务下的上下文消耗——在工具过百的场景里，这往往比模型选型的影响更大。</li>
+    </ol>
+    <p>回到开头的助理。填表时代正在结束，不是因为表格不够好，而是因为我们终于承认：<strong>对一门会写程序的大脑来说，最好的行动接口不是菜单，而是让它直接写程序</strong>。模型负责意图，解释器负责确定，沙箱负责安全——这三段式的分工，可能就是 Agent 运行时未来十年的默认形状。</p>
+
+    <h2>延伸阅读</h2>
+    <ul>
+        <li>CodeAct: Executable Code Actions Elicit Better LLM Agents（Wang et al., ICML 2024, arXiv:2402.01030）</li>
+        <li>PAL: Program-aided Language Models（Gao et al., ICML 2023, arXiv:2211.10435）</li>
+        <li>Anthropic: Code execution with MCP（2025-11）</li>
+        <li>Cloudflare: Code Mode（2025）</li>
+        <li>A Survey on Code Generation with LLM-based Agents（arXiv:2508.00083）</li>
+        <li>OpenHands CodeAct 2.1（openhands.dev）</li>
+    </ul>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
