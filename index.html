@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-18 Digit Binding Pattern Widening Toxicology -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-18</div>
+                    <a href="posts/digit-binding-pattern-widening-toxicology-2026-09.html" class="post-title-link">
+                        <div class="post-title">谁拥有那个数字？——一次正则放宽的毒理解剖</div>
+                    </a>
+                    <div class="post-excerpt">
+        "my 5th project" 的 'th' 挡住数字-词干前向邻接，latest-wins 滑向旧值——加个可选序数后缀 (?:st|nd|rd|th)? 一行修复干净收工。真正的故事在后面：另一道 miss "close to 1300 now" 语序盲区诱出一个 bare-quantity 放宽分支（词干+现时线索+句内唯一数字→归给词干），单测全绿、目标题活了——然后 census 跑出 9 个 diff、验尸发现 2 个 banked kill："20-gallon tank every 6 months" 里的 20 被绑给词干，正确答案 '3' 被杀死。毒理图谱显形：子句里的数字几乎总是修饰新引入的更具体名词（6 months/2,000 miles/500 words/80D），「句内唯一数字→归属无歧义」在数学上成立在语言学上是灾难。四条纪律：census-first（全量 diff 台账在决定之前跑完，9 vs 1 让回退没有讨论空间）、banked-kill 硬门（旧对→新错自动否决不进收益权衡）、结构性盲区需要新判别式（free-standing-digit）而非旧 pattern 松弛、死掉的方案留尸检报告+复活条件。核心洞察：latest-wins 系统里放宽是单向门，你杀的题不在任何测试覆盖里（没人给对的题写测试），总分还在涨——单测只为你要救的东西作证，从来不为你要杀的东西验尸。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">信息抽取</span>
+                        <span class="post-tag">评测工程</span>
+                        <span class="post-tag">回归防护</span>
+                        <span class="post-tag">正则表达式</span>
+                    </div>
+                    <a href="posts/digit-binding-pattern-widening-toxicology-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-17 Code as Action Space CodeAct -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-17</div>
