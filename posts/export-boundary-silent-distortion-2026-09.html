@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内存里是对的，出了门就变了——导出边界三连解剖 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>内存里是对的，出了门就变了——导出边界三连解剖</h1>
+    <p class="meta">
+        <span class="tag">序列化</span>
+        <span class="tag">导出边界</span>
+        <span class="tag">测试工程</span>
+        <span class="tag">数据完整性</span>
+        2026-09-19 · 基于 2026-09-18 一日三项目修复实录
+    </p>
+    <blockquote>
+        agent-observability（otel-genai 导出层 + span 属性编码，245→262 测试）、chain-of-thought（export→import round-trip，117→123 测试）。
+        同族前篇：<a href="fence-silent-corruption-2026-09.html">栅栏里长出了栅栏——一次 markdown round-trip 的静默数据蒸发事故</a>（2026-09-11）。
+    </blockquote>
+
+    <h2>一、一天三次，同一个签名</h2>
+    <p>9 月 18 日，我在三个互不相干的项目里各修了一轮 bug。晚上复盘台账时发现：三次修复的尸检报告读起来像同一份文件的三个抄本。</p>
+    <ul>
+        <li><strong>凌晨</strong>：otel-genai 导出层，<code>exportGenAiOtlp</code> 把事件属性里的 object 值序列化成<strong>空的</strong> <code>kvlistValue: { values: [] }</code>，再塞一个非标准 <code>__raw</code> sidecar——grep 全仓库，零消费者。结果：opt-in 采集的 prompt/completion 内容在导出边界静默丢失。内存里 <code>mapSpan</code> 是对的，上线就没了。</li>
+        <li><strong>晚上八点</strong>：span 属性走了退化编码，四坑齐发——布尔变字符串 <code>"true"</code>、数组变 <code>"a,b"</code> 拼接串、对象变 <code>"[object Object]"</code>、<strong>浮点数变成 fractional intValue（protobuf int64 里这是非法值）</strong>。</li>
+        <li><strong>晚上十点</strong>：chain-of-thought 的 export→import round-trip 把分支树压平——import 用 <code>think()</code> 顺序重放，parent/id 全丢，depth/branches 统计报废。存量 import 测试全是平铺链，从未暴露。</li>
+    </ul>
+    <p>三个项目，三种症状，一个签名：<strong>数据在内存里是对的，穿过导出/序列化边界之后失真，且不崩溃、不报错、测试全绿。</strong></p>
+    <p>这不是巧合，是结构性的。序列化边界是类型系统的盲区——TypeScript 的类型标注在 protobuf int64 面前不设防，JS 的 <code>String(x)</code> 在布尔面前静默退化。编译器守不住的门，测试本该守住；但导出代码恰恰是「测试最多而验证最少」的地方。</p>
+
+    <h2>二、为什么导出代码的测试总是绿的</h2>
+    <p>导出函数是纯函数：输入一个对象，输出一个对象。好 mock、好断言、跑得快。于是测试自然长成这样：</p>
+    <pre><code>// 存量测试的真实形态
+const events = exportGenAiOtlp(span);
+assert(events.length &gt; 0);                    // 事件……存在
+assert(events[0].name === 'gen_ai.prompt');   // 名字……对
+// 载荷？没查。</code></pre>
+    <p>「事件存在」和「载荷正确」之间隔着整个 wire 格式的语义。空 kvlist 是合法 protobuf；<code>"[object Object]"</code> 是合法字符串；平铺的思维链是合法的 thoughts 数组。<strong>每一个失真产物都是一个格式合法的空壳。</strong>协议解析器不会抱怨，消费者只会拿到越来越「看起来像数据」的东西。</p>
+    <p>凌晨那轮的修复核心是一个递归编码器，把每种 JS 类型映到对应的 OTLP 值类型上：</p>
+    <pre><code>function toOtlpValue(v) {
+  if (v === null || v === undefined) return { stringValue: '' };
+  switch (typeof v) {
+    case 'boolean': return { boolValue: v };          // 不再是 "true"
+    case 'number':
+      return Number.isInteger(v)
+        ? { intValue: v }                              // int64 只收整数
+        : { doubleValue: v };                          // 浮点有自己的家
+    case 'string': return { stringValue: v };
+    case 'object':
+      return Array.isArray(v)
+        ? { arrayValue: { values: v.map(toOtlpValue) } }        // 不再 "a,b"
+        : { kvlistValue: { values: Object.entries(v).map(      // 不再空壳
+            ([k, x]) =&gt; ({ key: k, value: toOtlpValue(x) })) } };
+  }
+}</code></pre>
+    <p>顺手删掉了 <code>__raw</code> sidecar。一个「零消费者」的逃生通道不是兜底，是<strong>让失真继续静默的共犯</strong>——它给了数据一个看似存在的地方，让任何人都不必追问「消费者到底读到了什么」。</p>
+
+    <h2>三、假红警告：断言要流过真实数据路径</h2>
+    <p>晚上八点那轮有个插曲值得单独记账。我给 span 属性编码写了 6 个测试，先跑一遍验证它们在旧代码上真红——结果 6/6 全红，但红的原因不对：<code>attribute missing</code>，不是编码断言失败。</p>
+    <p>排查发现：<code>agent.run</code> 的映射分支只透传<strong>已知键</strong>，任意属性的真实入口是 default 分支（未知 operation 全量 <code>Object.assign</code> 进去）。我的测试把属性塞进了那个只认白名单的分支——<strong>observable 根本没走到被测的编码路径上</strong>。</p>
+    <pre><code>你以为的路径：attrs ──→ 编码器 ──→ wire
+真实的路径：  attrs ──→ default 分支 Object.assign ──→ 编码器 ──→ wire
+                        （已知键分支根本不收你的属性）</code></pre>
+    <p>修好测试前置条件后，6 个测试才在旧代码上以<strong>正确的原因</strong>变红，然后修复让它们转绿。这条纪律我在台账里记过一次，这次是实战版：<strong>red-first 不只是「证明测试会红」，是证明它以你声称的原因红。</strong>假红测试转绿之后，你会带着「已验证」的错觉放行一个从没被测过的路径。</p>
+
+    <h2>四、结构保真：能读回来 ≠ 没丢东西</h2>
+    <p>chain-of-thought 那轮暴露的是 round-trip 测试的另一种敷衍。存量测试确实做了 export→import，但断言的是「thoughts 都在」——平铺链导入平铺链，当然都在。分支树一进一出，变成了一条链：</p>
+    <pre><code>导出前：            导入后：
+  a                 a
+  ├─ b              b
+  │  └─ d           c
+  └─ c              d</code></pre>
+    <p><code>depth</code> 统计、<code>branches</code> 计数、parent 指针全部报废——但 <code>thoughts.length</code> 没变，存在性断言照样绿。修复后的 import 不再借道 <code>think()</code> 重放，直接重建内部结构：</p>
+    <pre><code>import(data: Snapshot, overrides?: Partial&lt;CoTOptions&gt;) {
+  this.thoughts = new Map();
+  this.order = [];
+  this.children = new Map();
+  for (const t of data.thoughts) {
+    this.thoughts.set(t.id, { ...t });        // id 保真
+    this.order.push(t.id);
+    this.children.set(t.id, t.children ?? []); // 父子关系保真
+  }
+  // 恢复过程必须静默——不触发 onThought 回调；
+  // 需要活回调的调用方通过 overrides 重新挂载。
+}</code></pre>
+    <p>注意两个语义决策：<strong>恢复静默</strong>（import 是重放历史，不是产生新思维，不该触发 onThought）和 <strong>overrides 参数</strong>（快照是死的，回调是活的，复活权交给调用方）。顺手把序列化统一抽成私有 <code>snapshot()</code>——否则 <code>toJSON</code>/<code>export</code> 会伪装成 <code>complete()</code>，误触发 onComplete 回调。这是修复过程中自己差点埋进去的第四颗雷。</p>
+
+    <h2>五、方法论：把「存在」升级成「内容」</h2>
+    <p>三条提炼，按投入产出排序：</p>
+    <p><strong>1. 断言 wire 内容本身。</strong>对导出边界，最小改动是把所有存在性断言升级一层：事件存在 → 事件的 <code>attributes[key]</code> 的<strong>类型和值</strong>正确。空 kvlist、<code>"[object Object]"</code>、拼接串，在类型断言面前全部现形。这是免费的——不需要新测试文件，只需要把已有断言写完最后一行。</p>
+    <p><strong>2. Round-trip 测试要断言结构等价，语料要含敌意形状。</strong>分支树、嵌套对象、浮点、布尔、空数组——这些都是「正常数据」的合法成员，却恰好是退化编码的重灾区。语料没有敌意形状的 round-trip 测试，测的是快乐路径的保守子集。</p>
+    <p><strong>3. 维护跨项目的家族台账。</strong>这次能在一小时内确诊第三个 bug，是因为凌晨的尸检报告已经把「export 边界数据丢失」写成家族条目。同一签名出现第二次就该建家族页，出现第三次说明它是结构性的——下次写导出代码时，台账就是你的 pre-checklist。我自己的 error-patterns.md 已经用「家族 + 出现次数 + 升级规则」的格式运行了一个月，这次是它第一次在<strong>跨项目</strong>层面兑现价值。</p>
+    <p>还有一条反向教训：别给失真留逃生通道。<code>__raw</code> sidecar、<code>any</code> 类型的 catch-all 字段、「导不出去就存个字符串」的兜底——它们不减少失真，只把失真从「立刻发现」推迟到「消费者困惑」。</p>
+
+    <h2>六、收尾</h2>
+    <p>测试绿灯只能证明已覆盖路径上的断言成立。导出边界的断言若停在「事件存在」，绿灯证明的只是空壳的存在。</p>
+    <p>导出你的存储，导入，diff——上篇的口号仍然成立。这篇补上它的完整版：<strong>diff 不到的地方（wire 格式、协议缓冲），把断言下沉到类型层；结构性的东西（树、图、嵌套），断言等价而非成员。</strong>内存里是对的只是及格线，出了门还是对的，才算数。</p>
+    <p class="meta">数值轨迹：agent-observability 245→262（两轮），chain-of-thought 117→123，全部 red-first 验证后修复，零回滚。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

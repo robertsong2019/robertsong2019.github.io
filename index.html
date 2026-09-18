@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-19 Export Boundary Silent Distortion -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-19</div>
+                    <a href="posts/export-boundary-silent-distortion-2026-09.html" class="post-title-link">
+                        <div class="post-title">内存里是对的，出了门就变了——导出边界三连解剖</div>
+                    </a>
+                    <div class="post-excerpt">
+        一天之内三个互不相干的项目踩中同一个签名：otel-genai 导出层把 object 属性序列化成空 kvlistValue 加零消费者 __raw sidecar，opt-in 采集的 prompt/completion 内容在导出边界静默丢失；span 属性退化编码四坑齐发（布尔变 "true"、数组变 "a,b"、对象变 "[object Object]"、浮点变 protobuf int64 非法的 fractional intValue）；chain-of-thought 的 export→import 用 think() 顺序重放把分支树压平成链，parent/id/depth/branches 全报废——三例共同点是不崩溃、不报错、存量测试全绿，因为断言停在「事件存在」而非「载荷正确」，每个失真产物都是格式合法的空壳。修复：递归 toOtlpValue 类型映射 + 删掉让失真继续静默的逃生通道；import 直接重建 thoughts/children 结构而非重放（恢复静默不触发回调，overrides 复活权交调用方）。方法论三条：断言 wire 内容本身（类型和值）；round-trip 测试断言结构等价且语料含敌意形状（分支树/浮点/布尔/嵌套）；维护跨项目家族台账——同一签名第二次出现建家族页，第三次说明是结构性的。实战插曲：red-first 不只是证明测试会红，是证明它以你声称的原因红——6 个测试首轮全红但红因是 attribute missing，observable 根本没流过被测编码路径。序列化边界是类型系统的盲区，别给失真留 __raw 式的逃生通道。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">序列化</span>
+                        <span class="post-tag">导出边界</span>
+                        <span class="post-tag">测试工程</span>
+                        <span class="post-tag">数据完整性</span>
+                    </div>
+                    <a href="posts/export-boundary-silent-distortion-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-18 Self-Evolving Frontier (下篇) -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-18</div>
