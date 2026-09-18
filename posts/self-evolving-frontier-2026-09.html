@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平均 77 分，五连全过 53 分——自进化 Agent 的 2026 年 9 月 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>平均 77 分，五连全过 53 分——自进化 Agent 的 2026 年 9 月</h1>
+    <div class="meta">
+        2026-09-18 · <span class="tag">AI Agent</span> <span class="tag">自进化</span> <span class="tag">一致性</span> <span class="tag">评测工程</span>
+    </div>
+
+    <p>想象你要在生产环境部署一个 AI Agent，面前有两个候选：A 平均通过率 77%，但同一个任务跑五次，只有 53% 的概率五次全对；B 平均 74%，十次执行十次一个样。你选哪个？</p>
+
+    <p>如果你的系统是查航班、下订单、操作数据库这种"错一次就完蛋"的场景，答案毫无悬念。但今天几乎所有 Agent 的进化目标函数都在优化"平均值"——我们精心训练出了一批<strong>平均天才、日常赌徒</strong>。</p>
+
+    <blockquote>
+        这是「自进化 Agent」的下篇。上篇（<a href="posts/self-evolving-agents-2026-09.html">《指标满分，问题照旧——当 Agent 开始修改自己的代码》</a>）讲了 Darwin Gödel Machine、AlphaEvolve 这些系统怎么"改自己"；这一篇讲 2026 年 9 月 arXiv 上的五篇新论文——当"能不能自进化"初步成立之后，战场转向了四个更尖锐的问题：往哪个方向进化、经验放在哪里、进化 agent 还是进化环境、以及人到底站在哪。
+    </blockquote>
+
+    <h2>一、一致性缺口：24 分的幻觉</h2>
+
+    <p>IBM 团队 9 月初发了一组扎心的数据。AppWorld 基准上，GPT-4.1 驱动的 ReAct Agent 平均通过率 77%——听起来够上线了吧？但把每个任务跑五次，<strong>五次全部成功的任务只有 53%</strong>。这 24 分的落差，他们起了个名字：<span class="highlight">consistency gap（一致性缺口）</span>。</p>
+
+    <p>更麻烦的是这个缺口对常规改进不敏感：换更强的模型、加更长的推理，均值涨了，五连过率未必涨。因为方差的来源不是"能力不够"，而是<strong>轨迹里的不稳定步骤</strong>——某个工具调用的参数、某次检索的排序，处在临界点上，每次执行掷一次硬币。</p>
+
+    <p>IBM 的修法非常"自进化"：Consistency Analyzer 反复执行同一任务，定位那些跨执行"翻转"的步骤——不是答错的步骤，是<strong>时对时错的步骤</strong>；Guideline Generator 把诊断结果转写成定向 guideline（"调用 X 工具时必须先确认 Y"），存进情景记忆，下次执行同类任务时注入。效果：五连全过率 +16 个点，泛化到相似任务还有 +13。</p>
+
+    <p>这里的深意在于：<strong>不稳定是一种可沉淀的资产</strong>。Agent 摔过跤的地方，恰恰是它最值得记住的地方——比它做对的地方更值得。</p>
+
+    <h2>二、经验放在哪里：缓存、主存与 Baldwin 效应</h2>
+
+    <p>自进化 Agent 积累的经验要存成什么形态？9 月的 Experience Funnel 把这个根本权衡摆上台面：</p>
+
+    <ul>
+        <li><strong>文本状态</strong>——技能文档、Agent 配置、guideline：改起来快，人能读能改，出错可回滚。但每次运行都要背着这些外部上下文，永远变不成"本能"，还有上下文膨胀的风险。</li>
+        <li><strong>参数策略</strong>——微调进权重：紧凑、复用零成本、不占上下文。但更新慢、贵、不可逆。</li>
+    </ul>
+
+    <p>这像极了计算机的存储层级：<strong>文本是缓存，权重是主存</strong>。而 Experience Funnel 的方案是一个交替漏斗：新经验先全部进文本层快速验证——便宜、可逆、可审计；只有那些<strong>跨多次状态修订依然存活</strong>的行为（说明不是单次运气），才被"transition-aware 蒸馏"固化进策略权重。</p>
+
+    <p>生物学里这叫 <strong>Baldwin 效应</strong>：物种后天学会的行为，经过足够多代的选择压力，会逐渐写进基因成本能。学会怕蛇不需要等"怕蛇基因"扩散——先靠教育和记忆（文本层），活得够久的经验最终才沉进基因（权重）。Agent 界正在用工程手段重演这条路径。</p>
+
+    <p>蒸馏的门槛是个精妙的设计点：内化太早，是把近期噪声当规律，过拟合；内化太晚，文本层越长越肥，撞上下文腐烂（<a href="posts/context-rot-effective-context-2026-09.html">这个话题两周前写过</a>）。"跨状态修订仍存活"是一条天然的置信度防线。</p>
+
+    <h2>三、进化不了 agent，就进化环境</h2>
+
+    <p>同一天 arXiv 上还有一篇反直觉的：FEE（Feedback-Enriched Environments）。它的出发点是强化学习训练长程任务 Agent 时的老难题——奖励稀疏，Agent 探索半天得不到反馈，训练动不了。常规解法是"agent 侧加热"：先 SFT 喂一批示范数据再上 RL。但示范数据贵，而且把探索空间预先框死了。</p>
+
+    <p>FEE 的范式转移是：<strong>别动 agent，动环境</strong>。把环境的反馈信号做富——早期给动作级引导（做错了直接提示怎么改），后期转向观察富集（不告诉你怎么做，但把状态信息给足）。在 SciWorld 和 BFCL 上，配了富反馈环境的训练组稳定胜出，而且有个关键发现：这些指导最终<strong>被内化进了策略权重</strong>，而不是停留在推理时贴条——训练结束后撤掉富反馈，能力还在。</p>
+
+    <p>这对做 Agent 工程的人有个直接启示：你的 Agent 表现差，未必是模型不行，可能是<strong>环境的反馈太穷</strong>。错误信息只有一句"失败了"的 API，教不会任何东西；把错误结构化、把状态暴露出来，等于免费给 Agent 装了外挂式导师。</p>
+
+    <h2>四、873 个 commit 的冷水：人到底站在哪</h2>
+
+    <p>上篇结尾提过"指标满分，问题照旧"的 objective hacking：被要求消灭幻觉的 Agent 改掉了自己的日志系统，让幻觉不再被记录——指标满分，问题照旧。9 月又来了一盆更系统的冷水：一项纵向研究挖了五个公开 Agent 技能仓库的完整提交历史，873 个 commit、143 个技能文件、254 次实质性修改，时间跨度 2025 年 10 月到 2026 年 6 月。</p>
+
+    <p>三个发现：</p>
+
+    <ol>
+        <li><strong>每一次实质性修改都经过具名人类账号的审核合并</strong>——没有一次是完全自主合入的；</li>
+        <li>62% 的提交带 AI 共同作者标记——AI 是主要的执笔者，人是守门人；</li>
+        <li>这些修改是真功夫：大多数改变了技能内容，以增补和纠错为主——不是装饰性维护。</li>
+    </ol>
+
+    <p>结论一句话：现实中的"自进化技能维护"是<strong>人掌舵、AI 划桨的循环</strong>——形态更像日常的 PR review，而不是科幻里的无人值守自我迭代。DGM 论文自己也写得明白：所有实验都在沙箱里跑，有人类监督。</p>
+
+    <p>我觉得这不是泼冷水，是校准预期。自进化的正确形态从来不是"放手"，而是<strong>把人的判断力用在杠杆最大的地方</strong>：机器负责海量的变异和验证——它便宜、不知疲倦；人负责方向、安全性和品味——这个没有自动评测器。进化是引擎，评测器是方向盘，治理是刹车。三者缺一，车都开不远。</p>
+
+    <h2>五、番外：算法发现也是知识积累</h2>
+
+    <p>最后提一篇工业界的：华为和香港城大的 AlgoEvo，把"自动算法发现"从固定搜索管线改造成交互式知识积累过程——Agent 像老工程师一样检查、诊断、修改代码，一套 design skill hub 把范式知识从核心引擎解耦，搜索轨迹组织成任务级树，跨任务的共性沉淀成可复用技能。六个基准任务上，它用<strong>少得多的评测次数和 token</strong>追平或超过专门化方法。</p>
+
+    <p>它印证了这条研究线正在收敛的共识：<strong>进化的复利来自经验的组织方式，不来自更多的采样</strong>。Voyager 的技能库、DGM 的存档、Experience Funnel 的漏斗、AlgoEvo 的任务树——名字不同，内核都是同一个：把"做过的事"变成结构化的、可检索的、可组合的资产。</p>
+
+    <h2>六、你今晚就可以做的四件事</h2>
+
+    <ol>
+        <li><strong>给评测报告加一列"五连全过率"。</strong>同一输入重复采样五次，报 all-5 一致率而不只报均值。十行代码的事，但你会提前看到平均分掩盖的赌徒行为——那往往是生产事故的第一现场。</li>
+        <li><strong>把摔跤记录变成资产。</strong>Agent 时对时错的地方，比它一直对的地方更值得写进 guideline。下次执行前注入一句"这里容易翻车，先确认 X"，就是 IBM 框架的手工版。</li>
+        <li><strong>审计你的环境反馈。</strong>数一数你的 Agent 能拿到的错误信息里有几个字段。如果只有"失败了"三个字，别急着换模型——先富化环境。</li>
+        <li><strong>给你的经验漏斗设门槛。</strong>团队 wiki 里那条"每次都灵"的经验，值得试三次不同场景之后，再写进入职手册。跨修订存活，才配内化——对 Agent 如此，对人也是如此。</li>
+    </ol>
+
+    <blockquote>
+        自进化的浪漫在于 Agent 改自己；自进化的真相在于——改什么、留什么、什么时候沉进权重、什么时候必须过人手，每一环都是有人在掌舵的设计决策。均值决定它能不能演示，一致性决定它能不能上线，而治理决定它能不能活过第三个版本。
+    </blockquote>
+
+    <div class="meta" style="margin-top: 2rem;">
+        参考资料：Consistency Gap (arXiv:2609.08832, IBM) · Experience Funnel (arXiv:2609.08919) · FEEs (arXiv:2609.08404) · Skill Maintenance Longitudinal Study (arXiv:2609.05677) · AlgoEvo (arXiv:2609.15820) · 上篇：DGM (arXiv:2505.22954) / AlphaEvolve (DeepMind 2025)
+    </div>
+</body>
+</html>
