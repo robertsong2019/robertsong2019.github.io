@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-19 Prompt Compilers DSPy GEPA -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-19</div>
+                    <a href="posts/prompt-compilers-dspy-gepa-2026-09.html" class="post-title-link">
+                        <div class="post-title">别再手搓咒语了——Prompt 是编译出来的，不是写出来的</div>
+                    </a>
+                    <div class="post-excerpt">
+        手写 prompt 是这个时代的手写汇编：你第 37 次修改措辞、测试集在 71 和 73 之间震荡的样子，和当年逐条调指令的汇编程序员一模一样。DSPy 三层抽象（Signature 声明任务 / Module 换策略 / Optimizer 对指标编译）把 prompt 从资产变成编译产物，换模型 = 重新编译一条命令——官方案例 gpt-5.4-mini 零样本 62%→GEPA 编译 89%，成本 $2.18；真正的主角是 GEPA（ICLR 2026 Oral）：六个任务平均超 GRPO 6pp 最高 20pp 且 rollout 少 35 倍，原理是学习信号的代差——标量奖励是 CI 红灯（只能随机乱试），自然语言反思是 code review（直接指向修复），进化搜索 + Pareto 候选池（永不删除的分支，失败尝试里的局部经验全部留池等待重组）打穿了强化学习；反直觉副产物：进化出的 prompt 比 MIPROv2 更短，好优化器的方向是删咒语不是加咒语。谱系三年走完编译器三十年：OPRO 爬山→MIPROv2 声明编译→TextGrad 文本反向传播→GEPA 反思进化，优化对象正从 prompt 文本爬向代码与 agent 架构。三盆冷水：优化器是自动化的 Goodhart 执行器（judge 的每个偏差都是它专精攻击的入口，打分与被测程序必须异模型）；dev set 过拟合是默认结局（150 题 dev + 350 题 holdout 是新入场券）；编译产物仍需人工 review（读不顺的规则无法预测边界行为）。今晚可做：盘点咒语资产、攒评测集再谈优化器、小任务跑通 auto='light' 流水线、产物进 git 当 code review 对象。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">LLM 编程范式</span>
+                        <span class="post-tag">DSPy</span>
+                        <span class="post-tag">GEPA</span>
+                        <span class="post-tag">自动提示优化</span>
+                    </div>
+                    <a href="posts/prompt-compilers-dspy-gepa-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-19 Export Boundary Silent Distortion -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-19</div>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>别再手搓咒语了——Prompt 是编译出来的，不是写出来的 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>别再手搓咒语了——Prompt 是编译出来的，不是写出来的</h1>
+    <p class="meta">
+        <span class="tag">LLM 编程范式</span>
+        <span class="tag">DSPy</span>
+        <span class="tag">GEPA</span>
+        <span class="tag">自动提示优化</span>
+        2026-09-19 · 基于 DSPy 3.4 / GEPA (ICLR 2026 Oral) / TextGrad / OPRO 调研
+    </p>
+
+    <blockquote>周五晚上十一点，你第 37 次修改 system prompt：把「仔细思考」换成「深思熟虑地思考」，测试集 71 分变 73 分，再换个同义词又跌回 71 分。问题不在你的措辞——在于你在用<strong>手写汇编</strong>的方式开发软件。2026 年该换个活法了：写声明，让编译器替你搓咒语。</blockquote>
+
+    <h2>一、一个让人不舒服的类比</h2>
+    <p>先说结论性的判断：<strong>手写 prompt 是这个时代的手写汇编</strong>。</p>
+    <p>汇编时代的老程序员有真功夫——他们懂寄存器、懂指令时序，但没人想回去。因为编译器证明了：把「陈述意图」（a = b + c）交给机器翻译成针对特定硬件的最优指令序列，比人肉调优更稳、更快、更可移植。</p>
+    <p>今天 LLM 应用开发的日常是这个画面的复刻：你在 prompt 里手工排列指令的顺序、挑选 few-shot 示例、调整语气词，试图针对某个特定模型（你的"硬件"）找到最好的表达。每一次换模型、每一次供应商发新版本，这套手工调优全部作废。</p>
+    <p>而 DSPy 这类框架给出的答案和当年的编译器一模一样：<strong>别写 prompt，写程序；别调措辞，给指标</strong>。这个想法其实 2023 年就诞生了（DSPy 前身 Demonstrate-Search-Predict，斯坦福 NLP），但直到 2025-2026 年才真正兑现——因为「编译器后端」终于追上来了。GEPA 在 ICLR 2026 拿下 Oral，DSPy 月下载量破 750 万，生产案例从电商到银行。范式迁移的窗口，就是现在。</p>
+
+    <h2>二、声明式 LLM 编程长什么样</h2>
+    <p>DSPy 的三层抽象，用一句话概括：<strong>Signature 声明任务，Module 选择策略，Optimizer 对着指标编译</strong>。</p>
+    <pre><code>class Triage(dspy.Signature):
+    """Route a support ticket."""
+    ticket: str = dspy.InputField()
+    urgency: Literal["low", "high"] = dspy.OutputField()
+    team: str = dspy.OutputField()
+
+# 同一个任务，三种执行策略，各一行
+classify = dspy.Predict(Triage)            # 直接回答
+classify = dspy.ChainOfThought(Triage)     # 加推理链
+classify = dspy.ReAct(Triage, tools=[..])  # 加工具循环
+
+# 编译：给标注集和打分函数，其余交给优化器
+opt = dspy.GEPA(metric=accuracy, auto="medium")
+program = opt.compile(classify, trainset=tickets)</code></pre>
+    <p>注意这里发生的事：你写的 Python 类是<strong>源代码</strong>，编译器（Optimizer）把它翻译成针对具体模型优化过的 prompt + few-shot 组合，产物存成 JSON，可以进 git、可以 diff、可以在换模型时重新编译。措辞不再是你维护的资产，<strong>任务声明和评测集才是</strong>。</p>
+    <p>官方生产案例给了一个直观的数字感：某电商的元数据抽取任务，gpt-5.4-mini 零样本 62%，GEPA 编译后 89%，编译成本 $2.18、200 个标注样本。另一个案例更狠——Dash 用它优化相关性判官，还有团队用它把 prompt 从大模型平移到 Amazon Nova 小模型。后者是范式迁移的真正卖点：<strong>prompt 终于获得了可移植性承诺</strong>。过去你在 GPT-4 上调好的措辞，换到别的模型上崩得像纸糊的；现在「换模型 = 重新编译」，一条流水线命令的事。</p>
+
+    <h2>三、GEPA：为什么「会说话的信号」打赢了「会算数的信号」</h2>
+    <p>这一波真正的技术明星是 GEPA（Genetic-Pareto），值得多说两句，因为它揭示了一个比框架更深的原理。</p>
+    <p>先看战绩：六个任务上平均超过强化学习基线 GRPO 6 个百分点（最高 20 个），而 rollout 次数少 <span class="highlight">35 倍</span>；对比上一代提示优化器冠军 MIPROv2，高出 10 个点以上（AIME-2025 上 +12）。用 1/35 的算力学得更好——这不是调参调出来的胜利，是<strong>学习信号的代差</strong>。</p>
+    <p>原理用一个你每天都在经历的对比就能讲明白。CI 红灯告诉你的信息是「挂了」，一行都没有；而同事的 code review 告诉你「第 42 行 off-by-one，循环上界应该是 len 而不是 len-1」。前者你只能随机乱试，后者你三分钟就修好了。<strong>标量奖励是红灯，自然语言反思是 code review</strong>。GRPO 给模型的只有「这题错了」这个数字，GEPA 让一个 LLM 看完整轨迹（推理、工具调用、工具输出），用自然语言写出诊断：「它把期刊名当成了作者名，下次应该先查 byline 字段」——然后把这条诊断直接改写进 prompt。</p>
+    <p>GEPA 的第二个巧思是 <strong>Pareto 候选池</strong>。它不维护一个「最优 prompt」，而是维护一组在错误子空间上互有胜负的候选前沿：A 在长问题上强，B 在数字题上强，变异和合并（merge）都发生在池内。这相当于 git 里永不删除的分支——每一次失败尝试中被验证有效的局部经验，都留在池子里等待重组。进化计算的老智慧（Pareto 非支配排序）第一次大规模搬进文本空间，就打穿了强化学习。</p>
+    <p>顺带一个反直觉的副产物：GEPA 进化出的 prompt 平均比 MIPROv2 的<strong>更短</strong>（极端情况短 9 倍）。更少的字、更高的分——好的优化器找到了和人类 prompt 工程师相反的方向：不是加咒语，是删咒语。</p>
+
+    <h2>四、一条短的谱系：站在谁肩上</h2>
+    <p>这个领域三年走完了传统编译器三十年的路，脉络值得记一下：</p>
+    <ul>
+        <li><strong>OPRO（2023，DeepMind）</strong>：第一次证明 LLM 可以当自己的优化器——meta-prompt 里带着历史 prompt 和分数，让模型自己提议下一个版本。爬山式，朴素，但方向对了。</li>
+        <li><strong>DSPy / MIPROv2（2024，斯坦福）</strong>：把散落的技巧收进「声明 + 编译」的框架，指令和示例联合优化。</li>
+        <li><strong>TextGrad（2024，斯坦福）</strong>：反向传播的文本模拟——损失是文字（「这个答案缺引用」），梯度算子是 LLM。数学隐喻很美，后来被证明不如进化搜索高效。</li>
+        <li><strong>GEPA（2025-26，伯克利 +斯坦福系）</strong>：反思式进化 + Pareto 前沿，DSPy 3.x 的旗舰优化器，并开始向「进化代码」延伸（DSPy 3.3 的 code_proposer 实验特性）。</li>
+    </ul>
+    <p>看清楚这条线你会发现：<strong>优化对象正在从 prompt 文本爬向代码、再爬向 agent 架构本身</strong>。今天它编译你的咒语，明天它编译你的程序。</p>
+
+    <h2>五、泼三盆冷水</h2>
+    <p>如果这篇文章只让你记住「上优化器，白捡 20 个点」，那是我的失职。有三盆冷水必须泼：</p>
+    <p><strong>第一盆：优化器是自动化的 Goodhart 定律执行器。</strong>你给它什么指标，它就钻什么指标。LLM-as-judge 的所有已知偏差——偏爱长答案、偏爱自己的文风（self-preference）、位置偏差——在优化循环里不是缺陷，是<strong>优化器专门攻击的入口</strong>。它会精确地找到你 judge 的盲区并产出恰好骗过 judge 的 prompt。工程对策：打分函数和被优化程序用不同底层模型；留人类抽检。</p>
+    <p><strong>第二盆：dev set 过拟合是默认结局，不是意外。</strong>所有 APO 方法本质上是在你的开发集上做搜索。50 条样本上的「提升」，大半是方差。你的 150 题开发集和 350 题金标准保持集，现在从「质量保障工具」升级成了「编译器的训练数据」——它的质量上限就是产物上限。</p>
+    <p><strong>第三盆：编译产物仍然是需要 review 的代码。</strong>机器生成的 prompt 可以进 git，但「是机器生成的」不豁免安全审计和风格检查。进化出来的指令人可能读不顺——读不顺的规则人类无法预测其边界行为，这在生产系统里是真风险。</p>
+
+    <h2>六、今晚可以做什么</h2>
+    <ol>
+        <li><strong>盘点你的咒语资产</strong>：把线上所有手写 prompt 找出来，问一句——哪些是「任务声明」（该留下），哪些是「针对某个模型调的措辞」（该被编译掉）？</li>
+        <li><strong>先攒评测集，再谈优化器</strong>：100-200 条带标注的样本 + 一个可信的打分函数，是入场券。没有它，优化器只会更快地把你的偏差放大。</li>
+        <li><strong>找个小任务跑通一条编译流水线</strong>：<code>pip install dspy</code>，挑一个分类或抽取任务，<code>dspy.GEPA(metric, auto="light")</code> 起步。成本量级是几美元到几十美元，回报可能是 10-25 个点。</li>
+        <li><strong>把切分纪律定下来</strong>：dev / holdout 分开，holdout 只做最终验证。如果你一直拿全量评测集调 prompt，恭喜，你早就过拟合了，只是没人告诉你。</li>
+        <li><strong>编译产物进版本管理</strong>：prompt diff 当 code review 对象看。换模型那天，重新编译一行命令，然后 diff 两个产物——你会第一次看见「模型差异」被翻译成了可读的指令差异。</li>
+    </ol>
+    <p>手搓咒语的年代给了我们很多传奇故事，就像汇编年代的老前辈。但传奇故事不是不换工具的理由——<strong>当「陈述意图」比「手工编码」更便宜且效果更好时，范式就该换了</strong>。编译器赢了汇编，我押它也赢咒语。</p>
+
+    <p class="back-link"><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
