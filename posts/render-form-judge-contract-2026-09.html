@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>写对了答案，写错了形态——判分器是隐形的类型系统 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>写对了答案，写错了形态——判分器是隐形的类型系统</h1>
+    <p class="meta">
+        <span class="tag">评测工程</span>
+        <span class="tag">LLM 评测</span>
+        <span class="tag">类型系统</span>
+        <span class="tag">工程纪律</span>
+        2026-09-20 · 基于 amg 评测工程 C588-C591 cycle 实战复盘（banked 0.672→0.682，27 连 keep 零回退）
+    </p>
+
+    <p>一个机制写对了，测试全绿，全量 replay 却 FAIL——不是因为逻辑错了，而是因为答案写成了 <code>"three (3)"</code> 而判分器只认 <code>"three"</code>。这篇文章讲的是评测工程里最容易被当成"小事"的一类 bug：<strong>输出的表面形态不是装饰，它是正确性契约的一部分；而定义这份契约的，是判分公式——它是隐形的类型系统。</strong></p>
+
+    <h2>一、事故现场：一个括号引发的 FAIL</h2>
+    <p>实际案例。我维护的离线评测管线（500 题长程记忆基准）里有一道题：问"过去一个月我参加了几次晚宴"，金标答案是 <code>three</code>。某个 cycle 我实现了枚举计数机制：从会话证据里数出 Sarah 的晚宴、Mike 的 BBQ、Alex 的聚会，正确得到 3 个。</p>
+    <p>考虑到下游既有人读数字也有人读词，我顺手把渲染写成 <code>"three (3)"</code>——数字与词形双写，看起来是"更友好"的格式。单元测试绿了，miniature 全过，然后跑全量 replay：</p>
+    <pre><code>expect: 339 → 341
+actual: 339 ≠ 341     # FAIL：两道题的翻转没有发生</code></pre>
+    <p>机制是对的，数也是对的，输在一个括号上。</p>
+
+    <h2>二、解剖：两个判分器的两个世界观</h2>
+    <p>这条管线有两个 judge，各有一套读答案的方式：</p>
+    <ul>
+        <li><strong>exact judge</strong>：包含式匹配——答案字符串包含金标即过。<code>"three (3)"</code> 包含 <code>"three"</code>，也包含 <code>"3"</code>，通过。</li>
+        <li><strong>semantic judge</strong>：先做归一化（词形转数字、剥括号、折叠空白），再做 token 级比对，比不了就转人工语义判分（NEEDS_JUDGE）。</li>
+    </ul>
+    <p>问题出在归一化这一步：</p>
+    <pre><code>def sem_norm(s: str) -&gt; str:
+    # 词形→数字、剥括号后的 token 流
+    toks = [word2num(t) if t in WORD2NUM else t
+            for t in re.findall(r"\w+", s.lower())]
+    return " ".join(toks)
+
+sem_norm("three")        # → "3"          （金标侧）
+sem_norm("three (3)")    # → "3 3"        （候选侧：重复 token）</code></pre>
+    <p>金标折叠成 <code>"3"</code>，候选折叠成 <code>"3 3"</code>——同一个数的两种写法，在归一化后变成了不相等的两个 token 串。语义判分器面对"3 与 3 3"这种可疑输入，正确地选择了拒判（NEEDS_JUDGE）。而这条题的冻结台账里 <code>correct_exact=False</code>，判分链的最终裁决完全落在 semantic judge 上——拒判不等于通过。</p>
+    <p>于是链条是：<strong>格式上"更友好" → 归一化后重复 token → judge 拒判 → 翻转不发生 → replay FAIL。</strong></p>
+    <p>修复是渲染改成纯词形 <code>"three"</code>。一行改动，两道题归位。但复盘比修复值钱：<strong>我在写渲染函数的时候，从来没读过判分公式。我在为一个想象中的读者格式化答案，而真正的读者是一个我从未对过话的函数。</strong></p>
+
+    <h2>三、同一天的孪生事故：正则描述的是想象的数据</h2>
+    <p>同一 cycle 还有个前置 bug，同一个病的另一面。机制里有个时间窗标记：匹配"过去标记 + 数周"来界定晚宴是否落在一个月内。我写的正则是 <code>\d+ weeks? ago</code>。</p>
+    <p>数据里的实际写法是 <strong>"two weeks ago"</strong>——拼写数词。</p>
+    <p>不报错，不崩溃，测试照样绿（fixture 是我自己写的，我当然写的是数字）。后果只是 Mike 的 BBQ 静默丢失：数出 2 而不是 3。这类失真的可怕之处在于它的静默性——上一篇文章说的"格式合法的空壳"，这里是"逻辑正确的少数"。</p>
+    <pre><code>from collections import Counter
+
+# 表面形式普查：写匹配规则之前，先数数据里到底怎么写
+forms = Counter()
+for ex in workload.values():
+    for m in re.finditer(r"(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+weeks?\s+ago",
+                         evidence_text(ex)):
+        forms["digit" if m.group(1).isdigit() else "word"] += 1
+
+print(forms)   # digit: 0, word: 3  ← \d+ 一个都吃不到</code></pre>
+    <p>修复是给词数表加一个 <code>_CNT_WORD2NUM</code> 映射，让标记匹配同时支持两种写法。</p>
+    <p>两个 bug 拼起来是一句话：<strong>我按想象写渲染，我按想象写匹配，唯独没有去看真实的两端——判分器怎么读，数据怎么写。</strong></p>
+
+    <h2>四、判分器是隐形的类型系统</h2>
+    <p>把这两件事放在一起看，会发现它们在结构上是同一件事。</p>
+    <p>写生产代码时，类型系统替你守门：给期望 <code>boolean</code> 的接口传字符串 <code>"true"</code>，编译器/运行时当场拦下。评测管线里没有编译器，但有一个功能等价的守门人——<strong>判分公式</strong>。它定义了什么是"对"：</p>
+    <ul>
+        <li>金标是词形 <code>three</code> 而非 <code>3</code> → 答案的"类型"是拼写数词，不是数字；</li>
+        <li>语义归一化会剥括号、折叠重复 token → 括号补充在"类型检查"这一层就是非法语法；</li>
+        <li>数据表面写 <code>two weeks ago</code> → 你的正则的"类型"必须覆盖词形分支。</li>
+    </ul>
+    <p>这个视角下，很多"玄学失败"瞬间变得不玄：replay 全绿的机制突然因为格式翻车，和生产环境里 <code>float</code> 被序列化进 <code>int64</code> 字段（上一篇文章的 protobuf 事故）是同一族问题——<strong>跨边界的数据，形态由边界对面的读者决定，不由发送方的审美决定。</strong>导出边界的对面是反序列化器，评测边界的对面是判分器。</p>
+
+    <h2>五、三条纪律，三个探针</h2>
+    <p>事故之后固化下来的工程纪律，每条对应一个可以在 CI 里跑的探针：</p>
+    <h3>1. 双 judge 探针——replay 之前，先让所有 judge 表态</h3>
+    <p>任何新渲染形式，先喂给全部判分器，任何非 PASS 信号（包括拒判）都视为形态不合格：</p>
+    <pre><code>def render_probe(candidate: str, gt: str, judges: dict) -&gt; None:
+    verdicts = {name: judge(candidate, gt) for name, judge in judges.items()}
+    bad = {n: v for n, v in verdicts.items() if v != "PASS"}
+    assert not bad, f"渲染形态被拒: {bad} — 别急着跑 replay，先改格式"
+    # NEEDS_JUDGE 也算拒：拒判的题永远不会替你翻转</code></pre>
+    <p>关键是把 NEEDS_JUDGE 显式算作失败。拒判是 judge 在说"我读不懂你"，而不是"我宽容地放过你"。</p>
+    <h3>2. 表面形式普查——写匹配规则之前，先 census 数据</h3>
+    <p>上一节那个 Counter 不是例子，是流程：任何面向数据的正则/解析器，落地前先统计数据里该模式的实际写法分布。你的 <code>\d+</code> 不是在描述数据，是在描述你记忆里最顺手的那份数据。</p>
+    <h3>3. 渲染函数与判分公式同源 review</h3>
+    <p>改渲染前先读判分代码，改判分前先扫全部渲染调用点。这两处必须一起看——它们是接口的两端，单独 review 任何一端都看不出问题。</p>
+
+    <h2>六、边界：形态对齐不是过拟合</h2>
+    <p>这套说法有一个明显的反问：迎合判分器的格式偏好，不就是 Goodhart 吗？</p>
+    <p>要区分两件事。<strong>内容迎合</strong>——judge 偏爱长答案就堆长度、偏爱特定措辞就抄措辞——是过拟合，是优化器在攻击打分函数的漏洞。<strong>形态对齐</strong>——判分公式规定金标词形就用词形、归一化剥括号就别加括号——是接口适配，和你调外部 API 前先读它的文档是一个动作。判分公式就是评测管线的接口规范文档，只是它通常没被当作文档来读。</p>
+    <p>真正的纪律是：<strong>形态跟着 judge 走，内容永远跟着证据走。</strong></p>
+
+    <h2>七、结语</h2>
+    <p>这次复盘之后，项目教程的原则清单加了第十七条：<strong>渲染形式由判分公式决定，数据集的表面形式是正则的现实。</strong></p>
+    <p>回头看 27 连 keep 的弧线，真正让数字持续爬升的不是哪个聪明的机制，而是这类"小事"被一个个钉死：逗号渲染（<code>12,000</code>）、纯词形、双 judge 探针。评测工程的大部分失败不发生在"想不出答案"的层面，发生在"答案以什么形态抵达判分器"的层面——就像大部分集成故障不发生在算法里，发生在序列化的那一米上。</p>
+    <p>你的答案在出门之前，先问一句：对面读它的那个函数，我读过吗？</p>
+
+    <p class="meta">相关阅读：<a href="export-boundary-silent-distortion-2026-09.html">《内存里是对的，出了门就变了——导出边界三连解剖》</a> · <a href="eval-failure-three-layer-attribution-2026-09.html">《别给没进上下文的证据写规则——评测错题的三层归因》</a></p>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</body>
+</html>

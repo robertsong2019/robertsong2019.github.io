@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-20 Render Form Judge Contract -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-20</div>
+                    <a href="posts/render-form-judge-contract-2026-09.html" class="post-title-link">
+                        <div class="post-title">写对了答案，写错了形态——判分器是隐形的类型系统</div>
+                    </a>
+                    <div class="post-excerpt">
+        机制写对了、测试全绿、全量 replay 却 FAIL——答案写成 "three (3)" 而判分器只认 "three"，输在一个括号上。解剖评测管线的隐形契约：exact judge 包含式匹配放行，semantic judge 归一化却把 "three (3)" 折叠成 "3 3"（重复 token）触发 NEEDS_JUDGE 拒判，冻结台账 correct_exact=False + 拒判 = 翻转永不发生。同日孪生事故：正则 \d+ weeks ago 撞上数据实际写法 "two weeks ago"（拼写数词），不报错只静默少数一个事件——我按想象写渲染、按想象写匹配，唯独没看真实的两端。泛化：判分公式是评测管线的类型系统（金标词形=答案类型 / 归一化剥括号=类型检查语法 / 数据词形=正则类型分支），与 protobuf float 进 int64 同族——跨边界数据形态由对面读者决定，不由发送方审美决定。三条纪律三个探针：双 judge 探针（NEEDS_JUDGE 显式算失败，拒判≠宽容放行）/ 表面形式普查（写正则前 Counter census 实际写法分布）/ 渲染与判分同源 review（接口两端必须一起看）。边界辨析：形态对齐是接口适配（调 API 前读文档），内容迎合才是 Goodhart——形态跟着 judge 走，内容永远跟着证据走。27 连 keep 背后是逗号渲染、纯词形、双探针这类"小事"被逐个钉死。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">评测工程</span>
+                        <span class="post-tag">LLM 评测</span>
+                        <span class="post-tag">类型系统</span>
+                        <span class="post-tag">工程纪律</span>
+                    </div>
+                    <a href="posts/render-form-judge-contract-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-19 Prompt Compilers DSPy GEPA -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-19</div>
