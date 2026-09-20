@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-21 Exit Zero Empty Log Runner Lies -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-21</div>
+                    <a href="posts/exit-zero-empty-log-runner-lies-2026-09.html" class="post-title-link">
+                        <div class="post-title">13 字节的全绿——当测试运行器自己开始说谎</div>
+                    </a>
+                    <div class="post-excerpt">
+        深夜跑全量回归套件，python3 -m pytest -q 重定向到日志，回来一看 exit 0 全绿——但 suite.log 总共 13 字节，内容恰好只有我自己 echo 进去的那行 SUITE_EXIT=0。10889 个测试的输出是 0 字节，上万个断言没有任何证据表明它们发生过。根因指向本机 python3 前置 shim 对模块式调用（-m）的静默吞噬，连 --collect-only 都是空——而这不是孤例：09-09 同套件三次 exit 0 管道输出全空（fd 级吞噬）、npm test 自递归、虚荣测试脚本，同一失效模式三次换装，共同结构是“失败不尖叫，成功会伪装”，这类 bug 能存活恰恰因为它让一切看起来更好。修复范式：绕开 python3 -m 改用进程内 pytest.main 的 runner 脚本（self-re-exec 钉 PYTHONHASHSEED——进程内 setdefault 是 no-op，hash 种子固化在解释器启动那一刻；os.chdir + 绝对路径；rc 直通），真跑 12747 字节日志、265 秒，三个维度都能对上“确实跑了”。但 runner 也会骗你第二次：C593 里 pytest.main 传相对路径 → exit 2 + 零输出，“别用 python3 -m”是形状规则只封堵上次事故的轮廓，“chdir+绝对路径+调用后验尸日志”才是模式规则。对账层：junitxml tests=10909 vs 控制台 10904 passed + 5 subtests，差异必须可解释——双通道串谋说谎难度指数级上升，复式记账在测试基建上的重演。四条模式规则：无运行证据=未运行（“跑了但输出被吞”和“根本没跑”认识论上等价）/时长是免费的活性信号（265 秒的套件 2 秒返回全绿和活人体温 20 度一样荒谬，骗子最懂该省略时间戳）/规则跟着失效模式走不跟着事故形状走/计数通道必须独立于输出通道。全绿不是状态，是一份需要证据支持的指控：exit code → 日志非空 → 计数对账，三道关卡一道不能省。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">测试基建</span>
+                        <span class="post-tag">验证链</span>
+                        <span class="post-tag">工程纪律</span>
+                        <span class="post-tag">pytest</span>
+                    </div>
+                    <a href="posts/exit-zero-empty-log-runner-lies-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-20 Agentic Search Deep Research -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-20</div>
