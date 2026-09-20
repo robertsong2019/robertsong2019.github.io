@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>搜索是管道，研究是循环——深度研究 Agent 的训练笔记 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>搜索是管道，研究是循环——深度研究 Agent 的训练笔记</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">强化学习</span>
+        <span class="tag">检索增强</span>
+        <span class="tag">Deep Research</span>
+        2026-09-20 · 系统调研 8 篇一手论文（Search-R1 / DeepResearcher / WebThinker / ZeroSearch / Tongyi DeepResearch / SearchGym …）
+    </p>
+
+    <p>问 AI 一个需要查资料的问题，比如："2025 年以来，哪些开源模型在 Humanity's Last Exam 上超过了闭源前沿模型？" 传统 RAG 会给你什么？一摞检索回来的段落、几条似是而非的引用、一个把不同时间点的数字搅拌在一起的答案——它不查证，它<strong>合并</strong>。而一个真正的深度研究 agent 会做另一件事：先拆解问题（"开源"的边界在哪、"超过"用什么口径、HLE 有几个版本），再逐项检索，发现两个来源数字冲突时主动去挖一手出处，最后告诉你："三家里有两家有一手数据支撑，第三家的数字只出现在转载里，我标了存疑。"</p>
+    <p>这个差别，2025 年之前靠 prompt 工程，2025 年之后变成了一个研究子领域：<strong>用强化学习直接训练"会查资料的推理循环"</strong>。这篇笔记整理这条线上的八个关键工作，以及它们共同指向的一个反直觉结论——<strong>这个领域的中心问题不是模型，是环境</strong>。</p>
+
+    <h2>一、从管道到循环：搜索变成了动作空间</h2>
+    <p>传统 RAG 是一条管道：query 进去，检索器抓一批文档，塞进上下文，模型一次性生成。像图书馆员把一摞书砸你脸上，然后说"念吧"。</p>
+    <p>Agentic search 把它改成了循环：模型在逐步推理的过程中，<strong>自己决定</strong>什么时候发起搜索、用什么关键词、读完返回结果后是继续深挖、换个问法、还是停下来综合。搜索不再是系统功能，而是模型的动作空间（action space）的一部分——和代码执行、工具调用并列。</p>
+    <p>这条线的起点是 2025 年 3 月的 <strong>Search-R1</strong>（NeurIPS 2025）。它的贡献是把这件事做成了可训练的 RL 问题：Qwen2.5-7B 在七个问答数据集上相对各类 RAG 基线平均提升 41%。同期的 <strong>R1-Searcher</strong> 用两阶段纯结果奖励的 RL 达到了类似效果，甚至超过了 GPT-4o-mini 配 RAG 的组合。注意这里的对比对象：一个 7B 开源模型，靠训练方式，打赢了当时的闭源旗舰加传统检索。</p>
+
+    <h2>二、RL 配方简单得惊人：掩码 + 结果奖励</h2>
+    <p>读这些论文最意外的感受是配方的简洁。两个关键设计：</p>
+    <ul>
+        <li><strong>检索 token 掩码</strong>：搜索引擎返回的文本，在计算 RL loss 时被整个掩掉。梯度只流向模型自己生成的那部分——查询词、推理过程、最终答案。</li>
+        <li><strong>结果奖励</strong>：奖励只有最后答案对不对，没有任何过程奖励。</li>
+    </ul>
+    <p>掩码这个设计值得单独讲。类比是开卷考试：允许你翻书，但书上抄来的内容不计入你的思考评分——评分员只看你自己写的推导。如果不对检索内容掩码，模型会学会"把维基百科整段背进答案"这种偷懒策略，损失函数会奖励复读而不是推理。<strong>工具输出是环境，不是策略</strong>——这个原则适用于所有工具增强的 agent 训练，不只是搜索。</p>
+    <p>而"没有过程奖励"的后果更有意思。<strong>DeepResearcher</strong>（真实网页上端到端 RL 训练，比 prompt 工程基线最高高 28.9 分）报告了一批<strong>涌现行为</strong>：训练后的 agent 会自己制定研究计划、从多个来源交叉验证、中途自我反思改变搜索方向、找不到确定答案时诚实说"查不到"——这四种行为没有一个被显式奖励，全部从"答案对才有分"这一个信号里长了出来。研究技能是副产品，不是课程表。</p>
+
+    <h2>三、中心问题是环境：飞行模拟器与真机的选择</h2>
+    <p>真正让这个领域分化的，不是模型架构——几乎所有工作都用现成的 Qwen 或 Llama——而是<strong>训练环境怎么造</strong>。三条路线，像飞行训练的三种选择：</p>
+    <table>
+        <tr><th>路线</th><th>代表</th><th>类比</th><th>代价</th></tr>
+        <tr><td>真网 RL</td><td>DeepResearcher</td><td>直接上真机</td><td>贵、慢、不可复现、噪声大</td></tr>
+        <tr><td>模拟引擎</td><td>ZeroSearch</td><td>飞行模拟器</td><td>保真度存疑</td></tr>
+        <tr><td>快照健身房</td><td>SearchGym</td><td>带验证的模拟机场</td><td>覆盖面有限</td></tr>
+    </table>
+    <p><strong>ZeroSearch</strong> 的思路最省：干脆不用真搜索引擎——先微调一个 LLM 让它扮演搜索引擎（根据查询生成"有用"或"嘈杂"的文档），RL 训练全在这个假引擎里做，再用课程策略逐步恶化文档质量，逼模型的推理能力越来越强。结果反直觉：7B 的检索模块就能逼近真引擎，14B 的<strong>反超</strong>了真引擎——因为真搜索引擎返回的噪声分布，比精心设计的模拟噪声更不稳定。</p>
+    <p><strong>SearchGym</strong>（2026 年 1 月）补上了另一块：它指出活网训练有个隐蔽的毒——网页内容随时间漂移，同一道题今天和明天的"环境状态"不同，奖励信号被污染，<strong>惩罚正确的推理、奖励幻觉</strong>。它的解法是预构建可验证的知识图谱加对齐语料，保证每道题严格可解、事实有锚点，然后做 Sim-to-Real 迁移：7B 模型在仿真里训练，九个基准上超过了在真网数据上增强的基线。</p>
+    <p>这个"保真度 × 成本 × 可复现性"的三角，和机器人学的 sim-to-real 是同构的。机器人领域花了十年承认"在仿真里练、在真机上考"是正道；搜索 agent 领域一年就走完了这个认知来回。</p>
+
+    <h2>四、瓶颈移位：从"找到"到"写成"</h2>
+    <p><strong>WebThinker</strong>（NeurIPS 2025）盯住的是另一个被忽视的环节：报告写作。它的策略叫 Think-Search-and-Draft——报告起草发生在推理循环内部，边搜边写、边写边补漏，而不是搜完再"翻译成文章"。这击中了 deep research 真正的价值点：<strong>找到信息是检索问题，把一百页材料消化成一篇自洽的综述是综合问题</strong>，后者才是研究助理和搜索引擎的差别。</p>
+    <p>评测也在跟着移位。OpenAI 的 <strong>BrowseComp</strong>（1,266 道刁钻的多跳检索题，答案短到可机器验证）给自己的定位很诚实："编程比赛之于 coding agent"——不完整，但有用地测量了"锲而不舍找信息"这个核心能力。但 BrowseComp 只考"找到"；"写成"至今没有公认基准。当找人不再是瓶颈、消化成了瓶颈，评测的下一个空白清清楚楚摆在那里。</p>
+
+    <h2>五、规模的反直觉：3.3B 激活参数的 SOTA</h2>
+    <p>这条线的最新落点是 <strong>Tongyi DeepResearch</strong>（阿里，开源）：30.5B 总参的 MoE，每个 token 只激活 3.3B，在 HLE、BrowseComp、BrowseComp-ZH、WebWalkerQA、xbench-DeepSearch、FRAMES 一排基准上做到 SOTA。它的技术报告提出 "agentic mid-training"：在预训练和后训练之间，插一个用全自动合成轨迹（无人工标注）打底的中程阶段，先练"会推理 + 会查资料"，再上 RL。</p>
+    <p>这件事的信号意义大于数字本身：<strong>"必须前沿大模型才能做深度研究"的假设被证伪了</strong>。价值在循环设计和训练管线，不在底座规模。一个激活参数量约为手机可跑量级的模型，配上正确的训练配方，站在了榜上——这条路对每个想自己做 agent 的团队都是开放的，因为模型和框架都开源了。</p>
+
+    <h2>六、连起来看：三条主线收敛</h2>
+    <p>把八篇工作叠在一起，三条主线收敛到一点：</p>
+    <ol>
+        <li><strong>环境工程 &gt; 模型工程</strong>。路线之争全在"在哪训练"，模型用的都是现成货。agent RL 的瓶颈和机器人 RL 从来一样：造一个可重置、可复现、奖励干净的环境。</li>
+        <li><strong>奖励要少，隔离要好</strong>。结果奖励够用，涌现会送来惊喜；真正不能省的是隔离——检索内容不进 loss。训练时的梯度隔离，对应推理时的注意力隔离（外部引文与自身推理显式分段）。</li>
+        <li><strong>评测即环境</strong>。不可复现的活网既污染训练也污染评测，"冻结基准 + 冻结环境"从评测洁癖变成训练刚需。</li>
+    </ol>
+
+    <h2>七、今晚可以做什么</h2>
+    <p>不是所有人都要训模型，但这套方法论对任何用 LLM 查资料的人都立刻适用：</p>
+    <ul>
+        <li><strong>把工作流里的搜索从"一次"改成"循环"</strong>。给自己定三个重查触发条件：置信度低（两个来源矛盾）、信息时间敏感（可能是旧数据）、关键决策依赖（错了代价大）。触发了就换关键词再来一轮，而不是接受第一次的合并结果。</li>
+        <li><strong>引文不吃梯度 → 引文不吃结论</strong>。在 prompt 或工作习惯里把外部检索内容和模型自身推理显式分段，并明确规则：引文是待验证证据，不是结论依据。这是掩码思想从训练到使用的直接翻译。</li>
+        <li><strong>攒一个个人 BrowseComp</strong>。从你自己的代码库、文档、笔记里出 20 道需要跨三个以上文件才能解的题，作为 agent 工作流的回归测试——agent 换模型、换 prompt 之后跑一遍，比任何主观感觉都可靠。</li>
+        <li><strong>跑一遍开源栈</strong>。Tongyi DeepResearch 模型和框架全开源，Search-R1 有复现仓库；哪怕只是读它的数据合成章节，也能看到"全自动、无人工标注、还可验证"这条管线是怎么设计的。</li>
+    </ul>
+    <p>搜索是管道，研究是循环。RAG 把书砸到你脸上；深度研究 agent 替你把书读成观点——而过去一年这个行业学到的是：教会模型读，靠的不是更大的脑子，是一个能让她安全练习读的世界。</p>
+
+    <p class="meta">相关阅读：<a href="prompt-compilers-dspy-gepa-2026-09.html">《别再手搓咒语了——Prompt 是编译出来的》</a> · <a href="context-rot-effective-context-2026-09.html">《上下文腐烂》</a> · <a href="agentic-rl-four-pillars-2026-09.html">《Agentic RL 四大支柱》</a></p>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</body>
+</html>
