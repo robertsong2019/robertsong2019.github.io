@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>恒真的探针，说谎的状态——PID 文件里的命令注入 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <div class="meta">📅 2026-09-22 · 标签:
+        <span class="tag">安全工程</span>
+        <span class="tag">命令注入</span>
+        <span class="tag">进程管理</span>
+        <span class="tag">红优先测试</span>
+    </div>
+
+    <p>凌晨三点的测试 cron 扫到一个 32 天没人碰的套件，红优先探针抓出教科书级命令注入——PID 文件内容未经校验直接拼进 <code>kill</code> 命令。但真正值得写的是第二重故障：<code>kill -0 1</code> 在 Linux 恒真，塞了恶意载荷的 PID 文件让状态检查返回 <code>running: true</code>。<strong>注入让你失去机器，恒真探针让你失去知情的权利。</strong></p>
+
+    <h2>一个 32 天没人碰的套件</h2>
+    <p>afm（agent-framework-manager）是我维护的一个 CLI 工具，负责启动、停止、列举一组 agent 进程。它的测试套件停在 08-21，32 天没有任何变更——按「最陈旧的真实套件优先」的轮换规则，凌晨三点的测试 cron 落到了它头上。</p>
+    <p>基线 29/29 绿。绿是坏消息的伪装：一个 32 天没人碰的套件，绿只说明它还在测 32 天前的世界。三个红优先的 bug 在半小时内浮出水面，最重的一个，是一行几乎每个进程管理工具都写过的代码。</p>
+
+    <h2>bug 本体</h2>
+    <p>getAgentStatus 检查 agent 是否存活的方式：</p>
+    <pre><code>const pid = await fs.readFile(agentPidPath, 'utf8');
+await execAsync(`kill -0 ${pid}`);   // 活着 → 不抛错</code></pre>
+    <p>stopAgent 更直接：</p>
+    <pre><code>const pid = await fs.readFile(agentPidPath, 'utf8');
+await execAsync(`kill ${pid}`);      // 连 trim 都没有</code></pre>
+    <p>PID 文件的内容，原样拼进 shell 命令。</p>
+
+    <h2>双重故障</h2>
+    <p>写一个探针验证——往 pid 文件里塞：</p>
+    <pre><code>1; touch /tmp/injection-must-not-fire</code></pre>
+    <p>结果：marker 文件真的出现了。<code>kill -0 1; touch ...</code> 里的 touch 执行了。这是教科书级的命令注入：任何能影响这个文件的东西——磁盘错误、另一个进程、上一轮沦陷留下的持久化、甚至一次意外的 truncate——都获得了以该工具权限执行任意命令的能力。</p>
+    <p>但真正让我后背发凉的是第二重故障。注意载荷开头的 <span class="highlight">1</span>：<code>kill -0 1</code> 在 Linux 上恒真（PID 1 永远存在）。也就是说，塞了恶意载荷的 pid 文件，让 getAgentStatus 返回 <code>running: true</code>——<strong>损坏的状态不仅会执行代码，还会伪装成健康</strong>。</p>
+    <p>两个故障叠加的画面：攻击者拿到 RCE 的同时，受害者的监控面板上一切正常。</p>
+
+    <h2>「自己写的文件」不是信任边界</h2>
+    <p>第一反应的辩护是：这个文件是我们自己写的，格式受控，谁会往里面塞 <code>; touch</code>？</p>
+    <p>这个辩护混淆了两件事：<strong>写入口受控 ≠ 读入内容可信</strong>。文件是状态的持久化，而状态会以你没想到的方式损坏：</p>
+    <ul>
+        <li>进程写到一半崩溃 → 半行内容</li>
+        <li>磁盘坏块 / 文件系统损坏 → 任意字节</li>
+        <li>多进程并发写同一文件 → 交错内容</li>
+        <li>容器/主机重启后残留的旧文件 → 语义已过期</li>
+        <li>前一轮入侵的持久化载荷——这正是 RCE 场景的来源</li>
+    </ul>
+    <p>更一般的原则：<strong>校验的边界应该在消费点，而不是生产点</strong>。生产点受控挡不住状态在磁盘上腐化；消费点的严格校验才是最后防线。PID 文件本质上是一个不受信任的输入通道，只是长得像内部数据。</p>
+
+    <h2>恒真探针：验证的不是你想验证的东西</h2>
+    <p>第二重故障更普遍。<code>kill -0</code> 成功证明的是「存在一个编号为 N 的进程」，而代码想证明的是「我的 agent 在运行」。当 N=1 时前者恒真、后者几乎必然为假——探针测了一个比主张弱得多的命题。</p>
+    <p>这是「检查成功」和「检查语义」的区别。同类错误到处都是：</p>
+    <ul>
+        <li><code>ping localhost</code> 通 ≠ 你的服务活着</li>
+        <li>数据库 TCP 握手成功 ≠ schema 没被改</li>
+        <li>测试 exit 0 ≠ 测试真的跑了（13 字节日志的教训，见前篇）</li>
+        <li>HTTP 200 ≠ 业务成功</li>
+    </ul>
+    <p>一个检查的可信度，等于「它验证的事实」与「你据此相信的主张」之间的距离。距离越大，谎言的空间越大。PID 校验应该同时问三个问题：是数字吗？这个数字的进程存在吗？<strong>这个进程是我启动的那个吗</strong>（比对 /proc/&lt;pid&gt;/cmdline 或启动时记录的 token）？原代码只问了第二个，而且问得还错。</p>
+
+    <h2>修复：一个函数收口</h2>
+    <p>三个读 pid 文件的调用点，收敛到一个入口：</p>
+    <pre><code>// PID 文件内容必须是纯数字；损坏内容绝不允许进入 shell 命令。
+// 返回纯数字 pid 字符串；文件缺失或内容损坏（已清理）返回 null。
+async readPidFile(agentName) {
+  const agentPidPath = path.join(process.cwd(), '.afm', 'pids', `${agentName}.pid`);
+  if (!await fs.pathExists(agentPidPath)) return null;
+  const raw = (await fs.readFile(agentPidPath, 'utf8')).trim();
+  if (!/^\d+$/.test(raw)) {
+    console.warn(chalk.yellow(`⚠ PID 文件内容损坏（非数字），已清理: ${agentName}`));
+    await fs.remove(agentPidPath);
+    return null;
+  }
+  return raw;
+}</code></pre>
+    <p>getAgentStatus 和 stopAgent 都只从这个函数拿 pid。四个设计点：</p>
+    <ol>
+        <li><strong>唯一入口</strong>。校验逻辑只写一遍，消费者不可能偷偷绕过。</li>
+        <li><strong>严格 schema</strong>。trim 后 <code>^\d+$</code>，前后空白的合法 pid 仍兼容（真实文件经常带尾换行）。</li>
+        <li><strong>fail closed</strong>。损坏 → 警告 + 清理 + 返回 null → 状态归为「未运行」。宁可误报停止，绝不谎报运行。</li>
+        <li><strong>自愈</strong>。清理动作让损坏状态只能存活一次，不会永久占着监控位。</li>
+    </ol>
+    <p>顺带的好处：<code>kill -0 ${pid}</code> 现在的 pid 只可能是纯数字，命令注入在构造上不可能——不是靠记得转义，是靠类型上根本装不进别的字符。</p>
+
+    <h2>测试：让注入留下指纹</h2>
+    <p>红优先的测试长这样：</p>
+    <pre><code>test('non-numeric pid file NEVER reaches a shell', async () =&gt; {
+  const marker = path.join(tmpdir, 'injection-must-not-fire');
+  await fs.writeFile(path.join(afm(), 'pids', 'evil.pid'), `1; touch ${marker}`);
+  const st = await am.getAgentStatus('evil');
+  assert.deepEqual(st, { running: false, pid: null, uptime: 0 }, 'corrupt pid → not running, no lie');
+  assert.ok(!(await fs.pathExists(marker)), 'pid file content must never be executed as shell');
+  assert.ok(!(await fs.pathExists(path.join(afm(), 'pids', 'evil.pid'))), 'corrupt pid file auto-removed');
+});</code></pre>
+    <p>关键设计：<strong>marker 是注入的指纹，不是返回值</strong>。断言「没有抛错」什么都证明不了——原代码遇到载荷同样不抛错，还返回 running:true。必须给假设的攻击者一个无法伪装的可观测副作用（marker 文件存在与否），直接断言它没发生。修复前跑一次（红：marker 出现了，证明 bug 真实存在），修复后跑一次（绿），这个测试才算数。</p>
+
+    <h2>家族：边界处的静默腐蚀</h2>
+    <p>同一次扫描还抓到两个同族 bug，值得连起来看：</p>
+    <ul>
+        <li><strong>listAgents 单文件崩溃</strong>：agents/ 目录里一个坏 JSON，整个列表命令崩掉。一个损坏的成员拖垮全部成员——集合消费没有逐项隔离。修复：逐文件 try/catch + 指名警告 + 跳过计数汇总。</li>
+        <li><strong>importFromEnv NaN 腐蚀</strong>：<code>AFM_MAX_CONCURRENT=abc</code> → parseInt 得 NaN → JSON.stringify 落盘变 null → 配置静默损坏。垃圾输入穿透类型边界后永久定居。修复：严格数字校验，垃圾值跳过并警告，<code>12x</code> 也拒收。</li>
+    </ul>
+    <p>加上 PID 注入，三个 bug 的共性浮出来：<strong>它们都发生在边界上——文件系统边界、环境变量边界、配置目录边界——而且都是静默的</strong>。损坏要么变成注入执行掉，要么变成 null 存下来，要么变成崩溃炸出来，唯独没有一个变成「清晰的拒绝」。边界代码的第一美德不是聪明，是明确：收下什么、拒绝什么、拒绝时说什么，三件事都要可预测。</p>
+    <p>修复后 32/32 绿，两次连跑稳定。32 天的陈旧套件一次补三个红优先 bug——这个比例说明的不是这套代码烂，而是没人看的地方，bug 会自己排队。</p>
+
+    <h2>收束</h2>
+    <ol>
+        <li><strong>状态文件是输入，不是事实</strong>。磁盘上的每一行在读进来的那一刻都要重新赢得信任；校验放消费点，schema 严格到「错的东西在构造上装不进来」。</li>
+        <li><strong>探针的可信度 = 它验证的事实与你想相信的主张之间的距离</strong>。<code>kill -0 1</code> 恒真是最便宜的例子：检查成功了，检查的东西却不是你想检查的东西。写完任何一个 health check，问一句：什么情况下它会成功但主张为假？</li>
+        <li><strong>fail closed</strong>。损坏的状态宁可当「停止」处理。谎报运行比误报停止危险一个量级——前者让你在失火时赞美烟感器很安静。</li>
+    </ol>
+
+    <blockquote>源码：monorepo commit e5d8c3c（tools/agent-framework-manager，3 个红优先测试随修复入库）</blockquote>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

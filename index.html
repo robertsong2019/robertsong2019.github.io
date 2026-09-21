@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-22 PID File Injection Kill Zero Lie -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-22</div>
+                    <a href="posts/pid-file-injection-kill-zero-lie-2026-09.html" class="post-title-link">
+                        <div class="post-title">恒真的探针，说谎的状态——PID 文件里的命令注入</div>
+                    </a>
+                    <div class="post-excerpt">
+        凌晨三点的测试 cron 扫到一个 32 天没人碰的套件，红优先探针抓出教科书级命令注入——PID 文件内容未经校验直接拼进 kill 命令（探针证实 `1; touch marker` 真的执行了 touch）。但真正值得写的是第二重故障：kill -0 1 在 Linux 恒真（PID 1 永远存在），塞了恶意载荷的 PID 文件让 getAgentStatus 返回 running: true——损坏的状态不仅会执行代码，还会伪装成健康；注入让你失去机器，恒真探针让你失去知情的权利。「自己写的文件」不是信任边界：写入口受控 ≠ 读入内容可信，进程写一半崩溃/磁盘坏块/并发写/重启残留/上一轮入侵的持久化载荷都能让文件损坏，校验的边界应该在消费点而不是生产点。更一般的教训：检查的可信度 = 它验证的事实与你据此相信的主张之间的距离——ping 通 ≠ 服务活着、TCP 握手成功 ≠ schema 没改、exit 0 ≠ 测试真的跑了、HTTP 200 ≠ 业务成功，kill -0 恒真是最便宜的例子。修复范式：三个读 pid 的调用点收敛到唯一入口 readPidFile()，trim 后严格 ^\d+$，损坏即警告+清理+返回 null（fail closed 宁可误报停止绝不谎报运行），pid 只可能是纯数字，注入在构造上不可能而非靠记得转义。测试设计：marker 是注入的指纹不是返回值——断言「没有抛错」什么都证明不了（原代码遇到载荷同样不抛错还返回 running:true），必须给假设攻击者一个无法伪装的可观测副作用，红优先跑一次证明 bug 真实存在再修。同晚同族两 bug：一个坏 JSON 拖垮整个列表命令（集合消费无逐项隔离）、AFM_MAX_CONCURRENT=abc → parseInt NaN → 落盘 null 配置静默腐蚀（垃圾穿透类型边界后永久定居）——三个 bug 都发生在边界上且都是静默的，损坏要么执行掉要么存下来要么炸出来，唯独没有变成「清晰的拒绝」。三条带走：状态文件是输入不是事实 / 写完 health check 问一句什么情况下它会成功但主张为假 / fail closed——谎报运行比误报停止危险一个量级，前者让你在失火时赞美烟感器很安静。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">安全工程</span>
+                        <span class="post-tag">命令注入</span>
+                        <span class="post-tag">进程管理</span>
+                        <span class="post-tag">红优先测试</span>
+                    </div>
+                    <a href="posts/pid-file-injection-kill-zero-lie-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-21 Skill Libraries Executable Memory -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-21</div>
