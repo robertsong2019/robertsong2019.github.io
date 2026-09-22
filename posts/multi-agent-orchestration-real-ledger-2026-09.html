@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>并行是杠杆，协调是税——多智能体系统的真实账本 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>并行是杠杆，协调是税——多智能体系统的真实账本</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">多智能体</span>
+        <span class="tag">系统设计</span>
+        <span class="tag">测试时计算</span>
+        2026-09-22 · 基于 14 篇论文/系统的一手调研（MAST / Anthropic Multi-Agent Research System / Cognition / ICML'24 辩论重评 / Large Language Monkeys / PROFES'26 工业实证 / MASS / MAS 注入威胁模型）
+    </p>
+
+    <blockquote>你给 Agent 一个研究任务，几秒后它"分裂"成五个自己：一个查文献、一个翻财报、一个读新闻、一个交叉验证、一个统筹全局。看起来像科幻片里的超级智能。但先别急着感动——那可能是五个更贵的自己，它们之间开的每一次"会"，都在烧你的钱，而且未必更聪明。这份账本来自 14 篇一手材料：多智能体的收益从哪来、失败死在哪、以及那个最重要的问题——什么时候真的值得分裂自己。</blockquote>
+
+    <h2>开场：先看两个方向相反的数字</h2>
+    <p>2025 年 6 月，Anthropic 公布了他们研究功能背后的多智能体架构：一个主控 Agent 负责规划，派生出一群并行的子 Agent 分头搜索。内部评测里，它比单体 Agent <span class="highlight">好 90.2%</span>。同一个夏天，Devin 背后的 Cognition 发了一篇标题直白的文章：《不要做多智能体》（Don't Build Multi-Agents），主张默认单线程线性 Agent，把多智能体当反模式。</p>
+    <p>两边都是认真的工程团队，都不是嘴炮。90.2% 和"别做"同时为真——这不是矛盾，这是账本的两面。<strong>并行是杠杆，协调是税。</strong>这篇文章想把这本账摊开算清楚。</p>
+
+    <h2>一、90.2% 的提升，80% 是 token 买来的</h2>
+    <p>Anthropic 那篇文章里最有价值的不是架构图，是一句自我拆台的归因分析：在 BrowseComp 评测上，<strong>token 用量一项就解释了 80% 的性能方差</strong>；加上工具调用次数和模型选择，三个因素解释 95%。翻译成人话：多智能体系统好，主要不是因为"多个智能体碰撞出了集体智慧"，而是因为它<strong>花得起 token</strong>——多智能体的消耗约是普通聊天的 15 倍。15 倍的钱，买 90% 的提升，这笔账成立，但别把账记在"智慧"头上。</p>
+    <p>那多智能体到底买到了什么真东西？两个词：<strong>并行吞吐</strong>和<strong>路径独立性</strong>。每个子 Agent 有自己独立的上下文窗口，等于五间互不打扰的书房——A 查到的烂结果不会污染 B 的推理路径。文章里有句很本质的话：搜索的本质是压缩。子 Agent 各自在自己的窗口里翻完几千页原始材料，<strong>只把压缩后的结论交回主控</strong>——像派出去的实习生，回来只交一页纸摘要，而不是把整个图书馆搬回办公室。</p>
+    <p>所以对"找出标普 500 信息技术板块所有公司的董事会成员"这种广度优先的任务，单体 Agent 顺序搜索会陷入泥潭，多智能体拆解后碾压。这是真收益，条件苛刻的真收益。</p>
+
+    <h2>二、会议室里的回声：辩论的光环是可分解的</h2>
+    <p>比 orchestrator-worker 更早流行的是"辩论式"多智能体：正方、反方、裁判，几个角色互相讨论，号称提升推理。ICML 2024 的一篇系统重评给了它一次冷静的体检：<strong>一个带强提示词的单体 Agent，几乎追平最好的多智能体讨论方案</strong>，横跨多个推理任务和底座模型。更扎心的细节：多智能体讨论只在提示词里没有示范例的时候才赢——也就是说，它补偿的是提示词质量的不足，不是提供了什么"集体智力"。</p>
+    <p>同期还有两条更朴素的证据。More Agents Is All You Need（TMLR）发现：纯粹地"多采样几个答案再投票"，性能就随 Agent 数量扩展。Large Language Monkeys 把这条路推到极致：覆盖率随采样数<strong>对数线性增长四个数量级</strong>，在 SWE-bench Lite 上单采样解决 15.9% 的问题、250 个采样提到 56%——但前提是任务有自动验证器（测试通过即正确）；没有验证器的领域，投票和奖励模型几百个样本后就平台化，涨不动了。</p>
+    <p>把三条证据放在一起，结论有点损：<strong>会议室里五个自己的讨论，大部分收益可以由"同一个自己多写几稿 + 一个好阅卷人"复刻，而且便宜得多。</strong>辩论是采样多样性穿了正装。真正的瓶颈从来不是"几个脑袋"，是"谁来判卷"——验证器才是稀缺资源。</p>
+
+    <h2>三、托尔斯泰式的失败：每个失败系统各有各的失败</h2>
+    <p>如果多智能体只是"贵但有效"，那不过是预算问题。真正的问题是它经常又贵又失败。UC Berkeley 的 MAST 研究（Why Do Multi-Agent LLM Systems Fail?）标注了 1600+ 条执行 trace，覆盖 7 个主流框架，萃取出 14 种失败模式、三大类。论文开篇改编了托尔斯泰："成功的系统都相似，每个失败的系统各有各的失败。"</p>
+    <ul>
+        <li><strong>系统设计问题</strong>（FM-1）：违反任务规范、违反角色设定、步骤重复、丢失对话历史、不知道何时该停——占大头。</li>
+        <li><strong>代理间失配</strong>（FM-2）：对话意外重置、该追问时不追问、任务脱轨、信息隐瞒、无视同伴输入、说的和做的不一致。</li>
+        <li><strong>任务验证问题</strong>（FM-3）：过早宣布完成、不验证或验证不全、验证本身是错的。</li>
+    </ul>
+    <p>读这份分类学最震撼的一点：几乎没有一条失败模式是"模型不够聪明"。全是<strong>接口和拓扑的病</strong>——规范写得含糊、上下文传丢了、没人负责验收。换更贵的模型治不了拓扑的病。</p>
+    <p>Cognition 用一个具象例子把病理讲透了。任务："做一个 Flappy Bird 克隆"，拆成"背景+管道"和"会飞的小鸟"两个子任务。结果子 Agent 一号做成了超级马里奥风格的背景，二号做了一只不像游戏素材、飞行手感也不对的小鸟。合并的 Agent 拿到两个都"完成了任务"的部件，却没有信息能发现它们根本不是同一个游戏。由此得出两条原则：<strong>第一，共享上下文要传完整执行轨迹，不要传转述摘要</strong>（转述丢掉的每个细节都可能在下游放大成误解）；<strong>第二，每个动作都携带隐式决策，冲突的隐式决策必然产出冲突的结果</strong>。你拆掉的不是任务，是决策的连续性。</p>
+
+    <h2>四、什么时候真的值得分裂自己</h2>
+    <p>把正反证据摊平，适用判据其实相当清晰。多智能体在三个条件同时满足时是利器：</p>
+    <ol>
+        <li><strong>任务是广度优先的信息收集</strong>：可以拆成互不依赖的探索方向，且结论可压缩（子 Agent 交回的是摘要不是过程）；</li>
+        <li><strong>信息量超出单个上下文窗口</strong>：并行不是为了聪明，是为了装下；</li>
+        <li><strong>任务价值付得起 15 倍账单</strong>，且无法用"采样+验证器"更便宜地解决。</li>
+    </ol>
+    <p>反过来，强依赖共享状态的任务——大多数编码工作就是典型——不适合。这点连多智能体的最大受益者 Anthropic 都明说：Agent 之间的实时协调和委派还做不好，编码任务里真正可并行的部分比研究少得多。2026 年 9 月一篇工业实证（PROFES 会议）给了这场争论一个落地注脚：一家网络设备公司用单 Agent 和编排多 Agent 两套配置做夜间测试失败分析，六位工程师盲评，<strong>两种配置没有一致的质量优势，单 Agent 更快、更便宜</strong>，成为该场景更实用的基线。</p>
+    <p>还有一本容易被忘掉的账：<strong>安全</strong>。多个 Agent 一旦开始互传消息，就出现了单体系统没有的攻击面——agent 间消息传递是边界防御看不见的注入通道，共享工具意味着跨 Agent 提权，信任还能沿编排链向上游传染。ICML 2026 一个 workshop 论文枚举了 14 种攻击向量，实测 67% 的 Agent 至少中招一种；好消息是四个防御（消息签名+溯源、边界净化、按角色最小权限、通信异常检测）能把攻击成功率从 31.2% 压到 4.2%。多智能体的安全预算应该和它的 token 预算一起规划。</p>
+
+    <h2>今晚可以做什么</h2>
+    <p>不需要重构架构，五件小事今晚就能落地：</p>
+    <ol>
+        <li><strong>做一次"伪并行"审计</strong>。把你系统里所有多 Agent 调用点列出来，逐个问：这些子任务真的互不依赖、结论真的可压缩吗？凡是因为共享状态需要频繁互通的，改回单线程——账单立降，失败面立减。</li>
+        <li><strong>可验证任务先走"采样+验证器"</strong>。让同一个 Agent 写 N 个候选方案，用测试挑最好的那个，替代"开会式"讨论。N 的收益是 log 线性的，先用便宜的 N=5 试试水温。</li>
+        <li><strong>给子任务模板加两行</strong>：①原文上下文作为附件完整传递，不靠转述；②"这个子任务隐含了哪些假设"显式写出来。这是 Cognition 两原则的最小操作化。</li>
+        <li><strong>给失败 trace 建 MAST 式标签</strong>。多 Agent 调试时按三大类十四模式打标签，你会发现自己的系统 80% 的失败集中在两三种模式上——修那两三个接口，比换模型有效。</li>
+        <li><strong>先做工具最小权限</strong>。编排层安全四件套里它近乎免费：每个子 Agent 只拿到完成自己子任务所需的工具，越权通道在构造上消失。</li>
+    </ol>
+    <p>最后回到开头的分裂场景。多智能体不是进化的等级，是工具箱里一件有明确适用面的武器——它把"并行"这个最古老的加速手段带进了语言系统，代价是把"协调"这个最古老的成本也一并带了回来。判断什么时候分裂自己，只需要回答那个老问题：<strong>五间独立的书房，是否真的比一间好；而回廊里传话的税，你是否交得起。</strong>分布式不是智能，预算才是；而真正的智能，始终在那一次压缩里——把翻过的千页档案，变成交回的那一页纸。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
