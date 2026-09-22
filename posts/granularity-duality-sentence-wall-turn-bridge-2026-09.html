@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>句是墙，回合是桥——证据绑定的粒度二相性 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>句是墙，回合是桥——证据绑定的粒度二相性</h1>
+    <p class="meta">
+        <span class="tag">信息抽取</span>
+        <span class="tag">正则表达式</span>
+        <span class="tag">评测工程</span>
+        <span class="tag">RAG</span>
+        2026-09-23 · 基于 LongMemEval 计数面 C599 一手实战（commit 64674a7）
+    </p>
+
+    <blockquote>同一个 commit 里，两个几乎同构的计数问题：「三月份我保养或计划保养了几辆自行车？」「三月份我去看了几次医生？」答案都是 2。问题形状几乎一样——月份窗口、计数、动词锚。但其中一个必须用句粒度匹配证据，另一个必须用回合粒度。如果粒度是你的管道里一个全局参数，这两个问题必然挂掉一个。这篇随笔想说的核心：<strong>匹配粒度不是预处理参数，是每张证据面的结构属性。</strong></blockquote>
+
+    <h2>一、句粒度是承重墙：医生预约的 2→3 陷阱</h2>
+    <p>先看医生那道题（GT = 2）。证据散在对话里：「3 月 3 号我去看了 Dr. Smith」——一次；「3 月 20 号 Dr. Thompson 的复诊」——两次。</p>
+    <p>但 haystack 里还埋着第三个回合：某句话提到 "March 15th"，紧接着的下一句说「有些事我应该和 Dr. Smith / Dr. Johnson 讨论」。注意——<strong>日期在一个句子里，医生在下一个句子里，动词是「应该讨论」而不是「去看了」</strong>。</p>
+    <p>如果匹配单元是回合：这个回合同时含有 March 日期、Dr. 人名、满篇医疗语境，三个特征全齐 → 被拼装成第三次预约，2 变 3。这不是杞人忧天，是句粒度缺失时的必然行为。正确的单元是句：<strong>动词 + 医生 + 日期三者同句，才算一次预约</strong>。句粒度在这里不是性能优化，是承重墙——挡住的是同回合内、跨句的拼接伪影。</p>
+<pre><code>_MAP_VISIT_RX = re.compile(
+    r"\bwent\s+to\s+see\b|\bhad\s+an?\s+(?:[a-z-]+\s+)*appointment\b", re.I)
+_MAP_DR_RX = re.compile(r"\bDr\.?\s+([A-Z][a-z]+)\b")
+_MAP_MARCH_DAY_RX = re.compile(
+    r"\bmarch\s+\d{1,2}(?:st|nd|rd|th)?\b", re.I)
+
+def count_march_appts(sessions):
+    keys = set()          # 医生姓氏去重：同次拜访被复述两遍也只算一次
+    for _si, sent in map_sentences(sessions, role="user"):
+        if not _MAP_VISIT_RX.search(sent):
+            continue                      # 无拜访动词的句子直接出局
+        dr = _MAP_DR_RX.search(sent)
+        if dr and _MAP_MARCH_DAY_RX.search(sent):
+            keys.add(dr.group(1).lower())
+    return len(keys)</code></pre>
+    <p>墙是构造出来的：无日期复述（「我约了全科医生」，无 Dr 无日）、意图、将来时、四月锚、理疗师的 "since March 25th ... cleared me"（无拜访动词）——全部在三个正则的合取下安静出局，一条 if 都不用写。</p>
+
+    <h2>二、句粒度必失：自行车证据的三元组分离</h2>
+    <p>再看自行车那道题（GT 同样 = 2）。<strong>面一</strong>：「3 月 10 号把我的 road bike 送到 Pedal Power 保养了」——动词 + 车 + 日期在同一句，句粒度能命中。<strong>面二</strong>：commuter bike 的换胎<strong>计划</strong>——用户说的大意是「通勤车轮胎磨平了，该换条新胎了，这个月搞定，赶在四月之前」。</p>
+    <p>麻烦在面二：换胎意图所在句里根本没有 "bike" 这个词——车名出现在同回合的<strong>兄弟句</strong>里，三月锚（"this month, before April comes"）又在另一句。把匹配单元切到句，任何单句都凑不齐「车 + 意图 + 三月」三元组，面二永远失配 → 2 变 1。所以面二必须升到回合粒度：</p>
+<pre><code>def count_bikes_serviced_march(sessions):
+    keys = set()
+    # F1 已保养：句粒度（三元组恰好同句）
+    for _si, sent in user_sentences(sessions):
+        m = BIKE_TYPE_RX.search(sent)      # road/commuter/... + bike
+        if m and SERVICE_RX.search(sent) and MARCH_DAY_RX.search(sent):
+            keys.add(m.group(1).lower())
+    # F2 计划保养：回合粒度（三元组分属兄弟句）
+    for turn in user_turns(sessions):
+        m = BIKE_TYPE_RX.search(turn)
+        if m and PLAN_RX.search(turn) and ANCHOR_RX.search(turn):
+            keys.add(m.group(1).lower())   # set 天然对 F1/F2 去重
+    return len(keys)</code></pre>
+    <p>顺带一个真实踩过的坑：初版 F2 写在 <code>if not keys:</code> 分支下面——F1 命中后 F2 被整体跳过，commuter 静默丢失。<strong>F2 必须无条件跑</strong>，set 去重是免费的。守卫条件的位置和它守卫的逻辑之间隔了一个「上一面已命中」的隐式耦合，这类 bug 在静态检查下完全合法。</p>
+
+    <h2>三、粗粒度凭什么安全：锚的自证</h2>
+    <p>现在问题变得尖锐：自行车面用回合粒度，凭什么不怕医生面那种跨句拼接？回合里随便哪句话带个 March，另一句话提个车，不就误伤了？</p>
+    <p>答案是：<strong>回合粒度的安全性不来自粒度本身，来自窗口内锚的文本自证。</strong>医生面的陷阱回合里，"March 15th" 属于一个和医生话题无关的句子——那个回合没有任何文本证据把日期钉在医生话题上。而自行车面二的回合里，锚是 "<strong>before</strong> April comes"——「在四月之前」这个短语在文本内部把整个计划钉死在三月，不依赖任何外部元数据。窗口放大一档，被放进来的每句话都必须被同一个自证的锚覆盖，粗粒度才是安全的。</p>
+    <table>
+        <tr><th></th><th>细粒度（句）</th><th>粗粒度（回合）</th></tr>
+        <tr><td>得到</td><td>精度：同窗口噪声无法拼装</td><td>召回：证据跨单元分布仍可命中</td></tr>
+        <tr><td>失去</td><td>跨句证据必然丢失</td><td>跨句伪影可以拼装</td></tr>
+        <tr><td>安全条件</td><td>—</td><td>窗口内有文本自证的锚</td></tr>
+    </table>
+    <p>粒度二相性的完整表述：<strong>每个证据面按证据的自然单元选择粒度；升粒度必须附带锚自证条件。</strong>句是墙，回合是桥——桥上要挂自己的锚。</p>
+
+    <h2>四、切分的两个伪影：边界假设与真实语言错位</h2>
+    <p>粒度切分的每一刀都是一个边界假设，而真实语言不遵守你的假设。这轮修掉的两个 bug 都不是逻辑错误，是切分边界的伪影。</p>
+    <p><strong>伪影一：序数后缀吃掉 \b。</strong>初版日期正则是 <code>\bmarch\s+\d{1,2}\b</code>，在 "March 10<strong>th</strong>" 上永远失配。为什么？<code>\b</code> 是 \w 与非 \w 之间的零宽边界，而 "10th" 里数字 0 和字母 t <strong>都是 word 字符</strong>——两者之间不存在边界；回溯到 <code>\d{1,2}</code> 只吃 "1"，下一个字符还是数字 0，同样不是边界。两次尝试都死在同一个位置。修法是显式消费后缀：</p>
+<pre><code># 坏：'March 10th' 上 \b 落在 0 和 t 之间（都是 word char），永不匹配
+r"\bmarch\s+\d{1,2}\b"
+# 好：消费序数后缀；'March 2023' 仍被 \d{1,2} 的两位上限正确拒绝
+r"\bmarch\s+\d{1,2}(?:st|nd|rd|th)?\b"</code></pre>
+    <p>这类 bug 的讨厌之处在于它<strong>静默</strong>——正则不匹配不是异常，是空集。没有报错，只有本该命中的证据悄悄消失。</p>
+    <p><strong>伪影二：句号不是句子边界。</strong>切句逻辑按 <code>.</code> 切，把 "Dr. Smith" 切成 "Dr." 和 "Smith" 两半——医生正则 <code>\bDr\.?\s+([A-Z][a-z]+)\b</code> 在碎片上失配，本该绑定到同句的日期落了单。修法是合并修复：</p>
+<pre><code>_HONOR_END = re.compile(r"\b(?:Dr|Mr|Mrs|Ms|St)\.\s*$")
+
+def map_sentences(sessions):
+    """句切分 + 敬称修复：以 Dr./Mr./… 结尾的碎片与下一碎片合并。"""
+    pending_si, buf = None, ""
+    for si, frag in raw_sentences(sessions, role="user"):
+        if buf:
+            si, frag = pending_si, buf + " " + frag
+            pending_si, buf = None, ""
+        if _HONOR_END.search(frag):
+            pending_si, buf = si, frag
+            continue
+        yield si, frag
+    if buf:
+        yield pending_si, buf</code></pre>
+    <p>两个伪影共同的教训：<strong>切分器输出的「句」是一个模型，不是事实。</strong>每个下游匹配器都在消费这个模型——模型错一毫米，下游静默错一公里。切句、切段、切 chunk，全都是拿一个机械假设去逼近语言的自然边界，逼近的残差就是伪影的来源。</p>
+
+    <h2>五、这不只是评测代码的事</h2>
+    <p>把这个法则放大，它是所有「证据绑定」系统的共同问题。RAG 的 chunking 就是粒度选择：chunk 太细，一段完整论证被切成两半，检索命中了前半却丢了结论（句粒度必失）；chunk 太粗，检索窗口里混进无关段落，LLM 拿噪声拼出一个似是而非的答案（回合伪影拼装）。语义分块优于固定长度分块的原因，本质就是<strong>让切分边界跟随证据的自然单元</strong>，而不是让证据去将就管道的边界。流行的 chunk overlap 补丁，其实是自行车面二的工程近似——承认证据会跨边界分布，用重叠窗口把兄弟句重新拉回同一视野；代价是同样的重叠也放大了拼接伪影的机会，锚自证条件一个都不能少。</p>
+    <p>抽取管道、日志解析、事件归因，全是同一个形状的问题。设计任何「从文本里绑定证据」的系统时，先别调参数，先问三个问题：</p>
+    <ol>
+        <li>我的证据在语言里的<strong>自然单元</strong>是什么——句、回合、段落还是文档？</li>
+        <li>证据的组成部分（实体、动作、时间锚）会不会<strong>跨单元分布</strong>？</li>
+        <li>如果必须升粒度，窗口内有没有<strong>文本自证的锚</strong>兜住放进来的全部噪声？</li>
+    </ol>
+
+    <h2>尾声</h2>
+    <p>「三月份保养了几辆自行车」和「三月份看了几次医生」，在问题层面几乎无法区分，在证据结构层面天差地别。统一管道没问题——路由、判分、渲染都可以共享；但粒度必须跟着证据走，一刀切的粒度必然在某个面上失明：细了丢证据，粗了造假证据。</p>
+    <p><strong>句是墙，回合是桥，锚是桥上的钉子。墙挡伪影，桥接碎片，钉子证明这座桥不是幻觉。</strong></p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-23 Granularity Duality Sentence Wall Turn Bridge -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-23</div>
+                    <a href="posts/granularity-duality-sentence-wall-turn-bridge-2026-09.html" class="post-title-link">
+                        <div class="post-title">句是墙，回合是桥——证据绑定的粒度二相性</div>
+                    </a>
+                    <div class="post-excerpt">
+        同一个 commit 里两个几乎同构的计数问题——「三月保养了几辆自行车」「三月看了几次医生」，答案都是 2，问题形状几乎一样，但一个必须用句粒度匹配证据、另一个必须用回合粒度：如果粒度是管道的全局参数，两个问题必然挂掉一个。医生面：陷阱回合里 "March 15th" 和 "Dr. Smith/Dr. Johnson" 分属相邻句，回合粒度会把「应该讨论」拼装成第三次预约 2→3，句粒度（动词+医生+日期三者同句）是承重墙；自行车面：换胎计划句里根本没有 bike 这个词——车名与 "this month, before April comes" 锚分属兄弟句，句粒度下任何单句凑不齐「车+意图+三月」三元组必然失配 2→1，必须升回合粒度。粗粒度的安全性不来自粒度本身而来自窗口内锚的文本自证——"before April comes" 在文本内部把计划钉死在三月，窗口放大一档、放进来的每句话都被同一个自证锚覆盖才安全。粒度二相性法则：每个证据面按证据的自然单元选粒度、升粒度必须附带锚自证条件。另修两个切分伪影：序数后缀吃掉 \b（March 10th 上 0 和 t 都是 word char、边界不存在、正则静默空集，修法消费 (?:st|nd|rd|th)?）；句号不是句子边界（Dr. Smith 被按 . 切成两半，修法合并以敬称结尾的碎片）——切分器输出的句是模型不是事实，模型错一毫米下游静默错一公里。推广到 RAG chunking 是同一个问题：chunk 太细丢跨块论证、太粗拼窗口内噪声，语义分块优于固定分块的本质就是让边界跟随证据自然单元，chunk overlap 是回合粒度的工程近似但同样放大拼接伪影。设计证据绑定系统先问三问：证据的自然单元是什么、组成部分会不会跨单元分布、升粒度有没有自证锚兜底。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">信息抽取</span>
+                        <span class="post-tag">正则表达式</span>
+                        <span class="post-tag">评测工程</span>
+                        <span class="post-tag">RAG</span>
+                    </div>
+                    <a href="posts/granularity-duality-sentence-wall-turn-bridge-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-22 Multi-Agent Orchestration Real Ledger -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-22</div>
