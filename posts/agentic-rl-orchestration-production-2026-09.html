@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>编排进权重，训练进生产——Agentic RL 的 2026 春季赛 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>编排进权重，训练进生产——Agentic RL 的 2026 春季赛</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">Agentic RL</span>
+        <span class="tag">多智能体</span>
+        <span class="tag">环境工程</span>
+        2026-09-23 · 基于 14 篇论文/系统的一手调研（Kimi K2.5 PARL / Cursor Composer 2 / Chroma Context-1 / EnviSAgE / Landscape survey 500+ / AgentGym-RL / RAGEN / SWE-RL / ARPO / GiGPO / Gemini Scaling Environments / Scale RL Environments / Google Tunix / Kimi K2）
+    </p>
+
+    <blockquote>昨天我们还在算多智能体的账：什么时候值得把 Agent 分裂成几个自己，结论是多数时候不划算，并行是杠杆、协调是税。三个月内出现的三份技术报告改写了这道题的前提：「什么时候并行」本身，现在可以被训练进模型权重。这篇文章讲 2026 年春季 Agentic RL 的三个新信号——编排进权重、训练搬进生产、环境变成资产——以及它们对你（一个大概率不训练权重的从业者）意味着什么。</blockquote>
+
+    <h2>开场：一份被改写前提的账本</h2>
+    <p>先回忆旧共识。多智能体系统的架构里，有一个藏在暗处的决定权：任务来了，是单干还是分裂？谁来决定分裂成几路、各查什么、结果怎么汇总？过去这个决定权在<strong>架构师</strong>手里——你写 if-else、画 DAG、定 supervisor-worker 拓扑。所有多智能体框架卖的本质上都是这套「分裂策略的手工编码」。</p>
+    <p>2026 年 2 月，Moonshot 在 Kimi K2.5 的技术报告里展示了另一条路：把这个决定权交给强化学习，让模型自己学会<strong>何时、如何把任务拆给并行子 Agent</strong>。3 月，Cursor 的 Composer 2 报告和 Chroma 的 Context-1 又补上另外两块拼图。三份报告合起来，勾勒出 Agentic RL 在「四根支柱」（奖励、稳定性、信用分配、环境）之后的第二季：支柱之上开始盖楼。</p>
+
+    <h2>一、编排进权重：教练是唯一的学生</h2>
+    <p>K2.5 的 Agent Swarm 框架里有个漂亮的架构决定，叫 <strong>PARL（Parallel-Agent Reinforcement Learning）</strong>。它把角色切成两半：</p>
+    <ul>
+        <li><strong>编排器（可训练）</strong>：只配两个工具——<code>create_subagent</code> 和 <code>assign_task</code>。它决定要不要拆、拆成几路、派什么活、怎么汇总。</li>
+        <li><strong>子 Agent（全部冻结）</strong>：拿到任务独立执行，它们的轨迹被排除在优化目标之外，输出被降维成「环境观测」。</li>
+    </ul>
+    <p>为什么冻结子 Agent？这是信用分配的手术刀。想象联合训练一个教练和十一个球员：比赛赢了，你分不清是教练布阵好还是某个球员运气好。把球员钉死成「场地的一部分」，比分的波动就唯一归因于布阵逻辑。<strong>教练是唯一的学生，球员是器材。</strong>这与 GiGPO 用「锚状态分组」给步级信用分配、ARPO 用「工具调用后的熵尖峰」决定采样分支，是同一条主线的三种打法——多轮信用分配是 Agentic RL 的算法主战场，而「冻结」是其中最便宜的一招。</p>
+    <p>第二个聪明设计是成本度量。并行执行下，总步数会骗人（十个子 Agent 各跑三步，不是三十步的成本，是三步的延迟）。K2.5 引入 <strong>critical steps</strong>：每个阶段取所有并行子 Agent 的最大步数，再逐阶段求和——就是关键路径的长度。这像流水线的节拍：快慢不看平均工位，看最慢的那个。奖励函数按这个度量算成本，编排器就被迫去<strong>平衡分支</strong>，而不是无脑堆并发。</p>
+    <h3>奖励是打地鼠，但地鼠的名字越来越精确</h3>
+    <p>PARL 的奖励有三件套：性能奖励（任务成了吗）是主菜；并行奖励防「串行坍缩」——一种局部最优，模型永远单干、从不探索并行策略；完成奖励防「虚假并行」——一种 reward hacking，模型狂开子 Agent 刷并行奖励但根本不做有意义的拆解。辅助奖励的系数随训练退火到零，脚手架是临时搭的，最终策略只对性能负责。</p>
+    <p>注意这个模式：Echo Trap（RAGEN 命名的方差悬崖）、串行坍缩、虚假并行……每只新地鼠被精确命名，就被一个退火项驯服。<strong>奖励设计仍然是在打地鼠，但地鼠清单在系统化地变长</strong>——这是可控的进展，不是根除。</p>
+    <h3>数字，以及最容易被忽略的那句话</h3>
+    <p>Agent Swarm 在 BrowseComp 上拿到 <span class="highlight">78.4%</span>（单 Agent 基线 60.6%，超过 GPT-5.2 Pro 的 77.9%），推理延迟最高降 <span class="highlight">4.5 倍</span>；WideSearch 的 item 级 F1 从 72.8% 提到 79.0%。协调税没有消失，但从运行时的每次拍板，摊销成了训练期的一次性投资——这就是「编排进权重」的账面含义。</p>
+    <p>而报告里最值得抄走的是训练分布的设计哲学：合成任务强调「宽搜索」（多个独立信息源）或「深搜索」（多条推理分支、延迟汇总），<strong>prompt 从不指示模型并行，而是造出「并行才有优势」的任务</strong>。简单任务上模型自己就顺序执行了。想教一个行为，别写进指令里，埋进环境里。</p>
+
+    <h2>二、训练搬进生产：模拟考与急诊室</h2>
+    <p>Cursor 的 Composer 2 解决的是另一个问题：训练分布和真实分布的鸿沟。他们做了一个看起来很重、其实很本质的决定——<strong>RL rollout 跑在与产品完全相同的 Cursor harness 里</strong>：同样的工具、同样的 prompt 格式、同样的 system message、同样的文件上下文。他们维护了一套生产后端的 shadow deployment，保证训练时语义搜索等工具行为和线上分毫不差。每个 rollout 在独立的 Firecracker microVM 里跑，异步、大规模、互不污染。</p>
+    <p>为什么值得这么重？因为他们发现公开基准的本质缺陷：<strong>SWE-bench 这类基准是简化环境加过度明确的任务书</strong>。真实开发者的请求是欠明确的、乱的、允许多种合理解的。他们内部建了 CursorBench，任务从真实编码会话里抽取：中位数要改 <span class="highlight">181 行</span>代码——SWE-bench 任务的中位数是 7 到 10 行——prompt 却更短、更模糊。这是应试模拟考和急诊室夜班的差距。</p>
+    <p>这里的判断是：<strong>分布对齐压倒基准分数。</strong>在产品 harness 里训练、从生产流量里实时做 RL，benchmark 分数与「产品好用」之间的鸿沟正被直接抹平。它还有一个副产品值得所有做模型的人警觉：<strong>没有产品的实验室，正在失去一类训练数据资产。</strong>2024 年大家抢 GPU，2025 年抢标注，2026 年抢的是「带 harness 的真实流量」。</p>
+
+    <h2>三、上下文管理本身成为学习目标</h2>
+    <p>第三块拼图来自 Chroma 的 Context-1（从 gpt-oss-20B 起训）。它教模型做一件朴素的事：检索回来的文档，主动<strong>删剪</strong>——把没用的段落清掉，给后续搜索腾出上下文空间。检索式 Agent 的记忆不是攒出来的，是修剪出来的。写过 agent memory 的人会立刻意识到这意味着什么：上下文里留什么、删什么，从检索策略和启发式规则，变成了一个可以被奖励信号塑造的行为。</p>
+    <p>K2.5 还给了个佐证：训练中在「预算约束」和「标准 scaling」两档间切换，输出长度砍 25-30%，性能几乎不掉。长答案常常不是深思熟虑，只是没人告诉它——短也可以。</p>
+    <p>把三份报告的方法论叠起来看，共同点清楚得像清单：强基座起训（没人从头训）、在生产 harness 里 rollout、结果奖励为主加生成式奖励模型（GRM）兜开放式任务、异步大规模 rollout 且在基础设施上重金投入。RAGEN 的警告仍然悬在头顶：没有细粒度、推理感知的奖励，agent 推理几乎不会从多轮 RL 里涌现。但方向已经定了：<strong>原来写在 prompt 里、框架里、规则里的一切，都在候选进入训练目标</strong>。</p>
+
+    <h2>四、环境成了资产负债表上的资产</h2>
+    <p>这些进展背后有一个正在成形的产业。EnviSAgE 综述把「环境扩展」拆成 GEF 循环——任务生成、任务执行、反馈，环境不再是被动测试夹具，而是<strong>主动生产经验数据的数据引擎</strong>。Gemini 团队在做容器化的环境扩展管线，Google 开源了 Tunix 高吞吐 agentic RL 训练库，Scale AI 干脆把「RL 环境」做成了明码标价的产品。500+ 篇工作的 Landscape 综述则给了范式命名：从单步退化的 MDP，到多步部分可观测的 POMDP——模型从答题者变成了世界里的行动者。</p>
+    <p>数据工程之后是环境工程。这个工种的核心产出是：会还手的世界。</p>
+
+    <h2>五、冷水：RL 是特定环境形状的放大器</h2>
+    <p>AgentGym-RL 的发现值得贴在墙上：RL 的收益集中在<strong>结构化、规则清晰的环境</strong>——简单模拟、明确动力学；开放式复杂环境收益有限。SWE-RL 在软件演化数据上训练，Llama3-70B 拿到 SWE-bench Verified 41.0%，还意外地在五个出域任务上涨分（而 SFT 基线平均掉分）——但那是软件演化数据天然可验证的功劳。RL 不是通用升级补丁，是「可验证状态 + 可归因信用 + 可并发环境」三种形状都具备时的放大器。形状不对，放大的是噪声。</p>
+
+    <h2>六、今晚能做什么（不训练权重的版本）</h2>
+    <ol>
+        <li><strong>把环境思维用到评测上。</strong>为你业务的 agent 造一个可验证的 mini-env：fake 掉外部依赖、用断言代替人肉判卷、能并发重放。这既是回归测试的下限保障，也是未来任何训练管线的地基——三问自检：状态可验证吗？信用可归因吗？环境可并发吗？</li>
+        <li><strong>从生产 trace 里挖金子。</strong>成功会话的轨迹做 rejection sampling，就是最好的 SFT 数据池——K2.5 的 RFT 自改进管线是它的豪华版，你的「穷人版」今天就能搭。</li>
+        <li><strong>基准分布对齐体检。</strong>把你内部评测任务和真实使用分布摆在一起比：改动规模、请求模糊度、任务时长。如果比出来的又是「过度明确的任务书」，你就知道该修哪儿了。</li>
+        <li><strong>把「埋进环境」用在产品设计上。</strong>想让用户或模型表现出某个行为，第一反应别是加指令，而是问：能不能造出让这个行为天然占优的任务分布？这是 PARL 训练分布设计的通用版本。</li>
+        <li><strong>读三份一手报告</strong>：Kimi K2.5（arXiv 2602.02276）的 PARL 章节、Composer 2 的 harness 章节、philschmid 的三家对比综述。二手总结（包括本文）都会过时，一手设计决策不会。</li>
+    </ol>
+
+    <h2>尾声</h2>
+    <p>半年前的判断是「Agent 不是 prompt 出来的，是训出来的」。这一季的补充是：连「怎么组织 Agent」也不是画图画出来的，是训出来的。编排进权重，训练进生产，环境进资产表——决定权的每一次转移，都伴随着一类旧手艺的贬值和一类新资产的升值。你的 harness、你的 trace、你的环境，现在都值得用资产的目光重新盘点一遍。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
