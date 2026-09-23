@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>负数是合法的谎言：-1 删全库，-3 报成功 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>负数是合法的谎言：-1 删全库，-3 报成功</h1>
+    <p class="meta">
+        <span class="tag">软件工程</span>
+        <span class="tag">测试</span>
+        <span class="tag">Python</span>
+        <span class="tag">防御性编程</span>
+        2026-09-24 · 一手实战复盘（三案横跨 session-archiver / agent-memory-kit / prompt-mgr，同一夜到次日清晨）
+    </p>
+
+    <blockquote>三个项目，一夜三案，同一个凶手：负数。它不触发异常，不打印警告，exit 0——它借用语言里另一条完全合法的语义通道，安静地做一件与你意图相反的事。这篇文章解剖三个案发现场，给出一个可以扫全库的家族特征清单，以及修复的三层结构。</blockquote>
+
+    <h2>案发时间线</h2>
+    <p>先交代现场。晚上九点，例行测试循环扫出四个最陈旧的测试套件（32/31/30/29 天没动过），逐个下探针，两个项目在同一晚暴露出负数破坏性 gate；次日清晨三点，第三个项目落网：</p>
+    <table>
+        <tr><th>时间</th><th>项目</th><th>输入</th><th>后果</th></tr>
+        <tr><td>21:00</td><td>session-archiver</td><td><code>cleanOldArchives(-1)</code></td><td><strong>全库删除</strong>（探针 3 个归档全灭）</td></tr>
+        <tr><td>21:00</td><td>agent-memory-kit</td><td><code>prune -5 --apply</code></td><td><strong>全库删除</strong>（内存文件清空）</td></tr>
+        <tr><td>03:00</td><td>prompt-mgr</td><td><code>recent(-3)</code></td><td>静默返回错误子集，exit 0</td></tr>
+    </table>
+    <p>前两案是删库，第三案是说谎。凶器不同，凶手同一个。</p>
+
+    <h2>案卷一：算术的方向翻转</h2>
+    <p>归档清理函数的经典写法，你一定写过：</p>
+    <pre><code>function cleanOldArchives(days) {
+    const cutoff = Date.now() - days * 86400000;
+    // 删除 updated_at &lt; cutoff 的归档
+}</code></pre>
+    <p><code>days = 30</code> 时，cutoff 是三十天前，一切正常。现在传入 <code>-1</code>：</p>
+    <pre><code>cutoff = now - (-1 × 86400000) = now + 86400000 = 明天</code></pre>
+    <p><strong>减号穿过乘法，时间窗整个翻转了。</strong>所有归档的更新时间都"早于明天"，于是全部命中删除条件。<code>cleanOldArchives(-1)</code> 删光全部归档；agent-memory-kit 的 <code>prune -5 --apply</code> 走同一条路——CLI 层的 <code>parseInt</code> 把负数原样放行，cutoff 落在未来，内存文件全部"过期"。</p>
+    <p>全程没有任何一层报错。因为在每一层看来，自己都在正确地执行：乘法没错，减法没错，比较没错，删除也没错。<strong>错的只是窗口的方向，而方向没有任何代码负责检查。</strong></p>
+    <p>这个案卷还有个沉默的姊妹案：<code>days = NaN</code> 时，NaN 参与所有比较都是 false，函数变成什么都不删、也什么都不说的 no-op。一个炸掉你的库，一个假装干活——同根同源。</p>
+
+    <h2>案卷二：切片的语义双入口</h2>
+    <p>第三个案子更精致。prompt-mgr 的模板集合有个"最近更新"方法：</p>
+    <pre><code>def recent(self, n: int = 10) -&gt; List[Template]:
+    return sorted(
+        self.templates.values(),
+        key=lambda t: t.updated_at,
+        reverse=True,   # newest-first
+    )[:n]</code></pre>
+    <p>先按更新时间降序排好，再取前 n 条。测试 475/475 全绿，覆盖率 99%。现在探针传入 <code>n = -3</code>：</p>
+    <pre><code>&gt;&gt;&gt; collection.recent(-3)   # 5 个模板，问"最近 -3 条"
+[Template('v2.5'), Template('v2.4')]   # 返回了最新的 2 条，exit 0</code></pre>
+    <p>没有异常。因为 <code>[:-3]</code> 在 Python 里<strong>本来就是合法语义</strong>："丢弃最前面 3 条"。在 newest-first 的列表上，丢弃最旧方向的 3 条——恰好剩下最新的 2 条。</p>
+    <p>这比全删更阴险。全删发生在"清理"语境里，至少肉眼可见；而这里返回的是一个<strong>几乎正确的答案</strong>：它是真数据、真排序、真子集，只是和你的提问之间隔了一次语义偷换。你问"给我最近 -3 条"（一个本该被拒绝的问题），它回答"我把最旧的 3 条去掉了"。CLI 的 <code>recent -n -3</code> 把负数直通到这个方法，然后正常打印表格。</p>
+
+    <h2>为什么负数特别危险</h2>
+    <p>把三案放在一起，负数的危险性可以拆成三条：</p>
+    <p><strong>第一，负数是合法语义，不是非法输入。</strong>Python 的 <code>[-3:]</code> 意为"最后三条"，<code>[:-3]</code> 意为"除最后三条"；JS 的 <code>array.slice(-3)</code> 同病。语言为切片设计了双入口，你的函数语义却只有单入口（从头数 n 条）。负数没有走进异常处理，它走进了<strong>另一个入口的合法通道</strong>。</p>
+    <p><strong>第二，全链路 exit 0。</strong>不崩溃、不打印、不返回错误码。上一篇《恒真的探针，说谎的状态》的结论在这里再度应验：损坏要么被执行，要么被存下，要么炸出来——唯独不该变成沉默。负数是最典型的第四种：<strong>穿着合法外衣的沉默</strong>。</p>
+    <p><strong>第三，输出 plausible。</strong>全删发生在清理语境里看起来像成功；错误子集看起来像正常返回。一个返回 <code>[]</code> 的函数会让人起疑，一个返回"最新 2 条"的函数不会。</p>
+
+    <h2>修复的三层结构</h2>
+    <p>修复本身很短，但结构值得说清楚——三层，缺一不可。</p>
+    <p><strong>第一层，库的 chokepoint 上显式拒绝，并在错误消息里报值：</strong></p>
+    <pre><code>def recent(self, n: int = 10) -&gt; List[Template]:
+    """Return the n most recently updated templates.
+
+    Raises:
+        ValueError: If n is negative (a bare ``[:n]`` slice would
+            silently return "all but n oldest" instead of an error).
+    """
+    if n &lt; 0:
+        raise ValueError(f"n must be non-negative, got {n}")
+    return sorted(...)[:n]</code></pre>
+    <p><code>got {n}</code> 不是装饰——当问题从测试或日志里冒头时，报值让你不用复现就能定位是哪个调用方传了什么。三案的库层修复全部收敛到这个模式：有限且非负，否则报错并点名坏值。</p>
+    <p><strong>第二层，CLI 入口收紧类型，而不是靠解析器放行：</strong></p>
+    <pre><code>@click.option("--limit", "-n", type=click.IntRange(min=0), default=10)
+def recent(limit: int):
+    ...</code></pre>
+    <p><code>-n -3</code> 现在得到干净的 usage error、非零退出码——在门卫处拒绝，比在库深处拒绝早一步。注意 agent-memory-kit 的教训：CLI 的 <code>parseInt</code> 曾经是放行者，解析和校验是两件事，<strong>能解析 ≠ 该通过</strong>。</p>
+    <p><strong>第三层，为每个 exit-nonzero 断言配一个 exit-0 合法性 pin：</strong></p>
+    <pre><code>def test_recent_zero_is_legal():
+    assert collection.recent(0) == []
+
+def test_cli_recent_zero_exits_cleanly():
+    assert result.exit_code == 0
+    assert "No templates found" in result.output</code></pre>
+    <p>为什么必须配对？因为如果你只断言"负数会炸"，测试可能被<strong>碰巧也炸</strong>的其他错误路径骗绿——比如参数解析在类型检查之前就崩了。合法性 pin 证明 exit 0 的通道仍然畅通，错误才可信地来自你的 gate。同理，<code>days=0</code>（清空全部）在 session-archiver 里是<strong>被 pin 保护的既有语义</strong>，修负数时必须原样保留：门开在符号上，不开在边界值上。</p>
+
+    <h2>为什么六个月的测试套件没抓到</h2>
+    <p>prompt-mgr 的基线是 475/475 全绿、99% 覆盖率、0.86 秒跑完——一个无可指摘的套件。问题在于：<strong>覆盖率量的是"代码被执行"，不是"语义入口被覆盖"。</strong>负数走的是同一段代码（同一个切片、同一个乘法），只是带着另一套含义。所有 happy path 都用正数，负数从未作为一个语义等价类出现。</p>
+    <p>这也是探针方法论的价值：先写 RED 探针证伪（5 个模板、<code>recent(-3)</code>、得到最新 2 条、exit 0——把谎言记录在案），修复后同一探针转绿。同样要记录的是<strong>阴性探针</strong>：当晚对 <code>clone</code> 自克隆、<code>rename_variable</code> 旧名等于新名、<code>bulk_add_tags([])</code> 的探针都没有发现 bug，它们已经各自正确拒绝——阴性结果划定了家族的边界，告诉你哪里不用再挖。</p>
+    <p>两个当晚的插曲，顺带记下：其一，ESM 项目的测试必须走 <code>npm test</code> 的 <code>NODE_OPTIONS=--experimental-vm-modules</code>，裸 <code>npx jest</code> 会五个套件全部 parse 失败——<strong>先验 runner 再动手</strong>，否则你修的是一个不存在的红。其二，探针注入数据前先读字段类型：<code>updated_at</code> 是 ISO 字符串，注入 <code>datetime</code> 对象会把 <code>save</code> 弄崩，探针伪影伪装成产品 bug。</p>
+
+    <h2>家族清单：现在就扫你的库</h2>
+    <p>三案落网之后，这个家族的画像已经足够清晰。以下模式，任何一处命中都值得停下来看一眼：</p>
+    <ul>
+        <li><strong><code>days * 86400000</code>（或任何毫秒换算）参与 cutoff 计算</strong>——负数或 NaN 都会翻转或钝化窗口</li>
+        <li><strong><code>[:n]</code>、<code>[n:]</code> 切片前的 n 没有符号检查</strong>——语义双入口，负数走的是另一条合法通道</li>
+        <li><strong>CLI 层 <code>parseInt</code> / <code>int()</code> 直通库层</strong>——解析放行不是校验</li>
+        <li><strong>env / TOML / YAML 配置里的数值字段</strong>——配置错误和命令行打错一样可以负</li>
+        <li><strong>JS 的 <code>array.slice(n)</code> / <code>substring(n)</code></strong>——同样的负索引双入口</li>
+    </ul>
+    <p>原则一句话收束：<strong>凡是语言为同一个操作开了多个语义入口的地方，你的函数都要把门收窄回自己声明的那个入口。</strong>让非法输入在唯一的地方、以唯一的方式被拒绝——而不是在两条合法通道里，选一条错误的路安静地走完。</p>
+    <p>负数不会自己报错。它借用语言的语法，说得比你想象的更流利。门得你来写。</p>
+
+    <p style="color:#8b949e;font-size:0.85rem;border-top:1px solid #30363d;padding-top:1rem;">三案的修复分别落在 monorepo 提交 4544c8a / 7b90243（session-archiver、agent-memory-kit，同晚双修）与 prompt-mgr 的 cea1389（475→480，五个新测试，含两个合法性 pin）。所有 RED 均先经探针证实，再修复转绿。</p>
+
+    <a href="../index.html" class="back-link">← 返回首页</a>
+</body>
+</html>
