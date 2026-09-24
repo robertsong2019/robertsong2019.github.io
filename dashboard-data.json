@@ -1,9 +1,10 @@
 {
-  "lastUpdated": "2026-08-28T22:00:00Z",
-  "generatedAt": "2026-08-29 06:00 CST",
+  "lastUpdated": "2026-09-25T06:06:07Z",
+  "generatedAt": "2026-09-25 06:06 CST",
   "system": {
     "gateway": {
       "status": "running",
+      "pid": 597344,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
@@ -12,8 +13,8 @@
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "128 days, 16:41",
-      "loadAverage": "1.21, 0.42, 0.15",
+      "uptime": "22 weeks, 1 day, 16 hours, 46 minutes",
+      "loadAverage": "0.31, 0.42, 0.26",
       "disk": {
         "total": "50G",
         "used": "33G",
@@ -22,22 +23,21 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1372,
-        "freeMB": 405,
-        "availableMB": 563,
+        "usedMB": 1342,
+        "freeMB": 355,
+        "availableMB": 593,
         "swapTotalMB": 10179,
-        "swapUsedMB": 422
+        "swapUsedMB": 381
       }
     },
     "model": "zai/glm-5.3-flash"
   },
   "cronSummary": {
-    "total": 21,
-    "ok": 18,
-    "error": 2,
+    "total": 15,
+    "ok": 13,
+    "error": 1,
     "running": 1,
     "errorJobs": [
-      "610a8d6d (github-creative-evening)",
       "84707ade (ai-neuroscience-research)"
     ]
   },
@@ -47,54 +47,33 @@
       "name": "dashboard-update-morning",
       "schedule": "0 6 * * *",
       "status": "running",
-      "lastRun": "just now"
+      "lastRun": "1d ago"
     },
     {
       "id": "9b2a8701",
       "name": "github-trending-daily",
-      "schedule": "0 7 * * *",
+      "schedule": "0 7 * * * @ Asia/Shanghai",
       "status": "ok",
       "lastRun": "23h ago"
     },
     {
       "id": "2c714952",
-      "name": "github-trending-deep",
-      "schedule": "0 8 * * *",
+      "name": "github-trending-deep-analysis",
+      "schedule": "0 8 * * * @ Asia/Shanghai",
       "status": "ok",
       "lastRun": "22h ago"
     },
     {
-      "id": "610a8d6d",
-      "name": "github-creative-evening",
-      "schedule": "0 19 * * *",
-      "status": "error",
-      "lastRun": "11h ago"
-    },
-    {
       "id": "ad37c59a",
       "name": "github-creative-evening",
-      "schedule": "0 19 * * *",
+      "schedule": "0 19 * * * @ Asia/Shanghai",
       "status": "ok",
       "lastRun": "11h ago"
-    },
-    {
-      "id": "265091b6",
-      "name": "deep-exploration-evening",
-      "schedule": "0 20 * * *",
-      "status": "ok",
-      "lastRun": "10h ago"
     },
     {
       "id": "a4bf5e2a",
       "name": "deep-exploration-evening",
-      "schedule": "0 20 * * *",
-      "status": "ok",
-      "lastRun": "10h ago"
-    },
-    {
-      "id": "bb46cb70",
-      "name": "deep-exploration-evening",
-      "schedule": "0 12 * * UTC",
+      "schedule": "0 20 * * * @ Asia/Shanghai",
       "status": "ok",
       "lastRun": "10h ago"
     },
@@ -103,28 +82,21 @@
       "name": "code-lab-evening",
       "schedule": "0 21 * * *",
       "status": "ok",
-      "lastRun": "9h ago"
+      "lastRun": "8h ago"
     },
     {
       "id": "62bf7f3b",
       "name": "tool-development-evening",
-      "schedule": "0 22 * * *",
-      "status": "ok",
-      "lastRun": "8h ago"
-    },
-    {
-      "id": "ce2fb615",
-      "name": "tool-development-evening",
-      "schedule": "0 22 * * *",
+      "schedule": "0 22 * * * @ Asia/Shanghai",
       "status": "ok",
       "lastRun": "8h ago"
     },
     {
       "id": "84707ade",
       "name": "ai-neuroscience-research",
-      "schedule": "30 22 * * *",
+      "schedule": "30 22 * * * @ Asia/Shanghai",
       "status": "error",
-      "lastRun": "8h ago"
+      "lastRun": "7h ago"
     },
     {
       "id": "78eac6fc",
@@ -149,15 +121,8 @@
     },
     {
       "id": "1ea6e3b0",
-      "name": "knowledge-organization",
-      "schedule": "0 2 * * *",
-      "status": "ok",
-      "lastRun": "4h ago"
-    },
-    {
-      "id": "fd0515b0",
-      "name": "knowledge-organization",
-      "schedule": "0 2 * * *",
+      "name": "knowledge-organization-morning",
+      "schedule": "0 2 * * * @ Asia/Shanghai",
       "status": "ok",
       "lastRun": "4h ago"
     },
@@ -176,71 +141,64 @@
       "lastRun": "2h ago"
     },
     {
-      "id": "686ec55c",
-      "name": "essay-generation-morning",
-      "schedule": "0 5 * * *",
-      "status": "ok",
-      "lastRun": "1h ago"
-    },
-    {
       "id": "f0362050",
       "name": "essay-generation-morning",
-      "schedule": "0 5 * * *",
+      "schedule": "0 5 * * * @ Asia/Shanghai",
       "status": "ok",
-      "lastRun": "55m ago"
+      "lastRun": "1h ago"
     }
   ],
   "sessions": {
-    "total": 62,
-    "active24h": 44,
+    "total": 59,
+    "active24h": 32,
     "notable": [
       {
         "type": "main",
-        "lastActive": "13m ago",
+        "lastActive": "18m ago",
         "model": "glm-5",
-        "context": "120k/200k (60%)"
+        "context": "136k/200k (68%)"
       },
       {
-        "type": "cron (dashboard)",
-        "lastActive": "just now",
+        "type": "cron (dashboard-update-morning)",
+        "lastActive": "6m ago",
         "model": "glm-5.3-flash",
-        "context": "46k/204k (22%)"
+        "context": "34k/205k (16%)"
       },
       {
-        "type": "cron (essay-gen)",
-        "lastActive": "56m ago",
+        "type": "cron (dashboard-update-morning)",
+        "lastActive": "6m ago",
+        "model": "glm-5.3-flash",
+        "context": "34k/205k (16%)"
+      },
+      {
+        "type": "cron (essay-generation-morning)",
+        "lastActive": "1h ago",
+        "model": "glm-5.3-flash",
+        "context": "63k/205k (30%)"
+      },
+      {
+        "type": "cron (essay-generation-morning)",
+        "lastActive": "1h ago",
         "model": "glm-5.1",
-        "context": "36k/204k (17%)"
+        "context": "62k/205k (30%)"
       },
       {
-        "type": "cron (documentation)",
+        "type": "cron (documentation-morning)",
         "lastActive": "2h ago",
         "model": "glm-5.3-flash",
-        "context": "54k/204k (26%)"
-      },
-      {
-        "type": "cron (project-testing)",
-        "lastActive": "2h ago",
-        "model": "glm-5.3-flash",
-        "context": "79k/204k (38%)"
-      },
-      {
-        "type": "cron (knowledge-org)",
-        "lastActive": "3h ago",
-        "model": "glm-5.1",
-        "context": "74k/204k (36%)"
+        "context": "74k/205k (36%)"
       }
     ]
   },
   "git": {
     "repo": "robertsong2019/openclaw-workspace",
     "recentCommits": [
-      "d75c3f1 daily-posts: 归档 08-29 essay 副本 + 记录 essay cron 双触发事件",
-      "ea36a68 memory: 08-29 documentation-morning agent-log docs catch-up (405a8ee)",
-      "405a8ee agent-log docs: README + TUTORIAL catch-up (F19-F21 era)",
-      "2d379bf testing morning cycle 08-29: acs rename_key twin-fix (2898/2929→2934), family case #7 test-layer twin",
-      "cff8512 KO 08-29 twin-trigger no-op log (02:10, 3rd double-trigger of the day pattern)",
-      "233f802 knowledge org 08-29: C524-C526 arc (负结果孵化链, prodverify 67→69→72, judge_semantic #090 上位), day 306"
+      "memory: documentation-morning 09-25 — amg C603-605 doc 追平 (8d28fd5)",
+      "docs: amg README + TUTORIAL-ANSWER-FACES Cycles 603-605 追平 (banked 0.720, suite 11140)",
+      "memory: project-testing-morning 09-25 — amf merge relink persistence bug (9301db1) + 16 tests",
+      "amf: persist merge re-pointed links (dangling refs on reload) + gap pins",
+      "memory: KO 2026-09-25 — C603+C604+C605 三连 (banked 0.720, 41连, suite 11140); CF 归档 + counts refresh (13721/~24405, prompt-mgr 480)",
+      "memory: C605 cycle log + experiments.tsv row (coin_add keep, 360)"
     ]
   }
 }
