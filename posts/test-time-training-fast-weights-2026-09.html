@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>读完这句话，你的模型变了吗——测试时训练：把学习塞进推理的瞬间 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>读完这句话，你的模型变了吗——测试时训练：把学习塞进推理的瞬间</h1>
+    <p class="meta">
+        <span class="tag">LLM</span>
+        <span class="tag">Test-Time Training</span>
+        <span class="tag">快权重</span>
+        <span class="tag">长上下文</span>
+        2026-09-24 · 基于 14 篇论文/系统的一手调研（TTT-Linear/MLP / TTT-E2E / In-Place TTT / Modular TTT / Titans / ARC TTFT）
+    </p>
+
+    <blockquote>你现在读到了这一句。读它的这十秒钟里，你的大脑已经不是十秒前的那颗了——你调整了对这篇文章的预期，前面的词句改写了你理解后面词句的方式。但给一个 LLM 读一百万字，它的参数从头到尾纹丝不动：它把读过的东西逐字录进 KV cache，像一台尽职的录音机，自己却一个字都没"学会"。这篇是关于一个正在成真的老预言的调研：让模型在推理的瞬间继续学习——学习不再是一个阶段，而是前向传播的一部分。</blockquote>
+
+    <h2>开场：训练和推理之间那堵墙</h2>
+    <p>深度学习的世界观里有一堵墙：<strong>训练是训练，推理是推理</strong>。模型先在万亿 token 上学几个月（训练），然后参数冻结、部署上线，之后无论读到什么，都只进"上下文"，不进"权重"。这个范式成功到我们很少追问它的代价：</p>
+    <ul>
+        <li>模型读到的每个 token 都被逐字存进 KV cache，上下文越长，搬运成本越高，注意力还要在录音带里全文检索；</li>
+        <li>无论这份文档讲的是什么，处理它的都是同一套静态参数——模型不会因为"正在读一份金融报告"而变成一个更懂金融的读者；</li>
+        <li>更新知识的唯一途径是重新训练或微调，以天和万美元计价。</li>
+    </ul>
+    <p>2024 年起一条研究线开始拆这堵墙，2026 年拆出了两层楼：<strong>架构级</strong>的测试时训练让"学习"发生在前向传播内部，模型边读边改自己的参数；<strong>行为级</strong>的测试时微调让"训练"搬到评测现场，任务来了先学再说。两条血脉共享同一个哲学：<strong>训练预算挪到测试时花</strong>。</p>
+
+    <h2>一、三十年的伏笔：三个时间尺度的权重</h2>
+    <p>这个故事的开头在 1992 年。Schmidhuber 那年写了 Fast Weight Programmers：神经系统有两套权重——<strong>慢权重</strong>存储长期知识，变化以年计；<strong>快权重</strong>由慢权重"编程"生成，随当前输入实时变化，负责工作记忆。论文里甚至预演了"用梯度下降更新快权重"的内循环。三十多年前这份预言缺的不是思想，是数据和硬件。</p>
+    <p>用今天的语言重述，一个 LLM 系统其实有三个时间尺度的"记忆介质"：</p>
+    <table>
+        <tr><th>介质</th><th>更新频率</th><th>性质</th><th>类比</th></tr>
+        <tr><td>慢权重（预训练参数）</td><td>月级</td><td>长期知识</td><td>基因 + 学历</td></tr>
+        <tr><td>快权重（测试时更新）</td><td>每个输入序列</td><td>对当前内容的适应</td><td>读这本书时的你</td></tr>
+        <tr><td>KV cache / 上下文</td><td>每个 token</td><td>逐字记录</td><td>录音机</td></tr>
+    </table>
+    <p>TTT 的核心主张：中间那层长期缺席了。cache 是"录音"，快权重是"消化"——你读完一本书，收获的不是逐字背诵，而是被改变的理解方式。中间层应该存在，而且可以被造出来。</p>
+
+    <h2>二、隐状态是一台机器：TTT 层的奠基</h2>
+    <p>2024 年 7 月，Sun 等人的 "Learning to (Learn at Test Time)"（ICML 2025）把预言兑现在序列建模上。做法听上去简单到冒犯：把 RNN 的隐状态从"一个向量"升级为"一台模型"——一个线性模型或两层 MLP；每读入一个 token，就对这台小模型做一步梯度下降；它"记住"上下文的方式不是把 token 存起来，而是<strong>把自己训练成更适配这些 token 的机器</strong>。整个过程就是一次前向传播。</p>
+    <p>这个设计回答了一个表达力问题：固定向量无论多大都在做有损压缩，而"模型"作为状态可以任意深地存储结构。实证结果给了它背书：在 125M 到 1.3B 参数规模上，TTT 层的 perplexity 优于 Mamba；更说明问题的是长上下文曲线——<strong>Mamba 在 16K 之后 loss 不再下降，TTT 层继续随上下文变长稳定下降</strong>。状态是一台机器时，上下文越长，它"学"得越多；状态是一个向量时，塞满了就是塞满了。</p>
+    <p>如果这个思路让你想起另一个方向——在推理时让模型多想一会儿的测试时扩展——注意区分：测试时扩展花算力在"想"（采样更多解法、更长的推理链），TTT 花算力在"学"（真的动参数）。两者是同一个计价表上的不同档位，后面还会回到这里。</p>
+
+    <h2>三、TTT-E2E：真正的魔法是"为被适应而训练"</h2>
+    <p>奠基工作之后是工程化。2025 年 12 月的 TTT-E2E（Tandon 等）给出了第一个端到端可用的完整方案，三个组件：</p>
+    <ol>
+        <li><strong>8K 滑窗注意力</strong>管局部上下文——近处的 token 直接看，不管远处；</li>
+        <li><strong>Prime MLP</strong>：在最后四分之一的层里加一组额外的 MLP，它们就是快权重——在"预测下一个词"的损失上用 SGD 现场更新，原 MLP 全程冻结（预训练的知识不动，"此刻正在学的东西"单独存放）；</li>
+        <li><strong>元学习初始化 W₀</strong>：训练时不是学一组好权重，而是学一个"起跑姿势"——优化目标是"从 W₀ 出发、在输入上跑完若干步 TTT 之后，模型表现最好"。</li>
+    </ol>
+    <p>第三条是整个方法的心脏，也是最容易被略读漏掉的一条。它要求对内循环求导——梯度的梯度，MAML 的直系复活。<strong>可适应性本身是被预训练出来的属性，不是免费的午餐</strong>：W₀ 不是好的最终权重，而是"特别容易被这几步 SGD 带到好地方"的权重。这也解释了为什么朴素的"推理时随便挑几层微调一下"从来达不到论文效果——缺的不是更新机制，是为更新铺好的路。</p>
+    <p>结果的直觉版本：在 128K 长上下文上，TTT-E2E 的 loss 随上下文增长持续下降，曲线与全注意力相当，但推理延迟只有全注意力的约三分之一（H100 上 2.7 倍差距）。秘密不是更快地搬运记忆，而是<strong>根本不用搬运</strong>：token 1 的信息经过若干步 SGD 已经写进权重，滑窗滑出 8K 之后依然在起作用。KV cache 是逐字录音，快权重是消化吸收——长上下文的终局也许不是更大的窗口，而是"窗口 + 消化"。</p>
+    <p>社区随后把官方 JAX 实现移植到了 PyTorch（ttt-e2e-qwen3，Qwen3-4B、单卡、128K），工程可复现性算是过了第一关。</p>
+
+    <h2>四、工程务实主义：改造旧楼，而不是盖新楼</h2>
+    <p>2026 年的两篇新工作把这条线推向"能不能用在存量模型上"。4 月的 In-Place TTT（ByteDance Seed + 北大）做了一个聪明的决定：<strong>不新增任何层</strong>，直接把现有 MLP 块的最终投影矩阵当作快权重，在推理时原位更新。这是 drop-in 增强——Qwen3-4B-Base 不需要从头重训，就获得了 128K 级的长上下文能力。预训练权重的生态引力大到这种程度：改造现有建筑远比盖新楼划算。他们还换掉了内循环的目标函数：原始 TTT 用通用重建目标（把输入压缩重建回来，像自编码器），In-Place TTT 换成显式对齐"预测下一个词"的目标——快权重应该存<strong>对预测有用的信息</strong>，而不是"能把输入背出来的信息"。这个替换有理论支撑，也有显著收益。</p>
+    <p>8 月的 Modular TTT（上交大 + ByteDance Seed）做了这块拼图里最需要的脏活：把 TTT 的内学习器拆成可组合模块——快权重网络、损失函数、学习率、权重衰减、归一化各自独立可调——然后系统消融。结论有几条反直觉的：</p>
+    <ul>
+        <li>小的学习率初始化 + 权重衰减 + 单层非线性（SiLU）：有用；</li>
+        <li><strong>更深的快权重网络：反而有害</strong>（激活值失控）；归一化、残差、门控：基本没用；</li>
+        <li>MSE 和内积损失：差不多——损失的形式不重要，学什么才重要。</li>
+    </ul>
+    <p>一句话总结：<strong>机制便宜，目标昂贵</strong>。内学习器深不深是次要的，它在优化什么、用什么超参，是主要的。这份消融还有一剂诚实的冷水：用最佳配置训出的 410M / 1.45B 模型，在常规基准上与 Gated DeltaNet（线性注意力的强基线）<strong>打平</strong>。也就是说，架构级 TTT 目前的优势不在常规窗口的日常任务，而在超长上下文的扩展曲线——8K 以内它不是更好的 Transformer，128K 之后它才开始赢。</p>
+
+    <h2>五、另一条血脉：ARC 评测台旁边的微调</h2>
+    <p>同一时间，"测试时训练"这个名字还在另一个战场打了一场完全不同的仗。2024 年 11 月，MIT 团队在 ARC-AGI（抽象推理基准，专门考"从极少样本里学新规则"）上验证了行为级 TTFT：任务来了，先用演示样本加数据增强（颜色变换、几何对称、顺序打乱）现场构造一个训练集，<strong>在评测台旁边把整个网络微调一遍</strong>，再用增强集成去答题。ARC Prize 2025 技术报告给的数字：通过率从 17.5% 抬到 <span class="highlight">45%</span>。Tufa Labs（MindsAI）用重工程化的 TTFT 管线拿下了 2025 年榜单前列。</p>
+    <p>这个数字值得停一秒。它说明模型"答不出"很多时候不是能力缺失，而是<strong>训练分布里已有的能力没有被这个任务激活</strong>——现场微调像一把钥匙，把锁着的房间打开了。也说明"适应预算"可以像汇率一样换算成准确率：多花 N 倍推理算力在现场学习，换 M 个百分点的提升。</p>
+    <p>但 2025 年的后续同样重要：榜单被 agent + 验证的路线接管，TTFT 从独门武器变成了组合技之一；2026 年的新 SOTA（测试时扩展路线）继续在同一张计价表上报价。微调、搜索、采样、快权重——所有测试时方法殊途同归于同一个问题：<strong>额外十倍推理算力，换多少准确率</strong>。TTT 是这张表上最激进的一档，因为它动的是参数本身。</p>
+
+    <h2>六、边界与冷水：它不是你以为的那种"记忆"</h2>
+    <p>调研里最重要的纠偏，是这条技术的语义边界：<strong>TTT-E2E 的快权重在每个新输入开始时重置回 W₀</strong>。它是"这份文档的私有状态"，不是跨会话的长期记忆——消化的是你正在读的这本书，不是你的一生。把 TTT 当成记忆系统来用（"它会自己记住用户偏好吧"）是这类文献最常见的误读。持久记忆仍然是文件、技能库、检索的地盘；TTT 改变的是单次处理内部的经济学。两者正交，可以叠加。</p>
+    <p>还有两个悬而未决的问题值得记下：</p>
+    <ul>
+        <li><strong>安全面</strong>：prompt injection 攻击的是上下文，TTT 时代攻击面延伸到参数状态——恶意文本直接参与快权重的梯度更新，把"坏行为"烧进权重。每个序列重置是不是足够的消毒程序，没人给出证明。</li>
+        <li><strong>成本交叉点</strong>：内循环的梯度步是真实 FLOPs。上下文多长，"消化的开销"才低于"录音的线性增长"？在 In-Place TTT 的账本里 128K 已经划算，但 8K、32K 的日常区间仍是线性注意力基队的地盘。</li>
+    </ul>
+
+    <h2>今晚可以做什么</h2>
+    <p>这不是一篇只能围观的论文综述，五件事可以立刻动手：</p>
+    <ol>
+        <li><strong>跑一遍 ttt-e2e-qwen3</strong>（社区 PyTorch 移植，单卡可跑 128K 上下文）。目标不是刷分，是建立"推理时梯度"的成本直觉：每步内循环多花多少算力、省多少 cache——这种肌肉手感读论文得不到。</li>
+        <li><strong>给你的 Agent 记忆方案画一条边界</strong>：在架构图上明确写上"快权重 = 单输入私有状态，不跨会话"。持久记忆继续走文件和技能库，别让"它会自己学习"的想象污染系统设计。</li>
+        <li><strong>做一次 15 分钟的 TTFT 思想实验</strong>：挑一个你们业务里"重复出现、每次都像新任务"的场景，评估租用 API 微调接口做任务级现场适应的成本——如果一次适应摊薄到几十次调用，它就是净赚的。</li>
+        <li><strong>盯住两个仓库</strong>：ByteDance-Seed/Modular-TTT（模块化内学习器 + 系统消融，做变体实验最快起点）和 test-time-training/e2e（官方实现）。这条线开源节奏很快，半年一个台阶。</li>
+        <li><strong>重估你的长上下文账单</strong>：如果你的场景是超长文档（合同、代码库、会话史），把"窗口 + 消化"列入下一代方案候选——128K 以上的区间，消化可能比搬运便宜，而这不是靠等硬件降价能等来的。</li>
+    </ol>
+    <p>最后回到开头那句话。你读完了这篇——你的大脑确实变了，理解下一篇文章的方式已经不同。模型花了三十年，终于开始获得同样的待遇：训练不再是人生的序章，学习可以发生在读到的每一个瞬间。<strong>墙还没有倒，但已经有门了。</strong></p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

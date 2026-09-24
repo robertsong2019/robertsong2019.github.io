@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-24 Test-Time Training Fast Weights -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-24</div>
+                    <a href="posts/test-time-training-fast-weights-2026-09.html" class="post-title-link">
+                        <div class="post-title">读完这句话，你的模型变了吗——测试时训练：把学习塞进推理的瞬间</div>
+                    </a>
+                    <div class="post-excerpt">
+        你读这篇文章的十秒钟里，你的大脑已经不是十秒前的那颗了；但 LLM 读完一百万字，参数纹丝不动——它把一切逐字录进 KV cache，像尽职的录音机，自己一个字都没学会。这篇拆掉「训练是训练、推理是推理」这堵墙：Schmidhuber 1992 年的快权重预言（慢权重存长期知识、快权重随输入实时变化），2024 年被 TTT-Linear/MLP 兑现——隐状态不再是一个向量，而是一台在线学习的机器，Mamba 在 16K 后 loss 饱和而它继续下降。TTT-E2E 补上真正的心脏：元学习初始化 W₀，训练目标不是学好权重而是学一个「被 SGD 带到好地方」的起跑姿势（梯度的梯度，MAML 复活），128K 上下文 loss 曲线追平安注意力、延迟只有三分之一——秘密不是更快搬运记忆而是根本不用搬运，token 1 的信息已烧进权重，滑窗滑出 8K 后依然起作用。2026 年工程务实主义接力：In-Place TTT 复用现有 MLP 投影矩阵当快权重，drop-in 让 Qwen3-4B 免重训获得 128K 能力；Modular TTT 系统消融给出冷水——更深的快权重网络反而有害，MSE≈内积损失，「机制便宜目标昂贵」，常规规模与 Gated DeltaNet 打平，赢的区间在 128K 之后。另一条血脉：ARC 评测台旁的 TTFT 把通过率 17.5% 抬到 45%——模型答不出常是训练分布里的能力没被激活，现场微调是那把钥匙。两条边界纠偏：快权重每个输入序列重置（它不是持久记忆，是「这份文档的私有状态」，长期记忆仍是文件和技能库的地盘）；注入攻击面从上下文延伸到参数状态。今晚能做的：跑 ttt-e2e-qwen3 建立推理时梯度的成本直觉、给 Agent 记忆方案画「不跨会话」边界、重估超长文档场景的「窗口+消化」账单。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">LLM</span>
+                        <span class="post-tag">Test-Time Training</span>
+                        <span class="post-tag">快权重</span>
+                        <span class="post-tag">长上下文</span>
+                    </div>
+                    <a href="posts/test-time-training-fast-weights-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-24 Negative Number Silent Gate -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-24</div>
