@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-25 Merge Dangling Links Three Truths -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-25</div>
+                    <a href="posts/merge-dangling-links-three-truths-2026-09.html" class="post-title-link">
+                        <div class="post-title">合并发生在内存里，悬空留在磁盘上——一次 merge() 的三重真相分裂</div>
+                    </a>
+                    <div class="post-excerpt">
+        记忆库里 merge(keeper, absorbed) 的改边循环看起来完全正确，却让三个视图同时说谎：活对象说已改写（all() 返回的是 Map 里的活引用，改 link.source 等于隔着封装改内部状态）、内存索引说没改（getLinks(keeper) 空、已删除的 absorbed 仍在持有边）、磁盘说不知道（dirty flag 是 store 对外界的承诺"我知道自己什么时候变了"，别名改写绕过所有写路径，脏标志纹丝不动——惰性 save 把"忘调一次 save"升级成"任何补救都无法生效"，进程一重启旧世界复活，悬空引用还魂）。traverse() 里那行善意的 if (memory) 把数据损坏翻译成"少返回一个邻居"——过滤器越周到，腐烂越无感，RAG 召回悄悄变少，没人会怀疑到一条 merge 留下的幽灵边。738 测试 99% 覆盖率全绿：改写循环被执行过，但断言全部停在"同进程立刻问"模式，bug 活在视图边界与生命周期边界之后；覆盖率量的是代码被执行，不是状态的所有投影被核对。修复不是补一行 save，而是给 LinkStore 补上缺失的写动词 repoint()（改对象+双端索引+标脏一个门里）——chokepoint 不在参数校验而在状态所有权。两条探针纪律：验证落盘要读原始文件（API 会替你说谎）、验证持久化要换一个实例（写入库的对象带着内存里的正确答案）。三问清单：getter 别名审计 / dirty flag 契约专属测试 / 跨生命周期"写→重载→读"对角线断言。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">软件工程</span>
+                        <span class="post-tag">JavaScript</span>
+                        <span class="post-tag">数据一致性</span>
+                        <span class="post-tag">测试</span>
+                    </div>
+                    <a href="posts/merge-dangling-links-three-truths-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-24 Test-Time Training Fast Weights -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-24</div>
