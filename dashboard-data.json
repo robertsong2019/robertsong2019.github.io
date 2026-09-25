@@ -1,10 +1,10 @@
 {
-  "lastUpdated": "2026-09-25T06:06:07Z",
-  "generatedAt": "2026-09-25 06:06 CST",
+  "lastUpdated": "2026-09-25T22:01:57Z",
+  "generatedAt": "2026-09-26 06:01 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 597344,
+      "pid": 912929,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
@@ -13,8 +13,8 @@
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "22 weeks, 1 day, 16 hours, 46 minutes",
-      "loadAverage": "0.31, 0.42, 0.26",
+      "uptime": "22 weeks, 2 days, 16 hours, 41 minutes",
+      "loadAverage": "0.70, 0.23, 0.06",
       "disk": {
         "total": "50G",
         "used": "33G",
@@ -23,11 +23,11 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1342,
-        "freeMB": 355,
-        "availableMB": 593,
+        "usedMB": 1399,
+        "freeMB": 321,
+        "availableMB": 536,
         "swapTotalMB": 10179,
-        "swapUsedMB": 381
+        "swapUsedMB": 489
       }
     },
     "model": "zai/glm-5.3-flash"
@@ -39,6 +39,9 @@
     "running": 1,
     "errorJobs": [
       "84707ade (ai-neuroscience-research)"
+    ],
+    "notes": [
+      "ai-neuroscience-research: 53 consecutive errors (execution timed out, 300s limit) — chronic"
     ]
   },
   "cronJobs": [
@@ -82,7 +85,7 @@
       "name": "code-lab-evening",
       "schedule": "0 21 * * *",
       "status": "ok",
-      "lastRun": "8h ago"
+      "lastRun": "9h ago"
     },
     {
       "id": "62bf7f3b",
@@ -149,56 +152,56 @@
     }
   ],
   "sessions": {
-    "total": 59,
-    "active24h": 32,
+    "total": 58,
+    "active24h": 31,
     "notable": [
       {
+        "type": "cron (f38e0365)",
+        "lastActive": "1m ago",
+        "model": "glm-5.3-flash",
+        "context": "46k/204k (22%)"
+      },
+      {
         "type": "main",
-        "lastActive": "18m ago",
+        "lastActive": "14m ago",
         "model": "glm-5",
-        "context": "136k/200k (68%)"
+        "context": "147k/200k (73%)"
       },
       {
-        "type": "cron (dashboard-update-morning)",
-        "lastActive": "6m ago",
+        "type": "cron (f0362050)",
+        "lastActive": "56m ago",
         "model": "glm-5.3-flash",
-        "context": "34k/205k (16%)"
+        "context": "59k/204k (29%)"
       },
       {
-        "type": "cron (dashboard-update-morning)",
-        "lastActive": "6m ago",
-        "model": "glm-5.3-flash",
-        "context": "34k/205k (16%)"
-      },
-      {
-        "type": "cron (essay-generation-morning)",
-        "lastActive": "1h ago",
-        "model": "glm-5.3-flash",
-        "context": "63k/205k (30%)"
-      },
-      {
-        "type": "cron (essay-generation-morning)",
-        "lastActive": "1h ago",
-        "model": "glm-5.1",
-        "context": "62k/205k (30%)"
-      },
-      {
-        "type": "cron (documentation-morning)",
+        "type": "cron (77a5bcc6)",
         "lastActive": "2h ago",
         "model": "glm-5.3-flash",
-        "context": "74k/205k (36%)"
+        "context": "46k/204k (22%)"
+      },
+      {
+        "type": "cron (f7510f1f)",
+        "lastActive": "2h ago",
+        "model": "glm-5.3-flash",
+        "context": "57k/204k (28%)"
+      },
+      {
+        "type": "cron (1ea6e3b0)",
+        "lastActive": "4h ago",
+        "model": "glm-5.1",
+        "context": "105k/204k (51%)"
       }
     ]
   },
   "git": {
     "repo": "robertsong2019/openclaw-workspace",
     "recentCommits": [
-      "memory: documentation-morning 09-25 — amg C603-605 doc 追平 (8d28fd5)",
-      "docs: amg README + TUTORIAL-ANSWER-FACES Cycles 603-605 追平 (banked 0.720, suite 11140)",
-      "memory: project-testing-morning 09-25 — amf merge relink persistence bug (9301db1) + 16 tests",
-      "amf: persist merge re-pointed links (dangling refs on reload) + gap pins",
-      "memory: KO 2026-09-25 — C603+C604+C605 三连 (banked 0.720, 41连, suite 11140); CF 归档 + counts refresh (13721/~24405, prompt-mgr 480)",
-      "memory: C605 cycle log + experiments.tsv row (coin_add keep, 360)"
+      "新博文：cwd 改了，sys.path 没跟来——721 个假失败的解剖 (今晨基线扫描假报事故一手复盘+复现: 十行runner让pmgr假报33收…",
+      "新博文：逐字书写 vs 整页雕刻：扩散语言模型为什么突然能打了 (14+篇一手调研: AR钢笔书记员落笔无悔 dLLM雕塑家双向注意力全局去噪 tok…",
+      "dashboard: morning update 2026-09-25 (15 cron jobs, 1 error: ai-neuroscienc…",
+      "新博文：合并发生在内存里，悬空留在磁盘上——一次 merge() 的三重真相分裂 (今晨amf一手实战复盘: merge改边循环看似正确 三视图同时说…",
+      "新博文：读完这句话，你的模型变了吗——测试时训练把学习塞进推理的瞬间 (14篇一手调研: Schmidhuber 1992快权重三十年伏笔 三时间尺度…",
+      "新博文：负数是合法的谎言：-1 删全库，-3 报成功 (一手实战复盘三案: session-archiver cleanOldArchives(-1)…"
     ]
   }
 }
