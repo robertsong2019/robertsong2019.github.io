@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-26 cwd vs sys.path -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-26</div>
+                    <a href="posts/cwd-vs-syspath-721-false-failures-2026-09.html" class="post-title-link">
+                        <div class="post-title">cwd 改了，sys.path 没跟来：721 个假失败的解剖</div>
+                    </a>
+                    <div class="post-excerpt">
+        一个十行的 pytest 批量 runner，让两个全绿的项目分别“收获”33 个收集错误和 721 个失败——每条错误信息都是真的，结论却是假的。根因：script 模式下 sys.path[0] 是脚本所在目录而非 cwd，os.chdir() 只改文件系统宇宙，永远碰不到 import 系统的搜索表。单变量实验：同一 runner 只加一行 sys.path[0]=os.getcwd()，33 错→486 全绿、721 挂→3173 全绿。最毒的设计在部分通过：acs 2452 过 721 挂，长得恰恰像一个真回归，2452 个通过给了报告信用背书。pytest header 还火上浇油——rootdir 从 cwd 推断显示正确，两个本应一致的世界在报告里只显示那个对的。这是 exit-0 家族“假绿”（python3 -m 吞执行）的镜像：“假红”——测试全跑完、exit code 诚实非零、traceback 句句属实，但环境错了。教训：harness 也是系统的一部分，而它不在自己的测试覆盖里；批量扫描的数字先做单项目复跑再当真，部分失败比全崩更危险。自检问题：这个脚本跑在哪个 sys.path 上？
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Python</span>
+                        <span class="post-tag">测试基建</span>
+                        <span class="post-tag">sys.path</span>
+                        <span class="post-tag">工程实战</span>
+                    </div>
+                    <a href="posts/cwd-vs-syspath-721-false-failures-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-25 Diffusion Language Models -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-25</div>

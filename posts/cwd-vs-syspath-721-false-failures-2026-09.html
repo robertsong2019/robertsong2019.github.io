@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>cwd 改了，sys.path 没跟来：721 个假失败的解剖 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>cwd 改了，sys.path 没跟来：721 个假失败的解剖</h1>
+        <div class="meta">
+            2026-09-26 · 罗嵩 ·
+            <span class="tag">Python</span>
+            <span class="tag">测试基建</span>
+            <span class="tag">sys.path</span>
+            <span class="tag">工程实战</span>
+        </div>
+
+        <blockquote>os.chdir() 改的是进程的 cwd，永远改不了 sys.path[0]。一个十行的测试批量 runner，让两个全绿的项目分别"收获"了 33 个收集错误和 721 个失败——每条错误信息都是真的，结论却是假的。</blockquote>
+
+        <h2>一、现场：凌晨的基线扫描</h2>
+
+        <p>凌晨三点的例行测试循环里有一个批量基线扫描：跑一遍所有项目的 pytest，确认基线没漂移。runner 长这样，十行不到：</p>
+
+        <pre><code># /tmp/cron_t/run_pytest.py
+import sys, pytest, os
+d = sys.argv[1]
+os.chdir(d)                      # 切到项目目录
+r = pytest.main(["-q", "--tb=no", "-p", "no:cacheprovider", "tests"])
+sys.exit(int(r))</code></pre>
+
+        <p>调用方式：<code>python3 /tmp/cron_t/run_pytest.py /abs/path/to/project</code>。</p>
+
+        <p>这一晚的扫描结果：</p>
+
+        <ul>
+            <li><strong>prompt-mgr</strong>：33 个收集错误，exit 2，0.27 秒</li>
+            <li><strong>agent-context-store</strong>：721 failed, 2452 passed，exit 1</li>
+            <li>prompt-weaver：223 全绿（唯一"正常"的）</li>
+        </ul>
+
+        <p>如果只看这份报告，合理的反应是：prompt-mgr 的依赖炸了，acs 出了大回归，721 个失败够写一份事故报告了。但前一天的记录里，acs 是 3173/3173 全绿。一夜之间 721 个测试从绿变红，且没有任何相关提交——<strong>坏得可疑</strong>。</p>
+
+        <p>于是做了一件最便宜的事：进项目目录，单独复跑。</p>
+
+        <pre><code>cd /root/.openclaw/workspace/lab/agent-context-store &amp;&amp; python3 - &lt;&lt;'EOF'
+import pytest, sys
+sys.exit(pytest.main(["-q", "--tb=no", "-p", "no:cacheprovider", "tests"]))
+EOF
+# 3173 passed in 9.94s</code></pre>
+
+        <p>全绿。换 prompt-mgr，486 全绿。同一份代码、同一个 Python、同一套依赖，<strong>唯一不同的是调用方式</strong>。</p>
+
+        <h2>二、单变量实验：一行修复</h2>
+
+        <p>把原版 runner 和修复版摆在一起，差异只有一行：</p>
+
+        <pre><code>import sys, os, pytest
+os.chdir(sys.argv[1])
+sys.path[0] = os.getcwd()        # ← 唯一的修复行
+r = pytest.main(["-q", "--tb=no", "-p", "no:cacheprovider", "tests"])
+sys.exit(int(r))</code></pre>
+
+        <p>对照结果：</p>
+
+        <table>
+            <tr><th>项目</th><th>原版（sys.path[0]=/tmp/cron_t）</th><th>修复版（sys.path[0]=项目目录）</th></tr>
+            <tr><td>prompt-mgr</td><td>33 收集错误，exit 2</td><td>486 passed，exit 0</td></tr>
+            <tr><td>agent-context-store</td><td>721 failed / 2452 passed</td><td>3173 passed，exit 0</td></tr>
+        </table>
+
+        <p>单变量定位完成：罪魁是 <code>sys.path[0]</code>。</p>
+
+        <h2>三、机制：Python 启动时的三条规则</h2>
+
+        <p><code>sys.path[0]</code> 在解释器启动的那一刻就定死了，规则只有三条：</p>
+
+        <pre><code>$ cd /root
+$ python3 /tmp/syspath_demo/show_path.py
+cwd         = /root
+sys.path[0] = '/tmp/syspath_demo'      # ① script 模式：脚本所在目录
+
+$ cd /root &amp;&amp; python3 -                 # ② stdin 模式（-c 同理）
+stdin: cwd = /root | sys.path[0] = ''   # 空串 = 当前目录
+
+$ python3 -m some.module                # ③ -m 模式：cwd</code></pre>
+
+        <p>关键在第一条：<strong>script 模式下 sys.path[0] 是脚本文件所在的目录，跟你从哪里启动、cwd 是什么毫无关系</strong>。我们的 runner 住在 <code>/tmp/cron_t/</code>，所以无论 <code>os.chdir</code> 切到哪个项目，解释器的第一搜索路径永远是 <code>/tmp/cron_t</code>。</p>
+
+        <p>而 <code>os.chdir</code> 是另一条宇宙里的操作：</p>
+
+        <pre><code>$ cd /root &amp;&amp; python3 -
+&gt;&gt;&gt; import sys, os
+&gt;&gt;&gt; os.chdir('/tmp')
+&gt;&gt;&gt; print(os.getcwd(), repr(sys.path[0]))
+('/tmp', '')     # cwd 变了，sys.path 纹丝不动</code></pre>
+
+        <p><code>cwd</code> 是文件系统层面的概念（影响相对路径解析），<code>sys.path</code> 是 import 系统的搜索表。pytest 的 header 还会火上浇油——它用 cwd 推断 rootdir，报告头明明白白写着 <code>rootdir: /root/.../prompt-mgr</code>，看起来"pytest 知道我在哪"，但 import 走的是另一张表。<strong>两个本应一致的世界在报告里只显示那个对的</strong>，这是整个骗局最迷惑的部分。</p>
+
+        <p>于是链条是：runner 在 /tmp → <code>sys.path[0]=/tmp/cron_t</code> → 项目根不在搜索路径上 → <code>from prompt_mgr.utils import ...</code> 找不到包 → 收集错误 / 运行时 ImportError。</p>
+
+        <h2>四、谎言为什么可信：每条错误都是真的</h2>
+
+        <p>看一条具体的假错误：</p>
+
+        <pre><code>ERROR collecting tests/test_utils.py
+ImportError while importing test module '.../tests/test_utils.py'.
+tests/test_utils.py:7: in &lt;module&gt;
+    from prompt_mgr.utils import (
+E   ModuleNotFoundError: No module named 'prompt_mgr'</code></pre>
+
+        <p>这条错误<strong>没有一个字是假的</strong>。在那个被污染的解释器环境里，<code>prompt_mgr</code> 确实找不到；traceback 指向的文件、行号、import 语句全部属实。谎不在任何一条消息里，谎在环境里——这就是环境性故障和代码性故障的根本区别。</p>
+
+        <p>acs 的 721/2452 更毒。如果 3173 个测试全崩，一眼就是环境问题；<strong>部分通过、部分失败，长得恰恰像一个真回归</strong>。2452 个通过给了这份报告信用背书："环境大体是好的，是这 721 个测试坏了。"凌晨的那份报告差点就被当成真回归写进事故记录。</p>
+
+        <h2>五、家族视角：假绿的镜像</h2>
+
+        <p>这个系列写过 exit-0 家族的一连串成员，上一篇是"exit 0 + 空 log"——<code>python3 -m</code> 被静默吞掉，什么都没跑却报成功。那是<strong>假绿</strong>。今天这个是它的镜像：<strong>假红</strong>——测试全跑完了、exit code 诚实地非零、错误信息句句属实，但环境错了，绿的被报成红的。</p>
+
+        <p>把家族拉通看：</p>
+
+        <table>
+            <tr><th>成员</th><th>谎言方向</th><th>机制</th><th>免疫手段</th></tr>
+            <tr><td>exit 0 + 空 log</td><td>假绿</td><td>runner 层吞执行</td><td>log 非空验证</td></tr>
+            <tr><td>sys.path[0] 串扰（本文）</td><td>假红</td><td>环境层污染 import</td><td>单项目复跑</td></tr>
+            <tr><td>平行常量分母</td><td>数字假</td><td>报表层 Q≠len(queries)</td><td>用 len(实际集合) 汇报</td></tr>
+            <tr><td>tie-break 伪影</td><td>排序假</td><td>同分时第二键即排序本身</td><td>审视 sorted 第二键</td></tr>
+        </table>
+
+        <p>共同点：<strong>harness 也是系统的一部分，而它不在自己的测试覆盖里</strong>。你给业务代码写了几百个测试，runner 本身那十行却默认永远正确。3173 全绿的 acs，绿的前提是"跑在正确的环境里"——这个前提没有任何测试守护，只能靠纪律。</p>
+
+        <h2>六、纪律落地</h2>
+
+        <p>修复不是给 runner 打补丁（虽然那一行确实有效），而是把批量扫描的姿势写死：</p>
+
+        <pre><code># 正确姿势：逐项目、cd 进去、stdin 模式（sys.path[0]=''=cwd）
+cd &lt;proj&gt; &amp;&amp; python3 - &lt;&lt;'EOF'
+import pytest, sys
+sys.exit(pytest.main(["-q", "--tb=no", "-p", "no:cacheprovider", "tests"]))
+EOF</code></pre>
+
+        <p>三条 checklist：</p>
+
+        <ol>
+            <li><strong>批量扫描的数字，先做单项目复跑再当真。</strong>好得可疑查伪影，坏得可疑查环境——两个方向都是 harness 在说谎。</li>
+            <li><strong>runner 脚本里出现 os.chdir 时，问一句 sys.path 跟来了没有。</strong>cwd 和 sys.path 是两个宇宙，script 模式下 sys.path[0] 永远是脚本目录。</li>
+            <li><strong>部分失败比全崩更危险。</strong>全崩自查环境，半崩像真回归——先看这批失败有没有共同 import 路径，再决定写事故报告还是查 runner。</li>
+        </ol>
+
+        <div class="insight">最后留一个自检问题，下次写任何 runner 前问自己：<strong>这个脚本跑在哪个 sys.path 上？</strong>如果答不上来，跑一遍 <code>print(sys.path[:2])</code> 再说。十秒钟，省一晚上。</div>
+
+    </div>
+</body>
+</html>
