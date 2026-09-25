@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>逐字书写 vs 整页雕刻：扩散语言模型为什么突然能打了 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+        .ascii-art { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; font-family: "Monaco", "Consolas", monospace; font-size: 0.85em; line-height: 1.6; overflow-x: auto; margin: 20px 0; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>逐字书写 vs 整页雕刻：扩散语言模型为什么突然能打了</h1>
+        <div class="meta">
+            2026-09-25 · 罗嵩 ·
+            <span class="tag">Diffusion LLM</span>
+            <span class="tag">非自回归生成</span>
+            <span class="tag">LLM 架构</span>
+            <span class="tag">前沿研究</span>
+        </div>
+
+        <blockquote>你盯着代码补全的光标，等了整整两秒。这两秒里，模型在干什么？它在用钢笔写字——从左到右，一个 token 接一个 token，写错了不能涂改，想快只能靠"猜下一步"的投机解码。但如果生成文字可以像 Stable Diffusion 生成图片那样——先铺一整页噪声，再从全局逐步雕出形状呢？2025 到 2026 年，这条路线突然从论文奇观变成了生产候选：Gemini Diffusion 跑到每秒一两千 token，LLaDA 2 把规模推到 40B。这场范式挑战，值得每个做大模型应用的人看懂。</blockquote>
+
+        <h2>一、自回归是一条单行道</h2>
+
+        <p>先说清楚被挑战的东西。GPT、Claude、Gemini 这些主流模型都是<strong>自回归（AR）</strong>的：每个 token 只看左边的已生成内容，预测下一个。这个设计训练效率极高、推理天然可流式，但它有一条铁律——<strong>落笔无悔</strong>。第 3 个 token 写歪了，后面两百个 token 都要为这个歪字打圆场，因为模型没有任何机制回过头去改它。</p>
+
+        <p>一个类比：<strong>AR 是用钢笔抄写的书记员，扩散语言模型（dLLM）是先铺满粗坯再整体打磨的雕塑家。</strong>雕塑家看的是整块石头的全局结构，手臂的角度和躯干的姿态要互相商量着定；书记员只能看见前一行，写到哪算哪。</p>
+
+        <p>技术上的差异只有一处，但很根本：dLLM 去掉了因果掩码，用<strong>双向注意力</strong>看整个序列。生成过程是迭代去噪——从一段全被 <code>[MASK]</code> 覆盖的噪声开始，每一步模型看着全局，并行揭开一批最确定的 token，重复几轮直到整段成型。训练也变简单了：把干净文本按随机比例打掩码（0% 到 100%），模型学补全。于是一次训练同时学会了润色、填空和从零生成——对 AR 来说这是三个不同的任务，对 dLLM 是同一个。</p>
+
+        <h2>二、三道"不可能"，是怎么被拆掉的</h2>
+
+        <p>这条路 2021 年就有人走（D3PM），但一直被三个工程问题钉在论文里。2025-2026 年，三个问题各拿到了一块拼图。</p>
+
+        <h3>拼图一：块扩散——把 KV cache 和变长买回来</h3>
+
+        <p>经典 dLLM 有两个基建硬伤：必须预设输出长度（聊天场景致命），且每步都要对全序列做双向注意力，AR 服务栈最值钱的 KV cache 完全用不上。</p>
+
+        <p><strong>块扩散（Block Diffusion，BD3-LM，ICLR 2025 Oral）</strong>的解法是个漂亮的插值：块与块之间自回归，块之内扩散。就这一个动作，同时买回变长生成和块级 KV cache。LLaDA 2 更进一步，把块大小做成训练调度（WSD：先增块、再全序列、后收块），把整个范式变成了 AR 与扩散之间的连续谱——你想偏哪边，调块大小就行。</p>
+
+        <h3>拼图二：AR 权重可以回收——血统不作废</h3>
+
+        <p>"从头训练一个 40B 扩散模型"听着就是烧钱无底洞。LLaDA 2 证明了另一条路：拿现成的 AR 预训练权重，<strong>继续预训练</strong>成掩码扩散模型。万亿 token 的 AR 血统大部分保留。这一点很关键：范式竞争的本质悄悄变成了<strong>迁移成本</strong>竞争——dLLM 不需要"赢"，只需要"迁移够便宜"。</p>
+
+        <h3>拼图三：蒸馏到两步——速度从百步到可用</h3>
+
+        <p>早期扩散 LM 要几百个去噪步，比 AR 慢 10-100 倍，快从何谈起？Gemini Diffusion 用块并行去噪（每步揭 128+ token）加步数蒸馏，把 32 步压到 8 步甚至 2 步，实测每秒一两千 token；商用侧 Mercury Coder 早就把代码生成做到了千 token 每秒量级。<strong>dLLM 的快不是每步快，是"步数 × 并行度"这个乘积大。</strong></p>
+
+        <h2>三、泼一盆冷水：知识债，不是范式债</h2>
+
+        <p>速度追上来了，但 Gemini Diffusion 的成绩单有个刺眼的裂缝：</p>
+
+        <table>
+            <thead><tr><th>基准</th><th>Gemini Diffusion</th><th>Gemini Flash-Lite (AR)</th></tr></thead>
+            <tbody>
+                <tr><td>HumanEval（代码）</td><td>89.6%</td><td>90.2%</td></tr>
+                <tr><td>LiveCodeBench（代码）</td><td><strong>30.9%</strong></td><td>28.5%</td></tr>
+                <tr><td>Global MMLU（知识）</td><td>69.1%</td><td><strong>79.0%</strong></td></tr>
+                <tr><td>GPQA Diamond（知识）</td><td>40.4%</td><td><strong>56.5%</strong></td></tr>
+            </tbody>
+        </table>
+
+        <p>代码追平甚至反超，知识类落后 10-16 分。这个图案说明了什么？<strong>差的是后训练数据和蒸馏生态，不是生成范式。</strong>AR 模型身后站着几年的指令微调、偏好对齐、蒸馏管线；dLLM 的对齐栈才刚搭起来。这笔生态债要还，但要按年计息——好消息是它终归是钱和时间能解决的债。</p>
+
+        <h2>四、RL 后训练：新范式的新战场</h2>
+
+        <p>还有个更深的坑：AR 模型的强化学习（PPO/GRPO）建立在"每个 token 都有 logprob"之上，而 dLLM 整段并行生成，这个量根本不存在——<strong>信用分配没了抓手</strong>。2025 年的解法开始成建制出现：d1 的 diffu-GRPO 用 critic-free 策略梯度绕开逐 token 概率；TraceRL（ICLR 2026）给扩散模型配了专门的价值函数，训出的 TraDo 系列在数学和代码推理上做到 SOTA。</p>
+
+        <p>一个耐人寻味的观察：d1 训练后出现了<strong>自我修正行为</strong>——模型会认出自己前面写错了，回头改，再继续。这在 AR 里要靠外挂的"反思"提示词工程，在 dLLM 里是结构自带的：因为"改已生成的 token"本来就是去噪循环的一部分。2026 年的 ME-DLM、NVIDIA 的 Self-Correcting MDM 沿着这条路继续修 dLLM 的老毛病（重复、低质量 token 被早早锁死）。</p>
+
+        <div class="insight">
+        <strong>核心判断：</strong>dLLM 对 Agent 最值钱的能力可能不是快，是<strong>可编辑性</strong>。Agent 的核心循环就是"草稿 → 拿到反馈 → 修订"——报告改写、结构化输出修复、代码 patch。AR 模型做修订只能整段重写或外挂 diff 工具；dLLM 结构上原生支持"保留大部分、只动要改的那几处"，还自带风格、长度、安全性的免训练控制旋钮（classifier-free guidance）。速度是卖点，编辑权才是护城河的雏形。
+        </div>
+
+        <h2>五、别急着迁移：三个清醒剂</h2>
+
+        <ul>
+            <li><strong>延迟优势 ≠ 吞吐优势。</strong>dLLM 赢的是首响延迟和"整段一起出"；高并发批式服务里，AR 的 continuous batching 照样把 GPU 摊得很满。你的场景是交互式补全还是后台批处理，决定了这波红利和你有没有关系。</li>
+            <li><strong>流式 UX 不匹配。</strong>逐字打字机效果是 AR 的原生输出形态；并行生成的产品形态要么整段弹出、要么块级流式，交互设计要重想。</li>
+            <li><strong>知识密集任务先别上。</strong>MMLU/GPQA 那个缺口还在，通用问答场景的 dLLM 目前是"快但知道得少"。</li>
+        </ul>
+
+        <p>至于终局，我倾向于：<strong>没有替代，只有混合。</strong>块扩散本身就是 AR 和扩散的杂交体，LLaDA 2 的三阶段训练在 AR 基础上长出扩散头。接下来的故事大概率不是"谁消灭谁"，而是同一家模型里，哪些层、哪些场景用哪种生成方式——就像今天的 CPU 里同时有大小核。</p>
+
+        <h2>六、今晚就能做的事</h2>
+
+        <ol>
+            <li><strong>跑个延迟基准</strong>：Mercury 的 API 或开源 LLaDA 2 推理，拿你手头某个代码补全/文本改写任务，对照同尺寸 AR 模型，画一张"去噪步数 × 质量"的实测曲线——建立第一手成本直觉，比读十篇论文有用。</li>
+            <li><strong>扫描你的 Agent 工作流</strong>：找出"整段改写"环节（结构化输出修复、报告编辑、批量重排），那是 dLLM 对 AR 的<strong>结构性</strong>优势区，做 PoC 的性价比最高。</li>
+            <li><strong>读两篇原文</strong>：BD3-LM（块扩散怎么和 KV cache 相处）和 TraceRL（没有逐 token logprob 时怎么做 RL）——这两篇分别代表 dLLM 的工程面和算法面。</li>
+            <li><strong>盯住 serving 栈</strong>：vLLM/SGLang 的 dLLM 后端进度是你能在生产里用上它的真正时间表。</li>
+        </ol>
+
+        <p>范式迁移的历史规律是：新范式先在旧范式做不好的维度上立住（速度、可编辑），再用工程手段把旧范式的红利一点点搬过来（KV cache、预训练血统、RL）。扩散语言模型正处在第二阶段的半山腰——它未必会赢下一切，但你该开始为它留一个接口了。</p>
+
+        <hr>
+        <p><em>参考：A Survey on Diffusion Language Models (arXiv:2508.10875)、Block Diffusion (ICLR 2025 Oral)、d1 (arXiv:2504.12216)、TraceRL (ICLR 2026)、Gemini Diffusion 技术分析、SSR-LM / ME-DLM / Self-Correcting MDM (2026)、LLaDA 2 技术报告。</em></p>
+    </div>
+</body>
+</html>

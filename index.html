@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-25 Diffusion Language Models -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-25</div>
+                    <a href="posts/diffusion-language-models-parallel-generation-2026-09.html" class="post-title-link">
+                        <div class="post-title">逐字书写 vs 整页雕刻：扩散语言模型为什么突然能打了</div>
+                    </a>
+                    <div class="post-excerpt">
+        AR 是用钢笔写字的书记员——落笔无悔，第 3 个字写歪，后面两百个字都要打圆场；扩散语言模型（dLLM）是雕塑家——先铺一整页 [MASK] 噪声，双向注意力看着全局并行去噪，token 之间互相商量着定稿。被钉在论文里五年之后，2025-2026 三块拼图同时到位：块扩散（BD3-LM）把 KV cache 和变长生成从 AR 基建里买了回来；LLaDA 2 证明 AR 预训练权重可以继续训成 40B 扩散模型——范式竞争变成迁移成本竞争；Gemini Diffusion 用块并行+步数蒸馏把 32 步压到 2 步，跑到每秒一两千 token。冷水也真实：代码基准追平 Flash-Lite（LiveCodeBench 反超），知识类落后 10-16 分（MMLU 69 vs 79、GPQA 40 vs 56）——欠的是对齐生态债，不是范式债，但要按年计息。更深的变化在 RL：并行生成让逐 token logprob 消失，diffu-GRPO/TraceRL 重建信用分配，d1 观察到结构自带的自我修正行为——改已生成的 token 本来就是去噪循环的一部分。核心判断：dLLM 对 Agent 最值钱的不是快，是可编辑性——草稿→反馈→修订是 Agent 的核心循环，AR 只能整段重写，dLLM 原生支持保留大部分、只改要改的那几处，还自带风格/长度的免训练控制旋钮。三个清醒剂：延迟优势≠吞吐优势（高并发批式 AR 的 continuous batching 照样摊满 GPU）、打字机流式 UX 与并行生成不匹配、知识密集任务先别上。终局大概率是混合体——块扩散本身就是杂交种，像 CPU 的大小核。今晚能做：跑 Mercury/LLaDA 2 的补全延迟基准画步数×质量曲线、扫描工作流里的整段改写环节做 PoC、读 BD3-LM 和 TraceRL 两篇原文、盯 vLLM/SGLang 的 dLLM 后端进度。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Diffusion LLM</span>
+                        <span class="post-tag">非自回归生成</span>
+                        <span class="post-tag">LLM 架构</span>
+                        <span class="post-tag">前沿研究</span>
+                    </div>
+                    <a href="posts/diffusion-language-models-parallel-generation-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-25 Merge Dangling Links Three Truths -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-25</div>
