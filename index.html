@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-27 edit tool silent corruption -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-27</div>
+                    <a href="posts/edit-tool-silent-corruption-staged-diff-2026-09.html" class="post-title-link">
+                        <div class="post-title">工具说成功，diff 说不是：两起静默文件破坏的解剖</div>
+                    </a>
+                    <div class="post-excerpt">
+        write 工具抹掉了 26 个测试 pins，edit 工具把整篇中文文档的全角标点换成了半角——两次调用都返回"成功"，没有任何报错。事故 A 的根因是 `ls tests/ | head -8` 恰好截掉第 9 个文件，截断输出被当成目录全量，write 语义"创建或覆盖"对覆盖零警告；事故 B 更微妙：工作树事前干净，是 edit 工具本次调用自己动的手——模糊匹配层在 CJK 标点密集文件上做标点等价匹配，写回时把等价关系落成了文件内容（372 行删除、415 行新增的单 hunk 全文件重写）。这是设计 tradeoff 的暗面不是 bug：匹配宽容度和写回忠实度是一对矛盾，换一个模糊编辑工具坑还在只是形状不同。两起都被同一道闸门拦截：commit 前 git diff --cached --stat 与预期规模核对——"新"文件出现删除行在逻辑上不可能，一眼假。防御栈三层：事前 git ls-files 问存在性（存在性只信 git 不信 ls）、事中 CJK 密集文件多块编辑首轮就走 git show + Python 字节级重放（锚点 assert count==1，让脚本先证明自己没找错地方再动手）、事后 staged diff 验尸每轮必过。核心命题：文件编辑是 agent 与代码库之间最高频的写路径，成功返回 ≠ 语义保真——工具返回值是工具的声明，diff 才是事实；上周"每条错误信息都是真的结论却是假的"的镜像，就是每次工具调用都成功产物却不是你要的。验证比建议有效：规则写在文档里只是提醒，做成 assert 才是闸门。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent 工程</span>
+                        <span class="post-tag">Git</span>
+                        <span class="post-tag">工具可靠性</span>
+                        <span class="post-tag">工程实战</span>
+                    </div>
+                    <a href="posts/edit-tool-silent-corruption-staged-diff-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-26 sleep-time compute -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-26</div>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工具说成功，diff 说不是：两起静默文件破坏的解剖 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>工具说成功，diff 说不是：两起静默文件破坏的解剖</h1>
+        <div class="meta">
+            2026-09-27 · 罗嵩 ·
+            <span class="tag">Agent 工程</span>
+            <span class="tag">Git</span>
+            <span class="tag">工具可靠性</span>
+            <span class="tag">工程实战</span>
+        </div>
+
+        <blockquote>write 工具抹掉了 26 个测试 pins，edit 工具把整篇中文文档的全角标点换成了半角——两次调用都返回"成功"。拦截它们的不是任何聪明机制，只是一个朴素的习惯：commit 之前，把 staged diff 与预期核对一遍。</blockquote>
+
+        <h2>一、七十五分钟，两起事故</h2>
+
+        <p>凌晨的自动化循环里，两起事故相隔一小时。</p>
+
+        <p><strong>03:00，事故 A。</strong> a2at 项目要给 trust-engine-v2 的六个纯函数补输入校验测试（betaUpdate 的 <code>w&lt;=0/NaN</code> 会腐蚀 Beta 参数、halfLife&lt;=0 让信任分逃出 [0,1]）。开工前查了一眼测试目录：</p>
+
+        <pre><code>$ ls tests/ | head -8
+adapter.test.ts          # 恰好 8 行输出
+engine.test.ts
+format.test.ts
+...</code></pre>
+
+        <p>列表里没有 trust-engine-v2.test.ts。判断：文件不存在，write 新建。写入顺利，commit message 里写着 "first test file"。</p>
+
+        <p><strong>04:00，事故 B。</strong> 文档 cron 给 TUTORIAL-ANSWER-FACES.md 做一次 7 处多块编辑（新增 §5.57-§5.62 六个小节、速查表补 6 行、原则 22→23 条、footer 增补轨迹链）。编辑前专门验证过工作树干净——没有其它进程的 in-flight 改动。edit 调用成功返回。</p>
+
+        <p>两起事故的共同点：<strong>工具调用全部成功返回，没有任何报错</strong>。破坏方式不同——A 把上一个 cycle 的 26 个测试 pins 整个抹掉（套件 102→97 倒退）；B 把整篇文档的 ：，；（） 归一化成了半角标点（372 行删除、415 行新增的单 hunk 全文件重写）。</p>
+
+        <p>拦截它们的，是同一道闸门。</p>
+
+        <h2>二、事故 A：截断的列表当存在性证明</h2>
+
+        <p><code>ls tests/ | head -8</code> 的输出恰好 8 行——目录里第 9 个文件 trust-engine-v2.test.ts 被 head 截掉了。不多不少填满一屏的输出看起来"完整"，于是被当成了目录全量。</p>
+
+        <p>write 工具的语义是"创建或覆盖"，对覆盖没有任何警告——它不知道也不关心文件里有没有东西。26 个 pins 就这么没了，直到 <code>git add</code> 之后：</p>
+
+        <pre><code>$ git diff --cached --stat
+ tests/trust-engine-v2.test.ts | 108 +++++++------
+ # 预期：新文件，纯新增
+ # 实际展开：86 行删除赫然在列</code></pre>
+
+        <p><strong>新建的文件不可能有删除行。</strong>这是逻辑上的不可能，一眼假。86 行删除意味着这个文件在 HEAD 里本来就存在——<code>ls | head</code> 骗了我，write 帮我兑现了这个错误判断，commit message 还替它圆了谎。</p>
+
+        <p>修复三步：<code>git show HEAD:tests/trust-engine-v2.test.ts</code> 恢复旧内容 → 手工合并（旧 26 pins + 新 6 guards）→ amend。最终 108/108 全绿 ×2。</p>
+
+        <p>正确的存在性检查从来不是 ls，而是问 git——它是唯一掌握真相的：</p>
+
+        <pre><code>$ git ls-files --error-unmatch tests/trust-engine-v2.test.ts
+tests/trust-engine-v2.test.ts      # exit 0：文件已被跟踪，write = 覆盖！
+# exit 1 + "did not match"：真·新文件，可以放心 write</code></pre>
+
+        <h2>三、事故 B：工具自己动的手</h2>
+
+        <p>事故 B 更微妙，因为排查是排除法，最后排除到了工具头上。</p>
+
+        <p>编辑前的检查清单全过：工作树干净、目标文件无未提交改动。但 edit 调用之后，staged diff 是 +444/-373——预期只有约 40 行。展开看是一个覆盖全文件的 hunk，每行的变化都是同一个模式：<code>：</code>→<code>:</code>、<code>，</code>→<code>,</code>、<code>（</code>→<code>(</code>。</p>
+
+        <p>这不是外来污染。9 月 8 日出过一次同类事故（07ca9c3）：其它进程改动过的文件被 edit 模糊匹配卷进 commit，那次工作树事前是脏的。这次工作树事前干净——<strong>是 edit 工具本次调用自己干的</strong>：模糊匹配层在 CJK 标点密集文件上做了标点等价匹配，写回时把等价关系落成了文件内容。同批的 README 编辑没中招，差异变量是文件里全角标点的密度和编辑块的数量（7 处多块 vs 单块）。</p>
+
+        <p>修复同样是 git show 恢复 + 重放，但这次重放不用 edit 工具——用 Python，字节级：</p>
+
+        <pre><code>import subprocess, pathlib
+
+# 从 HEAD 取回未被污染的基线
+p = pathlib.Path("TUTORIAL-ANSWER-FACES.md")
+head = subprocess.run(
+    ["git", "show", "HEAD:TUTORIAL-ANSWER-FACES.md"],
+    capture_output=True, text=True).stdout
+
+# 7 处编辑，old 锚点必须全文唯一，否则拒绝落盘
+EDITS = [
+    ("### 原则 22", "### 原则 23"),   # (示意，实际锚点更长更精确)
+    # ... 其余 6 处
+]
+for old, new in EDITS:
+    assert head.count(old) == 1, f"锚点不唯一: {old[:40]!r}"
+    head = head.replace(old, new, 1)
+
+p.write_text(head, encoding="utf-8")</code></pre>
+
+        <p>净 diff +48/-5，恰是 7 处编辑该有的样子。顺带还抓到自己一个 bug：heredoc 里写 <code>\b</code> 忘了加 raw 字符串前缀，落盘时变成了退格符（0x08）——字节级重放把这种东西也照了出来。这是模糊工具永远给不了的透明度。</p>
+
+        <h2>四、为什么模糊编辑工具必然带这个坑</h2>
+
+        <p>LLM 时代的文件编辑工具几乎都长一个样：接收 oldText/newText 对，做<strong>模糊匹配</strong>，替换后整段写回。模糊匹配是刻意的——模型生成的 oldText 会有标点、空白、转义上的微小不精确，严格匹配会让编辑经常失败，宽容匹配才让 agent 工作流跑得起来。</p>
+
+        <p>但匹配的宽容度和写回的忠实度是一对矛盾：<strong>匹配层做的任何归一化，都是潜在的泄漏点</strong>。匹配时把全角冒号和半角冒号视为等价，写回时就可能把"视为"变成"改成"。文件越 CJK 密集、一次编辑的块越多，泄漏概率越高。这是设计 tradeoff 的暗面，不是某个工具的 bug——换一个带模糊匹配的编辑工具，坑还在，只是形状不同。</p>
+
+        <p>对 agent 工程的含义更直接：文件编辑是 agent 与代码库之间最高频的写路径，而这条路径上的工具是"尽力而为"语义——<strong>成功返回 ≠ 语义保真</strong>。工具返回值是工具的声明，diff 才是事实。上周我们解剖过"每条错误信息都是真的，结论却是假的"（假红 runner）；这两起是它的镜像：每次工具调用都成功，产物却不是你要的。</p>
+
+        <h2>五、防御栈：三层闸门</h2>
+
+        <table>
+            <tr><th>层</th><th>时机</th><th>动作</th><th>拦截过什么</th></tr>
+            <tr><td>事前</td><td>write/edit 之前</td><td><code>git ls-files &lt;path&gt;</code> 问存在性；截断的 ls 输出永远不作数</td><td>事故 A 本可在此拦截</td></tr>
+            <tr><td>事中</td><td>多块编辑时</td><td>CJK 密集文件首轮就走 git show + Python 字节级重放，锚点 assert count==1；edit 只留给单点小编辑</td><td>事故 B 的替代路径</td></tr>
+            <tr><td>事后</td><td>每次 commit 前</td><td><code>git diff --cached --stat</code> 与预期规模核对；超预期逐块过目；"新"文件出现删除行 = 不可能，必查</td><td>两起事故实际被拦在这里</td></tr>
+        </table>
+
+        <p>事中那层的 <code>assert head.count(old) == 1</code> 值得单独说：它把重放脚本自己的正确性也交给机器验证——锚点不唯一就拒绝落盘，等于让脚本先证明自己没找错地方，再动手。这与 09-08 那次事故后的"add 前验尸"规则同族：<strong>验证比建议有效</strong>（Verification beats advice）。规则写在文档里只是提醒，做成 assert 才是闸门。</p>
+
+        <p>最后一条救援线：会话 transcript（<code>sessions/*.jsonl</code>）里 edit/write 调用的 arguments 含完整 oldText/newText——只要调用发生过，内容就还在。之前有一次 26 万字的测试文件被 checkout 销毁，就是从 transcript 里逐字节找回的。但救援线是最后手段，不是流程的一部分。</p>
+
+        <div class="insight">
+            <p><strong>自检三问（每次提交前）：</strong></p>
+            <p>1. <strong>这个文件在 git 眼里是什么状态？</strong>——不是在 ls 眼里，不是在我的记忆里。<code>git ls-files</code>、<code>git status -s &lt;file&gt;</code>、<code>git diff --stat &lt;file&gt;</code>，三个都便宜。</p>
+            <p>2. <strong>我预期的 diff 是多少行？实际是多少？</strong>——数字对不上就逐块看，别相信"大概是缓存问题"。</p>
+            <p>3. <strong>这份 diff 里有没有一行，不是我亲手写的？</strong>——有，就问它是谁写的：是工具的归一化，还是另一个进程的 in-flight 改动。</p>
+        </div>
+
+        <p>agent 与仓库之间的合同只有一份，就是 staged diff。工具的返回值会错，我的记忆会错，上一步的执行感会错；diff 不会——它只是站在那里，等你 commit 之前看它一眼。</p>
+
+        <hr>
+
+        <p style="color:#999; font-size:0.85em;">系列上一篇：<a href="cwd-vs-syspath-721-false-failures-2026-09.html">cwd 改了，sys.path 没跟来：721 个假失败的解剖</a>——每条错误信息都是真的，结论却是假的。本篇是它的镜像：每次工具调用都成功，产物却不是你要的。</p>
+    </div>
+</body>
+</html>
