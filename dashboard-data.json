@@ -1,10 +1,10 @@
 {
-  "lastUpdated": "2026-09-25T22:01:57Z",
-  "generatedAt": "2026-09-26 06:01 CST",
+  "lastUpdated": "2026-09-26T22:01:55Z",
+  "generatedAt": "2026-09-27 06:01 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 912929,
+      "pid": 1295924,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
@@ -13,19 +13,19 @@
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "22 weeks, 2 days, 16 hours, 41 minutes",
-      "loadAverage": "0.70, 0.23, 0.06",
+      "uptime": "22 weeks, 3 days, 16 hours, 41 minutes",
+      "loadAverage": "0.73, 0.21, 0.07",
       "disk": {
         "total": "50G",
-        "used": "33G",
+        "used": "32G",
         "available": "15G",
         "usage": "69%"
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1399,
-        "freeMB": 321,
-        "availableMB": 536,
+        "usedMB": 1299,
+        "freeMB": 369,
+        "availableMB": 636,
         "swapTotalMB": 10179,
         "swapUsedMB": 489
       }
@@ -38,117 +38,132 @@
     "error": 1,
     "running": 1,
     "errorJobs": [
-      "84707ade (ai-neuroscience-research)"
+      "84707ade-1c71-4b06-af17-05e62a021781"
     ],
     "notes": [
-      "ai-neuroscience-research: 53 consecutive errors (execution timed out, 300s limit) — chronic"
+      "84707ade (ai-neuroscience-research): 54 consecutive errors — root cause: delivery config missing Feishu target (job itself completed); target fixed 2026-09-27 06:01, next run tonight 22:30 should verify"
     ]
   },
   "cronJobs": [
-    {
-      "id": "f38e0365",
-      "name": "dashboard-update-morning",
-      "schedule": "0 6 * * *",
-      "status": "running",
-      "lastRun": "1d ago"
-    },
-    {
-      "id": "9b2a8701",
-      "name": "github-trending-daily",
-      "schedule": "0 7 * * * @ Asia/Shanghai",
-      "status": "ok",
-      "lastRun": "23h ago"
-    },
-    {
-      "id": "2c714952",
-      "name": "github-trending-deep-analysis",
-      "schedule": "0 8 * * * @ Asia/Shanghai",
-      "status": "ok",
-      "lastRun": "22h ago"
-    },
-    {
-      "id": "ad37c59a",
-      "name": "github-creative-evening",
-      "schedule": "0 19 * * * @ Asia/Shanghai",
-      "status": "ok",
-      "lastRun": "11h ago"
-    },
-    {
-      "id": "a4bf5e2a",
-      "name": "deep-exploration-evening",
-      "schedule": "0 20 * * * @ Asia/Shanghai",
-      "status": "ok",
-      "lastRun": "10h ago"
-    },
-    {
-      "id": "13a2f284",
-      "name": "code-lab-evening",
-      "schedule": "0 21 * * *",
-      "status": "ok",
-      "lastRun": "9h ago"
-    },
-    {
-      "id": "62bf7f3b",
-      "name": "tool-development-evening",
-      "schedule": "0 22 * * * @ Asia/Shanghai",
-      "status": "ok",
-      "lastRun": "8h ago"
-    },
-    {
-      "id": "84707ade",
-      "name": "ai-neuroscience-research",
-      "schedule": "30 22 * * * @ Asia/Shanghai",
-      "status": "error",
-      "lastRun": "7h ago"
-    },
-    {
-      "id": "78eac6fc",
-      "name": "key-development-1",
-      "schedule": "0 23 * * *",
-      "status": "ok",
-      "lastRun": "7h ago"
-    },
     {
       "id": "88679f9e",
       "name": "key-development-2",
       "schedule": "0 0 * * *",
       "status": "ok",
-      "lastRun": "6h ago"
+      "lastRun": "6h ago",
+      "consecutiveErrors": 0
     },
     {
       "id": "b0fd7e8d",
       "name": "key-development-3",
       "schedule": "0 1 * * *",
       "status": "ok",
-      "lastRun": "5h ago"
+      "lastRun": "5h ago",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "ad37c59a",
+      "name": "github-creative-evening",
+      "schedule": "0 19 * * * @ Asia/Shanghai",
+      "status": "ok",
+      "lastRun": "11h ago",
+      "consecutiveErrors": 0
     },
     {
       "id": "1ea6e3b0",
       "name": "knowledge-organization-morning",
       "schedule": "0 2 * * * @ Asia/Shanghai",
       "status": "ok",
-      "lastRun": "4h ago"
+      "lastRun": "4h ago",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "a4bf5e2a",
+      "name": "deep-exploration-evening",
+      "schedule": "0 20 * * * @ Asia/Shanghai",
+      "status": "ok",
+      "lastRun": "10h ago",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "13a2f284",
+      "name": "code-lab-evening",
+      "schedule": "0 21 * * *",
+      "status": "ok",
+      "lastRun": "9h ago",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "62bf7f3b",
+      "name": "tool-development-evening",
+      "schedule": "0 22 * * * @ Asia/Shanghai",
+      "status": "ok",
+      "lastRun": "8h ago",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "78eac6fc",
+      "name": "key-development-1",
+      "schedule": "0 23 * * *",
+      "status": "ok",
+      "lastRun": "7h ago",
+      "consecutiveErrors": 0
     },
     {
       "id": "f7510f1f",
       "name": "project-testing-morning",
       "schedule": "0 3 * * *",
       "status": "ok",
-      "lastRun": "3h ago"
+      "lastRun": "3h ago",
+      "consecutiveErrors": 0
     },
     {
       "id": "77a5bcc6",
       "name": "documentation-morning",
       "schedule": "0 4 * * *",
       "status": "ok",
-      "lastRun": "2h ago"
+      "lastRun": "2h ago",
+      "consecutiveErrors": 0
     },
     {
       "id": "f0362050",
       "name": "essay-generation-morning",
       "schedule": "0 5 * * * @ Asia/Shanghai",
       "status": "ok",
-      "lastRun": "1h ago"
+      "lastRun": "1h ago",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "f38e0365",
+      "name": "dashboard-update-morning",
+      "schedule": "0 6 * * *",
+      "status": "running",
+      "lastRun": "1d ago",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "9b2a8701",
+      "name": "github-trending-daily",
+      "schedule": "0 7 * * * @ Asia/Shanghai",
+      "status": "ok",
+      "lastRun": "23h ago",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "2c714952",
+      "name": "github-trending-deep-analysis",
+      "schedule": "0 8 * * * @ Asia/Shanghai",
+      "status": "ok",
+      "lastRun": "22h ago",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "84707ade",
+      "name": "ai-neuroscience-research",
+      "schedule": "30 22 * * * @ Asia/Shanghai",
+      "status": "error",
+      "lastRun": "7h ago",
+      "consecutiveErrors": 54
     }
   ],
   "sessions": {
@@ -159,49 +174,50 @@
         "type": "cron (f38e0365)",
         "lastActive": "1m ago",
         "model": "glm-5.3-flash",
-        "context": "46k/204k (22%)"
+        "context": "40k/204k (19%)"
+      },
+      {
+        "type": "cron (f38e0365)",
+        "lastActive": "1m ago",
+        "model": "glm-5.3-flash",
+        "context": "40k/204k (19%)"
       },
       {
         "type": "main",
         "lastActive": "14m ago",
         "model": "glm-5",
-        "context": "147k/200k (73%)"
+        "context": "158k/200k (79%)"
       },
       {
         "type": "cron (f0362050)",
-        "lastActive": "56m ago",
+        "lastActive": "57m ago",
         "model": "glm-5.3-flash",
-        "context": "59k/204k (29%)"
+        "context": "58k/204k (28%)"
+      },
+      {
+        "type": "cron (f0362050)",
+        "lastActive": "1h ago",
+        "model": "glm-5.1",
+        "context": "57k/204k (27%)"
       },
       {
         "type": "cron (77a5bcc6)",
         "lastActive": "2h ago",
         "model": "glm-5.3-flash",
-        "context": "46k/204k (22%)"
+        "context": "126k/204k (61%)"
+      },
+      {
+        "type": "cron (77a5bcc6)",
+        "lastActive": "2h ago",
+        "model": "glm-5.3-flash",
+        "context": "126k/204k (61%)"
       },
       {
         "type": "cron (f7510f1f)",
         "lastActive": "2h ago",
         "model": "glm-5.3-flash",
-        "context": "57k/204k (28%)"
-      },
-      {
-        "type": "cron (1ea6e3b0)",
-        "lastActive": "4h ago",
-        "model": "glm-5.1",
-        "context": "105k/204k (51%)"
+        "context": "67k/204k (33%)"
       }
-    ]
-  },
-  "git": {
-    "repo": "robertsong2019/openclaw-workspace",
-    "recentCommits": [
-      "新博文：cwd 改了，sys.path 没跟来——721 个假失败的解剖 (今晨基线扫描假报事故一手复盘+复现: 十行runner让pmgr假报33收…",
-      "新博文：逐字书写 vs 整页雕刻：扩散语言模型为什么突然能打了 (14+篇一手调研: AR钢笔书记员落笔无悔 dLLM雕塑家双向注意力全局去噪 tok…",
-      "dashboard: morning update 2026-09-25 (15 cron jobs, 1 error: ai-neuroscienc…",
-      "新博文：合并发生在内存里，悬空留在磁盘上——一次 merge() 的三重真相分裂 (今晨amf一手实战复盘: merge改边循环看似正确 三视图同时说…",
-      "新博文：读完这句话，你的模型变了吗——测试时训练把学习塞进推理的瞬间 (14篇一手调研: Schmidhuber 1992快权重三十年伏笔 三时间尺度…",
-      "新博文：负数是合法的谎言：-1 删全库，-3 报成功 (一手实战复盘三案: session-archiver cleanOldArchives(-1)…"
     ]
   }
 }
