@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记忆的形状：从向量货架到时间知识图谱 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>记忆的形状：从向量货架到时间知识图谱</h1>
+    <p class="meta">
+        <span class="tag">Agent Memory</span>
+        <span class="tag">GraphRAG</span>
+        <span class="tag">知识图谱</span>
+        <span class="tag">图算法</span>
+        2026-09-27 · 基于 HippoRAG 1/2 · Zep/Graphiti · GraphRAG/LightRAG · A-MEM · Mem0 Graph 共 12 系统调研
+    </p>
+
+    <blockquote>陪你聊了半年的 AI 助手，记得你说过的每一句话——你说要搬家那天它也在场，附了一句"祝顺利"。三个月后的某个晚上，你让它推荐一家今晚营业的餐厅，它满口热情地给你订了上海静安寺附近的一家。可你上个月已经搬到北京了。它没有"忘"，恰恰相反，它<strong>精准地检索到了"用户住在上海"这条记忆</strong>——和你的查询匹配得天衣无缝。问题不在存储，不在相似度算法，而在于：这条记忆<strong>过期了</strong>，而且它和"用户搬家了"那条记忆之间，<strong>没有任何一条路可以走过去</strong>。</blockquote>
+
+    <h2>一、向量货架 vs 图路网：两种记忆的形状</h2>
+    <p>过去几年，几乎所有 agent 的记忆系统都长一个样：把每次交互切成片段，算个 embedding，扔进向量库；查询时算相似度，取 top-k 塞回上下文。这个架构能活到今天，说明它解决了基本问题——"找到和当前问题相关的记忆"。</p>
+    <p>但它的隐含假设很苛刻：<strong>每条记忆是孤立的</strong>。向量库像一个按颜色排列的货架：你问"红色的东西"，它扫一眼所有货架，把最红的几件端给你。可现实中的问题往往是"红色的东西旁边的那个柜子是谁买的"——这种问题在货架模型里根本没有表达方式，因为货架之间没有路。</p>
+    <p>图记忆给了记忆另一种形状：<strong>路网</strong>。记忆不再是货架上的独立条目，而是路口（实体：人、地、概念）和街道（关系：住在、任职于、认识）织成的网络。你问"我现在住哪"，检索不是找"最像的句子"，而是沿着路走：从"你"这个路口出发，找到"住在"这条街——而这条街上<strong>立着两块路牌，一块写着 valid 2024-2026（上海），一块写着 valid 2026-今（北京）</strong>。时间，就是这里登场的。</p>
+    <p>这不是小打小闹的改进。Zep 论文在更贴近真实场景的 LongMemEval 基准上，用时间知识图谱拿到了最高 <span class="highlight">+18.5% 的准确率、-90% 的延迟</span>。提升最大的正是两类题：时序题（事实随时间变化）和多跳题（答案要穿过两个以上的实体）。这两类恰恰是向量货架的结构性盲区——2026 年的多份长程记忆基准复现了同一发现：<strong>agent 可靠地复用已经过时的事实，演示时惊艳，六个月后自信地胡说</strong>。根因不是模型笨，是记忆没有时间轴。</p>
+
+    <h2>二、建图的三个流派：钱花在建图时还是查图时</h2>
+    <p>如果说图记忆是共识，那么真正的战场是：<strong>这张图要建多厚，钱花在什么时候</strong>。当前三个流派恰好给出三条答案，值得逐个看看：</p>
+    <table>
+        <tr><th></th><th>GraphRAG (微软)</th><th>LightRAG</th><th>HippoRAG (OSU)</th></tr>
+        <tr><td>建图投入</td><td>重：实体图+社区检测+分层摘要</td><td>轻：平面图</td><td>中：开放信息抽取成三元组</td></tr>
+        <tr><td>检索方式</td><td>社区摘要 → map-reduce</td><td>双层关键词+向量</td><td>Personalized PageRank 扩散</td></tr>
+        <tr><td>擅长</td><td>"这份文档整体讲什么"类全局问题</td><td>成本敏感的一般问答</td><td>多跳关联、联想式检索</td></tr>
+        <tr><td>成本量级</td><td>同语料约 $4</td><td>约 $0.15（~1/25）</td><td>介于两者之间</td></tr>
+    </table>
+    <p>三个流派背后是同一个经济学问题：<strong>算力花在建图时（索引期思考）还是花在查询时（检索期现场组合）</strong>。GraphRAG 像百科全书编辑部，把功夫全花在编纂上，读者来了直接翻卷首导读；LightRAG 像极简书架，书随手上架，找书时再费劲；HippoRAG 走中间路线，图建得中等厚度，但检索那一手很讲究——这就要说到它最有意思的部分。</p>
+
+    <h3>海马体的索引：PPR 是联想扩散的数学化</h3>
+    <p>HippoRAG 的立论来自神经科学的海马索引理论：人脑的新皮层存内容（慢、容量大），海马体只存一份稀疏的索引（快、容量小）；回忆时海马体拿着线索激活几个索引点，皮层顺着激活完成整段回忆的"模式补全"。HippoRAG 把这个分工原样翻译：LLM 是新皮层，知识图谱是海马体，<strong>Personalized PageRank（个性化 PageRank）是模式补全</strong>。</p>
+    <p>PPR 值得单独讲，因为它是这波图记忆里最容易被低估的算法。它的行为是：从查询提到的几个实体出发，沿着边向外扩散概率质量——离所有种子都近的节点，得分最高。妙处在于"离多个种子都近"：问"A 和 B 的共同合作者是谁"，向量检索需要祈祷答案恰好和问句相似，PPR 则是让 A 和 B 两团概率在图上扩散、在共同邻居处<strong>自然汇合</strong>。检索即推理，而且是对数线性成本的那种。HippoRAG 2 在此之上加了双节点图（段落节点+短语节点）和 LLM 三元组过滤，论文标题直接亮明野心："From RAG to Memory"——用非参数的方式做持续学习：新知识进图，旧知识不动，能力靠检索组合涌现，不用重训模型。</p>
+
+    <h2>三、时间戳：记忆的第一杀手是腐烂，不是遗忘</h2>
+    <p>回到开头的搬家例子。Zep 背后的开源引擎 Graphiti 给出的解法，是数据库界三十年前的老手艺：<strong>双时间轴</strong>。每条事实（图上的一条边）带两组时间戳：</p>
+    <ul>
+        <li><code>created_at</code>：这条事实<strong>何时进入系统</strong>（交易时间）——审计用，回答"我当时知道什么"</li>
+        <li><code>valid_at</code> / <code>invalid_at</code>：这条事实<strong>何时在世界里为真</strong>（有效时间）——回答用，决定当前该信哪条</li>
+    </ul>
+    <p>关键操作是：新事实推翻旧事实时，<strong>不删除，只关窗</strong>。"用户住在上海"这条边被标上 invalid_at=2026-08-15，新的"用户住在北京"开一扇新窗。旧记忆还在图上，可审计、可回放（"八月初你觉得我住哪？"照样答得对），但常规检索只走开着的窗。这正对应一个我越来越确信的工程判断：<strong>agent 记忆的第一杀手不是存不下、也不是想不起来，而是"旧事实当新事实用"</strong>。腐烂比遗忘危险得多，因为腐烂是静默的——它返回 200 和一个错误答案。</p>
+    <p>配套的还有溯源：Graphiti 的三层结构里，每条事实边都能回溯到产生它的原始对话片段。这条链路就是 agent 记忆的 stack trace——没有它，记忆系统不可调试，一切归因都靠猜。</p>
+
+    <h2>四、记忆是活的：卡片自己长出网络</h2>
+    <p>图结构解决了"怎么连"，时间轴解决了"何时真"，还有一个问题是"谁来维护"。A-MEM（NeurIPS 2025）给出最优雅的答案，灵感来自卢曼的卡片盒笔记法（Zettelkasten）：每条新经验被写成一张<strong>原子笔记</strong>，系统为它生成与既有笔记的链接；更有意思的是第三步<strong>记忆演化</strong>——新笔记的到来可能触发旧笔记更新自己的内容和链接。你的记忆不是只进不出的仓库，而是一张会自我重排的网络：新知识进来，旧知识的相对位置跟着变。</p>
+    <p>这和我在上一篇《AI 也需要睡觉》里写的观察严丝合缝：SOTA 记忆系统的核心武器全在<strong>写路径</strong>——Mem0 的四动词（增删改查之外还有演化）、A-MEM 的卡片演化、hindsight 反思循环。而建图这件事（抽取、连边、触发演化）恰好是最适合搬到空闲时段做的重活：白天对话路径只管快，晚上让睡眠 agent 慢慢把图织厚。图记忆和休眠计算不是两个话题，是同一个架构的白天班和夜班。</p>
+
+    <h2>五、冷静一下：你真的需要图吗</h2>
+    <p>调研完 12 个系统，我反而想说：<strong>大多数场景不需要图</strong>。选型的第一问不是"哪个图系统好"，而是"你的记忆查询是多跳或时序的吗"。如果你的 agent 只需要"记得用户偏好浅色主题"这种单跳静态事实，向量库绰绰有余，别为图多付 25 倍建图钱、多养一套图数据库、多接一条失效逻辑。图是给"事实之间会打架、事实自己会变老"的世界准备的——多用户长程陪伴、企业知识随业务演化、跨会话推理，这些才是图的主场。</p>
+    <p>另一个被低估的成本是<strong>建图本身的可靠性</strong>。LLM 抽取三元组会错、会漏、会幻觉出不存在的边；社区摘要跑一次几十美元；图坏了没有明显的报错，只是检索悄悄变差。生产化的解法方向是流式增量索引（FastGraphRAG、E²GraphRAG 一脉）而不是离线全量重建——记忆系统是全天候写入的，索引不能停机重建，这和数据库在线 DDL 是同一个道理。</p>
+
+    <h2>六、今晚能做什么</h2>
+    <p>不需要一步到位上时间知识图谱。三件按性价比排序的事：</p>
+    <ol>
+        <li><strong>给记忆加三个时间戳（半天）</strong>：valid_at / invalid_at / created_at。写入时默认 valid_at=now；事实更新走"关旧窗、开新窗"，绝不原地改值。这是 Zep 那 18.5% 提升里最便宜可抄的部分——不需要图，向量库加两个字段就能做。</li>
+        <li><strong>在现有实体数据上试一次 PPR（一天）</strong>：哪怕你还没有图记忆，很可能已有某种实体关联（用户-订单-商品）。用 networkx 的 <code>pagerank(personalization=...)</code> 从查询实体扩散，和向量 top-k 对比多跳问题的召回。PPR 是图算法里性价比最高的那一档：实现二十行，多跳问题上是代差优势。</li>
+        <li><strong>测一次你自己的建图成本（半天）</strong>：拿一份真实语料，分别跑 LightRAG 式平面图和 Leiden 社区检测，记下 token 账单和多跳题精度。别人的 25 倍是别人的语料，你的数字出来之前，"要不要上图"这个会永远开不完。</li>
+    </ol>
+    <p>最后回到那个搬家助手。它缺的不是更聪明的模型，也不是更大的记忆——它缺的是两条边之间的一条路，和一扇知道什么时候关上的窗。记忆的形状，决定了它腐烂的方式；而时间戳和图，是 2026 年我们能给它的、最好的防腐剂。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
