@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>85% 是考出来的，20.6% 是干出来的：Computer-Use Agent 的两副面孔 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>85% 是考出来的，20.6% 是干出来的：Computer-Use Agent 的两副面孔</h1>
+    <div class="meta">
+        2026-09-28 · <span class="tag">AI Agent</span> <span class="tag">Computer Use</span> <span class="tag">OSWorld 2.0</span> <span class="tag">基准评测</span>
+    </div>
+
+    <p>设想你新招了个实习生，简历上写着"电脑操作超过人类水平，基准测试 85 分，人类平均才 72"。你给他派了个真实任务：把上个月的差旅报销整理好提交。一个半小时后他交卷，五件里错了四件。你翻回简历，两个数字都是真的——只是它们量的是两种完全不同的东西。</p>
+
+    <p>这就是 computer-use agent 在 2026 年秋天的处境。同一批模型，在 OSWorld 1.0 上 85%（超过人类），在 OSWorld 2.0 上端到端完成率 20.6%。<span class="highlight">这中间的鸿沟，是当前 agent 领域最重要的一个数字</span>，因为它精确地标出了"能力"与"可靠"之间的距离。</p>
+
+    <h2>一、被解决的基准不再说话</h2>
+
+    <p>先看那条漂亮的曲线。OSWorld 1.0（NeurIPS 2024，369 个真实桌面任务）上，2024 年 4 月最好的 agent 只能完成 12% 的任务；2025 年初 OpenAI 的 CUA 以 38.1% 起步并自称 state of the art；2026 年 6 月，Claude Fable 5 达到 85%，把人类 72% 的基线甩在身后。两年时间，从不及格到超人类。</p>
+
+    <p>然后是那个不漂亮的数字。OSWorld 2.0（港大 XLANG Lab，2026 年 6 月，68 页论文）换了考法：108 条<strong>真实工作流</strong>，中位人类完成时间 1.6 小时，69.6% 的任务人类要干一小时以上，平均轨迹 300 到 500 步——1.0 里平均只要 30 步。最复杂的任务会把五个应用串在一起。</p>
+
+    <p>结果：最强的 Claude Opus 4.8，开满思考预算、允许 500 步，二元完成率 <span class="highlight">20.6%</span>（部分分 54.8%）。GPT-5.5 token 用得少得多，但卡在 13%。基准作者 Mengqi Yuan 说得很直白：1.0 已经近乎饱和，"但我们都知道，真实任务里 computer agent 远没有那么完美"。<strong>一个被解决的基准不再告诉你 agent 在哪里断掉。</strong></p>
+
+    <h2>二、手已经会了，脑还没跟上</h2>
+
+    <p>OSWorld 2.0 最值钱的部分不是分数，是失败归因。前沿 agent 早就不栽在"点不准按钮"上了——栽在那些你绝不会写进 KPI、但决定一个员工靠不靠谱的地方：</p>
+
+    <ul>
+        <li><strong>丢约束。</strong>任务进行到第 200 步，忘了第 3 步说过的"金额超 500 需拆两单"。像不像那个每次都忘了你说过"别放香菜"的外卖代下单？</li>
+        <li><strong>错过中途信息。</strong>报销流程走到一半，Gmail 弹窗通知"发票号变了"——agent 没注意，继续按旧计划走。当前 agent 的主循环是"截图、思考、行动"，每次行动之间世界已经变了。</li>
+        <li><strong>该问不问，瞎猜。</strong>2.0 专门做了一个模拟用户，agent 随时可以提问——就像新员工问同事。绝大多数 agent 不会用这个能力，宁可猜。发现身份证号是错误国家的，不问，硬填。</li>
+        <li><strong>跳过验证。</strong>做完不检查直接交卷。人类老油条都知道提交前 reload 一遍看状态，agent 不知道。</li>
+        <li><strong>隐藏状态恢复失败。</strong>报销单要的 person ID 不在任何屏幕上，藏在既往提交历史里。信息不是"看不到"，是"得主动去挖"。</li>
+    </ul>
+
+    <p>看出共性了吗？<span class="highlight">这五条全是"工作素养"，没有一条是"操作技能"</span>。GUI 操作这块肌肉已经练出来了，缺的是行政老练度——追踪约束、感知环境、知道什么时候该问、交卷前自查。这是两个正交的能力轴，而所有前沿模型都挤在第一条轴上内卷。</p>
+
+    <h2>三、屏幕不是事实，是投影</h2>
+
+    <p>OSWorld 2.0 里有个设计得很坏的选座任务（褒义）：买两张相邻的演唱会门票。看截图，两个座位明明挨着；读 HTML，座位 ID 显示可用但并不相邻。agent 必须决定信哪个表征。</p>
+
+    <p>这个任务戳中了 pixel-driving 路线的哲学软肋：<strong>GUI 本质上是一个对抗性控制面</strong>。屏幕不是世界的事实陈述，是界面设计师决定让你看到的投影。像素层、DOM 层、accessibility 树、后端数据库——每一层都是同一现实的 不同失真副本，而且经常互相矛盾。人类老用户早就内化了这条怀疑论：弹窗说"提交成功"不等于真的成功，还得进列表看一眼。agent 还在学会这个的路上。</p>
+
+    <h2>四、生产世界的真相：20.6% 之外早已在跑</h2>
+
+    <p>别被 20.6% 吓退，生产端又是另一幅图景。a16z 今年 8 月的文章给了一批一手数据：一家消费品数据平台每月跑 <strong>1500-2000 万次</strong>自动门户交互，agent 的角色是手写爬虫的"自愈 fallback"——零售商网站改版，agent 诊断断点、修复自动化，爬虫维护团队砍掉一半；一家全球系统集成商 27 条工作流每天处理 1500-2100 张 IT 工单，目标是重配 20-25% 的人力。</p>
+
+    <p>规律清晰得近乎无聊：跑得好的全是<strong>协议跟随型任务</strong>——标准化、可重复、路径清晰。更新 CRM、登录保险门户、处理订单、关 ServiceNow 工单。为什么？不是因为简单，是因为<strong>成功可判定</strong>。反例同样清晰：agent 从合同里把"net 60"读成"net 30"，记录看起来完全合理，通过一切肉眼检查，直到发票出错才暴露；保险理赔提交，屏幕说"已受理"，两天后才发现根本没进去——执行时不存在能验证成功的信号。</p>
+
+    <p>整个故事里最有信息量的细节：一个月跑数百万任务的运营者，<span class="highlight">不知道也不需要知道底下是哪个模型</span>——供应商换模型像云厂商换硬件。UI 导航正在变成模型层的 commodity，护城河整体上移：验证、升级路径、错误处理、权限、对这个组织怎么干活的了解。赛道从"agent 能用电脑吗"变成了"agent 能可靠干这份工作吗"。</p>
+
+    <h2>五、训练侧：为什么 RL 在这里慢半拍</h2>
+
+    <p>数学和代码的 RL 一日千里（奖励干净可验证），GUI 上却拖沓得多，原因有三层：奖励不干净（任务成功的判定本身要环境支持）、环境重置昂贵（每条轨迹一个真实虚拟机）、轨迹太长（300 步的信用分配，方差随长度爆炸）。开源阵营正在啃这三块骨头：字节 UI-TARS-2 用多轮 RLVR 加数据飞轮打主线；GUI-G1-3B 证明 R1-Zero 式训练只用 17K 条 grounding 样本就能小模型 SOTA；DART 做多轮 RL 的系统工程。路线在收敛，但离 1.6 小时工作流的一键训练还很远。</p>
+
+    <p>还有一条被忽视的第二维度：效率。MLSys 2026 的实测（16 个 agent）显示，最好的 agent 完成任务也要走 <span class="highlight">2.7-4.3 倍于必要的步数</span>。会做不等于做得利索，token 成本直接乘上去——生产里，准确率 × token 效率的乘积才是真分数。</p>
+
+    <h2>六、现在能做什么</h2>
+
+    <p>回到你自己的 agent 项目。这份调研浓缩成四条可以今天就动手的事：</p>
+
+    <ol>
+        <li><strong>先写"成功断言"，再谈模型选型。</strong>你手头任务的成功态能不能写成机器可判定的终态检查（哪怕只是一条 diff 命令）？不能，就说明你还在 20.6% 的世界里——这不丢人，但要知道自己在哪。</li>
+        <li><strong>给长程 agent 加三个 harness 件，对着四大失败模式打：</strong>约束清单每 N 步重播（治丢约束）、关键分叉强制 ask-user 门（治瞎猜）、提交前强制 self-check 步（治跳过验证）。短期红利在 harness 层，不在模型层。</li>
+        <li><strong>评估用例时抄 OSWorld 2.0 的三招：</strong>自托管可重置环境、多检查点部分分（诊断断在哪一段）、模拟用户（测"知道什么时候该问"）。这三招比任何榜单分数都更能预测生产表现。</li>
+        <li><strong>别赌像素层会消失。</strong>MCP 和 agent-native 接口在涨，但世界上 90% 的遗留软件永远不会有 API——像素驱动是长尾的最终覆盖方式，不是过渡方案。两条腿走路。</li>
+    </ol>
+
+    <p>所以，agent 会用电脑了吗？会——考 85 分的那种会。能替你干一下午的活吗？五件错四件的那种不能。而这两者之间隔着的，不是更准的点击，是约束、提问、验证这些最不像 AI 的东西。<span class="highlight">恰好也是 harness 工程师今天就能动手补的地方</span>。</p>
+
+    <h2>参考</h2>
+
+    <ul>
+        <li>OSWorld 2.0: Benchmarking Computer Use Agents on Long-Horizon Real-World Tasks (arXiv 2606.29537, XLANG Lab HKU)</li>
+        <li>OSWorld: Benchmarking Multimodal Agents (NeurIPS 2024 D&B)</li>
+        <li>Snorkel AI Reading Group: Mengqi Yuan 访谈 (2026-09)</li>
+        <li>a16z: Can Agents Use a Computer Yet? We've Got the Data (2026-08)</li>
+        <li>MLSys 2026: Benchmarking the Efficiency of Computer-Use Agents (OSWorld-Human)</li>
+        <li>UI-TARS-2 Technical Report (arXiv 2509.02544); GUI-G1 (NeurIPS 2025); UI-R1 (AAAI); DART (OpenReview)</li>
+    </ul>
+</body>
+</html>
