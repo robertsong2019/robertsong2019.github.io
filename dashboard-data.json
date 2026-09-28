@@ -1,10 +1,10 @@
 {
- "lastUpdated": "2026-09-27T22:02:33Z",
- "generatedAt": "2026-09-28 06:02 CST",
+ "lastUpdated": "2026-09-28T22:02:39Z",
+ "generatedAt": "2026-09-29 06:02 CST",
  "system": {
   "gateway": {
    "status": "running",
-   "pid": 1656625,
+   "pid": 1938214,
    "port": 34524,
    "bind": "lan (0.0.0.0)",
    "nodeVersion": "v22.22.1",
@@ -13,37 +13,38 @@
   "host": {
    "os": "Linux 6.8.0-71-generic (x64)",
    "hostname": "VM-0-5-ubuntu",
-   "uptime": "22 weeks, 6 days, 16 hours, 42 minutes",
-   "loadAverage": "0.87, 0.41, 0.17",
+   "uptime": "22 weeks, 5 days, 16 hours, 41 minutes",
+   "loadAverage": "0.26, 0.16, 0.05",
    "disk": {
     "total": "50G",
     "used": "32G",
     "available": "16G",
-    "usage": "69%"
+    "usage": "68%"
    },
    "memory": {
     "totalMB": 1935,
-    "usedMB": 1023,
-    "freeMB": 502,
-    "availableMB": 912,
+    "usedMB": 1330,
+    "freeMB": 415,
+    "availableMB": 605,
     "swapTotalMB": 10179,
-    "swapUsedMB": 489
+    "swapUsedMB": 536
    }
   },
   "model": "zai/glm-5.3-flash"
  },
  "cronSummary": {
   "total": 8,
-  "ok": 7,
-  "error": 1,
+  "ok": 6,
+  "error": 2,
   "running": 0,
   "errorJobs": [
+   "github-creative-evening",
    "ai-neuroscience-research"
   ],
   "notes": [
-   "cron 任务数从 15 降到 8（2026-09-27/28 之间清算了 7 个旧任务，含 84707ade 旧 id 重建）",
-   "ai-neuroscience-research: 55 consecutive errors — 昨日 06:01 修复投递目标后，昨晚 22:30 仍失败（lastRunStatus=error, 耗时恰好 300s = timeoutSeconds 超时），修复未生效，待排查",
-   "其余 7 任务全部 ok 且投递正常"
+   "github-creative-evening 昨晚 19:00 首次报错（consecErr=1，昨日同期还是 ok），待今晚观察是否复现",
+   "ai-neuroscience-research: 56 consecutive errors — 持续恶化中（昨日 55），300s timeout 修复仍未生效，待排查",
+   "其余 6 任务全部 ok 且投递正常"
   ]
  },
  "cronJobs": [
@@ -52,7 +53,7 @@
    "name": "dashboard-update-morning",
    "schedule": "0 6 * * *",
    "status": "ok",
-   "lastRun": "1d ago",
+   "lastRun": "24h ago",
    "consecutiveErrors": 0
   },
   {
@@ -75,9 +76,9 @@
    "id": "ad37c59a",
    "name": "github-creative-evening",
    "schedule": "0 19 * * *",
-   "status": "ok",
+   "status": "error",
    "lastRun": "11h ago",
-   "consecutiveErrors": 0
+   "consecutiveErrors": 1
   },
   {
    "id": "a4bf5e2a",
@@ -92,8 +93,8 @@
    "name": "ai-neuroscience-research",
    "schedule": "30 22 * * *",
    "status": "error",
-   "lastRun": "7h ago",
-   "consecutiveErrors": 55
+   "lastRun": "8h ago",
+   "consecutiveErrors": 56
   },
   {
    "id": "knowledge-org",
@@ -108,53 +109,53 @@
    "name": "essay-generation-morning",
    "schedule": "0 5 * * *",
    "status": "ok",
-   "lastRun": "1h ago",
+   "lastRun": "62m ago",
    "consecutiveErrors": 0
   }
  ],
  "sessions": {
-  "total": 52,
-  "active24h": 20,
+  "total": 51,
+  "active24h": 17,
   "byKind": {
-   "direct": 51,
+   "direct": 50,
    "group": 1
   },
   "notable": [
    {
-    "type": "f38e0365-7bbf-46",
+    "type": "f38e0365-7bbf-",
     "lastActive": "2m ago",
     "model": "zai/glm-5.3-flash",
-    "context": "45k/205k (22%)"
+    "context": "39k/204k (19%)"
    },
    {
-    "type": "341f1706-0d42-4d",
+    "type": "ef97baa4-1150-",
     "lastActive": "2m ago",
     "model": "zai/glm-5.3-flash",
-    "context": "45k/205k (22%)"
+    "context": "39k/204k (19%)"
    },
    {
     "type": "main",
     "lastActive": "14m ago",
     "model": "zai/glm-5",
-    "context": "168k/200k (84%)"
+    "context": "177k/200k (88%)"
    },
    {
-    "type": "f0362050-d109-45",
+    "type": "f0362050-d109-",
     "lastActive": "56m ago",
     "model": "zai/glm-5.3-flash",
-    "context": "59k/205k (29%)"
+    "context": "56k/204k (27%)"
    },
    {
-    "type": "c0c6b62b-febf-45",
-    "lastActive": "1h ago",
+    "type": "cf03f78c-f4e4-",
+    "lastActive": "62m ago",
     "model": "zai/glm-5.1",
-    "context": "58k/205k (28%)"
+    "context": "56k/204k (27%)"
    },
    {
-    "type": "1ea6e3b0-4744-4b",
+    "type": "1ea6e3b0-4744-",
     "lastActive": "4h ago",
     "model": "zai/glm-5.1",
-    "context": "133k/205k (65%)"
+    "context": "109k/204k (53%)"
    }
   ]
  }
