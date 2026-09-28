@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG 记得住，学不会——hindsight 与会学习的 agent 记忆 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>RAG 记得住，学不会——hindsight 与会学习的 agent 记忆</h1>
+        <div class="meta">📅 2026-09-29 · Agent 基础设施 · 记忆系统</div>
+
+        <h2>一、一个记忆系统能火，说明大家都疼在这里</h2>
+        <p>GitHub Trending 最近一周被 agent 基础设施全面霸榜，其中 <strong>vectorize-io/hindsight</strong> 是涨星王：2025 年 10 月底创建，十一个月 40.8k stars，9-28 单日 +4,520 登顶 daily 榜，至今每天仍在以三五千的速度涨。一个 agent 记忆系统凭什么？</p>
+        <p>它的一句话定位把赛道切开了：<strong>多数记忆系统在做对话历史的 recall，Hindsight 做 learn</strong>。靶子打得极准——RAG 只做相似度检索，没有状态沉淀：同一个用户第一百次问起自己的偏好，系统还是从零检索一遍，检索到的答案和第一次没有任何区别；知识图谱结构强但抽取噪声大，错一条边整个子图被污染。两者共同的盲区是：<strong>记忆只有存取，没有新陈代谢</strong>。</p>
+
+        <h2>二、四层仿生分层</h2>
+        <p>hindsight 最有辨识度的设计是记忆分层，直接对标人类记忆的类别差异：</p>
+        <ul>
+            <li><strong>World facts</strong>：关于世界的事实（"炉子会烫"）</li>
+            <li><strong>Experiences</strong>：agent 自身经历（"我摸了炉子，真的很疼"）</li>
+            <li><strong>Observations</strong>：由多条记忆合并出的、有证据支撑的信念——每条 observation 保留原文引用 + 证据计数（proof count），新证据到来时<strong>修正而非覆盖</strong>旧信念</li>
+            <li><strong>Mental models</strong>：对一个固定问题的"常备答案"（"这个用户的偏好是什么？"）——定义一次，后台随记忆增长自动重写；读取是一次数据库读，<strong>零检索、零 LLM 调用</strong>，agent 开局即带一页已定案的知识</li>
+        </ul>
+        <p>关键在第三、四层的分工：observation 解决<strong>记忆冲突</strong>（多条证据打架时怎么收敛到当前最佳信念），mental model 把<strong>检索问题变成缓存问题</strong>（稳定知识不需要每次现算）。</p>
+
+        <h2>三、三操作管线</h2>
+        <ul>
+            <li><strong>retain</strong>：LLM 抽取事实/时间/实体/关系 → 归一化为规范实体、时间序列 → 稀疏+稠密双路向量索引</li>
+            <li><strong>recall</strong>：四路并行检索（语义向量 / BM25 关键词 / 图——实体+时序+因果链 / 时间范围过滤）→ 倒数排序融合（RRF）+ 交叉编码器重排 → 按 token 预算裁剪。混合检索+融合重排是当下检索质量的天花板配置</li>
+            <li><strong>reflect</strong>：对整个 bank 做深度推理，形成记忆间新连接；bank 还能带 disposition 性格特质（怀疑度、字面度、共情度）影响推理风格</li>
+        </ul>
+
+        <h2>四、最可迁移的机制：修正不覆盖</h2>
+        <p>整套系统里我认为最值得偷走的是 observation 的合并语义。最小参考实现：</p>
+        <pre><code>from dataclasses import dataclass, field
+from datetime import datetime, timezone
+
+@dataclass
+class Observation:
+    key: str                          # 主题键，如 "user:prefers:deploy-window"
+    claim: str                        # 当前最佳信念："偏好凌晨部署"
+    evidence: list = field(default_factory=list)  # [(原文引用, 时间, 是否支持)]
+    proof_count: int = 0
+    superseded_by: str | None = None  # 被哪条信念取代
+
+def merge_incoming(extraction, quote, table, now=None):
+    """新证据到来：同主题已有信念则修正，无则新建——永不覆盖。"""
+    now = now or datetime.now(timezone.utc).isoformat()
+    obs = table.get(extraction.key)
+    if obs is None:
+        table[extraction.key] = Observation(
+            extraction.key, extraction.claim, [(quote, now, True)], 1)
+        return table[extraction.key]
+    if extraction.agrees_with(obs.claim):        # 证据支持 → 加强
+        obs.evidence.append((quote, now, True))
+        obs.proof_count += 1
+        return obs
+    # 证据矛盾 → 分叉新信念，旧信念挂起而非删除
+    forked = Observation(
+        extraction.key + f"@{now}", extraction.claim,
+        obs.evidence + [(quote, now, True)], obs.proof_count + 1)
+    table[forked.key] = forked
+    obs.superseded_by = forked.key
+    return forked</code></pre>
+        <p>这段代码的价值不在算法，在姿态：旧信念永远可追溯（audit trail 完整），"用户偏好 A"被"用户偏好 B"取代后不是消失而是挂起——如果 B 的证据链后来断了，A 还能复活。<strong>LLM 抽取是有噪声的，记忆系统必须为"抽取错了"留后悔药。</strong>覆盖式更新（直接 UPDATE）等于把噪声固化成真相。</p>
+
+        <h2>五、第二件值得偷的：检索变缓存</h2>
+        <pre><code>MODEL_PROMPT = "根据以下记忆，用不超过 200 字回答：{question}"
+
+def refresh_model(question, bank, llm):
+    """后台例程：定期用全部相关记忆重写常备答案。"""
+    hits = bank.recall(question, top_k=50)
+    bank.upsert_model(question, llm(
+        MODEL_PROMPT.format(question=question), context=hits))
+
+def answer_stable_question(question, bank):
+    """热路径：一次 DB 读，零检索零 LLM。"""
+    return bank.read_model(question) or bank.recall(question, top_k=5)</code></pre>
+        <p>为什么这个设计在 LongMemEval 这类长程记忆基准上值钱：考题大量是<strong>稳定长期知识</strong>（用户偏好、既定事实、跨会话约束），这类答案几周不变。对它们逐次跑四路检索+交叉编码器重排，是拿最贵的路径回答最稳的问题。mental model 把成本挪到后台例程，热路径塌缩成一次读取——用数据库术语说，这是给记忆系统建<strong>物化视图</strong>。</p>
+
+        <h2>六、工程化里最值钱的四件</h2>
+        <ol>
+            <li><strong>Memory Defense</strong>：45 种 PII/密钥模式扫描每次写入，命中即替换为 <code>[REDACTED:github_token]</code> 或直接拦截。记忆库是天然的泄密重灾区——agent 会把 token、密码原样"背"下来，然后在你导出记忆库分享给同事时一起带走</li>
+            <li><strong>多语言保真</strong>：输入语言检测并端到端保留，"张伟"不会变成 "Zhang Wei"。很多海外记忆产品在向量化时静默转写，中文场景直接丢分</li>
+            <li><strong>wrap_openai() 一行包装</strong>：包住现有 OpenAI/Anthropic client，自动前置 recall、后置 retain，存量代码零改动；底层 LiteLLM 覆盖 100+ 模型</li>
+            <li><strong>MCP 原生</strong>：每个 server 内置 endpoint（/mcp/{bank_id}/），任何 MCP client 即插即用；coding agent 一键接入还能从 git 历史自动构建 per-repo 记忆 bank</li>
+        </ol>
+
+        <h2>七、同卷一张考卷</h2>
+        <p>我们自己的 agent-memory-graph 跑的官方基准正是 LongMemEval（S 基准 500 题）。hindsight 的头牌成绩是同一个基准——第一次有了直接可比的开源参照物。逐条对照它公布的架构选择，就是最便宜的改进来源：</p>
+        <ul>
+            <li><strong>四路混合检索 vs 纯向量/词法</strong>：是否缺图检索和时序过滤？失分题里有多少栽在时序倒置（把后来发生的事当前面的）？</li>
+            <li><strong>observation 机制 vs 去重/冲突处理</strong>：修正不覆盖是现成参考实现</li>
+            <li><strong>mental model vs 逐条检索</strong>：对稳定知识题型可能更省 token 且更准</li>
+        </ul>
+
+        <h2>八、冷水</h2>
+        <p>什么时候不需要这套：单次会话的产品、任务间无知识沉淀需求的 pipeline——给它们上分层记忆是给自行车装变速箱。reflect 要花 LLM 调用，bank 越大越贵；抽取噪声不会因为分层消失，只是被隔离在 evidence 层。mental model 也有危险面：常备答案的鲜度完全依赖后台重写频率，重写慢了，agent 会拿着过时偏好当圣旨——而且用户不会告诉你"你的记忆过期了"，只会觉得"这 agent 怎么记性这么差"。</p>
+
+        <h2>尾声</h2>
+        <p>记忆层之上还缺组织层。有意思的是 paperclip（92.5k stars，agent 组织编排控制平面）的 roadmap 里 Memory/Knowledge 还是未做状态，而 hindsight 每个 bank 自带 MCP endpoint——两件东西用 MCP 一接，"有组织、有记忆的 agent 公司"就齐了，大概是当下开源栈里最完整的一副 agent 基础设施拼图。</p>
+        <p>但比拼图形状更值得记住的是那句切割：<strong>记住（recall）不等于学会（learn）</strong>。检验一个记忆系统，别看它存了多少，看它第二次遇到同一件事时省了多少。</p>
+
+        <hr>
+        <p style="color: #999; font-size: 0.85em;">参考：vectorize-io/hindsight（MIT，Python，Docker/pip/Helm/嵌入式四档部署，PostgreSQL + pgvector）；趋势数据来自 2026-09-27/28 GitHub Trending 深析，star 数于 2026-09-29 经 GitHub API 复核（40,803）。</p>
+
+        <div style="margin-top: 30px;">
+            <span class="tag">AI Agent</span>
+            <span class="tag">记忆系统</span>
+            <span class="tag">LongMemEval</span>
+            <span class="tag">Agent 基础设施</span>
+        </div>
+    </div>
+</body>
+</html>

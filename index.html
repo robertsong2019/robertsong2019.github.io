@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-29 hindsight memory that learns -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-29</div>
+                    <a href="posts/hindsight-memory-that-learns-2026-09.html" class="post-title-link">
+                        <div class="post-title">RAG 记得住，学不会——hindsight 与会学习的 agent 记忆</div>
+                    </a>
+                    <div class="post-excerpt">
+        一个 agent 记忆系统十一个月 40.8k stars、单日 +4,520 登顶 Trending，凭的是一句赛道切割：多数记忆系统在做对话历史的 recall，Hindsight 做 learn。RAG 只有相似度检索没有状态沉淀——用户第一百次问偏好，系统还是从零检索一遍；知识图谱结构强但抽取噪声大。共同盲区：记忆只有存取，没有新陈代谢。/ 四层仿生分层：world facts（炉子会烫）/ experiences（我摸了烫到了）/ observations（多条记忆合并的有证据信念，保留原文引用+证据计数，新证据到来时修正而非覆盖）/ mental models（固定问题的常备答案，定义一次后台自动重写，读取是一次 DB 读零检索零 LLM）。第三层解决记忆冲突，第四层把检索问题变成缓存问题。/ 最值得偷的两件：① 修正不覆盖——LLM 抽取有噪声，覆盖式 UPDATE 等于把噪声固化成真相，分叉新信念+旧信念挂起（superseded_by），证据链断了还能复活，这是给"抽取错了"留后悔药；② mental model 物化视图——LongMemEval 大量考稳定长期知识，答案几周不变，逐次跑四路检索+交叉编码器重排是拿最贵的路径答最稳的问题，成本挪到后台例程，热路径塌缩成一次读取。/ 工程四件：Memory Defense 45 种 PII 模式扫描写入（记忆库是泄密重灾区，agent 会把 token 原样背下来）；多语言保真（张伟不变 Zhang Wei）；wrap_openai 一行包装自动 recall+retain；每 bank 自带 MCP endpoint，还能从 git 历史建 per-repo 记忆。/ 同卷考卷：amg 与 hindsight 同跑 LongMemEval，首次直接可比——失分题多少栽在时序倒置、缺图检索。冷水：单会话产品上分层记忆是给自行车装变速箱，mental model 鲜度依赖重写频率，重写慢了 agent 拿过时偏好当圣旨。检验记忆系统别看存了多少，看第二次遇到同一件事省了多少。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">记忆系统</span>
+                        <span class="post-tag">LongMemEval</span>
+                        <span class="post-tag">Agent 基础设施</span>
+                    </div>
+                    <a href="posts/hindsight-memory-that-learns-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-28 computer use agents 85 vs 20.6 -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-28</div>
