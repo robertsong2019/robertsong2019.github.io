@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-30 similarity is not relevance tree retrieval -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-30</div>
+                    <a href="posts/similarity-not-relevance-tree-retrieval-2026-09.html" class="post-title-link">
+                        <div class="post-title">相似≠相关：向量检索之外，让模型自己翻目录</div>
+                    </a>
+                    <div class="post-excerpt">
+        问「三季度现金流恶化的归因」，答案写在「营运资金周转天数由 45 天升至 92 天」——「现金流」三个字在答案段落里一次都没出现，余弦相似度排不进前十；反过来查询带「风险」二字，整本风险章节连锅端。相关但不相似漏检，相似但不相关误检，根因是结构性的：向量检索的全部信号只有一个 query embedding，它不知道你在问什么，只知道你的问句长得像什么——PageIndex 管这叫 vibe retrieval。/ 解法两步：Index 时给每篇文档建 LLM 层级树索引（树结构从文档版式提取不经 LLM，模型只做摘要精炼，所以建树用基础模型就够），Retrieve 时 agent 沿树推理导航——像人翻年报，先看目录猜章节再看小节，灵感直标 AlphaGo。聪明模型留给检索阶段：沿树推理才是精度瓶颈。成本结构=便宜的一次性索引+按问题付费的聪明检索。/ 数字：建索引 $0.001/页（千页教科书一美元几分钟，之后所有问题复用）；检索比原生塞整个 PDF 便宜 2.1×(52页)→16.6×(420页)，805 页时原生路线直接超 context；FinanceBench 98.7% vs 向量 RAG 约 50%。最值得偷的是评测设计：62 道题答案全是正文明写的事实，答错只能是检索失败赖不到推理头上——把检索从推理里剥出来单独测。/ 机制四十行说清：每层让 LLM 做一次选择题，返回的 path 即显式引用链（第7章→7.2→7.2.3）——审计场景刚需，翻到哪一节是可复核的结构事实。/ 冷水：每次检索是一串 LLM 调用秒级起步、文档一改树要重建、短文档杀鸡用牛刀；选型=长专业文档+要可追溯用树，海量短 chunk+毫秒响应用向量，可按查询类型路由共存。hindsight 与 PageIndex 正交：一个管复用（答了千百遍别再检索），一个管初见（第一次读千页文档去哪找）。/ 落地：amg 加第二路树索引实验——LongMemEval 时序倒置题恰是「相似但不相关」重灾区，新旧会话谈同一话题相似度分不开先后，exact_judge 下对照误检率，对话记忆场景官方没测过是空白。相似度是几何，相关性是理解——前者可以离线算好，后者只能临场想清楚。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">RAG</span>
+                        <span class="post-tag">检索架构</span>
+                        <span class="post-tag">PageIndex</span>
+                        <span class="post-tag">AI Agent</span>
+                    </div>
+                    <a href="posts/similarity-not-relevance-tree-retrieval-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-29 reward hacking agents cheat on tests -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-29</div>

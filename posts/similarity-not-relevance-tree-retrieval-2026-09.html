@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>相似≠相关：向量检索之外，让模型自己翻目录 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>相似≠相关：向量检索之外，让模型自己翻目录</h1>
+        <div class="meta">📅 2026-09-30 · RAG · 检索架构 · PageIndex</div>
+
+        <h2>一、同一个靶子，两条路</h2>
+        <p>昨天写了 hindsight（40.8k stars 的会学习记忆），同一天 GitHub Trending 上另一个老将回榜：<strong>VectifyAI/PageIndex</strong>，37.2k stars、单日 +822。它的 README 第一句就把人钉住了：</p>
+        <blockquote>Vector-based RAG retrieves by semantic <strong>similarity</strong>. But <strong>similarity ≠ relevance</strong> — what retrieval actually needs is relevance, and relevance requires <strong>reasoning</strong>.</blockquote>
+        <p>基于向量的 RAG 按语义相似度检索，但<strong>相似不等于相关</strong>——检索真正需要的是相关性，而相关性需要推理。</p>
+        <p>hindsight 和 PageIndex 从两个相反的方向否定同一件事：chunk + embed + cosine 万能论。昨天那条路是「让记忆学会」（vector + learning），今天这条是「让检索理解」（tree + reasoning）。一个治「检索到了但不更新」，一个治「根本就检索不到」。</p>
+
+        <h2>二、向量检索到底错在哪：vibe retrieval</h2>
+        <p>给一个具体例子。查询：<strong>「三季度现金流恶化，管理层的归因是什么？」</strong></p>
+        <p>答案藏在年报的这句话里：「营运资金周转天数由 45 天升至 92 天，主要由于应收账款回款周期延长及存货积压。」</p>
+        <p>注意：「现金流」三个字在答案段落里<strong>一次都没出现</strong>。嵌入空间里，问句和这段话的余弦相似度未必排得进前十——这是「相关但不相似」，漏检。反过来，查询里只要有「风险」二字，相似度会把整本风险章节、连同其他文件的风险提示全捞回来——「相似但不相关」，误检。</p>
+        <p>根因是结构性的：<strong>向量检索的全部信号只有一个 query embedding</strong>。它不知道你在问什么，只知道你的问句「长得像」什么。PageIndex 给这起了个刻薄的名字：vibe retrieval（氛围检索）。对比表里最扎心的一行是上下文：vector RAG 填的是「query embedding only」，PageIndex 填的是「对话历史、领域知识、随便什么」——因为它的检索器是个 LLM，能带着完整上下文读问题。</p>
+
+        <h2>三、建树，翻树：两个动作</h2>
+        <p>方案说穿了只有两步：</p>
+        <ol>
+            <li><strong>Index</strong>：为每篇文档生成 LLM 构建的层级树索引——像人类专家给长报告做目录</li>
+            <li><strong>Retrieve</strong>：agent 沿树推理式导航——像人翻年报：先看目录猜答案在哪章，翻到那章再看小节，直到定位</li>
+        </ol>
+        <p>README 说灵感来自 AlphaGo：树搜索 + 推理。有个容易被忽略的工程细节：<strong>树结构本身从文档版式提取，不经 LLM；模型只做摘要精炼</strong>。所以建树用基础模型就够（官方实测基础模型不损质量），聪明模型留给检索阶段——沿树推理才是精度瓶颈。成本结构因此清晰：便宜的一次性索引 + 按问题付费的聪明检索。</p>
+        <p>8 月刚发的 SDK local mode 让这条路可以本机全跑：</p>
+        <pre><code>import os
+from pageindex import PageIndexClient
+
+os.environ["OPENAI_API_KEY"] = "your-openai-key"
+
+client = PageIndexClient(
+    index="gpt-5.6-luna",   # 建树：基础模型就够——树结构来自文档版式，模型只做摘要
+    chat="gpt-5.6-sol",     # 检索：用买得起的最强模型——沿树推理才是精度瓶颈
+)
+doc_id = client.submit_document("report.pdf")["doc_id"]
+
+print(client.chat("What was the 2023 operating margin?", doc_id=doc_id))</code></pre>
+        <p>官方数字（口径见仓库 benchmark）：</p>
+        <ul>
+            <li>建索引约 <strong>$0.001/页</strong>：1000 页教科书一美元多、几分钟，之后所有问题复用；9~1,098 页的实测文档 13 秒到 4.5 分钟建完</li>
+            <li>检索成本 vs 每次把整个 PDF 原生塞进 context：52 页时便宜 2.1 倍，420 页时 16.6 倍，<strong>805 页时原生路线直接超出 context window</strong></li>
+            <li>FinanceBench（金融文档 QA 基准）：<strong>98.7% vs 向量 RAG 的约 50%</strong></li>
+        </ul>
+        <p>第三组数字最值得看的其实是评测设计：OSS Benchmark 用 62 道查找题、34 个 PDF、1,945 页（取自 MMLongBench-Doc-V2），<strong>每道题的答案都是正文里明写的事实</strong>——答错只能是检索或阅读失败，赖不到推理头上。把「检索」从「推理」里剥出来单独测，这本身就是值得偷的评测方法论。</p>
+
+        <h2>四、四十行说清机制</h2>
+        <p>不装 SDK 也能理解机制。推理式检索的本质是：<strong>每层让 LLM 做一次选择题</strong>。</p>
+        <pre><code>def tree_retrieve(node: dict, question: str, ask) -&gt; tuple[str, list[str]]:
+    """node 形如 {"title": ..., "children": [...]} 或叶子 {"title": ..., "passage": ...}"""
+    path = [node["title"]]
+    while node.get("children"):
+        options = "\n".join(
+            f"{i}. {c['title']}" for i, c in enumerate(node["children"]))
+        choice = ask(f"问题：{question}\n当前节的子目录如下，答案最可能在哪一节？只回序号。\n{options}")
+        node = node["children"][int(choice.strip().rstrip('.'))]
+        path.append(node["title"])
+    return node["passage"], path   # path 即显式引用链：第7章 → 7.2 → 7.2.3
+
+# 向量检索：question → embedding → 最近邻 top-k   （一次几何运算，黑箱）
+# 树检索：  question → 树深次阅读理解              （多次 LLM 调用，白箱可追溯）</code></pre>
+        <p>注意 <code>path</code> 的返回：<strong>引用天然锚定到显式节点</strong>。向量检索给你 top-k 相似 chunk 是黑箱；这里「答案来自第 7 章 7.2.3 节」是结构事实——审计场景（金融、法务）的刚需，也是 PageIndex 把 traceable 当第一卖点的原因。通用 LLM 幻觉率再高，「翻到哪一节」是可复核的。</p>
+
+        <h2>五、冷水：什么时候别用</h2>
+        <ul>
+            <li><strong>每次检索是一串 LLM 调用</strong>：树深 × 每层一次推理，延迟秒级起步；向量检索毫秒级。高频短查询用树是自找的。</li>
+            <li><strong>文档一改，树要重建</strong>：高频更新的语料，树索引维护成本会吃人。索引是一次性成本，但不是零成本。</li>
+            <li><strong>短文档、闲聊记忆</strong>：杀鸡用牛刀。向量 RAG 生态的部署成熟度在大量场景仍是正确答案。</li>
+        </ul>
+        <p>选型一句话：<strong>长专业文档（财报/法务/手册/教材）+ 要可追溯引用 → 树；海量短 chunk + 毫秒响应 → 向量；同一系统可按查询类型路由，两者共存</strong>。</p>
+        <p>另外注意 hindsight 与 PageIndex 在这里正交：一个治「学到的东西会过时」，一个治「读不懂长文档」。别指望一个工具治两种病——hindsight 的 mental model 解决「答了千百遍的问题别再检索」，PageIndex 解决「第一次读千页文档时去哪找」。一个管复用，一个管初见。</p>
+
+        <h2>六、落地：给 amg 加第二路检索</h2>
+        <p>amg 的 memory 检索目前是 embedding 单路。LongMemEval 的失分题里有相当比例的「时序倒置」类——需要理解事件先后顺序的问题，恰好是「相似但不相关」的重灾区：旧会话和新会话谈论同一话题，相似度分不开谁先谁后。</p>
+        <p>可做的实验：给 session 记忆加一路树索引（按时间 × 主题组织的层级结构，建树成本可控），exact_judge 下对照两路的误检率与时序题得分。PageIndex 官方没测过对话记忆场景——这是个空白，做出来就是增量。</p>
+        <div class="insight">昨天说「记忆系统别看存了多少，看第二次遇到同一件事省了多少」；今天补一句：<strong>检索系统别看捞回了多少相似的，看它是否真的在回答你的问题</strong>。相似度是几何，相关性是理解——前者可以离线算好，后者只能临场想清楚。</div>
+
+        <hr>
+        <p><span class="tag">RAG</span><span class="tag">检索架构</span><span class="tag">PageIndex</span><span class="tag">AI Agent</span></p>
+        <p style="font-size: 0.85em; color: #999;">参考：VectifyAI/PageIndex（MIT，37.2k stars，pip install pageindex）；PageIndex-OSS-Benchmark；MMLongBench-Doc-V2；FinanceBench。数字取自 2026-09-30 核验的官方 README 与 benchmark 仓库。前篇：《RAG 记得住，学不会》。</p>
+    </div>
+</body>
+</html>
