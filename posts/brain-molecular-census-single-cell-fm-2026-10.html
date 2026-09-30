@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>给大脑上户口：630 万个细胞核、8 种疾病，与单细胞界的 GPT 时刻 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>给大脑上户口：630 万个细胞核、8 种疾病，与单细胞界的 GPT 时刻</h1>
+    <p class="meta">
+        <span class="tag">AI×神经科学</span>
+        <span class="tag">单细胞基础模型</span>
+        <span class="tag">scGPT</span>
+        <span class="tag">脑图谱</span>
+        2026-10-01 · 基于 PsychAD 联盟（Nature 2026-09-23 九连发）、Human Cell Atlas v1.0、scGPT/Geneformer 基准评测等 15 个源的调研
+    </p>
+
+    <blockquote>我们对大脑的了解方式，正在发生一次范式叠加：过去一百年，神经科学读的是"电"——电极、锋电位、脑区功能图谱；过去两周发表的两组数据提醒我们，第二条读法已经就位——把大脑拆成几百万个细胞核，逐个读出基因表达，给每种细胞上户口。而支撑这场分子普查的骨架，恰好是我们最熟悉的东西：transformer。</blockquote>
+
+    <h2>一、两个大数</h2>
+    <p><strong>第一个数：630 万。</strong>2026 年 9 月 23 日，Mount Sinai 主导的 PsychAD 联盟在 Nature 系刊同步发表 9 篇论文（旗舰篇：Lee et al., Nature 657: 988–1002）。他们在背外侧前额叶皮层（DLPFC）测了 630 万个细胞核，来自 1,494 名捐献者——健康对照加上 8 种疾病：阿尔茨海默病、弥漫性路易体病、血管性痴呆、帕金森病、tau 病变、额颞叶痴呆、精神分裂症、双相情感障碍。分辨率细到 8 个细胞大类、27 个亚类、65 个细胞亚型。这是迄今最大的疾病脑单细胞图谱。</p>
+    <p><strong>第二个数：300 万。</strong>几乎同一时间，Human Cell Atlas 发布了人类大脑细胞图谱 v1.0——第一版覆盖全脑的分子细胞普查：约 100 个脑区解剖、300 余万个细胞核（250 万神经元 + 88.8 万非神经元），用统一的 "supercluster" 分类体系覆盖端脑到后脑的 88 个脑区。整个 HCA 的数据规模在 2020–2025 五年间从 580 万细胞膨胀到 6,600 万以上，11 倍增长。</p>
+    <p>为什么需要这么大？PsychAD 给了一个漂亮的回答：<strong>个体间的基因表达差异大到足以伪装成疾病信号</strong>。3 个捐献者可以画出"地图"，但只有 1,494 人的图谱才能区分"什么是疾病、什么只是人与人不同"。这是深度学习界天天面对的分布偏移与采样偏差问题，在生物学里的精确翻版——样本量不是工程炫耀，是统计必需。</p>
+    <p>跨疾病比较的核心发现也值得记一笔：所有疾病共享一组富集于基础细胞功能（mRNA 加工、蛋白定位）的"普适脆弱性"转录特征；剔除这层共性后，AD、路易体、血管性痴呆、帕金森聚成一个遗传与转录组高度一致的<strong>神经退行性簇</strong>，精神分裂与双相则相对独立。精神病学按症状分类了一百年（DSM 体系），现在分子-细胞层面第一次给出了重新画诊断边界的依据——按细胞通路，而不是临床症状。</p>
+
+    <h2>二、从电信号到分子指纹：普查的三级阶梯</h2>
+    <p>单核 RNA 测序（snRNA-seq）的工程动机很朴素：脑组织死后降解快，直接解离细胞会丢失最脆弱的神经元，所以改为对细胞核测序。每个核读出数千个基因的表达值——一个高维向量，细胞的"分子指纹"。</p>
+    <p>从指纹到知识，是一套三级阶梯：</p>
+    <ol>
+        <li><strong>普查</strong>：无监督聚类把数百万核分成数百个转录组细胞类型（Siletti et al., Science 2023 在成人脑皮层识别出 461 簇）。scANVI、Seurat 这类深度学习方法负责批次整合与注释——不同实验室、不同捐献者、不同批次的数据要投影到同一空间。</li>
+        <li><strong>遗传调控</strong>：Zeng et al.（Nature Genetics 2026）构建细胞类型特异的 eQTL 图谱——哪个遗传变异影响哪种细胞里的哪个基因表达；Venkatesh et al.（Nature 2026）更进一步做单核 TWAS，把 GWAS 发现的风险位点翻译成"哪种细胞类型承担多少疾病责任"。</li>
+        <li><strong>轨迹建模</strong>：Hoffman 团队的 dreamlet（Nature Communications 2026）解决了百万级细胞差异表达的算力瓶颈；轨迹模型沿病程度排序样本，分离早期与晚期的细胞响应。</li>
+    </ol>
+    <p>第一级阶梯的代码，二十行就能跑通骨架：</p>
+    <pre><code>import scanpy as sc
+
+# 单核 RNA-seq 矩阵：行=细胞核，列=基因，值=表达计数
+adata = sc.read_h5ad("psychad_dlpfc_subset.h5ad")     # 6.3M 核取子集即可复现流程
+
+adata.layers["counts"] = adata.X.copy()               # 留原始计数，回归分析用
+sc.pp.normalize_total(adata, target_sum=1e4)          # 每核测序深度归一化
+sc.pp.log1p(adata)
+sc.pp.highly_variable_genes(adata, n_top_genes=3000)  # 挑信息量最高的基因
+
+sc.tl.pca(adata, n_comps=50)                          # 高维指纹 → 50 维主成分
+sc.pp.neighbors(adata, n_neighbors=15)                # 细胞-细胞 KNN 图
+sc.tl.leiden(adata, resolution=1.0)                   # 图聚类：无监督"点名册"
+
+# 每个 cluster 找差异表达基因，对照已知 marker 给数字起名字
+sc.tl.rank_genes_groups(adata, groupby="leiden", method="t-test")
+# e.g. cluster 7 高表达 VIP/SST → 抑制性中间神经元亚型</code></pre>
+    <p>空间维度也在补齐：Allen 研究所的 ABC Atlas 整合了 MERFISH 空间转录组（小鼠全脑约 900 万细胞、1,100 基因面板）与全转录组数据。分子图谱正在从"点名册"进化成"带坐标的名册"。</p>
+
+    <h2>三、单细胞界的 GPT 时刻</h2>
+    <p>到这里，单细胞组学的剧本开始眼熟了：<strong>数据在爆炸，人工分析跟不上，于是社区把赌注押在了基础模型上。</strong></p>
+    <p>scGPT、Geneformer、scFoundation 这类单细胞基础模型（scFM）做的事，是把 GPT 的范式整个搬过来：<strong>一个细胞 = 一条句子，基因表达值 = token，三千多万个细胞当预训练语料</strong>。下游任务换汤不换药——细胞类型注释（分类）、批次整合（表示对齐）、扰动预测：给定"敲除基因 X"，预测整个表达组怎么变。最后一个任务是真正的亮点，本质上是在学一个生物系统的 world model——比任何 LLM 的环境模型都硬核，因为它的预测可以直接用 CRISPR 实验验证。</p>
+    <p>工程生态也照着重演：数据湖（HCA Data Portal）→ 基础模型 → agent 工作流。2026 年已经出现 scACORN 这类用 agent 编排百万级细胞分析的工作台；NIH 今年 1 月的 "Brain Cell Atlas: From Data to Knowledge" 研讨会，直接把 AI/ML 列为图谱从数据走向知识的主引擎。单细胞组学正在走软件工程走过的平台化路径。</p>
+
+    <h2>四、冷水：简单基线仍在守门</h2>
+    <p>但这个领域最值得工程师读的，反而是泼冷水的那篇。<strong>Nature Methods 2026 年的系统评测给出双面结论</strong>：scGPT、Geneformer、CellFM 确实是最稳健的三强；但在不少标准任务上，基础模型并不能稳定击败逻辑回归、随机森林这类简单基线。同期的 arXiv 工作（2609.14970）进一步报告：scFM 的预训练规模收益在递减。</p>
+    <p>数据的信息结构，可能比参数量更决定上限——这句话在 NLP 里成立，在单细胞里也成立。跨学科地看，这与我们在 LLM 评测里反复撞见的教训（scaling 不总是万能、简单基线必须先跑）是同一条通律。</p>
+    <p>具体到工作流，这个"守门"长什么样？十五行：</p>
+    <pre><code>from sklearn.linear_model import LogisticRegressionCV
+from sklearn.model_selection import cross_val_score
+
+# 任务：细胞类型注释。train=已注释样本，test=留出的捐献者（分布偏移检查）
+mask = adata.obs.dataset.isin(["donor_A", "donor_B"])
+X_base = adata[mask].obsm["X_pca"]                    # 臂1：PCA 50 维
+y      = adata.obs.loc[mask, "cell_class"]            # 8 个大类
+
+base = cross_val_score(
+    LogisticRegressionCV(Cs=10, max_iter=2000), X_base, y,
+    cv=5, scoring="balanced_accuracy", n_jobs=-1)
+print(f"PCA + LR : {base.mean():.3f} ± {base.std():.3f}")
+
+# 臂2：scGPT 嵌入（3,000 万细胞预训练，每个细胞 → 512 维上下文向量）
+# gembed = scgpt.embed(adata[mask])
+fm = cross_val_score(
+    LogisticRegressionCV(Cs=10, max_iter=2000), gembed, y,
+    cv=5, scoring="balanced_accuracy", n_jobs=-1)
+print(f"scGPT + LR: {fm.mean():.3f} ± {fm.std():.3f}")
+
+# 评测结论：不少任务上两臂差距 &lt; 1-2 个百分点，甚至基线更高。
+# 发布任何"基础模型增益"之前，这个对照是跨学科通用的守门员。</code></pre>
+    <p>注意一个方法论细节：留出的是<strong>捐献者</strong>而不是随机切分的细胞——否则同一人的细胞同时出现在 train/test，评测分数会被泄漏抬到虚高。凡是号称"单细胞预测准确率 95%+"的论文，先查它的切分方式。</p>
+
+    <h2>五、反向的镜子</h2>
+    <p>这场普查对 AI 还有一份反向的馈赠：它把生物神经系统与人工网络的<strong>多样性差距</strong>第一次摆到了分子台面上。</p>
+    <p>人脑单是皮层就有数百到数千种转录组细胞类型：兴奋性神经元按皮层层级与脑区域分化，抑制性神经元按 MGE/CGE 谱系分化，再加上星形胶质细胞、少突胶质细胞、小胶质细胞各自的亚型。而人工神经网络里通常只有两三种"细胞"——ReLU 激活元，加上若干门控单元。</p>
+    <p>这不是说该把网络做复杂，而是说：过去讨论 MoE 路由、神经调质式的全局状态控制、胶质细胞式的慢调制时，生物依据多半是图和叙事；现在，这些机制的分子底牌全部摊开在一张可查询的表里。<strong>如果未来要造"细胞类型感知"的架构，细胞图谱就是它的 ImageNet。</strong></p>
+
+    <h2>六、工程师带走的三个判断</h2>
+    <ol>
+        <li><strong>规模本身就是发现工具，但前提是采样设计。</strong>PsychAD 的价值不在 630 万这个数字，而在 1,494 人 × 8 病 × 多祖源的采样结构——它让"疾病信号"与"个体差异"第一次可分离。任何要做大规模数据的项目（不管是细胞还是日志），先设计采样，再谈规模。</li>
+        <li><strong>简单基线守门是跨学科通律。</strong>scFM 评测与 LLM 评测殊途同归：任何新方法，先赢过逻辑回归再讲故事；任何增益，先过分布偏移的留出集再谈泛化。</li>
+        <li><strong>相关不等于因果，图谱只是第一公里。</strong>图谱证明"哪种细胞在病人中不同"，但"哪种细胞驱动疾病"需要扰动实验。正在成形的下一代范式是闭环：类脑器官 + CRISPR 扰动 + 基础模型预测——模型先预测扰动结果，实验验证，再回填训练。这个闭环，就是生物学的 RLHF。</li>
+    </ol>
+
+    <h2>结语</h2>
+    <p>去年 10 月 HCA v1.0 发布时，很多人把它类比为"大脑的基因组计划"。一年过去，这个类比要修正：基因组计划终点是一条参考序列，而细胞图谱的终点是一个持续生长的、按细胞类型索引的知识库——3 人普查到 1,500 人疾病图谱，下一步是万人级泛人群图谱（NIA 与 NINDS 已追加资助约 1,500 个大脑并做跨队列协调）。</p>
+    <p>细胞图谱之于生物基础模型，恰如维基百科之于 LLM。但下一份礼物可能反向流动：AI 的扰动预测与 agent 工作流，正在成为这张地图的测绘仪。给大脑上户口的工程，最终会教会我们怎么给"理解生物系统的模型"本身上户口。</p>
+
+    <p style="color:#8b949e;font-size:0.85rem;margin-top:2rem;">参考：Lee et al., Nature 657:988–1002 (2026)；Venkatesh et al., Nature (2026)；Zeng et al., Nature Genetics (2026)；Hoffman et al., Nature Communications (2026)；Siletti et al., Science (2023)；Human Brain Cell Atlas v1.0, HCA Data Portal；scGPT/Geneformer benchmarks, Nature Methods (2026)；arXiv:2609.14970。数据截至 2026-09-30。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
