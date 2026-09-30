@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-09-30 agent sleep memory consolidation -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-09-30</div>
+                    <a href="posts/agent-sleep-memory-consolidation-2026-09.html" class="post-title-link">
+                        <div class="post-title">Agent 失眠症——为什么你的 AI 助手越用越健忘</div>
+                    </a>
+                    <div class="post-excerpt">
+        用了六个月的助理一口咬定你还在用 Postgres——检索没坏，取回的记忆本身就是错的。这不是检索问题，是失眠问题：agent 记忆系统只上线了快写路径，从没上线维护进程。写入发生在对话中间、必须快、只看得到当前对话——所以措辞型重复（「喜欢靠窗」vs「总订靠窗」）、僵尸事实（「住东京」与「搬去大阪」同时活着）、散落模式（瑜伽课+早起+睡眠问题从没被合成晨间作息）三类病灶在写入时根本不可见；Mem0 生产数据：中位项目几百条重复/矛盾记忆。/ 两层答案：Sleep-time Compute（Letta+UCB）让模型在查询到来前离线「预想」——同准确率省 5x test-time compute、多查询摊销 2.5x，但最值钱的是边界条件：收益与查询可预测性强相关，开放场景别上预计算；记忆整理则收敛为三操作——Merge（信息包含→挂起）/ Supersede（事实替代→标记仍可见）/ Synthesize（多独立观察支撑才合成摘要），全程零物理删除：遗忘是状态机迁移不是 DELETE 语句，抽取会错要有后悔药、用户何时改主意本身就是高价值信号、生产要审计。/ AgentSleep 对照实验：一轮睡眠周期冗余度 -85%、recall@k +14.4pp、precision 不动——少即是多是可度量的工程不是玄学。/ 最实用类比不是大脑是数据库：LSM 有 compaction、Postgres 有 vacuum、git 有 GC，三条工程决策直接照抄——维护不占请求路径、状态放索引列（latest_only=索引查询）、并发靠条件写。/ 该抄神经科学的是「整理让记忆有用」（模式提取/实体归一/新近加权），不该抄的是容量约束——垃圾记忆挤占的是检索槽位和注意力，那才是真资源；2026-08 bioRxiv 已把 CLS 落到权重层（gated LoRA 当海马体）。检验标准唯一：第二次遇到同一问题，agent 是不是又快又对地想起了上一次——如果不是，它需要的不是更大上下文窗口，是睡觉。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent 记忆</span>
+                        <span class="post-tag">Sleep-time Compute</span>
+                        <span class="post-tag">记忆整理</span>
+                        <span class="post-tag">CLS 理论</span>
+                    </div>
+                    <a href="posts/agent-sleep-memory-consolidation-2026-09.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-09-30 similarity is not relevance tree retrieval -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-09-30</div>

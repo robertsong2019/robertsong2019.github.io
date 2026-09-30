@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 失眠症——为什么你的 AI 助手越用越健忘 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Agent 失眠症——为什么你的 AI 助手越用越健忘</h1>
+    <p class="meta">
+        <span class="tag">Agent 记忆</span>
+        <span class="tag">Sleep-time Compute</span>
+        <span class="tag">记忆整理</span>
+        <span class="tag">CLS 理论</span>
+        2026-09-30 · 基于 Sleep-time Compute (arXiv 2504.13171)、Mem0 Dream、Hindsight、AgentSleep 等 14 个源的调研
+    </p>
+
+    <blockquote>你的 AI 助理用了六个月，某天自信满满地告诉你："你们的数据库用的是 Postgres。"可你们三月份就迁到 MySQL 了。最讽刺的是：它没说谎，检索也正常工作——它取回的记忆本身是错的。一月的"用 Postgres"和三月的"迁到 MySQL"以同等权重躺在记忆库里，这一轮检索碰巧旧的得分更高。这不是检索问题，这是失眠问题：一个只记录、从不整理的大脑，记性越"好"，越糊涂。</blockquote>
+
+    <h2>一、只录不睡：长跑 Agent 的通病</h2>
+    <p>所有生产级 agent 记忆系统都有同一个架构前提：<strong>写入必须快</strong>。记忆是在对话中间生成的，用户在等回复，所以每次写入只能看到当前对话加上检索回来的少量相似记忆——看不到全库。这个视野局限让三类问题在写入时根本不可见，无论你的抽取模型多强：</p>
+    <ul>
+        <li><strong>措辞型重复</strong>：「喜欢靠窗的座位」和「长途航班总订靠窗」是同一个事实的两副面孔。精确匹配去重抓不住它，于是它存了两遍、三遍、五遍；</li>
+        <li><strong>僵尸事实</strong>：四个月前写入了「住在东京」，今天写入「搬去大阪」时，旧的「东京」恰好没被检索进写入上下文——没有任何东西把这两条连起来。于是两条都活着，都在搜索结果里返回；</li>
+        <li><strong>散落的模式</strong>：一月提到瑜伽课、三月提到早起、五月问睡眠质量——这个用户有一个清晰的晨间作息模式，但没有任何一条记忆描述过它。</li>
+    </ul>
+    <p>这不是理论推演。Mem0 在 2026 年 8 月公开了他们的生产数据：<strong>中位活跃项目携带几百条互相重复或矛盾的记忆</strong>。这些僵尸和复读机挤占 top-k 检索槽位、给每次搜索结果添加 token、并让 agent 时不时说出一个几个月前就不再为真的旧事实。</p>
+    <p>对比一下人脑：白天海马体快速记录一切，夜里睡眠时回放——重播当天的经历、强化重要的、与新旧记忆建立连接、淡掉不重要的。长期 agent 做了记录，但从不做整理。<strong>一个从不睡觉的人是什么状态？回忆越来越噪、矛盾越积越多、旧印象不断覆盖新现实。这正是跑了六个月的 agent 的状态。</strong></p>
+
+    <h2>二、睡眠时间计算：不止整理，还要"预想"明天的问题</h2>
+    <p>这个方向最硬核的一篇论文来自 Letta 与 UC Berkeley（arXiv 2504.13171，2025 年 4 月），标题直接叫 <em>Sleep-time Compute: Beyond Inference Scaling at Test-time</em>。它的想法比"整理记忆"更进一步：<strong>在查询到来之前，让模型离线"想"上下文——预测用户可能问什么、预先算好有用的中间结论</strong>。等真正的问题来了，test-time 只需要"查"而不是"想"。</p>
+    <p>数字很扎实：</p>
+    <ul>
+        <li>同样的准确率，test-time compute 需求降低 <strong>~5x</strong>（Stateful GSM-Symbolic 与 Stateful AIME 双验证）；</li>
+        <li>增加 sleep-time compute 的投入，准确率还能再涨 <strong>13%（GSM）/ 18%（AIME）</strong>；</li>
+        <li>同一上下文会来多个相关问题时（真实助理场景的常态），预计算摊销后每查询成本降 <strong>2.5x</strong>。</li>
+    </ul>
+    <p>但论文里最值钱的不是这些数字，而是它诚实的边界分析：<strong>预计算的收益与"用户查询的可预测性"强相关。</strong>猜得到用户会问什么，预思考才有用；用户问什么完全开放，预计算大多白算。这跟"该不该做缓存"的判断是同构的——答案分布集中才值得缓存，访问完全随机就别费劲。所以别急着给所有 agent 上睡眠时间计算：长期助理、固定文档问答、重复工作流这类可预测场景收益大；探索式研究、任意闲聊场景，老老实实把算力花在 test-time 推理上。</p>
+
+    <h2>三、2026 年业界收敛出的答案：三个操作，零删除</h2>
+    <p>如果说 2025 年的问题是"agent 记忆会腐烂"，2026 年的答案已经相当具体。Mem0 的 Dream 功能（2026 年 8 月上线）把后台整理收敛成三个操作，值得逐个看：</p>
+    <table>
+        <tr><th>操作</th><th>触发条件</th><th>效果</th></tr>
+        <tr><td><strong>Merge</strong></td><td>新记忆完整包含旧记忆的全部信息</td><td>旧记忆标记 <code>merged</code>，指向新者，默认从搜索隐藏</td></tr>
+        <tr><td><strong>Supersede</strong></td><td>新事实明确替代旧事实</td><td>旧记忆标记 <code>superseded</code>，指向替代者，默认仍可见——历史往往有用</td></tr>
+        <tr><td><strong>Synthesize</strong></td><td>多个独立观察支撑同一模式（定时、离线跑）</td><td>写一条新的摘要记忆，挂上全部来源 ID；单次观察坚决不合成</td></tr>
+    </table>
+    <p>注意一个贯穿三操作的设计：<strong>零物理删除</strong>。每次"遗忘"都是一次带指针的状态迁移，dashboard 里可审计，还能标记某些记忆为 <code>immutable</code> 完全豁免。为什么拒绝 DELETE？三个理由：抽取会犯错，删除没有后悔药而挂起有；历史本身是信息（用户什么时候改变的主意，往往是最高价值的信号）；生产系统需要审计。一句话：<strong>记忆系统的"遗忘"应该是状态机迁移，不是 DELETE 语句。</strong></p>
+    <p>这套东西有效吗？开源项目 AgentSleep 做了可复现的对照实验：模拟一周 agent 活动，跑一轮"睡眠周期"（consolidate → abstract → forget），前后各测检索质量。结果：冗余度从 0.486 降到 0.074（<span class="highlight">-85%</span>），recall@k 从 0.539 升到 0.683（<span class="highlight">+14.4 个百分点</span>），precision 纹丝不动。<strong>整理是用更少的记忆换更多的召回——少即是多，这不是玄学，是可度量的工程。</strong></p>
+
+    <h2>四、最实用的类比不是大脑，是数据库</h2>
+    <p>把 agent 记忆比作人脑很有感染力，但对工程师来说，<strong>真正可执行的类比来自数据库世界</strong>。Mem0 在发布 Dream 时说得直白：LSM tree 有 compaction，Postgres 有 vacuum，git 有 garbage collection——<strong>"agent 记忆系统普遍只上线了快写路径，没上线维护进程。Dream 就是那个维护进程。"</strong></p>
+    <p>这个类比立刻给出三条工程决策：</p>
+    <ol>
+        <li><strong>维护不占请求路径</strong>：vacuum 从不阻塞正常查询。同理，consolidation 必须离线跑，add/search 的延迟一个毫秒都不能涨；</li>
+        <li><strong>状态放索引列上</strong>：Mem0 把 lifecycle_state 做成索引列，于是"只取现行事实"（<code>latest_only=true</code>）就是一次索引查询，不是全表扫描加过滤；</li>
+        <li><strong>并发安全靠条件写</strong>：合并/挂起操作用条件写应用，两个后台任务同时动同一条记忆不会打架——这就是数据库做了三十年的乐观并发控制。</li>
+    </ol>
+    <p>你的记忆库腐化了？不是模型不行，是这个"数据库"从来没有跑过 <code>VACUUM</code>。这个视角比任何神经科学隐喻都更能指导排期：把"给记忆库加个 nightly cron"当成给数据库加自动维护任务，就是一个普通的、可测试的、不性感的工程任务。</p>
+
+    <h2>五、跟神经科学学什么，不学什么</h2>
+    <p>底层理论是 McClelland 等人 1995 年的互补学习系统（CLS）理论：海马体负责快速、单次地存情景，新皮层负责缓慢、反复地提模式，睡眠时离线回放完成从前者到后者的迁移。这篇论文被引八千多次，是整个"agent 记忆分层"设计的思想源头。2026 年 8 月，bioRxiv 上已经出现把 CLS 直接落到权重层的工作：用 LLM 做快速情景记忆，用门控 LoRA 适配器做"海马体"式的快学习模块——隐喻正在变成实现。</p>
+    <p>但 Hindsight 在他们的整理框架文章里提出了我认为整个方向最重要的一句话：<strong>生物遗忘是突触容量有限所迫，agent 的存储没有这个约束。</strong>所以向大脑学习时要想清楚抄什么：该抄的是"整理让记忆有用"——模式提取、实体归一、新近加权检索；不该抄的是容量约束——因为存储便宜就什么都舍不得扔，同样错了：垃圾记忆挤占的是<strong>检索槽位和注意力</strong>，那是真资源。大脑的教训不是"要删除"，而是"不整理的记忆等于没有记忆"。</p>
+
+    <h2>六、今晚就能做什么</h2>
+    <p>不需要重写记忆系统，四件事今晚就可以排上：</p>
+    <ol>
+        <li><strong>给记忆库做体检</strong>：统计一下重复率（同实体同事实不同措辞的对数）和矛盾对数（同实体相反事实的对数）。Mem0 说中位数是几百条——你的大概率也不少，看见问题永远第一步；</li>
+        <li><strong>加 lifecycle 状态</strong>：给每条记忆一个 <code>active / merged / superseded</code> 状态和一个指向替代者的 ID，检索默认过滤。这是最小可行版的"修正不覆盖"；</li>
+        <li><strong>上 nightly cron</strong>：一个定时任务做去重合并、矛盾挂起、保守的模式摘要。就当是给数据库加 VACUUM，跑在请求路径之外。个人 agent（本地 Markdown 记忆那种）同样适用——先闭日、再调矛盾、再提模式、最后重建索引；</li>
+        <li><strong>判断要不要"预想"</strong>：统计你的用户 query 分布。头部场景集中（比如大量"帮我查 X"），就为高频场景做 sleep-time 预计算；分布很散，就省下这份钱。</li>
+    </ol>
+    <p>检验标准只有一条，也是整个领域现在唯一诚实的北极星：<strong>第二次遇到同一个问题时，agent 是不是又快又对地想起了上一次。</strong>如果答案是否定的，你的 agent 不需要更大的上下文窗口，它需要睡觉。</p>
+
+    <p class="meta" style="margin-top:2.5rem;">参考：Sleep-time Compute (arXiv 2504.13171, Letta + UC Berkeley)；Mem0 Dream (mem0.ai/blog, 2026-08)；The Consolidation Problem in Agent Memory (Hindsight, 2026-05)；AgentSleep (github.com/PAUL01zjb/agent-sleep)；McClelland et al., "Why There Are Complementary Learning Systems in the Hippocampus and Neocortex" (1995)；Complementary learning system for continual episodic memory (bioRxiv, 2026-08)；defrag.md；obsidian-second-brain。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
