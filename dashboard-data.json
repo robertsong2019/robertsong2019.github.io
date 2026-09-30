@@ -1,10 +1,10 @@
 {
- "lastUpdated": "2026-09-29T22:00:00Z",
- "generatedAt": "2026-09-30 06:00 CST",
+ "lastUpdated": "2026-09-30T22:02:22Z",
+ "generatedAt": "2026-10-01 06:02 CST",
  "system": {
   "gateway": {
    "status": "running",
-   "pid": 2308124,
+   "pid": 2682335,
    "port": 34524,
    "bind": "lan (0.0.0.0)",
    "nodeVersion": "v22.22.1",
@@ -13,38 +13,35 @@
   "host": {
    "os": "Linux 6.8.0-71-generic (x64)",
    "hostname": "VM-0-5-ubuntu",
-   "uptime": "22 weeks, 6 days, 16 hours, 41 minutes",
-   "loadAverage": "0.63, 0.21, 0.07",
+   "uptime": "161 days, 16 hours, 41 minutes",
+   "loadAverage": "0.32, 0.12, 0.04",
    "disk": {
     "total": "50G",
     "used": "32G",
     "available": "16G",
-    "usage": "68%"
+    "usage": "69%"
    },
    "memory": {
     "totalMB": 1935,
-    "usedMB": 1349,
-    "freeMB": 346,
-    "availableMB": 586,
-    "swapTotalMB": 10179,
-    "swapUsedMB": 298
+    "usedMB": 1116,
+    "freeMB": 331,
+    "availableMB": 819
    }
   },
   "model": "zai/glm-5.3-flash"
  },
  "cronSummary": {
   "total": 8,
-  "ok": 6,
-  "error": 2,
-  "running": 0,
+  "ok": 7,
+  "error": 1,
+  "running": 1,
   "errorJobs": [
-   "github-creative-evening",
    "ai-neuroscience-research"
   ],
   "notes": [
-   "github-creative-evening 昨晚 19:00 再次报错（consecErr=2，连续第 2 天，均 300s 超时特征），今晚 19:00 重点观察",
-   "ai-neuroscience-research: 57 consecutive errors（昨日 56），300s timeout 修复仍未生效，需专项排查",
-   "其余 6 任务全部 ok 且投递正常"
+   "github-creative-evening 昨晚 19:00 恢复正常（此前连续 2 天报错，本次 280s 完成且投递正常）",
+   "ai-neuroscience-research: 58 consecutive errors（昨日 57），300s timeout 依旧，需专项排查",
+   "其余 6 任务全部 ok 且投递正常；dashboard-update-morning 正在运行（本快照）"
   ]
  },
  "cronJobs": [
@@ -76,9 +73,9 @@
    "id": "ad37c59a",
    "name": "github-creative-evening",
    "schedule": "0 19 * * *",
-   "status": "error",
+   "status": "ok",
    "lastRun": "11h ago",
-   "consecutiveErrors": 2
+   "consecutiveErrors": 0
   },
   {
    "id": "a4bf5e2a",
@@ -93,8 +90,8 @@
    "name": "ai-neuroscience-research",
    "schedule": "30 22 * * *",
    "status": "error",
-   "lastRun": "7h ago",
-   "consecutiveErrors": 57
+   "lastRun": "8h ago",
+   "consecutiveErrors": 58
   },
   {
    "id": "1ea6e3b0",
@@ -115,47 +112,47 @@
  ],
  "sessions": {
   "total": 51,
-  "active24h": 18,
+  "active24h": 17,
   "byKind": {
    "direct": 50,
    "group": 1
   },
   "notable": [
    {
-    "type": "f38e0365-7bb-",
-    "lastActive": "1m ago",
+    "type": "f38e0365-7bbf",
+    "lastActive": "2m ago",
     "model": "glm-5.3-flash",
-    "context": "42k/205k (20%)"
+    "context": "40k/205k (19%)"
+   },
+   {
+    "type": "ab6b1809-2f1c",
+    "lastActive": "2m ago",
+    "model": "glm-5.3-flash",
+    "context": "40k/205k (19%)"
    },
    {
     "type": "main",
-    "lastActive": "13m ago",
+    "lastActive": "14m ago",
     "model": "glm-5",
-    "context": "79k/200k (39%)"
+    "context": "91k/200k (45%)"
    },
    {
-    "type": "f0362050-d10-",
-    "lastActive": "56m ago",
+    "type": "f0362050-d109",
+    "lastActive": "57m ago",
     "model": "glm-5.3-flash",
-    "context": "62k/205k (30%)"
+    "context": "79k/205k (38%)"
    },
    {
-    "type": "1ea6e3b0-474-",
-    "lastActive": "241m ago",
+    "type": "b8cf8b1c-44cd",
+    "lastActive": "1h ago",
     "model": "glm-5.1",
-    "context": "92k/205k (45%)"
+    "context": "96k/205k (46%)"
    },
    {
-    "type": "84707ade-1c7-",
-    "lastActive": "451m ago",
-    "model": "glm-5.1",
-    "context": "77k/205k (38%)"
-   },
-   {
-    "type": "a4bf5e2a-a7b-",
-    "lastActive": "594m ago",
+    "type": "1ea6e3b0-4744",
+    "lastActive": "4h ago",
     "model": "glm-5.3-flash",
-    "context": "67k/205k (33%)"
+    "context": "90k/205k (44%)"
    }
   ]
  }
