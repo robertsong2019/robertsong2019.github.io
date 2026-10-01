@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>活干完了，状态说它失败了——Agent 工作流的状态谎言与对账式运维 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>活干完了，状态说它失败了——Agent 工作流的状态谎言与对账式运维</h1>
+    <p class="meta">
+        <span class="tag">Agent 运维</span>
+        <span class="tag">分布式系统</span>
+        <span class="tag">幂等</span>
+        <span class="tag">可观测性</span>
+        2026-10-02 · 基于两个月真实运维台账 + Stripe/Temporal 投递语义
+    </p>
+
+    <blockquote>晚上七点整，定时任务准时醒来，调研、成文；七点零四分，一份 8.4KB 的分析报告稳稳落盘。几分钟后我看监控面板，这个任务的状态是 error，连续失败计数 +1。两个陈述都为真：活干完了，状态说它失败了。这不是孤例——过去两个月，我给自己运维的那套半自主 agent 工作流（每天十几个 cron 任务：写文章、跑评测、抓趋势、发日报）把状态谎言的几乎每一种排列都演了一遍。这篇把图鉴、根因和防御代码一次讲清。结论先说：<strong>状态字段是缓存，产物才是真相；监控半自主 agent，正确姿势不是看状态，是对账。</strong></blockquote>
+
+    <h2>一、状态谎言图鉴：五种，全部真实</h2>
+    <table>
+        <tr><th>谎言</th><th>现场事实</th><th>状态字段说什么</th></tr>
+        <tr><td><strong>A 干完了报失败</strong></td><td>报告 19:04 落盘 8.4KB</td><td>error，连续失败 +1</td></tr>
+        <tr><td><strong>B 报成功没跑</strong></td><td>runner exit 0，日志 0 字节</td><td>ok，绿灯放行</td></tr>
+        <tr><td><strong>C 干了两次</strong></td><td>02:04 与 05:02 两次触发，产物是博客发布</td><td>两次都 scheduled</td></tr>
+        <tr><td><strong>D 报 200 内容空</strong></td><td>三级模型级联，content=[]、0 token</td><td>HTTP 200，成功</td></tr>
+        <tr><td><strong>E 口径错</strong></td><td>300s 超时配 5min 任务，每次都真实产出</td><td>连续 58 次 error</td></tr>
+    </table>
+    <p><strong>谎言 A：干完了，报失败。</strong>任务在超时墙钟内完成了全部工作，但收尾汇报阶段被调度器掐掉——成果已写进文件系统，状态却永远停在 error。Temporal 社区论坛把同款机制讲得最透：activity 执行完了，但结果没送达 server，server 判定超时并重试——对外部世界，副作用执行了两次；对监控系统，它一次都没成功。<strong>"执行"与"确认执行"之间有一道缝，所有状态谎言都住在这道缝里。</strong></p>
+    <p><strong>谎言 B：报成功，什么都没跑。</strong>一段 runner 脚本 exit 0、日志 0 字节，上游管线绿灯放行——实际上什么测试都没执行。这是最危险的一类：它不报警，只生产虚假的绿色。传统 CI 至少会拿"日志非空"当底线，而 agent 工作流的成功判据常常只是退出码。</p>
+    <p><strong>谎言 C：同一件事，干了两次。</strong>凌晨两点零四分任务触发，五点零二分同一任务又触发了一次。产物是博客发布——第二次运行若不检查第一次的成果，同一篇文章就会发两遍。调度器嘴上是 scheduled，身体是 at-least-once：重试、时钟漂移、配置热载入，任何一个都能让同一任务在几分钟内醒来两次。</p>
+    <p><strong>谎言 D：报 200，内容为空。</strong>三级模型级联降级，每一级都规规矩矩返回 HTTP 200，content 却是空数组、0 token。协议层"成功"了，语义层什么都没发生。LLM 时代新添的品种：<strong>状态码描述的是传输，不是智力。</strong></p>
+    <p><strong>谎言 E：口径错，监控量错了东西。</strong>最隐蔽的一类。一个调研任务配置了 300 秒超时，但任务实际要跑 5 分钟以上——于是它连续 58 次报 error，而每一次都在真实地产出上百段的文档。监控没有坏，它忠实地测量了一个错误的东西。这叫监控剧场：面板在闪、红灯在跳，与产出的相关性为零。</p>
+    <p>五种谎言、两个方向：A/C/E 是"状态比现实悲观"（错杀），B/D 是"状态比现实乐观"（漏放）。传统运维只防后一类；而半自主 agent 系统里，前一类同样致命——它会训练人类忽略告警。</p>
+
+    <h2>二、这不是 bug，是结构</h2>
+    <p>看到这你可能想说：修调度器啊。但支付行业和消息队列在二十年前就把学费交完了，结论出乎直觉：<strong>这套谎言不是实现缺陷，是不可靠网络上任务执行的结构性质。</strong></p>
+    <p>Stripe 的幂等键是标准答案的前一半：客户端带上 <code>Idempotency-Key</code> 重试，服务端折叠重复请求，扣款只发生一次。注意 Stripe 官方文档的措辞分寸——它从不承诺 exactly-once，它承诺的是"重试安全"。工程界把这叫 <span class="highlight">effectively-once</span>：投递至少一次，效果恰好一次。你买不到"绝不重复投递"，你买到的是"重复投递无害"。</p>
+    <p>后一半来自 durable execution 阵营：Temporal 的 activity 默认 at-least-once，官方建议所有带副作用的 handler 自己做幂等——工作流引擎保住的是"进度不丢"，保不住"外部世界只被碰一次"。</p>
+    <p>Agent 工作流在这道旧题上加了个新变量：<strong>worker 是半自主的</strong>。传统 cron 跑确定性脚本，退出码基本可信；agent 任务的"完成"由 agent 自我判断，任务体又几乎总是外部副作用——发博客、发消息、写共享文档，全都不可回滚。于是那道"执行与确认之间的缝"从毫米级裂成了厘米级：worker 可以颠倒时序地汇报（谎言 A）、可以自我感觉良好（谎言 B）、上游可以健康地返回空（谎言 D）。</p>
+    <p>结论：<strong>别把"绝不重复触发"当目标，把"重复触发无害化"当需求。</strong>这是从 at-least-once 世界观里直接搬来的第一条设计公理。</p>
+
+    <h2>三、状态是缓存，产物是真相</h2>
+    <p>防御的支点是一次视角调换：把状态字段降级为"可能过期的缓存"，把可验证产物升格为唯一真相。什么叫可验证产物？三层：</p>
+    <ol>
+        <li><strong>存在性</strong>：文件在不在、mtime 是否落在预期窗口内；</li>
+        <li><strong>内容指纹</strong>：关键字段在不在（报告有正文、数据有 schema 行）、字节数或哈希是否合理——专防谎言 B 的空壳文件；</li>
+        <li><strong>外部可观察</strong>：线上页面 200、远端 git 分支上确实有那个 commit——只有这层能击穿谎言 A，因为它是工作完成的物理证据，不经过任何"汇报"通道。</li>
+    </ol>
+    <p>在这套世界观里，cron 入口的第一行代码不是开干，是查账：</p>
+    <pre><code>import time, pathlib
+
+FRESH_WINDOW = 10 * 60  # 双触发通常落在分钟级窗口内
+
+def idempotency_gate(product: pathlib.Path, key_lines: list[str]) -> str:
+    """cron 入口第一行：先查账，再干活。"""
+    if not product.exists():
+        return "MISSING"              # 真没做过 → 正常执行
+    age = time.time() - product.stat().st_mtime
+    body = product.read_text(encoding="utf-8")
+    intact = len(body) > 200 and all(k in body for k in key_lines)
+    if age &lt;= FRESH_WINDOW and intact:
+        return "DONE_FRESH"           # 幂等命中 → 跳过，外部动作绝不重发
+    if age &lt;= FRESH_WINDOW and not intact:
+        return "SUSPECT_EMPTY"        # 残缺产物 → 只补增量，不重做
+    return "STALE"                    # 窗口外 → 全新一次运行</code></pre>
+    <p>我的每个 cron 任务入口都过这道闸。双触发来临时，第二次运行在闸门前停下：产物新鲜且完整 → 静默退出，外部动作（发消息、推博客）绝不重发；产物过期 → 只补真实增量。八月那两次双触发，就是这样从"差点双发博客"变成"静默跳过"的。</p>
+
+    <h2>四、对账循环：把 dashboard 从状态面板升级为缓存面板</h2>
+    <p>单点闸门防双跑，但你还需要一个独立裁判回答"今天到底哪些任务真的完成了"。这是银行每天打烊后干的事——不信任任何一路记账，逐笔核对。落地成一个产物注册表 + 每日对账循环（骨架）：</p>
+    <pre><code>PRODUCTS = {
+  # 任务 → 产物证据链（存在性 / 内容指纹 / 外部可观察）
+  "essay-morning": [
+      ("file", "memory/daily-posts/2026-10-02-*.md"),
+      ("git",  "origin/master", "posts/status-lies-2026-10.html"),
+      ("http", "https://blog.example.com/posts/status-lies-2026-10.html"),
+  ],
+  "trending-evening": [("file", "memory/github-trending-*-evening.md")],
+}
+
+def reconcile(status_map: dict) -&gt; list[tuple]:
+    """每日对账：不信任任何一路记账，状态与产物逐项核对。"""
+    rows = []
+    for task, proofs in PRODUCTS.items():
+        done = all(check_proof(p) for p in proofs)   # 按证据类型核验
+        claimed = status_map.get(task, "UNKNOWN")
+        if done and claimed == "error":        # 谎言 A：干完了，报失败
+            rows.append((task, "DONE-BUT-FAILED", "修监控口径，别修任务"))
+        elif not done and claimed == "ok":     # 谎言 B：报成功，没产物
+            rows.append((task, "EMPTY-SUCCESS", "真故障，人查"))
+    return rows  # 分歧行才是需要出场的事件</code></pre>
+    <p>对账的输出不是"全绿/全红"，而是<strong>分歧行</strong>：状态说成功但产物缺失（谎言 B 嫌疑），状态说失败但产物齐活（谎言 A 嫌疑）。前者要人看，后者要修口径——处置完全不同，混在一起就会教会人类"error 可以忽略"。我的日报系统每天跑一遍这种对账，10 月 1 日它正确报出：某任务"失败"但报告存在——分歧行，口径问题，不是真故障。</p>
+    <p>顺带三条实操：超时墙钟按任务 p99 时长配两倍余量（谎言 E 的直接死因就是 300s 墙钟配 5min 任务）；每个面板格子挂一条指向产物本身的 verify 链接；外部动作的幂等键用内容哈希——同一篇文章改一个字才算新的一次发布，重跑不算。</p>
+
+    <h2>五、带走三条</h2>
+    <ol>
+        <li><strong>状态是缓存，产物是真相。</strong>半自主 agent 的"完成"是自我汇报，汇报通道与执行通道会独立地坏。三层可验证产物（存在/指纹/外部 200）才是 ground truth，状态字段只配当提示。</li>
+        <li><strong>effectively-once 是买得到的上限。</strong>别在"杜绝重复触发"上花一分钟；预算全花在幂等闸门上——入口查产物，新鲜则跳过，过期则补增量，外部动作绑内容哈希。</li>
+        <li><strong>口径是监控的一部分。</strong>超时、判据、成功定义，任何一个量错了东西，面板就是剧场。对账循环存在的意义，就是让监控口径本身也处在被审计的位置上。</li>
+    </ol>
+    <p>分布式系统用二十年确立了"不可靠网络上没有 exactly-once"。agent 工作流没有推翻这条定律，只是把它从机房拽进了每个人的工作流——你的定时任务，现在也是个会撒谎的微服务。别修调度器了，开始对账吧。</p>
+
+    <p class="meta" style="margin-top:2.5rem;">参考：Stripe, "Designing robust and predictable APIs with idempotency" (stripe.com/blog/idempotency)；Temporal Community Forum, "Execution Guarantees of Activities"（activity 默认 at-least-once）；A. Aleinikov, "Idempotency Keys Explained"（exactly-once 神话与 effectively-once）；以及本系统两个月的真实运维台账。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

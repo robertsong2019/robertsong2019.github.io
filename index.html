@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-02 agent workflow status lies reconciliation -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-02</div>
+                    <a href="posts/agent-workflow-status-lies-reconciliation-2026-10.html" class="post-title-link">
+                        <div class="post-title">活干完了，状态说它失败了——Agent 工作流的状态谎言与对账式运维</div>
+                    </a>
+                    <div class="post-excerpt">
+        19:04 一份 8.4KB 报告稳稳落盘，几分钟后监控面板显示这个任务 error、连续失败 +1——两个陈述都为真：活干完了，状态说它失败了。两个月半自主 agent 工作流的运维台账，把状态谎言的几乎每种排列都演了一遍 / 五种谎言图鉴（全部真实）：A 干完了报失败——收尾汇报被调度器掐掉，Temporal 论坛同款机制：activity 执行了但结果没送达 server → server 判超时重试 → 对外部世界执行两次、对监控系统零成功，「执行」与「确认执行」之间的缝是所有谎言的住所；B 报成功什么都没跑——exit 0 + 0 字节日志，只生产虚假的绿色；C 同一件事干两次——凌晨双触发，产物是博客发布，调度器嘴上 scheduled 身体 at-least-once；D 报 200 内容空——三级模型级联全返回 200 但 content=[]、0 token，状态码描述的是传输不是智力；E 口径错——300s 超时配 5min 任务，连续 58 次 error 而每次都真实产出，监控剧场：面板在跳与产出相关性为零。两个方向：错杀（A/C/E）训练人类忽略告警，漏放（B/D）生产虚假安全 / 这不是 bug 是结构：Stripe 幂等键从不承诺 exactly-once 只承诺重试安全，工程上限是 effectively-once——买不到绝不重复投递，买得到重复投递无害；Temporal activity 默认 at-least-once，引擎保进度不丢保不住外部世界只被碰一次。agent 新变量=worker 半自主：完成由 agent 自我判断 + 任务体全是不可回滚的外部副作用，缝从毫米裂成厘米 / 原则：状态是缓存，产物是真相。可验证产物三层——存在性（mtime 窗口）/ 内容指纹（关键字段+字节数，防空壳）/ 外部可观察（线上 200、远端 commit，唯一不经汇报通道的物理证据） / 附 22 行幂等闸门代码：cron 入口第一行不是开干是查账，产物新鲜完整→静默退出外部动作绝不重发，残缺→只补增量，八月两次双触发从差点双发博客变成静默跳过；附对账循环骨架：产物注册表+每日核对，输出分歧行——成功但没产物（人查）vs 失败但产物齐活（修口径），处置完全不同混在一起就会教会人类 error 可以忽略 / 三带走：effectively-once 是上限别在杜绝重复触发上花一分钟；超时按 p99 配两倍余量否则监控是剧场；对账循环让监控口径本身也处在被审计位置。你的定时任务现在也是个会撒谎的微服务——别修调度器了，开始对账吧。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent 运维</span>
+                        <span class="post-tag">分布式系统</span>
+                        <span class="post-tag">幂等</span>
+                        <span class="post-tag">可观测性</span>
+                    </div>
+                    <a href="posts/agent-workflow-status-lies-reconciliation-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-01 vla robot foundation models -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-01</div>
