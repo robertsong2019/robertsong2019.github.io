@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>机器人开始长身体了——VLA 以五倍速重演 LLM 的剧本 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>机器人开始长身体了——VLA 以五倍速重演 LLM 的剧本</h1>
+    <p class="meta">
+        <span class="tag">具身智能</span>
+        <span class="tag">VLA</span>
+        <span class="tag">机器人基础模型</span>
+        <span class="tag">世界模型</span>
+        2026-10-01 · 基于 π0.5–π0.7、GR00T N1/N1.5、Gemini Robotics、Figure Helix 02、DreamDojo、EO-1、LIBERO-Plus 等 16 个源的调研
+    </p>
+
+    <blockquote>今年五月，Figure 03 在仓库里连续干了 17 个小时，分拣了 22,000 多个包裹，全程没有一个遥操作员；同一个月，我家的扫地机器人还在被一只袜子卡住，报警求救。这两个画面之间隔着的，不是硬件差距，而是一类新模型在过去十八个月的爆发——VLA，视觉-语言-动作模型。如果你做 LLM 或 agent，我劝你现在就看一眼这个领域：它正在用大约五倍的速度，重演你亲身经历过的整部剧本——数据墙、合成数据、后训练 RL、基准饱和、记忆危机，一幕不落，而且每一幕你都已经知道结局。</blockquote>
+
+    <h2>一、"下一个 token 是扭矩"：VLA 到底是什么</h2>
+    <p>传统机器人是一根流水线：感知模块看世界，规划模块算路径，控制模块发指令，各段之间靠工程胶水粘合。换一个任务，胶水全部重调。VLA 的思路粗暴得多：<strong>用一个端到端的神经网络，把相机图像、机器人关节状态和一句自然语言直接映射成一串连续动作</strong>。对 LLM 工程师来说，最贴切的类比就一句话：LLM 预测下一个 token，VLA 预测下一个扭矩。语言模型的输出是词，这里的输出是"手腕往左偏 0.3 弧度、夹爪收 2 毫米"。</p>
+    <p>Physical Intelligence 的 π0.5 是理解这个架构的好标本：3.3B 参数里，SigLIP 视觉编码器负责看（约 400M），Gemma 2.6B 负责理解语言和推理，一个 300M 的"动作专家"负责输出动作。它训练时混着机器人演示、图文数据和纯文本指令，推理时能走进从没见过的家庭，整理厨房、叠衣服、往洗碗机里摆盘子。注意最后这句的分量：<strong>开放世界泛化</strong>——不是在训练过的那张桌子上表演，而是换房子、换柜子、换杂物还能干活。这是"演示友好型"机械臂和基础模型的分水岭。</p>
+
+    <h2>二、架构收敛：从双系统到"长出小脑"</h2>
+    <p>2026 年最有意思的现象是架构收敛——所有头部玩家殊途同归，都落在了 Kahneman《思考，快与慢》的那张图上：</p>
+    <table>
+        <tr><th>层</th><th>频率</th><th>角色</th><th>代表实现</th></tr>
+        <tr><td><strong>System 2（大脑）</strong></td><td>~Hz 级</td><td>VLM 语义推理：理解指令、观察环境、规划子任务</td><td>Gemini-ER、π 系 VLM 骨干</td></tr>
+        <tr><td><strong>System 1（运动皮层）</strong></td><td>~200Hz</td><td>动作专家：flow-matching / diffusion 生成连续动作流</td><td>π 动作专家、GR00T DiT</td></tr>
+        <tr><td><strong>System 0（小脑/脊髓）</strong></td><td>~1000Hz</td><td>身体先验：平衡、接触、全身协调</td><td>Figure Helix 02 的 S0</td></tr>
+    </table>
+    <p>NVIDIA 的 GR00T N1 把双系统讲得最直白：System 2 是一个 10Hz 的 VLM，慢悠悠想"要抓左边那个杯子"；System 1 是个 Diffusion Transformer，实时把手伸过去。而 Figure 在 2026 年 1 月的 Helix 02 加了第三层——System 0：一个只有 <strong>10M 参数</strong>的神经先验网络，用 1000 多小时人体动捕数据训练，1kHz 频率管平衡和接触。这层小脑的价值有个极其直观的度量：<strong>它替代了 109,504 行手写 C++ 控制代码</strong>。</p>
+    <p>这件事值得每个工程师停下来想一想。机器人领域几十年的积累——那些写满控制论的手写控制器——正在被一个能塞进口袋的 10M 参数网络整层吞掉。类比不是"更好的算法赢了"，而是"反射弧从软件工程迁移到了学习"。你的脊髓做决策时从不询问大脑，因为来不及；机器人栈也在长出自己的脊髓。<strong>频率分层就是架构分层：一秒十次的语义思考、一秒两百次的精细操作、一秒一千次的身体本能，各自独立进化，互不占用带宽。</strong></p>
+
+    <h2>三、数据墙：没有"动作的互联网"，怎么办</h2>
+    <p>LLM 起飞靠互联网文本——几万亿 token 躺在那里免费拿。机器人没有这个运气：互联网上没有"动作的维基百科"，每一条真机轨迹都要人摇操作杆摇出来。遥操作经济学的账很硬：ALOHA 式主从臂一站 $5K–20K，一小时产 20–40 条演示；想要百万级演示，瓶颈已经不是数据质量，而是数据物流——几千个采集工位的排班、校准和格式一致性。这就是具身智能的数据墙。</p>
+    <p>2026 年的答案是三条路同时开挖，而且三条路 LLM 工程师都眼熟：</p>
+    <ol>
+        <li><strong>合成数据（=机器人版合成语料）</strong>。NVIDIA 用 Omniverse 生成仿真动作数据叠加真机数据，GR00T N1 性能提升 <span class="highlight">40%</span>。套路与 GPT 系列的合成指令微调同构：真数据定分布，合成数据补密度。</li>
+        <li><strong>人类视频挖掘（=机器人版的"把 YouTube 当语料库"）</strong>。这是 2026 年最大的突破方向。核心难题：YouTube 上的第一人称视频有海量"手怎么干活"的知识，但没有机器人动作标签。解法叫 <strong>latent actions</strong>——训一个小 VAE，从相邻两帧里提取"是什么改变了画面"的隐向量，把它当伪动作标签用。NVIDIA 的 DreamDojo 用 44,711 小时第一人称人类视频（迄今最大）预训练世界模型，并给出了一个惊人数字：EgoScale 分析发现<strong>人类视频小时数与下游机器人性能的相关性 R² = 0.9983</strong>。LAPA 论文则证明 latent action 预训练比直接学真动作标签省 30–40 倍算力。还有更彻底的：Being-H0.5 干脆把"人手"当作通用 embodiment，35K 小时手部视频训练后 LIBERO 打到 98.9%。</li>
+        <li><strong>自身经验（=机器人版的 RL 后训练）</strong>。π0.6 的 RECAP 让机器人吃自己部署时的失败数据做在线 RL，难任务失败率直接减半；RL-100 论文更狠——真机 RL 打到 8 个任务 1000 回合全胜，一台榨汁机器人在商场连续服务<strong>七小时零失败</strong>。Figure 的仓库 17 小时班次也是同一逻辑：车队跑得越多，策略越硬。</li>
+    </ol>
+    <p>三条路对应 LLM 历史上的三幕：合成指令、网络语料爬取、RLHF 之后的可验证 RL。剧本结构完全一样，只是把"互联网文本"换成了"物理经验"——而物理经验必须由车队自己挣，这是具身领域独有的护城河。</p>
+
+    <h2>四、评测危机：LIBERO 上的 95%，和真机没有关系</h2>
+    <p>这里要泼一盆冷水，而且这盆冷水对 agent 工程师来说味道熟悉极了。领域标配基准 LIBERO 已被刷到 95–99% 饱和，论文之间的名次差距在噪声以内。然后 ICLR 2026 上出现了一句拆台的话，来自做了 CALVIN 榜第一的作者 Reuss：<strong>一个调好的 Diffusion Policy，不带任何 VLM、不做任何互联网级预训练，也能刷到这个区间</strong>。也就是说，饱和的榜单已经不再测量"通用智能"，它测量的是"过拟合表格任务的熟练度"。</p>
+    <p>更扎心的是开源与闭源的关系。开源 VLA 在 LIBERO/CALVIN 上"超越"π0.5 是常态——但 openpi 的权重已经落后闭源 4 代，真实差距恰恰藏在榜单测不到的地方：零样本开放世界。Reuss 自己的模型 FLOWER 是 CALVIN 榜 SOTA，他原话是"远达不到 CoRL 现场 Gemini demo 的零样本鲁棒性"。CVPR 2026 的 LIBERO-Plus 补上了判决书：在 7 类扰动（光照、视角、纹理……）共 10,030 个任务实例上，近饱和的模型集体显著掉分。</p>
+    <p>这与 agent 领域的 SWE-bench 饱和、reward hacking 是同一种病：<strong>当基准被刷满，榜单就停止测量它声称测量的东西</strong>。如果 VLA 的选型报告里只有 LIBERO 原版分数而没有扰动鲁棒性和真机验证，它提供的信息量约等于零。</p>
+
+    <h2>五、机器人也开始"失眠"：记忆这一幕提前开演</h2>
+    <p>最让我这个 agent 记忆方向研究者心头一震的，是 Physical Intelligence 今年的两个动作。三月，MEM（Multi-Scale Embodied Memory）给 VLA 加上长短时记忆，把机器人能干的任务从两分钟拉到十分钟以上；四月，π0.7 展示了"多模态上下文条件化"——同一个权重，靠上下文里塞不同的子任务、子目标图片、episode 元数据来切换档位，并且<strong>把各路 specialist 的能力蒸馏回一个 generalist</strong>。它甚至靠元数据区分演示、失败、次优自主回放，把多质量数据统一吸收。</p>
+    <p>眼熟吗？这正是 agent 记忆领域过去一年打的仗：只录不睡的记忆会腐烂，所以要整理、要分层、要有"修正不覆盖"的状态机。π0.7 靠"失败数据+元数据"吸收经验的姿势，和 agent 记忆系统"给抽取错误留后悔药"是同一个设计哲学。<strong>机器人领域上一幕还在攻"手稳不稳"，这一幕已经在补"记不记得"——LLM 世界交过的学费，具身世界一门都免不了，只是进度条快了五倍。</strong></p>
+    <p>顺带一提安全，这是 VLA 与 LLM 分歧最大的地方：LLM 幻觉最多尴尬，机器人幻觉会掉东西、砸人。Google 为 Gemini Robotics 建了 ASIMOV 基准，让模型"行动前先想安全问题"，低层碰撞规避直接板载硬编码；而 Figure 正在应对前产品安全负责人的诉讼——他声称自己因为提出"机器人力量足以造成颅骨骨折"的担忧而被解雇。两条路线的对比本身就是 2026 年最值得跟踪的安全故事。</p>
+
+    <h2>六、今晚就能做什么</h2>
+    <ol>
+        <li><strong>花一个周末摸到真东西</strong>：HuggingFace LeRobot + SO-101 开源机械臂（千元级）+ SmolVLA（450M 参数，带异步推理，任务完成时间还能再降 30%）。流程是：采 50 条演示 → 单卡 A100 微调 4 小时 → 一台 $499 的 Jetson 就能部署。这是个人体验"从语言到扭矩"全闭环的最低成本路径，别只看 demo。</li>
+        <li><strong>用 agent 的眼光给 VLA 找位置</strong>：你现有 agent 栈里，哪个环节值得长出一只"手"？Gemini Robotics 的接口形态值得细读——ER 模型负责推理和调工具（连 Google Search 都只是它的一个工具），VLA 负责执行，这个分层跟你的 agent 循环同构，迁移成本比你想象的低。</li>
+        <li><strong>要做选型就只认硬评测</strong>：别看 LIBERO 原版分数。看 LIBERO-Plus 的扰动鲁棒性，看有没有真机验证（哪怕是 VLA-REPLICA 那种低成本真机协议）。开源全家桶（EO-1：权重+训练代码+数据全开）与闭源的差距是四代，用扰动基准才能量出真实距离。</li>
+        <li><strong>偷世界模型当评测器的思路</strong>：DreamDojo 用世界模型给策略打分，与真实结果相关系数 r=0.995——"在梦里先试一遍"代替昂贵的真机实验。这个思路完全可以平移到你的 agent 工作：先用环境模型/世界模型预筛策略，再上线上流量，是评测预算紧张的团队的通用解法。</li>
+    </ol>
+    <p>最后回到开头那对画面。Figure 干了 17 小时、扫地机器人卡了袜子——差距的来源现在已经可以说清：一个有车队自己挣的物理经验、1kHz 的神经小脑和会吸收失败的记忆系统，另一个只有 2015 年的路径规划。Moravec 四十年前的悖论——"对 AI 来说推理容易、感知运动难"——正在被工程手段倒着拆解：先用 LLM 拿下推理，再回头一格一格啃身体。剧本你已经看过一遍了，这次的主角换了身体，但编剧没换。趁它还没演到"机器人基准全部饱和"那一幕，上车正好。</p>
+
+    <p class="meta" style="margin-top:2.5rem;">参考：π0.5/π0.6(RECAP)/π0.7/MEM (pi.website)；GR00T N1 (arXiv 2503.14734, NVIDIA)；DreamDojo (arXiv 2602.06949, NVIDIA GEAR)；Gemini Robotics 1.5/2 (deepmind.google)；Helix 02 (figure.ai)；OpenVLA (MIT/Stanford)；SmolVLA (HuggingFace LeRobot)；EO-1 (arXiv 2508.21112)；AgiBot World (arXiv 2503.06669)；LAPA (ICLR 2025)；Being-H0.5 (arXiv 2601)；LIBERO-Plus (CVPR 2026)；State of VLA Research at ICLR 2026 (mbreuss.github.io)；RL-100 (Lei et al. 2025)；The Evaluation Bottleneck of VLA Models (preprints 202606.0425)。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
