@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>零个工人，提前完工——无效配置的四种静默死法 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>零个工人，提前完工——无效配置的四种静默死法</h1>
+    <p class="meta">
+        <span class="tag">TypeScript</span>
+        <span class="tag">软件工程</span>
+        <span class="tag">LLM 代码质量</span>
+        <span class="tag">防御性编程</span>
+        2026-10-03 · 基于 langgraph-bridge 四轮红先行体检的 12 个真实缺陷 + Kubernetes/requests 行业前车之鉴
+    </p>
+
+    <blockquote>给并发池传 concurrency: 0，它返回 completedCount: 0——一个节点都没跑，汇报圆满完成。给限流器传 limit: 0，每个调用永久排队；传 windowMs: 0，它退化成直通车。给重试器传 maxAttempts: 0，它 throw undefined。这四个 bug 来自同一个 TypeScript 库的四轮体检，共享一段 DNA：<strong>配置落进"类型合法但业务无意义"的区间时，代码不报错，而是带着无效配置跑出一个看起来正常的结果。</strong>上一篇讲汇报层怎么骗你，这一篇讲执行层怎么骗你——骗得更彻底，因为它连状态都不给你看。</blockquote>
+
+    <h2>一、案发现场：十二个红灯，一个家族</h2>
+    <p>一个闲置了两个半月的 TypeScript 库（langgraph-bridge，25 个源码模块、261 个测试），我最近用红先行的循环给它做了四轮体检：每轮先写会失败的测试、确认它真的红、再修到绿。四个循环共加了 19 个测试，其中 12 个首跑即红——库里真实潜伏着 12 个可复现的行为缺陷。</p>
+    <p>修完回头归类，发现它们不属于"判断写错"或"边界差一"，而是共享同一段 DNA：配置参数落进"类型合法但业务无意义"的区间时，代码不报错，而是带着无效配置继续跑，产出一个看起来正常的结果。上一篇《<a href="agent-workflow-status-lies-reconciliation-2026-10.html">活干完了，状态说它失败了</a>》讲的是汇报层怎么骗你；这一篇讲执行层怎么骗你。</p>
+
+    <h2>二、四宗罪（全部真实代码）</h2>
+
+    <h3>1. batch：零个工人的圆满</h3>
+    <p><code>batch()</code> 接收一组节点函数并发执行，配置项 <code>concurrency: number?</code>，默认 Infinity。旧实现的核心：</p>
+    <pre><code>const { nodes, concurrency = Infinity } = config;
+// ...
+const limit = Math.min(concurrency, nodes.length);
+const workers = Array.from({ length: limit }, () =&gt; runNext());
+await Promise.all(workers);
+return { merged, completedCount: results.length };</code></pre>
+    <p>现在传入 <code>concurrency: 0</code>。类型检查通过——0 是 number。<code>Math.min(0, 5)</code> 得 0，<code>Array.from({length: 0})</code> 得空数组，<code>Promise.all([])</code> 立即 resolve，函数返回 <code>{ completedCount: 0 }</code>：<strong>一个节点都没执行，汇报圆满完成。</strong>没有异常、没有日志、没有警告；NaN 同理。在监控面板上，这是一片祥和的绿色。</p>
+
+    <h3>2. throttle：同一个函数，两种死法</h3>
+    <p>限流器 <code>throttle(node, { limit, windowMs })</code> 的入队条件是 <code>timestamps.length &lt; config.limit</code>。传入 <code>limit: 0</code>：<code>0 &lt; 0</code> 永假，每个调用都进队列等释放——而释放走的也是同一个永假表达式。<strong>永久死锁</strong>，调用方挂在 await 上直到进程被杀。</p>
+    <p>更妙的是 <code>windowMs: 0</code>：窗口清理每次都把时间戳清空，入队条件恒真——<strong>限流器退化成直通车</strong>，本该拦下的调用一个不拦。同一个函数、两种参数、两种死法：一个卡死你，一个放走一切。类型 <code>number</code> 对这两者都点头放行。</p>
+
+    <h3>3. withRetry：throw undefined</h3>
+    <p>重试器的契约写在文档注释里："If all attempts fail, throws the last error."</p>
+    <pre><code>let lastError: unknown;
+for (let attempt = 1; attempt &lt;= maxAttempts; attempt++) {
+  try { return await node(state); }
+  catch (err) { lastError = err; /* ...backoff... */ }
+}
+throw lastError;</code></pre>
+    <p>传入 <code>maxAttempts: 0</code>：循环体一次都不执行，<code>lastError</code> 保持 undefined，函数 <strong><code>throw undefined</code></strong>。调用方写 <code>catch (e) { log(e.message) }</code>，当场 TypeError。最讽刺的是：一个重试器，自己违反了自己的契约——什么都没尝试，也谈不上"最后一次错误"。</p>
+
+    <h3>4. withTimeout：消息匹配吞掉真错误</h3>
+    <p>超时包装器需要区分"超时了"和"节点自己抛错"，旧实现用字符串匹配：</p>
+    <pre><code>catch (err: any) {
+  if (err.message?.includes?.("timed out")) {
+    return { ...fallbackState, _timeoutError: err.message };
+  }
+  throw err;
+}</code></pre>
+    <p>上游错误完全可能合法地包含这个子串：节点内部 <code>fetch</code> 失败，错误消息是 "connect timed out at gateway"——一个真实的外部故障，被 <code>includes</code> 判定为"超时"，吞进降级状态，节点带着 fallback state "成功"返回。<strong>错误不是被处理了，是被蒸发了。</strong></p>
+    <p>修法是哨兵类 + instanceof：超时是"我们抛的那个类的实例"，而不是"一段恰好长这样的字符串"。<strong>消息内容不是类型，字符串匹配是错误分类的赝品机制。</strong></p>
+    <pre><code>class TimeoutError extends Error {
+  constructor(ms: number) { super(`Node timed out after ${ms}ms`); }
+}
+// reject(new TimeoutError(ms)) ...
+if (err instanceof TimeoutError) { /* 真超时，走降级 */ }</code></pre>
+
+    <h2>三、家族在传播</h2>
+    <p>这不是一个仓库的特例。同一套体检循环跑过的工作区里，同族病例还有：</p>
+    <ul>
+        <li><strong>skill-doctor CLI</strong>：flag 拼错不报错，参数静默丢失，行为悄然改变；</li>
+        <li><strong>gateway client</strong>：<code>timeoutSeconds: 0</code> 是 falsy，被 <code>||</code> 默认值悄悄吃掉——本想禁用超时，结果配了个默认值；</li>
+        <li><strong>npm scripts 自递归</strong>：<code>"test": "npm test --"</code> 看起来是测试脚本，实际是无限循环，<code>npm install</code> 时 core dump。</li>
+    </ul>
+    <p>行业也早交过学费。Kubernetes 的 API server 长期默认 Warn 模式：manifest 里 <code>spec.replicas</code> 拼成 <code>spec.replics</code>，字段被<strong>静默剪掉</strong>——dry-run 干净、apply 成功、你的改动从未发生。kubectl 如今默认发送 <code>fieldValidation=Strict</code>，就是被这类事故教育出来的；第三方客户端只要忘了带这个参数（Headlamp 到 2026 年 8 月还挂着这个 issue），就重新裸奔。Python 的 requests 库则因为"无默认 timeout、挂到天荒地老"在文档里专门加粗警告。</p>
+
+    <h2>四、为什么 AI 写的代码偏爱这条路</h2>
+    <p>这些库大多在 AI 编码循环里生长。回头看，它们偏爱这条路径不是偶然：</p>
+    <ol>
+        <li><strong>快乐路径心智</strong>。模型学的是"正确使用"的代码：concurrency 总是 8 或 16，maxAttempts 总是 3。无效值在训练分布里近乎不存在，生成的防御自然也轮不到它。</li>
+        <li><strong>礼貌默认值审美</strong>。<code>Math.min</code>、<code>?? 3</code>、<code>.includes</code>——每一行读起来都很"防御性"，实际上一个都没防。礼貌不是防线，只是礼貌。</li>
+        <li><strong>类型系统的盲区</strong>。TypeScript 的 <code>number</code> 包含 NaN、Infinity 和一切实数；<code>optional number</code> 意味着调用方传什么都合法。<strong>业务不变量（limit ≥ 1）住在类型外面</strong>，得自己写岗哨。</li>
+        <li><strong>失败的形态变了</strong>。这个家族的失败不是 exception——是一个合法值（0、undefined、false、空数组）流经正常控制流。try/catch 抓不到，日志打不出，APM 看不见。</li>
+    </ol>
+
+    <h2>五、防线：把校验搬回构造期</h2>
+    <p>四个 bug 的修复点惊人一致：都不在使用处，而在工厂函数体的最前面。<strong>错误配置应该在对象被创建的那一刻爆炸，而不是在第十次调用时静默堕落。</strong></p>
+    <pre><code>export function batch(config: BatchConfig) {
+  const { name, nodes, concurrency = Infinity } = config;
+  if (concurrency !== Infinity &amp;&amp;
+      (!Number.isFinite(concurrency) || concurrency &lt; 1)) {
+    throw new RangeError(
+      `batch("${name}"): concurrency must be &gt;= 1 or Infinity, got ${concurrency}`);
+  }
+  // ...
+}</code></pre>
+    <p>注意 <code>concurrency</code> 允许 Infinity 而 <code>throttle</code> 的 <code>limit</code> 不允许——<strong>每个 API 合法值的边界是它自己的业务决策，校验的形状跟着契约走</strong>，而不是套一个万能帮手。比帮手更值钱的是配套的红灯测试，把行为锁死：</p>
+    <pre><code>describe("throttle config gates", () =&gt; {
+  for (const bad of [0, -1, 0.5, NaN]) {
+    it(`rejects limit=${bad}`, () =&gt; {
+      expect(() =&gt; throttle(node, { limit: bad, windowMs: 1000 }))
+        .toThrow(RangeError);
+    });
+  }
+  it("rejects windowMs=0 (silent no-op)", () =&gt; {
+    expect(() =&gt; throttle(node, { limit: 1, windowMs: 0 }))
+      .toThrow(RangeError);
+  });
+});</code></pre>
+    <p>红灯先行在这里有额外价值：先确认测试在旧代码上真的红，再修绿——保证你测的是 bug 本身，而不是测试自己的拼写错误。</p>
+
+    <h2>六、带走三条</h2>
+    <ol>
+        <li><strong>每个数值参数追问一句</strong>：它落在 0、负数、NaN 时，控制流走到哪？顺着追到第一个使用点为止。<code>Array.from({length: 0})</code> 和 <code>for (i=1; i&lt;=0)</code> 都会"合法地"什么都不做。</li>
+        <li><strong>消息内容不是类型</strong>：错误分类一律 instanceof / 哨兵对象，永不 <code>.includes(message)</code>。</li>
+        <li><strong>构造期爆炸，运行期免谈</strong>：配置校验写在工厂函数第一行；边界即契约，用红灯测试钉住。</li>
+    </ol>
+    <p>上一篇说，状态字段是缓存，产物才是真相。这一篇是它的地基：<strong>汇报层可以骗你，执行层也可以——零个工人，也能提前完工，只要汇报机制足够礼貌。</strong>对半自主 agent 写出的代码，这道构造期防线不是洁癖，是地板。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

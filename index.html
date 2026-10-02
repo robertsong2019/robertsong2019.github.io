@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-03 invalid config silent death -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-03</div>
+                    <a href="posts/invalid-config-silent-death-2026-10.html" class="post-title-link">
+                        <div class="post-title">零个工人，提前完工——无效配置的四种静默死法</div>
+                    </a>
+                    <div class="post-excerpt">
+        给并发池传 concurrency: 0，Math.min(0,5)=0 个 worker，Promise.all([]) 立即 resolve，返回 completedCount: 0——一个节点都没执行，汇报圆满完成，监控面板一片祥和的绿色。langgraph-bridge（25 模块 261 测试，闲置 2.5 月）四轮红先行体检：19 个新测试 12 个首跑即红，全部共享同一段 DNA：配置落进「类型合法但业务无意义」区间时，代码不报错，带着无效配置跑出看起来正常的结果 / 四宗罪解剖（真实代码）：① batch 零工人的圆满——Array.from({length:0}) 合法地什么都不做；② throttle 同一函数两种死法——limit:0 让 timestamps.length<0 永假 → 每个调用永久排队等一个永不来的释放（死锁），windowMs:0 让窗口每次清空 → 限流器退化成直通车（no-op），一个卡死你一个放走一切；③ withRetry 传 maxAttempts:0 循环体零执行 → throw undefined，调用方 e.message 当场 TypeError——重试器自己违反「抛出最后一次错误」的契约；④ withTimeout 用 err.message.includes("timed out") 判超时 → 上游 fetch 报 "connect timed out at gateway" 被吞成降级状态，真实错误蒸发、节点「成功」返回——消息内容不是类型，字符串匹配是错误分类的赝品机制，修法=哨兵 class TimeoutError + instanceof / 家族在传播：skill-doctor flag 静默丢失、gateway client falsy-zero timeoutSeconds 被 || 默认值吃掉、npm scripts "test": "npm test --" 自递归 core dump；行业前车：K8s API server 默认 Warn 模式，spec.replicas 拼成 replics 被静默剪掉、dry-run 干净 apply 成功改动从未发生，kubectl 默认 fieldValidation=Strict 就是被教育出来的，Headlamp 2026-08 还挂着同款 issue；requests 无默认 timeout 挂到天荒地老文档加粗警告 / 为什么 AI 写的代码偏爱这条路：快乐路径心智（concurrency 总是 8 或 16，无效值不在训练分布）+ 礼貌默认值审美（Math.min/?? 3/.includes 读起来都像防御，实际一个没防）+ 类型盲区（number 包含 NaN，业务不变量 limit≥1 住在类型外面）+ 失败形态变了（不是 exception，是合法值流经正常控制流，try/catch 抓不到 APM 看不见）/ 防线=把校验搬回构造期：四个修复点都在工厂函数体最前面，错误配置在对象创建那一刻爆炸，不在第十次调用时静默堕落；concurrency 允许 Infinity 而 limit 不允许——校验的形状跟着契约走，不套万能帮手；配套表驱动红灯测试锁死行为，先红后绿保证测的是 bug 不是测试自己的拼写 / 三带走：数值参数追问「落在 0/负数/NaN 时控制流走到哪」追到第一个使用点；错误分类一律 instanceof 永不字符串匹配；构造期爆炸运行期免谈。零个工人也能提前完工，只要汇报机制足够礼貌——对半自主 agent 写的代码，构造期防线不是洁癖，是地板。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">TypeScript</span>
+                        <span class="post-tag">软件工程</span>
+                        <span class="post-tag">LLM 代码质量</span>
+                        <span class="post-tag">防御性编程</span>
+                    </div>
+                    <a href="posts/invalid-config-silent-death-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-02 diffusion llm parallel generation -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-02</div>
