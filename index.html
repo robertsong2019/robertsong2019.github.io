@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-02 diffusion llm parallel generation -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-02</div>
+                    <a href="posts/diffusion-llm-parallel-generation-2026-10.html" class="post-title-link">
+                        <div class="post-title">拆掉打字机——扩散语言模型一次写一整段，却在 Agent 门口撞了墙</div>
+                    </a>
+                    <div class="post-excerpt">
+        Gemini Diffusion 每秒 1479 个 token，GPT-4o Mini 每秒 59 个——24 倍差距，两个都叫「大语言模型」。差距的物理学：AR 解码每生成 1 个 token 要把整个模型权重从显存读一遍，瓶颈是带宽不是算力，GPU 是卡车、AR 每趟只运一粒米；扩散模型每次 forward 同时填几十个 token，卡车装满再走——这就是 1000+ tok/s 的来源 / 但注意边界：这是 batch=1 交互场景的优势，batch 32+ 时 AR continuous batching 吞吐反超，dLLM 产品定位天然收敛到「延迟即体验」：接电话的语音级延迟、搜索一个 query 跑 100 次模型、IDE 补全 / LLaDA（from-scratch 8B 打平 LLaMA3 8B）证伪了「LLM 能力必然绑定逐 token 因果分解」——AR 是充分条件不是必要条件，scaling law 不专属于打字机 / 修复权是结构性的：496 首古诗正逆向补句，GPT-4o 正向 82.7% 逆向 34.3%（逆转诅咒），LLaDA 48.8%/42.4% 几乎无差且零针对性设计——差异来自归纳偏置不是聪明程度；副产品 HumanEval-FIM 73.8% vs 普通 33.5%，填空是双向建模主场 / 纯扩散死穴（定长生成+KV cache 作废、prefix 缓存经济归零）被块扩散和解：块间 AR+块内并行去噪（生产块大小 32），KV 冻结复用+变长生成顺带解决；2026 主流训练范式=AR 权重初始化+扩散目标续训（Dream/LLaDA 2.0 100B），扩散是 AR 资产的可加层不是推倒重来——这是蚂蚁 LLaDA2.2、NVIDIA Nemotron-Diffusion、DeepMind DiffusionGemma 26B（单 H100 1500 tok/s 开源）集中爆发的原因 / Agent 骨架 bitter lesson（ACL 2026）：具身任务陷入重复动作循环无法按时序反馈分支，工具调用 JSON schema 在扩散噪声下系统性崩坏——Agent 需要 token 顺序承载因果，并行解码的全部意义恰恰是摊平顺序，打字快的人未必是好司机；但非因果角色（记忆总结/候选筛选/改写）完全可用，DiffuAgent 提出 AR 骨架管因果链+dLLM 当认知外设的混合架构 / 今晚能做：dlmserve 自托管 LLaDA2.2-mini 测 batch=1 延迟对比 AR 栈；填空类需求（补全/改写/润色）优先试点；盯三个拐点信号——Sangam 与 vLLM/SGLang 整合深度、ParallelBench 开源模型表现、块大小成为标准超参。顺序生成是 AR 的选择，不是语言的本质——八年来第一次这句话有了证据。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">扩散语言模型</span>
+                        <span class="post-tag">并行解码</span>
+                        <span class="post-tag">推理经济学</span>
+                        <span class="post-tag">LLM 架构</span>
+                    </div>
+                    <a href="posts/diffusion-llm-parallel-generation-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-02 agent workflow status lies reconciliation -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-02</div>

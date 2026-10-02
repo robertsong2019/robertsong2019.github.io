@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拆掉打字机——扩散语言模型一次写一整段，却在 Agent 门口撞了墙 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>拆掉打字机——扩散语言模型一次写一整段，却在 Agent 门口撞了墙</h1>
+    <p class="meta">
+        <span class="tag">扩散语言模型</span>
+        <span class="tag">并行解码</span>
+        <span class="tag">推理经济学</span>
+        <span class="tag">LLM 架构</span>
+        2026-10-02 · 基于 LLaDA、Mercury、Gemini Diffusion、BD3-LM、DiffusionGemma、Nemotron-Diffusion、Bitter Lesson (ACL 2026) 等 16 个源的调研
+    </p>
+
+    <blockquote>打电话时对方问了一个问题，你的 AI 助理要隔两秒才吐出第一个字——不是它不会答，是它还在逐字生成思维链。2026 年 7 月，Inception Labs 给自家新产品写的宣传语是"第一个快到能接电话的推理模型"。数字更直观：Gemini Diffusion 每秒 1479 个 token，GPT-4o Mini 每秒 59 个，24 倍差距，而两个都叫"大语言模型"。这个差距不是工程优化的红利，是一群人试图拆掉 LLM 世界里那台统治了八年的打字机。</blockquote>
+
+    <h2>一、打字机的心魔：自回归为什么快不起来</h2>
+    <p>自回归（AR）生成有个深入骨髓的设定：<strong>下一个 token 只依赖已经生成的所有 token，且只能有一个"下一个"</strong>。这让 LLM 变成了一台打字机——一个字一个字往右敲，敲出去的永不回头。这个设定带来了 KV cache、prefix 缓存、speculative decoding 一整套繁荣的推理生态，但也埋了一堵墙。</p>
+    <p>墙的学名叫 <strong>memory wall</strong>。AR 解码每生成 1 个 token，都要把整个模型的权重从显存完整读一遍——一个 8B 模型 fp16 权重约 16GB，生成 1000 个 token 就是 1000 次全量读取。瓶颈根本不是 GPU 的算力（FLOPs 大量闲置），而是显存带宽。打个比方：GPU 是一辆大卡车，AR 每趟只运一粒米，还美其名曰"流水线"。</p>
+    <p>传统解法是 batching：把 32 个请求捆一起，卡车总算装满了。但你一个人用的时候 batch=1，卡车还是一粒米一粒米地运——<strong>这就是为什么单请求交互延迟八年来几乎没降</strong>。你在对话框里等的那两秒，等的是显存带宽，不是模型的思考。</p>
+
+    <h2>二、扩散不是画图的专利</h2>
+    <p>扩散模型生成图像的方式你已经见过：从一团噪声开始，一步步"去噪"显影。2021 年就有人把它搬到文本上（D3PM），只是文本的噪声不是高斯的，而是离散的——<strong>把 token 逐步"涂黑"，直到整段文字全黑；反向过程就是修复一幅被涂黑的名言</strong>。修复师每一轮都能同时看到全局：右边的字可以帮着猜左边的字，上句和下句互相印证。</p>
+    <p>但这条路走了三年都太弱——生成困惑度（Gen PPL）长期是 AR 模型的三四倍。转折点是 2024 年：SEDD 给离散扩散找到了正确的 score entropy 目标，MDLM 把训练简化成一次 masked 交叉熵（稳定得像普通 MLM 训练）。然后就是 2025 年 2 月的 LLaDA：从零训练的 8B 扩散模型，在 15 个标准 zero/few-shot 任务上与 LLaMA3 8B 打平。</p>
+    <p>这件事的意义值得单独说。<strong>"LLM 的能力必然来自逐 token 的因果分解"——这个八年没人质疑的假设，被证伪了。</strong>AR 是充分条件，不是必要条件。scaling law 不专属于打字机。</p>
+    <p>紧接着商用落地：Inception Labs 的 Mercury Coder（2025 年 2 月，首个商用 dLLM，H100 上 1109 tok/s），Google 的 Gemini Diffusion（2025 年 5 月 I/O，1479 tok/s）。质量对齐的证据也很硬：HumanEval 上 Gemini Diffusion 89.6% vs 它的 AR 孪生 90.2%，MBPP 甚至反超。快五到十倍，质量不掉。</p>
+
+    <h2>三、说出去的话可以收回：修复权是结构性的</h2>
+    <p>LLaDA 论文里最有味道的实验，是拿 496 首古诗考模型：给上一句，要么接下一句（正向），要么补上一句（逆向）。结果：</p>
+    <table>
+        <tr><th>模型</th><th>正向接句</th><th>逆向补句</th><th>落差</th></tr>
+        <tr><td>GPT-4o</td><td>82.7%</td><td>34.3%</td><td>-48.4pp</td></tr>
+        <tr><td>LLaDA 8B</td><td>48.8%</td><td>42.4%</td><td>-6.4pp</td></tr>
+    </table>
+    <p>GPT-4o 正向碾压——毕竟训练数据多几个数量级——但逆向直接崩塌。这就是著名的"逆转诅咒"（reversal curse）：AR 模型学会了"A 是 B"，却推不出"B 是 A"。而 LLaDA 正逆几乎无差。</p>
+    <p>关键在于：LLaDA 没有为这个任务做任何针对性设计。差异完全来自架构本身——AR 的归纳偏置是"只见来路，不见去路"，token 被锁死在时间顺序里；扩散模型双向注意力，每个 token 被均匀对待，右边的上下文天然可以修正左边的决定。<strong>这不是谁更聪明的差距，是谁拥有"修复权"的差距。</strong>对 AR 模型，说出去的话是泼出去的水；对扩散模型，最后一轮去噪之前都可以反悔。</p>
+    <p>这个结构性优势有一个立刻能用的落点：<strong>填空</strong>。LLaDA 在 HumanEval-FIM（fill-in-the-middle，代码补全）上拿到 73.8%，而普通 HumanEval 只有 33.5%——中间那截"前后都有约束"的场景，正是双向建模的主场。你每天在 IDE 里按下 tab 时等的那个补全，就是 dLLM 最先吃下的地盘。</p>
+
+    <h2>四、缓存的护城河，与块扩散的和解</h2>
+    <p>但纯扩散模型有两个死穴，2025 年上半年大家都不爱提：</p>
+    <ul>
+        <li><strong>定长生成</strong>：先预留一个 max length 再去噪，写 200 字也要预留 2048 格，算力白烧一半以上；</li>
+        <li><strong>没有 KV cache</strong>：双向注意力每轮去噪都要对全序列重新计算，AR 生态最值钱的 prefix 缓存（"系统提示词只算一次"）直接作废。缓存经济是 AR 推理成本的护城河，纯扩散等于把护城河填了。</li>
+    </ul>
+    <p>解法是一个漂亮的插值：<strong>块扩散（Block Diffusion，BD3-LM，ICLR 2025 Oral）——块与块之间自回归，块内部并行去噪</strong>。一个块（生产上典型 32 个 token）完成后，它的 KV 冻结复用；变长生成顺带解决（EOS 可以在任意块出现）。生成困惑度反而降到 ≤28.23，比所有纯扩散前作都好——块间的 AR 结构补上了长程依赖这块短板。2025 年底的 Fast-dLLM v2 再进一步：去噪步之间的 KV 激活近似不变，可以近似复用，训练都不用改。</p>
+    <p>到 2026 年，行业已经收敛：<strong>赢家不是纯 AR，也不是纯扩散，而是这条插值谱系</strong>。块大小成了像 temperature 一样可调的超参——块越小越像打字机（质量稳、并行度低），块越大越像修复师（快、可修复、难缓存）。训练侧同样收敛：2026 年主流不再是 from-scratch，而是拿现成 AR 权重初始化再续训扩散目标（Dream 7B、LLaDA 2.0 的 100B 多阶段转化）。扩散变成了 AR 资产上的可加层，不是推倒重来——这就是 2026 年蚂蚁 LLaDA2.2（100B flash / 16B MoE mini）、NVIDIA Nemotron-Diffusion（3B/8B/14B）、DeepMind DiffusionGemma（26B 开源，单张 H100 跑 1500 tok/s）集中冒出来的直接原因：转化成本可控，大家付得起。</p>
+
+    <h2>五、快在哪、不快在哪：给工程人员的诚实版地图</h2>
+    <p>部署实测（Spheron，2026 年 4 月）给了两张必须一起看的图：</p>
+    <table>
+        <tr><th>场景</th><th>batch</th><th>谁赢</th><th>为什么</th></tr>
+        <tr><td>交互对话 / IDE 补全</td><td>1–4</td><td><strong>dLLM 快 3–8×</strong></td><td>AR 的卡车只运一粒米；dLLM 每次 forward 填几十个 token，compute-bound 红利全额兑现</td></tr>
+        <tr><td>高并发吞吐</td><td>32+</td><td>AR 反超或打平</td><td>continuous batching 把 AR 的卡车也装满了，dLLM 的单请求优势被摊薄</td></tr>
+    </table>
+    <p>所以 dLLM 的产品定位不是"取代 LLM"，而是收敛到一类非常明确的场景：<strong>延迟即体验，或延迟即预算</strong>。Mercury 2 能"接电话"（语音级往返延迟）；Mercury 2 for Search 敢在一个 query 里跑 100 次模型——把 LLM 从"一次昂贵的神谕"降格成"一个随手可用的算子"，这个用法在 AR 的延迟下根本不成立。代码补全是第三块：FIM 天然主场 + 开发者对 200ms 延迟的洁癖。</p>
+    <p>冷水也要倒足：开源裸模型（LLaDA 1.x、Dream 原始实现）推理其实<strong>慢于</strong> AR——"扩散=快"只在深度优化过解码调度的商用版上成立；vLLM/SGLang 对 dLLM 的支持到 2026 年 4 月仍是实验性，自托管得走 dlmserve 这类新引擎（好在 OpenAI API 兼容）；复杂代码推理上 Mercury Coder Mini 的 LiveCodeBench 只有 17 分，DeepSeek 同级是 37.8——<strong>dLLM 目前赢在"快且够用"的生成带，"慢而精确"的推理带还是 AR 的</strong>。</p>
+
+    <h2>六、Agent 门口的墙：快解码造不出 Agent</h2>
+    <p>故事到这里都很顺：快五倍、能修复、缓存问题解决了、开源生态起来了——拿它当 Agent 的骨架岂不美哉？2026 年 1 月，一篇标题就带着火药味的论文（The Bitter Lesson of Diffusion Language Models for Agentic Workflows，ACL 2026）把冷水浇到底：系统评测 LLaDA、Dream 等 dLLM 的 Agent 能力，结果是系统性失败，两种姿势都很惨——</p>
+    <ul>
+        <li><strong>具身 Agent（AgentBoard）</strong>：陷入重复动作循环，无法根据时序反馈分支——计划执行到第三步发现第一步错了，dLLM 不会回头改计划，只会把已做的动作再做一遍；</li>
+        <li><strong>工具调用（BFCL）</strong>：严格 JSON schema 在扩散噪声下系统性崩坏——函数名对了、参数名差一个引号，这种"差一点"在并行去噪里是常态。</li>
+    </ul>
+    <p>根因一句话：<strong>Agent 需要 token 的顺序承载因果</strong>（先取参数、再调工具、再读结果），而并行解码的全部意义恰恰是把顺序摊平。打字快的人未必是好司机——驾驶是因果链，不是吞吐量。</p>
+    <p>但这篇论文的下半段比上半段更有用：dLLM 在<strong>非因果角色</strong>上完全可用——记忆总结、候选方案筛选、文档改写。作者据此做了 DiffuAgent 框架：AR 骨架管因果链，dLLM 当"认知外设"管并行加工。这大概率就是未来一年 Agent 架构的真实形态：<strong>不是谁取代谁，而是因果和并行各归其位。</strong></p>
+
+    <h2>七、今晚能做什么</h2>
+    <ul>
+        <li><strong>亲手摸一次</strong>：用 dlmserve（OpenAI API 兼容）自托管 LLaDA2.2-mini（16B MoE，1.4B 激活，128K 上下文），写个脚本测 batch=1 的首 token 延迟和吞吐，和你的 vLLM/Ollama AR 栈同题对比——"compute-bound 红利"值不值，自己的卡说了算；</li>
+        <li><strong>找填空场景</strong>：如果你的产品里有"给定上下文补中间一段"的需求（补全、改写、翻译润色），这是 dLLM 结构性优势位（FIM 73.8% vs 33.5%），优先试点；</li>
+        <li><strong>把 dLLM 当外设</strong>：Agent 工作流里的记忆总结、候选筛选这类非因果环节，可以试着换成 dLLM——Bitter Lesson 的正面结论就是给你的许可；</li>
+        <li><strong>盯三个拐点信号</strong>：Sangam/dlmserve 与 vLLM、SGLang 的整合深度（serving 栈合并之日就是采用率起飞之日）；ParallelBench 上开源模型的"快了多少、错了多少"曲线；块大小是否会成为各 API 的标准超参。看这三个，比看模型榜单有用。</li>
+    </ul>
+
+    <h2>尾声</h2>
+    <p>回看这十八个月：LLaDA 证明路走得通，Mercury 和 Gemini Diffusion 证明能卖钱，块扩散证明护城河可以不填，Bitter Lesson 证明边界在哪。打字机没有被拆掉——它只是第一次发现自己不是唯一的机器。修复师搬进了隔壁工位：写正文还是打字机快，但填空、润色、并行打底稿的活，正在易主。对做工程的人，值得记住的只有一句：<strong>顺序生成是 AR 的选择，不是语言的本质。</strong>八年来第一次，这句话有了证据。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
