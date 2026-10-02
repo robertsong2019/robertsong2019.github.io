@@ -1,10 +1,10 @@
 {
- "lastUpdated": "2026-10-01T22:03:49Z",
- "generatedAt": "2026-10-02 06:03 CST",
+ "lastUpdated": "2026-10-02T22:03:32Z",
+ "generatedAt": "2026-10-03 06:03 CST",
  "system": {
   "gateway": {
    "status": "running",
-   "pid": 2963776,
+   "pid": 3327955,
    "port": 34524,
    "bind": "lan (0.0.0.0)",
    "nodeVersion": "v22.22.1",
@@ -13,8 +13,8 @@
   "host": {
    "os": "Linux 6.8.0-71-generic (x64)",
    "hostname": "VM-0-5-ubuntu",
-   "uptime": "162 days, 16 hours, 42 minutes",
-   "loadAverage": "0.57, 0.25, 0.11",
+   "uptime": "163 days, 16 hours, 42 minutes",
+   "loadAverage": "0.68, 0.22, 0.08",
    "disk": {
     "total": "50G",
     "used": "32G",
@@ -23,28 +23,27 @@
    },
    "memory": {
     "totalMB": 1935,
-    "usedMB": 1419,
-    "freeMB": 306,
-    "availableMB": 516
+    "usedMB": 1360,
+    "freeMB": 309,
+    "availableMB": 575
    }
   },
   "model": "zai/glm-5.3-flash"
  },
  "cronSummary": {
   "total": 7,
-  "ok": 5,
-  "error": 2,
+  "ok": 6,
+  "error": 1,
   "running": 1,
   "errorJobs": [
-   "github-trending-deep-analysis",
    "github-creative-evening"
   ],
   "notes": [
-   "ai-neuroscience-research 已从 cron 删除（此前连续 58 次报错，今日列表 8→7 个任务）",
-   "github-trending-deep-analysis: 昨晨 08:00 rate_limit（3 个模型全限流），今日 08:00 自动重试",
-   "github-creative-evening: 昨晚 19:00 超时（300s timeout），连续错误 1，观察今晚",
-   "其余 5 任务全部 ok 且投递正常；dashboard-update-morning 正在运行（本快照）",
-   "主机可用内存降至 ~516MB（昨日 819MB），持续观察"
+   "github-trending-deep-analysis 已恢复：昨晨 rate_limit 报错后，今晨 08:00 重跑成功（err 2→1）",
+   "github-creative-evening 仍在恶化：昨晚 19:00 再次 300s 超时，连续错误 2 次（需关注 timeoutSeconds=600 配置是否生效）",
+   "essay-generation-morning 今晨 05:00 正常产出并推送博文",
+   "dashboard-update-morning 正在运行（本快照）",
+   "主机可用内存 575MB（昨日 516MB，略回升）；磁盘 68% 持平"
   ]
  },
  "cronJobs": [
@@ -61,31 +60,31 @@
    "name": "github-trending-daily",
    "schedule": "0 7 * * *",
    "status": "ok",
-   "lastRun": "23h ago",
+   "lastRun": "23.1h ago",
    "consecutiveErrors": 0
   },
   {
    "id": "2c714952",
    "name": "github-trending-deep-analysis",
    "schedule": "0 8 * * *",
-   "status": "error",
-   "lastRun": "22h ago",
-   "consecutiveErrors": 1
+   "status": "ok",
+   "lastRun": "22.1h ago",
+   "consecutiveErrors": 0
   },
   {
    "id": "ad37c59a",
    "name": "github-creative-evening",
    "schedule": "0 19 * * *",
    "status": "error",
-   "lastRun": "11h ago",
-   "consecutiveErrors": 1
+   "lastRun": "11.1h ago",
+   "consecutiveErrors": 2
   },
   {
    "id": "a4bf5e2a",
    "name": "deep-exploration-evening",
    "schedule": "0 20 * * *",
    "status": "ok",
-   "lastRun": "10h ago",
+   "lastRun": "10.1h ago",
    "consecutiveErrors": 0
   },
   {
@@ -93,7 +92,7 @@
    "name": "knowledge-organization-morning",
    "schedule": "0 2 * * *",
    "status": "ok",
-   "lastRun": "4h ago",
+   "lastRun": "4.1h ago",
    "consecutiveErrors": 0
   },
   {
@@ -101,53 +100,53 @@
    "name": "essay-generation-morning",
    "schedule": "0 5 * * *",
    "status": "ok",
-   "lastRun": "1h ago",
+   "lastRun": "1.1h ago",
    "consecutiveErrors": 0
   }
  ],
  "sessions": {
   "total": 50,
-  "active24h": 16,
+  "active24h": 15,
   "byKind": {
    "direct": 49,
    "group": 1
   },
   "notable": [
    {
-    "type": "77a5bcc6-1342-4ff4-83",
-    "lastActive": "5.1d ago",
+    "type": "77a5bcc6-1342-4ff4-",
+    "lastActive": "6.1d ago",
     "model": "glm-5.3-flash",
     "context": "126k total tokens"
    },
    {
-    "type": "265091b6-6c5f-4afb-84",
-    "lastActive": "33.4d ago",
+    "type": "265091b6-6c5f-4afb-",
+    "lastActive": "34.4d ago",
     "model": "glm-5.3-flash",
     "context": "117k total tokens"
    },
    {
-    "type": "d53b1d9f-2820-4fc8-b4",
-    "lastActive": "4h ago",
-    "model": "glm-5.1",
-    "context": "106k total tokens"
+    "type": "main",
+    "lastActive": "15m ago",
+    "model": "glm-5",
+    "context": "115k total tokens"
    },
    {
-    "type": "78eac6fc-c2d7-41d2-a5",
-    "lastActive": "5.3d ago",
+    "type": "78eac6fc-c2d7-41d2-",
+    "lastActive": "6.3d ago",
     "model": "glm-5.3-flash",
     "context": "106k total tokens"
    },
    {
-    "type": "b0fd7e8d-f946-4228-bb",
-    "lastActive": "5.2d ago",
+    "type": "b0fd7e8d-f946-4228-",
+    "lastActive": "6.2d ago",
     "model": "glm-5.3-flash",
     "context": "104k total tokens"
    },
    {
-    "type": "main",
-    "lastActive": "16m ago",
-    "model": "glm-5",
-    "context": "102k total tokens"
+    "type": "fd0515b0-f483-411d-",
+    "lastActive": "34.2d ago",
+    "model": "glm-5.3-flash",
+    "context": "87k total tokens"
    }
   ]
  }
