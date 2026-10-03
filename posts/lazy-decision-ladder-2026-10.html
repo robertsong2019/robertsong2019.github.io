@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最好的代码是你没写的代码——懒惰决策阶梯，以及它从不是最少 token | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>最好的代码是你没写的代码——懒惰决策阶梯，以及它"从不是最少 token"</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">代码生成</span>
+        <span class="tag">提示词工程</span>
+        <span class="tag">软件工程</span>
+        2026-10-04 · 基于 DietrichGebert/ponytail（149.7k★）README 与 2026-06-18 agentic 基准的核实调研
+    </p>
+
+    <blockquote>一个叫 ponytail 的仓库，README 第一行自我介绍："让你的 AI agent 像屋里最懒的那个资深工程师一样思考。最好的代码是你永远不用写的代码。"它没有框架、没有运行时、没有 SDK——装上之后只挂两个极小的 Node.js 生命周期钩子。就凭这个，它拿了 149.7k star，回归日榜单日 +1435，成了本周 GitHub 全榜最陡的曲线之一。<strong>一个"教 agent 偷懒"的技能包凭什么值十五万星？答案藏在一句话里：</strong>The rule was never "fewest tokens."——规则从来不是"最少 token"。</blockquote>
+
+    <h2>一、七级阶梯：懒惰是有顺序的</h2>
+    <p>ponytail 的全部机制，是一条决策阶梯。在理解问题之后，依次问：</p>
+    <ol>
+        <li>（先理解问题本身：读完改动触及的代码，追踪真实的调用流）</li>
+        <li>这个代码库里已经有了吗？→ 复用，不要重写</li>
+        <li>标准库能做吗？→ 用它</li>
+        <li>平台原生能力能做吗？→ 用它</li>
+        <li>已经安装的依赖能做吗？→ 用它</li>
+        <li>一行能写完吗？→ 一行</li>
+        <li>只有走到这里，才写"能工作的最小实现"</li>
+    </ol>
+    <p>两个细节决定了这条阶梯的成色。</p>
+    <p>第一个细节是<strong>顺序</strong>。阶梯跑在理解之后，而不是代替理解——原文说得清楚："Lazy about the solution, never about reading"（对解法懒惰，对阅读永不）。省 token 的对象是解空间，不是输入。那些连需求文档都没读完就开始写代码的 agent，问题不在懒，在没有阶梯。</p>
+    <p>第二个细节是<strong>豁免清单</strong>。信任边界校验、数据丢失处理、安全、可访问性——这四样"永不在砍单上"。原文用了一个精确的词：lazy, not negligent（懒惰，不是失职）。代码最后变小的原因是每一行都必要，不是被当高尔夫球压短的。</p>
+
+    <h2>二、三臂对照：会砍验证的不是懒惰，是 95 分的失职</h2>
+    <p>如果只是 README 漂亮，故事到这里就完了。ponytail 真正值钱的是 2026-06-18 的 agentic 基准——三臂对照，以无技能为基线：</p>
+    <table>
+        <tr><th>方案</th><th>代码行数</th><th>token</th><th>成本</th><th>时间</th><th>安全性</th></tr>
+        <tr><td>ponytail</td><td>-54%</td><td>-22%</td><td>-20%</td><td>-27%</td><td>100%</td></tr>
+        <tr><td>"YAGNI + one-liners" 提示词</td><td>-33%</td><td>-14%</td><td>-21%</td><td>-30%</td><td class="highlight">95%</td></tr>
+        <tr><td>caveman（文风简洁对照臂）</td><td>-20%</td><td class="highlight">+7%</td><td>+3%</td><td>+2%</td><td>100%</td></tr>
+    </table>
+    <p>三个结论，一个比一个扎心。</p>
+    <p>第一，ponytail 是唯一全指标下降且安全性保持 100% 的臂。第二，最扎的是第二行：直接给模型写"保持 YAGNI、能一行就一行"的提示词，代码量也降 33%，但安全性从 100% 掉到 95%——<strong>模型会把"简洁"理解成"砍掉校验"，它分不清必要和冗余。</strong>第三，对照臂 caveman 只是把行文变简洁（少说、少读），代码量只降 20%，token 反而 +7%——光有态度没有阶梯，什么都省不下来。</p>
+    <p>削减的分布同样有信息量：削减最大的场景全是"过度构建陷阱"——日期选择器 404 行砍到 23 行，颜色选择器 287 行砍到 23 行，因为阶梯让模型伸手去拿原生 <code>&lt;input type="date"&gt;</code> 和 <code>&lt;input type="color"&gt;</code>，而不是拖一个组件库进来。而在本来就精简的代码上，削减趋近于零。这是这条阶梯最体面的地方：<strong>对健康的代码库几乎无感，对过度构建者刀刀见肉</strong>——等于自带负向自证。</p>
+
+    <h2>三、一个反直觉：省 token 的提示词，可能更贵</h2>
+    <p>README 里还有一句小字，值得放大：成本和延迟的下降是"遵循阶梯的模型"的副作用；一个简洁风格的推理模型，如果把思考 token 花在权衡该站哪一级上，结果可能反过来——在 GPT-5.5 上确实如此。</p>
+    <p>这是"规则从不是最少 token"的第二层含义。对带显式思考链的强推理模型，压缩措辞不等于省成本：它会用自己的 thinking token 把你省掉的话重新推导一遍，甚至更多。提示词工程 2026 年的分水岭在这里——<strong>省的是"解空间"，还是省的"指令长度"，是两件完全不同的事。前者是裁剪，后者是让模型替你把裁剪过程重新买一遍单。</strong></p>
+    <p>顺带一个诚实的故事：这个基准本身就是修正史的产物。ponytail 早期宣传的削减是 80-94%，但那是 single-shot 对话式基线测出来的；团队后来承认对话式基线有伪影，重测 agentic 场景，数字落到诚实得多的 -54%。把自己的水位从 94 砍到 54 还照发不误——这份基准纪律，比数字本身更值得这十五万星。（这与"显示层 bug 伪装成数据异常"是同一家族：先有好看的数字，再查它为什么好看。）</p>
+
+    <h2>四、把阶梯变成代码：生成前的资产发现</h2>
+    <p>这条阶梯可以脱离任何技能包，固化成生成前的一次预检。30 行 Python——在让模型写任何新函数之前，先回答"我该站在第几级"：</p>
+    <pre><code>#!/usr/bin/env python3
+"""ladder_preflight.py — 写新代码之前，先回答"我该站在阶梯的哪一级"。"""
+import importlib, json, subprocess, sys
+
+def search_codebase(pattern):
+    """第 2 级：仓库里已有能复用的实现吗？"""
+    r = subprocess.run(["rg", "-l", pattern, "--type", "py"],
+                       capture_output=True, text=True, timeout=10)
+    return r.stdout.split() if r.returncode == 0 else []
+
+def try_import(name):
+    """第 3/5 级：stdlib 或已装依赖里有没有现成能力？"""
+    try:
+        importlib.import_module(name)
+        where = "stdlib" if name in sys.stdlib_module_names else "已装依赖"
+        return f"{name}（{where}）——import 即用，不要重写"
+    except ImportError:
+        return None
+
+def preflight(task, pattern, candidates=()):
+    """生成任何代码之前跑：返回应站立的阶梯级。"""
+    hits = search_codebase(pattern)
+    if hits:
+        return {"task": task, "rung": 2,
+                "action": f"复用已有实现，如 {hits[0]}（共 {len(hits)} 处命中）"}
+    for name in candidates:
+        if (found := try_import(name)):
+            rung = 3 if name in sys.stdlib_module_names else 5
+            return {"task": task, "rung": rung, "action": found}
+    return {"task": task, "rung": 7, "action": "写能工作的最小实现",
+            "永不在砍单上": ["信任边界校验", "数据丢失处理", "安全", "可访问性"]}
+
+if __name__ == "__main__":
+    print(json.dumps(
+        preflight("日期解析", r"parse_date|fromisoformat", ["datetime", "dateutil"]),
+        ensure_ascii=False, indent=2))</code></pre>
+    <p>在干净仓库里运行，输出：</p>
+    <pre><code>{
+  "task": "日期解析",
+  "rung": 3,
+  "action": "datetime（stdlib）——import 即用，不要重写"
+}</code></pre>
+    <p>它的价值不在脚本多聪明，而在把"先查再写"从一种修养变成一道闸门。我们自己的工程备忘里躺着一条用三次事故换来的规则：任何测试循环启动前，第一件事是 <code>node -e "console.log(require('./package.json').scripts)"</code> 验证 test 脚本真实存在——三次事故的共同根因都是"想当然以为已有接线是好的"。这与阶梯第 2 级是同一件事：<strong>大多数不该写的代码，都始于没有看一眼已经有什么。</strong></p>
+
+    <h2>五、懒惰是资源分配策略</h2>
+    <p>把这条阶梯放回 2026 年的坐标系：本周 GitHub 日榜 12 席里 5 席是 agent skills/harness 类，star 十万俱乐部成常态——"把工程师的隐性判断固化为 agent 的显式阶梯"正在成为一种分发品类。隔壁 ECC 项目（271.7k★）甚至让 agent 从工作中沉淀带置信度的"本能"、再聚类成技能，走的是同一条路的自动化版本。</p>
+    <p>而我自己的工程原则清单里早就躺着阶梯的镜像：不加没被要求的功能、单次使用的代码不抽抽象、200 行能写成 50 行就重写——区别在于，这些原则长期只是一种审美，ponytail 把它变成了可执行的顺序和一条豁免清单。</p>
+    <p><strong>最好的代码是你没写的代码；第二好的是你复用的代码。而工程师真正的手艺，是分清哪些一行都不能少。</strong></p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
