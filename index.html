@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-03 context rot engineering -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-03</div>
+                    <a href="posts/context-rot-engineering-2026-10.html" class="post-title-link">
+                        <div class="post-title">窗口还空着一半，模型已经开始忘了——上下文腐烂与上下文工程</div>
+                    </a>
+                    <div class="post-excerpt">
+        Agent 干活两小时后开始漂移：重读总结过的文件、忘掉开头给的约束、同一工具换参数反复调——一查日志窗口还空着一半。不是记不下，是变笨了：context rot（上下文腐烂），2026 年长时 agent 上线的头号拦路虎 / 证据链三连：Chroma 测 18 个前沿模型——输入越长表现越不可靠，哪怕任务简单到复制文本；反直觉发现①打乱的草堆比连贯文本表现更好（结构模式干扰注意力，呈现方式与存在同等重要）②一个语义相近干扰项就拉低基线；NoLiMa 去掉词面重叠后 11/12 模型 32K 处跌破基线一半，GPT-4o 99.3%→69.7%——大海捞针演示靠字面匹配严重高估真实利用能力；RULER：标称与有效上下文差最高 99%，有效上下文是模型×任务的函数不是参数 / 机理：注意力不是硬盘是黄油——token 越多摊得越薄，Lost in the Middle 三年没解决只被推远；StreamingLLM 发现开头几个 token 是注意力沉槽必须永久保留；失败模式分家族——Claude 保守弃答 vs GPT 干扰项下幻觉↑，直接可用于选型；推理模型自产腐烂——thinking token 是污染源，推理轨迹是 KV 压缩最脆弱场景（GSM8K 上 SnapKV 守住 0.80 而 H2O 崩到 0.33）/ 解药一 compaction 的两个坑：钱——Bouchard 生产实测 11 种压缩策略 vs 什么都不做，do-nothing 在召回/成本/延迟三项同时全胜，因为 prompt cache 命中 97%、缓存 token 便宜 50 倍而重写即失效，压缩须缩小 50 倍以上才回本——压缩是对具名约束的响应不是默认习惯；命——Governance Decay：约束条款是上下文里最先死的部分，注意力稀释被动衰减 + 压缩主动删除双通道，失败签名极隐蔽（agent 其余能力完好，只是第 40 轮愉快违反第 2 轮的规矩），结论：事实可以被摘要，约束必须被重注入 / 解药二：检索钟摆第三次摆动 RAG→长上下文→agent-as-retriever，Claude Code/Cursor/Windsurf 已不建向量索引改把 grep/read/AST 暴露成工具让模型自己搜，MIT RLM 递归 spawn 子实例处理 10M+ token——上下文工程从「为模型准备证据」变成「让模型管理自己的注意力」/ 服务层：KV cache 32K 起超参数内存、1M 时吃 70-90% 显存，五族技术叠加压 4-40 倍否则 1M 窗口经济上不成立 / 五件事今晚能做：测自己的有效上下文别信 spec、审计压缩触发点的具名约束、约束从可压缩历史拆出压缩后重注入、新项目试点 agent-as-retriever、推理模型单独做压缩评测。信息在窗口里≠被使用——2026 年能上生产的 agent 赢的不是模型最大那批，是上下文管理最有纪律的那批。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">LLM</span>
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">上下文工程</span>
+                        <span class="post-tag">推理基础设施</span>
+                    </div>
+                    <a href="posts/context-rot-engineering-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-03 invalid config silent death -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-03</div>
