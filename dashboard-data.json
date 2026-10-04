@@ -1,10 +1,10 @@
 {
-  "lastUpdated": "2026-10-03T22:03:09Z",
-  "generatedAt": "2026-10-04 06:03 CST",
+  "lastUpdated": "2026-10-04T22:02:55Z",
+  "generatedAt": "2026-10-05 06:02 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 3680269,
+      "pid": 4038428,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
@@ -13,19 +13,19 @@
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "23 weeks, 3 days, 16 hours, 43 minutes",
-      "loadAverage": "0.09, 0.14, 0.06",
+      "uptime": "165 days, 16 hours, 41 minutes",
+      "loadAverage": "0.55, 0.21, 0.11",
       "disk": {
         "total": "/dev/vda2",
-        "used": "50G",
-        "available": "32G",
+        "used": "32G",
+        "available": "16G",
         "usage": "68%"
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1313,
-        "freeMB": 337,
-        "availableMB": 622
+        "usedMB": 1317,
+        "freeMB": 384,
+        "availableMB": 617
       }
     },
     "model": "zai/glm-5.3-flash"
@@ -33,18 +33,15 @@
   "cronSummary": {
     "total": 7,
     "ok": 6,
-    "error": 1,
+    "error": 0,
     "running": 1,
-    "errorJobs": [
-      "knowledge-organization-morning"
-    ],
+    "errorJobs": [],
     "notes": [
-      "github-creative-evening 已恢复：昨晚 19:00 正常完成（err 2→0），此前连续 2 次超时的 alarm 解除",
-      "knowledge-organization-morning 今晨 02:00 报错（Edit memory/2026-10-03.md failed，单次编辑失败非系统性，err 0→1，次日 02:00 观察是否复发）",
-      "essay-generation-morning 今晨 05:00 正常产出并推送博文（76e2470）",
+      "全线绿灯：7 个 cron 任务全部 ok，连续错误 0（昨日 knowledge-organization-morning 的 err 1 已在今晨 02:00 自愈 1→0）",
+      "essay-generation-morning 今晨 05:00 正常产出并推送博文（c2a36af）",
       "dashboard-update-morning 正在运行（本快照）",
-      "Gateway PID 3680269（昨日快照 3327955，24h 内重启过一次）",
-      "主机可用内存 ~600MB（昨日 575MB，略回升）；磁盘 68% 持平"
+      "Gateway PID 4038428（昨日快照 3680269，24h 内又重启过一次，RPC probe ok）",
+      "主机可用内存 ~617MB（昨日 622MB，持平）；磁盘 68% 持平；load 峰值 0.55 来自本任务构建"
     ]
   },
   "cronJobs": [
@@ -53,23 +50,23 @@
       "name": "github-creative-evening",
       "schedule": "0 19 * * *",
       "status": "ok",
-      "lastRun": "11.1h ago",
+      "lastRun": "11.0h ago",
       "consecutiveErrors": 0
     },
     {
       "id": "1ea6e3b0",
       "name": "knowledge-organization-morning",
       "schedule": "0 2 * * *",
-      "status": "error",
-      "lastRun": "4.1h ago",
-      "consecutiveErrors": 1
+      "status": "ok",
+      "lastRun": "4.0h ago",
+      "consecutiveErrors": 0
     },
     {
       "id": "a4bf5e2a",
       "name": "deep-exploration-evening",
       "schedule": "0 20 * * *",
       "status": "ok",
-      "lastRun": "10.1h ago",
+      "lastRun": "10.0h ago",
       "consecutiveErrors": 0
     },
     {
@@ -77,14 +74,14 @@
       "name": "essay-generation-morning",
       "schedule": "0 5 * * *",
       "status": "ok",
-      "lastRun": "1.1h ago",
+      "lastRun": "1.0h ago",
       "consecutiveErrors": 0
     },
     {
       "id": "f38e0365",
       "name": "dashboard-update-morning",
       "schedule": "0 6 * * *",
-      "status": "ok",
+      "status": "running",
       "lastRun": "1.0d ago",
       "consecutiveErrors": 0
     },
@@ -93,7 +90,7 @@
       "name": "github-trending-daily",
       "schedule": "0 7 * * *",
       "status": "ok",
-      "lastRun": "23.1h ago",
+      "lastRun": "23.0h ago",
       "consecutiveErrors": 0
     },
     {
@@ -101,7 +98,7 @@
       "name": "github-trending-deep-analysis",
       "schedule": "0 8 * * *",
       "status": "ok",
-      "lastRun": "22.1h ago",
+      "lastRun": "22.0h ago",
       "consecutiveErrors": 0
     }
   ],
@@ -114,38 +111,44 @@
     },
     "notable": [
       {
-        "type": "77a5bcc6-1342-4ff4-",
-        "lastActive": "20722.8d ago",
+        "type": "main",
+        "kind": "direct",
+        "lastActive": "15.1m ago",
+        "model": "glm-5",
+        "context": "138k total tokens"
+      },
+      {
+        "type": "77a5bcc6-1342-4",
+        "kind": "direct",
+        "lastActive": "8.1d ago",
         "model": "glm-5.3-flash",
         "context": "126k total tokens"
       },
       {
-        "type": "main",
-        "lastActive": "20729.9d ago",
-        "model": "glm-5",
-        "context": "126k total tokens"
+        "type": "1ea6e3b0-4744-4",
+        "kind": "direct",
+        "lastActive": "4.0h ago",
+        "model": "glm-5.1",
+        "context": "121k total tokens"
       },
       {
-        "type": "265091b6-6c5f-4afb-",
-        "lastActive": "20694.5d ago",
+        "type": "804bc410-e768-4",
+        "kind": "direct",
+        "lastActive": "4.0h ago",
+        "model": "glm-5.1",
+        "context": "121k total tokens"
+      },
+      {
+        "type": "265091b6-6c5f-4",
+        "kind": "direct",
+        "lastActive": "36.4d ago",
         "model": "glm-5.3-flash",
         "context": "117k total tokens"
       },
       {
-        "type": "1ea6e3b0-4744-4b45-",
-        "lastActive": "20729.8d ago",
-        "model": "glm-5.1",
-        "context": "109k total tokens"
-      },
-      {
-        "type": "8da09cd7-e52b-4852-",
-        "lastActive": "20729.8d ago",
-        "model": "glm-5.1",
-        "context": "109k total tokens"
-      },
-      {
-        "type": "78eac6fc-c2d7-41d2-",
-        "lastActive": "20722.7d ago",
+        "type": "78eac6fc-c2d7-4",
+        "kind": "direct",
+        "lastActive": "8.3d ago",
         "model": "glm-5.3-flash",
         "context": "106k total tokens"
       }
