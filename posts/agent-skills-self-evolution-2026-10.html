@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>技能给同一个 Agent 带来 +16 分或 0 分，差别只在谁来写——Agent 技能生态的复利、幻觉与毒药 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>技能给同一个 Agent 带来 +16 分或 0 分，差别只在谁来写——Agent 技能生态的复利、幻觉与毒药</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">Agent Skills</span>
+        <span class="tag">自我进化</span>
+        <span class="tag">供应链安全</span>
+        2026-10-04 · 基于 Voyager / SkillWeaver / Darwin Gödel Machine / SkillsBench / SkillsVote / Snyk ToxicSkills 等 15+ 论文与系统的调研
+    </p>
+
+    <blockquote>做一个思想实验。你有一个 agent，正在跑一个真实任务。现在给它装一个技能文件——就是那种 Markdown 写的、教它"这类任务的标准操作流程"。第一种情况：技能是领域专家精心写的。任务通过率从 33.9% 涨到 50.5%。<strong>第二种情况：让 agent 自己总结经验、自己写一份技能。</strong>你猜怎么着？平均一分不涨，部分任务还在倒退。同一个 agent，同一个任务，技能内容看起来也差不多——为什么一个值 16.6 个百分点，一个值零？这不是思想实验，是 2026 年 2 月 SkillsBench 在 86 个任务、7308 条轨迹、7 种模型配置上跑出来的真实结果。答案背后，藏着整个 Agent 技能生态——从 Minecraft 里攒技能的 Voyager，到 GitHub 上 168 万个 SKILL.md 文件——的复利法则、幻觉来源和投毒风险。</blockquote>
+
+    <h2>一、技能不是提示词片段，是 agent 的外置小脑</h2>
+    <p>先把概念说准。"技能"（Agent Skills）容易被误解成一段写得好的 prompt。但这个范式的源头——2023 年 NVIDIA 和 Caltech 的 <strong>Voyager</strong>——给出的定义截然不同：技能是<strong>可执行、可检索、可组合的程序性知识</strong>。</p>
+    <p>Voyager 让 GPT-4 在 Minecraft 里终身学习，它的技能库存的是一段段真正能跑的 JavaScript 函数：怎么做工作台、怎么挖铁矿、怎么打僵尸。每个技能用其自然语言描述的 embedding 做索引，来新任务时检索最相关的 top-5，复杂技能由简单技能组合而成。三个设计决定了这个机制的生命力：</p>
+    <ul>
+        <li><strong>记忆是主动的，不是被动的。</strong>技能库不是"笔记本"，是"肌肉记忆"——存的是成功行为本身，下次直接执行，不用重新发明；</li>
+        <li><strong>可组合性带来复利。</strong>"挖钻石镐"可以复用"挖铁矿"+"造工作台"的函数，能力像滚雪球，还天然免疫灾难性遗忘；</li>
+        <li><strong>模型权重一行不动。</strong>GPT-4 是黑盒，全靠架构层面的检索和组合——这意味着任何 agent 都能借鉴，不需要训练自己的模型。</li>
+    </ul>
+    <p>这个"外置小脑"的类比值得展开：人脑里事实记忆（巴黎是法国首都）和程序性记忆（怎么骑车、怎么系鞋带）走的是不同系统，后者靠练习固化、靠身体执行。Agent 技能复刻的正是后者——<strong>权重是大脑皮层，技能库是小脑</strong>。2025 年 10 月 Anthropic 把这个概念产品化为 Agent Skills（SKILL.md + 可选脚本），12 月开放标准，到 2026 年中，Claude Code、Codex、Copilot、Cursor、Gemini CLI、VS Code 等 40+ 产品兼容同一格式。MemTensor 的研究者从 GitHub 上扫出了 <strong>168 万个 SKILL.md 文件</strong>，79 万个通过官方格式校验。一个学术机制，14 个月长成了百万级生态——npm 级别的分发网络已经有了。那 npm 级别的问题呢？</p>
+
+    <h2>二、+16 分和 0 分之间，隔着"谁写的"和"验证过没有"</h2>
+    <p>SkillsBench 是第一个系统回答"技能到底有没有用"的基准。它的聪明之处在于<strong>配对实验</strong>：每个任务都在"无技能 / 策展技能 / 自生成技能"三种条件下各跑一遍，把技能的贡献从模型能力里剥离出来。三个结论，一个比一个扎心。</p>
+    <p><strong>结论一：策展技能平均 +16.6 个百分点，但分布极度不均。</strong>医疗领域 +51.9pp、制造业 +41.9pp，而软件工程只有 +4.5pp、数学 +6.0pp。规律很清晰：模型预训练覆盖越薄的领域，外部程序性知识增值越大。你在医疗合规流程上写技能，是在雪中送炭；在写 React 组件上写技能，是在锦上添一朵不存在的花。更值得警惕的是 <strong>84 个任务里有 16 个装了技能反而降分</strong>——技能会污染上下文，不是越多越好。</p>
+    <p><strong>结论二：自生成技能平均零收益。</strong>模型可以从技能中受益，但不能可靠地<strong>生产</strong>技能。这像极了每个下过厨的人都有的体验：吃完一道好菜，你觉得你记住了做法，直到自己下厨才发现根本不知道火候。"看过"和"会做"之间隔着一道执行细节的鸿沟——agent 总结自己的成功轨迹时，写的往往是"菜谱文学"：步骤都对，火候全无。</p>
+    <p><strong>结论三：设计原则意外地朴素。</strong>聚焦的技能（最多 3 个模块）胜过大而全的技能包；技能里放可执行代码示例带来的收益最大；配好技能的小模型能追上没技能的大模型。<strong>技能本质上是一种上下文经济学：用几千 token 的精确程序性知识，替代对模型容量和账单的持续消耗。</strong></p>
+
+    <h2>三、自生成技能并非死路：加一个验证闭环就活了</h2>
+    <p>那"零收益"是不是判了自进化死刑？没有。俄亥俄州立和 CMU 的 <strong>SkillWeaver</strong>（2025）给出了另一组数字：WebArena 上成功率相对提升 31.8%，真实网站上 39.8%。它的技能也是 agent 自己合成的——差别在流程里多了一步致命的：<strong>练习</strong>。</p>
+    <p>SkillWeaver 把技能做成 API：agent 到一个新网站，先自主探索发现"这个网站能做什么"，把候选技能<strong>真的执行一遍</strong>，用执行反馈修补代码，最后把通过练习的技能蒸馏成稳健的 API 入库。一个真实案例：一个药品识别网站的查询 API，练习时 agent 发现颜色参数根本没生效、返回结果颜色不对，patch 之后才入库。<strong>没有这一步，一个带着 bug 的"菜谱"就永久进了技能库，毒害未来所有查询。</strong></p>
+    <p>这就是 +0 和 +31.8% 之间的全部秘密：<strong>验证闭环</strong>。2026 年后续的工作把这个原则越磨越锋利：SkillCAT 对同一任务的成败轨迹做对比，只把"解释了成败差异"的证据写进技能；SkillsVote 只允许"成功且可复用"的发现通过证据门控（evidence-gated）更新进库。表述成一个公式：<strong>可进化的技能库 = 自由生成 × 执行验证 × 门控入库</strong>，三个因子缺一个，收益归零。</p>
+    <p>SkillWeaver 还有一个常被忽略的副产物：强模型（GPT-4 级）合成的技能 API 装到弱 agent 上，成功率最高提升 54.3%——比装在强者自己身上还多。<strong>技能是比权重便宜得多的能力分发媒介</strong>：专家级流程写一次，人人（每个模型）可复用。对团队的含义很直接：与其每个任务都买最大杯的模型，不如为高频领域任务投资一个被验证过的技能库。</p>
+
+    <h2>四、技能库会像依赖库一样腐化，治理是复利的前提</h2>
+    <p>把视角从单个 agent 拉到生态：168 万个技能文件，冗余、过时、互相冲突、环境敏感（"此技能假设你已经装了 X"）。SkillsVote 的研究者说得很直白：<strong>"无差别的更新会污染未来的上下文。"</strong>这和 npm 依赖的老化、left-pad 事件、半年不更新的 README 一步一个脚印地重合——技能库治理是依赖管理的转世。</p>
+    <p>SkillsVote 给出的第一代答案是生命周期管理，四段流水线：收集时给每个技能做<strong>画像</strong>（环境要求、质量、可验证性）→ 任务前做 JIT <strong>推荐</strong>（只装相关的几个，不是全库静态加载）→ 任务后做<strong>归因</strong>（从轨迹里判断这条技能到底是帮了忙还是只是在场）→ 更新走<strong>证据门控</strong>。在 Terminal-Bench 2.0 上给 GPT-5.2 提了最多 7.9 个百分点。核心论断值得抄在墙上：<strong>治理（管暴露、管归因、管保留）是技能库复利而非退化的前提条件</strong>——同一个库，有治理就升值，没治理就是上下文污染物仓库。</p>
+    <p>顺着这条线还能看到自我进化的更远形态。Sakana AI 的 Darwin Gödel Machine 让 agent 修改自己的代码，用测试基准做选择压力，把 SWE-bench 成绩从 20% 推到 50%——关键机制不是"更聪明的模型"，而是<strong>存档（archive）+ 达尔文式选择</strong>：每一次自我修改的版本都存档，失败的变体不删除而是保留作为未来跳板，缺了存档或开放式探索任一要素的对照组都明显更差。MetaSkill-Evolve 更进一步，把"如何改进技能"这件事本身也变成技能，做两级时间尺度的递归进化。<strong>但所有成功案例共享同一个燃料：可靠的外部验证信号。</strong>自我进化的瓶颈从来不是创造力，是裁判。</p>
+
+    <h2>五、毒技能：36.8% 的缺陷率，和 91% 的混合攻击</h2>
+    <p>现在是坏消息。一个 Markdown 文件，既是文档，又是 agent 会当真执行的指令，还经常附带 shell 脚本——这个三重身份让它成了攻击者做梦都想要的载体。Snyk 在 2026 年 2 月完成了首次技能生态安全审计（<strong> ToxicSkills</strong>）：扫描 ClawHub 和 skills.sh 上的 3,984 个技能，<strong>13.4% 含严重级安全问题，36.8% 至少一处缺陷</strong>——硬编码的 API 密钥、不安全的凭据处理、prompt injection、恶意载荷，共确认 76 个恶意技能，发布时还有 8 个活在平台上。</p>
+    <p>最值得工程师记住的一个数字：<strong>91% 的确认恶意技能把 prompt injection 和传统恶意代码组合使用</strong>。自然语言指令骗过 AI 安全机制，恶意代码绕过传统扫描器——各管一边，双保险变成零保险。Orca Security 进一步实证了完整攻击链：伪造下载数制造可信假象 → 通过平台安全审计 → 装机后持久化代码执行。Skill-Inject 基准（202 组注入-任务对）则证明，藏在 SKILL.md、AGENTS.md 里的注入可以让前沿模型执行数据外泄甚至勒索式行为。别把下载数当信任信号——它可以刷。</p>
+    <p>一句话总结现状：<strong>技能生态有了 npm 的规模，还在用 npm 2015 年的安全纪律。</strong>防御工具（Agent Scan、DScan、注入检测）已在萌芽，但离标配还远。这是整个范式能不能活过 2027 年的第一约束。</p>
+
+    <h2>六、今晚就能做的五件事</h2>
+    <ol>
+        <li><strong>审计你现有的技能和规则文件。</strong>把 agent 用的所有 SKILL.md / CLAUDE.md / 规则片段列出来，按三维打分：谁写的（人策展 or 模型自生成）、验证过没有（配对 A/B 跑过 or 只是感觉有用）、多久没更新。预期结论：一堆从未验证的自生成规则正在每天污染你的上下文。</li>
+        <li><strong>为 2-3 个高频领域任务写聚焦技能，并做配对评测。</strong>照抄 SkillsBench 方法：同任务跑 no-skill / with-skill 两臂对比。技能控制在 3 个模块以内，务必附可执行示例——这是收益最大的成分。预训练覆盖强的领域（通用编码）别指望奇迹，覆盖弱的内部流程领域才是主场。</li>
+        <li><strong>在工作流里加"技能蒸馏 + 验证门"。</strong>任务成功后让 agent 沉淀经验草稿，但入库前必须在新任务上执行验证通过——SkillWeaver 的 practice→distill 闭环，一行架构图就能画完。</li>
+        <li><strong>装任何社区技能前先扫毒。</strong>Snyk Agent Scan 或等价工具过一遍；把第三方 SKILL.md 当陌生 npm 包对待：读全文、查作者、锁版本。下载数不是信号。</li>
+        <li><strong>技能库过 50 条时上治理。</strong>JIT 推荐（按任务装相关的，不全量加载）+ 归因（任务后判断谁真出了力）+ 证据门控更新。SkillsVote 的四段流水线是现成蓝本。</li>
+    </ol>
+
+    <p>回到开头那道 +16 分与 0 分的分水岭。它其实给所有构建 agent 的人划了一条清晰的分工线：<strong>消费程序性知识的能力，模型已经很强；生产程序性知识的能力，模型还很弱——而差距只能靠验证闭环来填。</strong>所以短期最划算的模式不是指望 agent 自己变强，而是"人策展核心技能 + agent 在验证沙箱里进化边缘技能"；长期真正的护城河也不是更大的模型，而是那个能持续把经验变成可复用资产、且不被污染的技能库体系。大脑人人都有，小脑是可以攒出来的——前提是，每一次写入都过验证，每一次读取都可信赖。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
