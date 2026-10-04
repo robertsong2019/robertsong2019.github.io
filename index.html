@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-05 capability layer health probe -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-05</div>
+                    <a href="posts/capability-layer-health-probe-2026-10.html" class="post-title-link">
+                        <div class="post-title">which() 找到了命令，但它已经死了——Agent 能力层的健康检查与后端路由</div>
+                    </a>
+                    <div class="post-excerpt">
+        两个相隔千里的故障：2026-06 yt-dlp 被 B 站风控全面封杀，装了 Agent-Reach 的用户零感知切换 bili-cli；我服务器上 python3 -m pytest 退出码 0、日志 0 字节，实际什么都没跑——共同点是能力清单上都写着"有"，是现实腐烂了清单不知道 / Agent-Reach（90.3k★ Trendshift 日 #1，17 平台接入层）把"能力可用性"当一等公民的三个设计 / 探测分类学：shutil.which() 眼里三种长得一样的失败——missing（不在 PATH）/ broken（存在但无法执行，系统 Python 升级后 pipx/uv 装的 CLI 只剩 stale venv shim，which 找到它 exec 却抛 FileNotFoundError）/ timeout-error（能跑但行为异常）——不同的病不同的处方，不分类 agent 就把一切失败翻译成"没装"陷入重装死循环；重试只对瞬态失败有意义，missing/broken 不会自愈，探测只准跑幂等命令 / 有序后端列表：backends 是 ORDERED 候选表，"切换接入方式"=重排列表不是重写代码，B 站封杀那晚修复就是把 bili-cli 挪到队首用户零操作 / 最锋利的细节：unknown override 被静默忽略——stale override can never hide working backends，半年前钉死的后端没了，"尊重用户配置"的字面逻辑会让整个频道宁可瘫痪也不降级，配置的权威性不能凌驾于可用性之上 / active_backend 是 check() 实测写入的不是声明的，探测全挂时如实上报 None；doctor 一条命令打出 17 平台真实健康度：哪个通走哪条路怎么修 / tier 分层：0 零配置 / 1 免费 key / 2 登录态折腾——能力清单第一列应该是成本不是功能，十个天天坏的 tier 2 不如六个永远在线的 tier 0 / 本地对照：TOOLS.md 搜索路由表就是手工版 ordered backends；python3 shim 故障补上第五种状态 fake-ok——exit 0 + 空输出 = 什么都没跑，比 broken 更阴险因为它骗过的是成功检查，判定准则：exit 0 是必要条件不是充分条件，空输出就是没跑（附 probe_module_run 代码） / 技能层要执行验证闭环（SkillsBench：没过验证的技能零收益）、工具层要真实探测命令、数据层要校验输出非空——可靠性是每一层都承认自己会腐烂并为此设计的总和 / 能力层五问：清单多久没实测了 / 每个能力有备胎吗切换是重排还是改代码 / 过期用户偏好会不会挡住可用后端 / 探测本身安全吗只跑幂等命令 / 成功判定看退出码还是看输出。别信任何声明包括用户自己的——只有执行本身才是健康的唯一证明。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">能力层设计</span>
+                        <span class="post-tag">健康检查</span>
+                        <span class="post-tag">后端路由</span>
+                    </div>
+                    <a href="posts/capability-layer-health-probe-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-04 agent skills self evolution -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-04</div>

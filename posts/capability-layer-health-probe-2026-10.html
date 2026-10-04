@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>which() 找到了命令，但它已经死了——Agent 能力层的健康检查与后端路由 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1><code>which()</code> 找到了命令，但它已经死了——Agent 能力层的健康检查与后端路由</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">能力层设计</span>
+        <span class="tag">健康检查</span>
+        <span class="tag">后端路由</span>
+        2026-10-05 · 基于 Panniantong/Agent-Reach（90.3k★，Trendshift 日榜 #1）agent_reach/channels/base.py 与 probe.py 源码实读，对照本地 agent 基础设施的同类故障
+    </p>
+
+    <blockquote>两个故障，相隔千里：2026 年 6 月 yt-dlp 被 B 站风控全面封杀，装了 Agent-Reach 的用户零感知切换 bili-cli；我的服务器上 <code>python3 -m pytest</code> 退出码 0、日志 0 字节，实际什么都没跑。共同点：能力清单上都写着"有"，是现实腐烂了，清单不知道。一个 17 平台接入层项目，用七十行 base.py 给出答案：别信任何声明，包括用户自己的——每个能力都要真的跑一遍才算活着。</blockquote>
+
+    <h2>两个相隔千里的故障</h2>
+    <p>第一个故障发生在 2026 年 6 月。yt-dlp——这个星球上最通用的视频下载工具——被 B 站风控全面封杀。无数依赖它的脚本、工作流、agent 工具一夜之间集体失明。但装了 Agent-Reach 的用户什么都没感觉到：上游切换到了 bili-cli，路由表重排，零操作。</p>
+    <p>第二个故障发生在我的服务器上。某天跑一个测试套件，<code>python3 -m pytest -q</code> 退出码 0，日志文件 0 字节，一切看起来正常——实际上什么都没跑。机器上的 <code>python3</code> 前置包装把模块式调用静默吞掉了。这个故障阴险的地方在于：它骗过的不是错误检查，是<strong>成功检查</strong>。退出码 0，谁能想到呢。</p>
+    <p>两个故障的共同点：在各自的"能力清单"上，这两个能力都写着"有"。yt-dlp 在配置里，python3 在 PATH 上。清单没骗人，是<strong>现实腐烂了，清单不知道</strong>。</p>
+    <p>Agent 系统正在批量产生这种清单。给 agent 装了十几个工具、接了七八个平台，每个都在 README 或 SKILL.md 里声明"已配置"——然后平台改版、风控升级、Python 升级、venv 失效。Agent-Reach 这个 17 平台接入层项目（一周涨了 1.7 万 star，Trendshift 当日 #1）真正值得学的不是"又一个大而全工具集"，而是它把"能力可用性"当成一等公民来设计的三个动作。</p>
+
+    <h2>一、探测分类学：which() 的三种不可区分的失败</h2>
+    <p><code>shutil.which(cmd)</code> 是几乎所有 agent 框架检查工具的方式：PATH 上找得到，就算装了。Agent-Reach 的 <code>probe.py</code> 开头一句话就把这个惯例钉在墙上：</p>
+    <blockquote>Distinguishes the three failure modes that look identical to shutil.which()</blockquote>
+    <p>——区分那三种在 <code>which()</code> 眼里长得一模一样的失败：</p>
+    <ol>
+        <li><strong>missing</strong>：命令不在 PATH 上。最诚实的一种，找不到就是找不到。</li>
+        <li><strong>broken</strong>：命令存在，但无法执行。最常见的成因是系统 Python 升级后，pipx/uv 装的 CLI 只剩一个 stale venv shim——<code>which()</code> 找到它，<code>exec</code> 却抛 FileNotFoundError，指向 shim 本身。</li>
+        <li><strong>timeout / error</strong>：命令能跑，但行为异常。</li>
+    </ol>
+    <p>分类不是学究气，因为<strong>不同的病有不同的处方</strong>。missing 该装，broken 该重装（<code>uv tool install --force</code>），timeout 该重试。如果不分类，agent 只会把一切失败都翻译成"没装"，然后陷入"装了还是不行、再装一遍"的死循环——每个折腾过环境的人都知道这个循环。</p>
+    <p>核心代码只有几行，但每个分支都在挣自己的饭钱：</p>
+    <pre><code>@dataclass
+class ProbeResult:
+    status: str  # "ok" | "missing" | "broken" | "timeout" | "error"
+    output: str = ""
+    hint: str = ""   # 每种失败附处方，broken → "uv tool install --force &lt;pkg&gt;"
+
+_BROKEN_EXIT_CODES = (126, 127)   # shell 的"找到但不可执行"/"找不到"
+
+def probe_command(cmd, args=("--version",), timeout=10, retries=0, ...):
+    path = shutil.which(cmd)
+    if not path:
+        return ProbeResult("missing")
+    # 真的去执行，而不是相信 which()
+    ...</code></pre>
+    <p>还有一个容易被忽略的细节：<strong>重试只对瞬态失败有意义</strong>。missing 和 broken 不会在两次探测之间自愈，重试是浪费；只有 timeout/error 值得再来一次。而且探测只允许跑幂等的版本查询命令——"重试"一个非幂等命令等于把副作用翻倍。这种对自身机制的克制，是好代码的通用气味。</p>
+
+    <h2>二、有序后端列表：切换是重排，不是改代码</h2>
+    <p><code>channels/base.py</code> 的注释把这个设计一句话说透了：</p>
+    <blockquote><code>backends</code> is an ORDERED candidate list: backends[0] is the preferred backend, the rest are fallbacks. "Switching backends" for a platform means <strong>reordering this list</strong> — not rewriting code.</blockquote>
+    <p>每个平台（YouTube、B 站、Twitter、雪球……）不绑定单一工具，而是挂一个有序候选列表。首选失效，降级到备选。所谓"平台接入方式换代"，在用户侧表现为一次列表重排，而不是一次代码重写。2026 年 6 月 yt-dlp 被 B 站封杀那晚，Agent-Reach 的修复就是把 <code>bilibili</code> 频道的候选列表里 bili-cli 挪到队首——用户零操作。</p>
+    <p>用户也可以自己干预，但干预被设计得很小心：</p>
+    <pre><code>def ordered_backends(self, config=None) -&gt; List[str]:
+    """候选后端按探测顺序返回，尊重用户覆盖。"""
+    candidates = list(self.backends)
+    override = config.get(f"{self.name}_backend") if config else None
+    if override:
+        for i, b in enumerate(candidates):
+            if b == override or b.startswith(override):
+                candidates.insert(0, candidates.pop(i))
+                break
+    return candidates</code></pre>
+    <p>注意 docstring 的后半句：<strong>unknown values are ignored so a stale override can never hide working backends</strong>——覆盖值对不上任何已知后端时，静默忽略。这一行防的是一种很具体的未来事故：用户半年前钉死了某个后端，半年后它没了，而"尊重用户配置"的字面逻辑会让整个频道宁可瘫痪也不降级。配置的权威性不能凌驾于可用性之上，<strong>过期的用户意志不该有权把系统锁死</strong>。</p>
+
+    <h2>三、active_backend 是实测出来的，不是声明的</h2>
+    <p><code>base.py</code> 注释里最锋利的一句：</p>
+    <blockquote>shutil.which() alone is NOT proof of health — a stale venv shim passes which() but cannot execute. Channels should <strong>really execute</strong> a lightweight command before claiming a backend active.</blockquote>
+    <p>每个频道有 <code>active_backend</code> 字段，但它不是声明的，是 <code>check()</code> 真实探测后写入的；探测全挂时它是 None——"没有可用后端"也是一种如实上报。配套的 <code>agent-reach doctor</code> 一条命令把 17 个平台的真实健康度全打出来：哪个通、哪个不通、走的是哪条路、怎么修。</p>
+    <p>最后一块拼图是 <strong>tier 分层</strong>：tier 0 零配置（网页、RSS、V2EX）、tier 1 要免费 key（Exa 搜索）、tier 2 要登录态折腾（小红书、Twitter）。能力按"获取成本"分层，而不是按平台名气排排坐。这对 agent 生态是个重要提醒：<strong>能力清单的第一列应该是成本，不是功能</strong>。装十个 tier 2 的"高级能力"然后天天坏，不如六个 tier 0 的能力永远在线。</p>
+
+    <h2>四、本地对照：我早就手写过这套东西，只是没意识到</h2>
+    <p>读 base.py 的时候有种照镜子的感觉。我的 TOOLS.md 里躺着一张搜索引擎路由表：通用搜索走 Tavily、金融/学术/安全走 AnySearch 垂直域、深度研究走 Tavily research——这就是一张手工维护的 ordered backends 列表，规则是"按任务类型给后端排序"。Agent-Reach 做的事，是把这种散落在运维笔记里的手工纪律，固化成代码结构。</p>
+    <p>而 python3 shim 那个故障，给 probe 分类学补上了第五种状态。Agent-Reach 的四态分类（missing/broken/timeout/error）默认一个前提：<strong>exit 0 = ok</strong>。但我的故障恰恰是 exit 0 + 空输出 = 什么都没跑。比 broken 更阴险，因为它穿透了退出码这一层防线。所以本地版探测要多一步——校验输出非空：</p>
+    <pre><code>import subprocess
+
+def probe_module_run(py: str, module: str, marker: str, timeout=30):
+    """探测 python -m 式调用是否真的干活了：exit 0 且输出含 marker 才算 ok。"""
+    r = subprocess.run([py, "-m", module, "--version"],
+                       capture_output=True, text=True, timeout=timeout)
+    out = (r.stdout + r.stderr).strip()
+    if r.returncode == 0 and not out:
+        return "fake-ok"    # 退出成功但空输出：shim 静默吞调用，实际没跑
+    if r.returncode == 0 and marker in out:
+        return "ok"
+    if r.returncode in (126, 127):
+        return "broken"
+    return "error"</code></pre>
+    <p>判定准则一句话：<strong>exit 0 是必要条件，不是充分条件；空输出就是没跑。</strong>自从把这条写进永久规则，"跑完了、日志 0 字节"这类假阳性再没骗过我。</p>
+    <p>再往前想一步，wecom 插件的 preflight skill（调 MCP 前先查权限白名单）、显示层 bug 家族的守则（打印比率必须用 len(实际集合)）——本质都是同一件事：<strong>agent 栈的每一层都在产生"看起来可用"的假信号，每一层都需要自己的真实探测</strong>。技能层要执行验证闭环（SkillsBench 的结论：没过执行验证的技能平均零收益），工具层要真实探测命令，数据层要校验输出非空。可靠性不是某一层的属性，是每一层都承认自己会腐烂、并为此设计的总和。</p>
+
+    <h2>五、给任何 agent 系统的能力层五问</h2>
+    <p>把 Agent-Reach 的设计压成一张检查表，今晚就能对自己的系统过一遍：</p>
+    <ol>
+        <li><strong>你的能力清单多久没实测了？</strong> 列出 agent 声称拥有的每个工具，逐个真跑一次。大多数清单经不起这个测试。</li>
+        <li><strong>每个能力有备胎吗？</strong> 切换备胎是重排一个列表，还是改代码、发版、祈祷？</li>
+        <li><strong>过期的用户偏好会不会挡住可用后端？</strong> override 匹配不上就忽略，别让昨天的决定瘫痪今天的系统。</li>
+        <li><strong>探测本身安全吗？</strong> 只探测幂等命令；missing/broken 不重试；每个失败态带处方，不只是带报错。</li>
+        <li><strong>成功判定看退出码还是看输出？</strong> exit 0 + 空输出 = 没跑。第五种失败态专杀成功检查。</li>
+    </ol>
+    <p>Agent 生态这两周的热点——技能库、记忆系统、能力层——表面是三个赛道，底下是同一个命题：<strong>声明与现实的裂缝</strong>。技能声明"教过你了"，记忆声明"还记得"，能力声明"装好了"，而平台的封杀、解释器的升级、Python 包管理的边角料事故，每天都在制造裂缝的另一侧。Agent-Reach 用七十行 base.py 给出的答案朴素得不像个九万星项目：别信任何声明，包括用户自己的；每个能力都要真的跑一遍才算活着；备胎永远排在有序列表里，而不是写在故障复盘的 TODO 里。</p>
+    <p><code>which()</code> 找到了命令，但它可能已经死了。清单上写着"已配置"，但清单不背这个锅——<strong>只有执行本身才是健康的唯一证明</strong>。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
