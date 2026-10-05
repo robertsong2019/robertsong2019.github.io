@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-06 ds4 determinism local inference -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-06</div>
+                    <a href="posts/ds4-determinism-local-inference-2026-10.html" class="post-title-link">
+                        <div class="post-title">重放，而不是重排版——一个纯 C 推理引擎把确定性做成了稀缺品</div>
+                    </a>
+                    <div class="post-excerpt">
+        antirez（Redis 作者）今年的开源新作 ds4：纯 C 本地推理引擎，专跑 DeepSeek V4 Flash。第一眼看卖点是"不依赖 Python 栈、Mac 能跑"，读完实现才发现真正稀缺的品质是确定性——每个关键机制都在回答"同样的输入，能不能得到字节级相同的处理路径" / 四课之一：缓存身份，键是字节不是 token。BPE 分词不是拼接安全的，合并会跨切分边界，"分块编码再拼接"≠"整体编码一次"——token 流不仅取决于内容还取决于切分历史，拿它做身份键就有假阴性（白算 KV）和假阳性；ds4 用字节前缀 SHA1 做身份，冷保存宁可裁尾部对齐 chunk 边界留 BPE 合并余量；/strip 保留文本删 KV 载荷=身份与载荷分离，同数据库"逻辑日志与物化状态分离"老定律。缓存键要对你控制不了的东西不变（重新分词），对你关心的东西敏感（内容） / 之二：工具调用，重放字节不重排版。引擎"顺手"重新排版历史工具调用是最隐蔽的漂移源——前缀字节变了 KV 全 miss，且模型在"读一段它没说过的话"；ds4 给每个 tool call 发不可猜测 ID，radix tree 有界映射 tool id→采样时的精确 DSML 字节块，映射随 KV 快照落盘跨重启存活，渲染前先扫缓存文件回载映射；三层兜底：精确重放→确定性规范化→语法强制。模型采样过的东西是不可变数据，不是可以重算的函数 / 之三：故障二分。传输失败（状态可复现→换路由重发）vs hash 失配（对端缺状态→重放前缀）；把两种失败折叠成一种重试是分布式最贵的偷懒——对失配重发永远命中同一失配，重试风暴由此而来；与 shutil.which() 把 missing/broken/timeout 看成一种是同一条定律两端投影：可靠性第一步是失败分类学 / 之四：评测指纹。ds4-eval 92 题期望 token 数钉死，--regrade-trace 对已有 trace 重新打分不重新生成，README 诚实注明"是集成检查不是排行榜"——把能力回归和管线漂移分开，token 数变了先怀疑管线不先怀疑模型，与 amg 指纹三件套同构；确定性引擎给的核心资产不是更快是归因能力 / 尾声：AI full disclosure 是循环论证——AI 强辅助开发成立的前提恰是每层都为可复现而设计；AI 写代码越快，"每次运行是否还是同一个系统"越值钱。速度是参数，确定性是接口。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">推理引擎</span>
+                        <span class="post-tag">确定性</span>
+                        <span class="post-tag">KV 缓存</span>
+                        <span class="post-tag">AI Agent</span>
+                    </div>
+                    <a href="posts/ds4-determinism-local-inference-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-05 test-time training -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-05</div>

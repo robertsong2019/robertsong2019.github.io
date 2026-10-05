@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>重放，而不是重排版——一个纯 C 推理引擎把确定性做成了稀缺品 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>重放，而不是重排版——一个纯 C 推理引擎把确定性做成了稀缺品</h1>
+    <p class="meta">
+        <span class="tag">推理引擎</span>
+        <span class="tag">确定性</span>
+        <span class="tag">KV 缓存</span>
+        <span class="tag">AI Agent</span>
+        2026-10-06 · 基于 antirez/ds4 (DwarfStar) README 与实现的调研
+    </p>
+
+    <blockquote>antirez（Redis 作者）今年的开源新作 ds4 是一个纯 C 本地推理引擎。第一眼看，卖点好像是"不依赖 Python 栈、Mac 上能跑"；读完实现你会发现，它真正稀缺的品质是<strong>确定性</strong>——几乎每个关键机制都在回答同一个问题："同样的输入，能不能得到字节级相同的处理路径？"在 agent 时代，这件事从美德变成了刚需：多轮对话、工具调用、断点续跑、评测回归，每一步都在考验系统对"同一个"的判定能力。</blockquote>
+
+    <h2>零、先认识一下这个项目</h2>
+    <p>DwarfStar（ds4）主要面向 DeepSeek V4 Flash，兼容 GLM，支持 Metal / CUDA / ROCm 三条后端。它刻意做窄——不是通用 GGUF runner：模型加载、prompt 渲染、工具调用、KV 状态、HTTP server、coding agent，在同一个 C 代码库里一起构建、一起测试。核心引擎不链接 GGML，但作者明确致谢 llama.cpp 打开的道路。</p>
+    <p>这种"窄"换来的是一种罕见的品质：整个系统每一步都可以问为什么。ds4 给我上了四课，每一课都关于确定性。</p>
+
+    <h2>一、缓存身份：键是字节，不是 token</h2>
+    <p>KV 缓存是长上下文本地推理的生命线：已见过的 prompt 前缀不必重算，直接复用注意力状态。问题在"命中"怎么判定。</p>
+    <p>直觉方案是拿 token 序列（或其哈希）当键。但 BPE 分词不是拼接安全的：合并可能跨越切分边界，"分块编码再拼接"未必等于"整体编码一次"——同一段文本，在不同 chunk 边界切开分别编码，边界处的字节可能被并进不同的 token。也就是说，<strong>token 流不仅取决于内容，还取决于切分历史</strong>。拿它做身份键，就会出现内容没变却被判为"新会话"的假阴性（白算一遍 KV），以及更危险的假阳性。</p>
+    <p>ds4 的选择：用<strong>字节前缀</strong>做身份——对 prompt 的原始字节算 SHA1，字节相同才算同一个前缀；冷保存时宁可裁掉尾部若干 token、对齐 chunk 边界留出 BPE 合并余量，也不让分词错位污染身份。</p>
+    <pre><code>import hashlib
+
+# 反例：token 序列做缓存键 —— 随切分历史漂移
+joined_a = encode("".join(chunks))                 # 整体编码一次
+joined_b = encode(chunks[0]) + encode(chunks[1])   # 分块编码再拼接
+assert joined_a != joined_b  # BPE 边界合并 → token 流不稳定
+
+# ds4 的做法：字节前缀哈希做身份，与切分历史无关
+def prefix_id(prefix_bytes: bytes) -&gt; str:
+    return hashlib.sha1(prefix_bytes).hexdigest()[:16]
+
+def try_restore(new_prompt: bytes):
+    pid = prefix_id(new_prompt)
+    if pid in cache_index:          # 字节相同 ⇒ 同一个前缀
+        restore(cache_index[pid])   # KV 不必重算</code></pre>
+    <p>配套设计也值得抄一笔：<code>/strip</code> 命令保留会话文本、删掉大块 KV 载荷——<strong>身份与载荷分离</strong>，文本可以廉价长期保存，重的注意力状态按需重建（恢复时 prefill）。这与数据库圈"逻辑日志与物化状态分离"是同一条老定律。</p>
+    <p>通用法则：<strong>缓存键要对你控制不了的东西不变（重新分词、切分历史），对你关心的东西敏感（内容本身）。</strong>选错键的缓存系统，会在最难调试的时刻给你假命中。</p>
+
+    <h2>二、工具调用：重放字节，不重排版</h2>
+    <p>Agent 多轮工具调用有一个隐蔽的漂移源。模型采样出工具调用时，产出的是一段具体的字节块（ds4 的 DSML 格式）。客户端执行完工具、把结果发回来时，引擎要把<strong>历史重新渲染进 prompt</strong>。此时最容易犯的错：引擎"顺手"用自己的格式化器把工具调用重新排版一遍——格式对得上，字节对不上。</p>
+    <p>后果是双重的：前缀字节变了 → token 流变了 → KV 缓存整体 miss；更糟的是，重新排版后的文本不再是模型实际采样过的分布——模型在"读一段它没说过的话"。</p>
+    <p>ds4 的第一道防线是<strong>精确重放</strong>：每个工具调用拿一个不可猜测的 tool ID，server 在一张有界的、radix tree 支撑的内存映射里记住 <code>tool id → 模型采样时的精确 DSML 字节块</code>。客户端带着 tool ID 回来时，渲染器用当年采样的字节，不用新格式化的近似品。这张映射还会存进 KV 快照文件，跨 server 重启存活——渲染请求前先扫缓存文件，把历史中出现的 tool ID 对应的映射加载回来，精确重放甚至不依赖"命中的就是同一份 KV 快照"。</p>
+    <pre><code>class ExactReplay:
+    """tool_id -&gt; 采样时的精确字节块；重放优先，重排版兜底"""
+    def remember(self, tool_id, sampled_bytes):
+        self.radix.set(tool_id, sampled_bytes)   # 有界内存，radix 压缩
+
+    def render_tool_call(self, tool_id, reformatter):
+        hit = self.radix.get(tool_id)
+        if hit is not None:
+            return hit                 # 第一层：精确重放采样字节
+        try:
+            return canonical(reformatter())     # 第二层：确定性规范化
+        except NotCanonicalizable:
+            return enforce_dsml(reformatter())  # 第三层：语法强制兜底</code></pre>
+    <p>三层兜底承认一个现实：精确重放覆盖不了所有情况（映射有界、客户端可能不带合法 ID），但每一层的输出都比下一层更接近"模型采样过的事实"。</p>
+    <p>通用法则：<strong>模型采样过的东西是不可变数据，不是可以重算的函数。</strong>任何"系统对同一信息的两次表达"（重新格式化、重新序列化、重新分词）都是潜在的分布漂移源。</p>
+
+    <h2>三、故障分类学：两种失败，两种药</h2>
+    <p>分布式推理（多副本）下，ds4 把失败语义二分：<strong>传输失败</strong>（消息没送到，但状态可复现 → 换路由重发）和 <strong>hash 失配</strong>（对端没有你以为的那个状态 → 必须重放前缀，而不是重发）。</p>
+    <pre><code>def on_error(err):
+    if isinstance(err, TransportError):
+        return reroute(next_replica)     # 状态可复现 → 换路由重发
+    if isinstance(err, HashMismatch):
+        return rebuild_prefix(err.ctx)   # 对端缺状态 → 重放</code></pre>
+    <p>把两种失败折叠成同一种"重试"，是分布式系统里最贵的偷懒：对 hash 失配做重发，永远命中同一个失配，重试风暴就是这么来的。这和 <code>shutil.which()</code> 把 missing / broken / timeout 三种失败看成一种，是同一条定律在单机与分布式两端的投影：<strong>可靠性工程的第一步是失败分类学——不同的病，不同的处方。</strong></p>
+
+    <h2>四、评测指纹：把"期望输出"钉到 token 级</h2>
+    <p>ds4-eval 跑 92 题嵌入式能力回归，<strong>期望的 token 数被钉死</strong>在用例里；<code>--regrade-trace</code> 能对一份已有 trace 重新打分而不重新生成；README 诚实注明"这是 DwarfStar 的集成检查，不是官方排行榜分数"。</p>
+    <p>为什么钉 token 数这么较真？因为它把"能力回归"和"管线漂移"区分开了：输出 token 数变了，先怀疑的不是模型变笨，而是分词、渲染、采样路径上有东西悄悄变了。这和我自己在评测管线里维护的指纹纪律完全同构——官方 run 前钉死 PYTHONHASHSEED，跑完核对三个指纹数字，偏离即说明数据或管线错了，好得可疑先查伪影。确定性引擎给用户的核心资产不是"更快"，是<strong>归因能力</strong>：坏数字出现时，你能问出正确的问题——模型变了？数据变了？还是管线变了？——并且系统答得上来。</p>
+
+    <h2>尾声：确定性是人机协作的土壤</h2>
+    <p>ds4 的 README 有一节 "AI full disclosure"：这个项目在 AI coding agents 的强辅助下开发，人类主导想法、测试与调试。很多人把这读成一句坦诚的声明，但它其实是一个循环论证：<strong>这种协作方式在这个代码库上成立，恰恰因为代码库每一层都为可复现而设计</strong>——缓存身份是字节级的、工具调用可精确重放、失败有分类学、评测有指纹。AI 写代码的速度越快，"每次运行是否还是同一个系统"就越值钱。</p>
+    <p>antirez 在 Redis 上证明了"简单数据结构 + 极端克制"能撑起全球基础设施；ds4 在推理引擎上证明的是同一件事的新版本：在生成式时代，<strong>手写的、窄的、每一步都能问为什么的系统，反而是最能承载 AI 协作开发的系统</strong>。速度是参数，确定性是接口。选引擎的时候，多看一眼后者。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
