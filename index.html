@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-05 test-time training -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-05</div>
+                    <a href="posts/test-time-training-2026-10.html" class="post-title-link">
+                        <div class="post-title">考试还没结束，考生已经开始复习了——Test-Time Training：模型在你用它的时候还在学习</div>
+                    </a>
+                    <div class="post-excerpt">
+        两台机器同一个动作：一个数学模型在无标签测试集上边做题边用多数投票给自己发奖励跑 RL，成绩不降反升（GSM8K 部分设定超过真标签 RLVR 上限）；一个视觉模型边用边学，三个月 92%→68%——同一个「测试时训练」范式，分界线已被 2025-2026 论文画清 / 三层楼先拆名字：一层策略层（test-time scaling，不碰参数多花算力：CoT 拉长、best-of-N、budget forcing）；二层参数层（TTA 自监督微调 + TTRL 伪标签 RL）；三层架构层（TTT layers：隐藏状态不是向量是一个小网络的权重，每读一个 token 对它做一步梯度下降——便签本身是可训练的脑组织）/ Titans 三条代谢规则：遗忘=权重衰减（音量随时间衰减而非删除）、动量=惊奇的历史（单次意外是噪声持续意外是趋势）、惊奇=写入信号（符合预测的输入不值得记）——记忆系统的瓶颈从来不是容量是代谢率；SR-TTT 把反常 token 路由到外部稀疏缓冲区，反常与常规走不同存储 / NVIDIA ICML 2026 tttla：TTT-KVB 本质是学习版线性注意力，「测试时记忆化」解读被证伪，RNN/注意力/TTT 分类学崩塌成一个算子族，Hinton 1987 fast weights 四十年后回来统一江湖 / TTRL 魔法作用域：多数投票要求答案可坍缩为规范形式（数学行、代码不行）→ ERPO 探针输入+行为一致性替代表面一致性，熵上限+rank masking 双保险；副作用：pass@1 涨 pass@k 前沿可能坍缩——乐队排练得越来越整齐，整齐到只会演奏同一首歌 / 地下室地图：过适应（连续适应旧批次 92%→68.4%）、测试时没有验证集（模型选择原理上无解）、in-context reward hacking；等式：可部署的测试时学习=学习规则+熔断规则，序贯检验做无监督风险监视，TTRL 每个成功配方里至少焊着两个保险丝 / 算力地图重画：推理算力 2026 预计超训练 118x，EU AI Act 用训练 FLOPs 划线看不见「中等模型+巨额推理算力+部署后继续学习」，模型能力是 (weights, 数据流, 推理算力, 部署时长) 四元组的函数 / 今晚能做：记忆库加惊奇门控+定期衰减、按难度路由推理算力（零风险纯赚）、自训练加熵熔断监控 pass@k、在线适应上无监督监视器、跟踪 tttla 进主流框架节奏。会进化的系统大家都想要——但进化在生物学里从来伴着死亡和代谢，在工程里也一样。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">LLM</span>
+                        <span class="post-tag">Test-Time Training</span>
+                        <span class="post-tag">架构</span>
+                        <span class="post-tag">在线学习</span>
+                    </div>
+                    <a href="posts/test-time-training-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-05 capability layer health probe -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-05</div>

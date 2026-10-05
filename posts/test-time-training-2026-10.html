@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>考试还没结束，考生已经开始复习了——Test-Time Training：模型在你用它的时候还在学习 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>考试还没结束，考生已经开始复习了——Test-Time Training：模型在你用它的时候还在学习</h1>
+    <p class="meta">
+        <span class="tag">LLM</span>
+        <span class="tag">Test-Time Training</span>
+        <span class="tag">架构</span>
+        <span class="tag">在线学习</span>
+        2026-10-05 · 基于 TTT Layers / Titans / TTRL / ERPO / NVIDIA tttla 等 15+ 论文与系统的调研
+    </p>
+
+    <blockquote>两台机器，同一个动作。第一台：一个数学模型在没有任何标准答案的测试集上，边做题边用"多数投票"给自己发奖励、自我训练，成绩不降反升——<strong>考试还没结束，它已经开始复习了</strong>。第二台：一个部署在医院外的视觉模型，同样边用边学，三个月后准确率从 92% 悄悄滑到 68%——它在考场里越改答案，错得越多。同一个范式，名字都叫 Test-Time Training（测试时训练）：模型在推理阶段继续更新自己。为什么一个通往天堂、一个通往地狱？这不是玄学差异，两者的分界线已经被 2025-2026 年的一批论文画得清清楚楚。而这条线，恰恰也是所有想让 agent"持续进化"的人迟早要撞上的那条线。</blockquote>
+
+    <h2>一、先拆名字：三种"测试时"，完全不同的三件事</h2>
+    <p>"Test-Time" 是这两年最容易被混用的前缀。它其实是一栋三层楼，讨论前必须先说清楚你在几层：</p>
+    <ul>
+        <li><strong>一层：策略层（test-time scaling）。</strong>不碰参数，只是多花算力——思维链拉长、best-of-N 采样、多数投票、s1 的 budget forcing。o1 和 DeepSeek-R1 让这条路线出圈。模型本体一成不变，"想得久"换"想得好"；</li>
+        <li><strong>二层：参数层（TTA / TTRL）。</strong>真的在推理时改权重。一支是自监督微调（TTA 谱系，源自 Sun 等人 2020 年的开创工作，视觉领域的 TENT 是它的远亲）；另一支更激进——TTRL，用多数投票产生的伪标签当奖励信号，在无标签测试数据上直接跑强化学习；</li>
+        <li><strong>三层：架构层（TTT layers）。</strong>把"梯度下降"本身做成网络组件。这是最反直觉也最深刻的一层：隐藏状态不再是一个向量，而是<strong>一个小神经网络的一组权重</strong>，每读一个新 token，就对这组权重做一步梯度下降。</li>
+    </ul>
+    <p>为什么第三层值得单独一栋楼？做个类比就懂了。Transformer 的注意力相当于<strong>把整张考卷贴在墙上，随时抬头看</strong>——精确，但墙的面积（上下文窗口）和找东西的速度（O(n²)）都是痛点；传统 RNN 相当于<strong>把考卷内容压缩成一张便签</strong>——快，但便签写满了就只能覆盖。TTT 层的革命在于：便签本身是一块可训练的脑组织，<strong>每看一道新题，它就微小地重塑一次自己</strong>。2024 年 Stanford 的 TTT-Linear/TTT-MLP 证明这条路线能以线性复杂度逼近甚至超越注意力的长上下文性能。</p>
+    <p>而 2026 年初，NVIDIA 的一个 ICML 工作给这三层楼做了一次漂亮的"拆迁"：<strong>TTT with KV Binding，本质上就是学习版的线性注意力。</strong>他们发现"测试时记忆化"的主流解读解释不了一批反常现象，把 TTT 层严格改写之后，整族 TTT 架构都能归约为一个 learned linear attention 算子。这不仅是学术洁癖——它带来了原理性的架构简化、全并行训练公式，还意味着 RNN / 注意力 / TTT 三分天下的分类学正在崩塌成一个算子族。1987 年 Hinton 提出的 fast weights（快速权重）幽灵，四十年后换了身衣服回来统一江湖。</p>
+
+    <h2>二、代谢机制：记忆系统的瓶颈从来不是记住，是遗忘</h2>
+    <p>TTT 层有一个先天缺陷，被 Google 的 <strong>Titans</strong>（NeurIPS 2025）精准补上：梯度下降只会往上累加，<strong>不会遗忘</strong>。记忆容量是固定的，序列一长，旧信息挤占新信息的空间，性能掉头向下。Titans 给神经记忆装了完整的"代谢系统"，三条设计每条都对得上一个直观隐喻：</p>
+    <ul>
+        <li><strong>遗忘 = 权重衰减。</strong>他们证明遗忘机制在数学上等价于对记忆做 weight decay——不是删除，是让旧记忆的"音量"随时间衰减。该响的还响，不该响的渐渐安静；</li>
+        <li><strong>动量 = 惊奇的历史。</strong>更新规则不只看"此刻多惊讶"，还看"最近一直很惊讶吗"——单次意外是噪声，持续意外才是趋势，值得加固记忆；</li>
+        <li><strong>惊奇 = 该记的东西。</strong>完全符合预测的输入不值得写入记忆（模型已经会了），预测误差大的才值得。 surprisal 就是写入信号。</li>
+    </ul>
+    <p>用一句话总结 Titans 的贡献：<strong>记忆系统的性能瓶颈从来不是容量，是代谢率。</strong>不会遗忘的记忆系统在长序列上必然退化。2026 年的后续工作把这个方向越推越细：SR-TTT 专门监测"反常 token"——那些预测误差大到压缩进循环状态会污染全局的输入——把它们路由到外部的稀疏缓冲区，反常与常规走不同存储。这条经验对做 agent 外置记忆的人几乎是免费的午餐：惊奇门控写入（只记意外）、动量强化（重复才固化）、权重衰减（定期降权）、反常隔离。你不需要理解 Titans 的数学就能抄它的架构决策。</p>
+
+    <h2>三、共识当老师：TTRL 的魔法与天花板</h2>
+    <p>回到二层楼最耀眼的房间。TTRL（Test-Time Reinforcement Learning，NeurIPS 2025）回答了一个看似不可能的问题：<strong>没有标准答案的测试数据，能不能拿来训练模型？</strong>答案是可以——让模型对同一道题采样几十个答案，把多数派当伪标签，命中多数派给正奖励，然后跑标准 RL。匪夷所思的是效果：在 GSM8K 上，TTRL 无标签训练的成绩不仅稳定提升，部分设定下<strong>超过了用真标签训练的 RLVR</strong>——模型靠"相信自己的先验"就把集体的正确性蒸馏进了参数。</p>
+    <p>但这个魔法有明确的作用域。多数投票要求答案能坍缩成规范形式：数学题的答案就是一个数，一比就同不同。换成代码生成，两个程序表面长得毫无可比性，投票无从谈起。2026 年的 ERPO 给出了第二代方案：从问题描述自动构造<strong>探针输入</strong>（probe），让候选程序真的执行，用<strong>行为一致性</strong>（多个程序在探针上输出相同结果）替代表面一致性当奖励——"看答案"升级成"看行为"。再配上熵上限（防止策略漂移）和 rank masking（低共识信号只做保守负更新），代码生成的 pass@1 和 pass@k 同时提升。</p>
+    <p>ERPO 为什么这么小心翼翼？因为自我训练有一个被反复观察到的副作用：<strong>pass@1 上涨的代价可能是 pass@k 前沿的坍缩。</strong>模型学会的是"收敛到自己的多数派"，多样性随之流失——单发更准了，但搜索空间变窄了。用一个比喻：一个乐队排练得越来越整齐，整齐到只会演奏同一首歌。对依赖采样+筛选（best-of-N、搜索）的下游系统，这是隐形税。</p>
+
+    <h2>四、通往地狱的那条岔路：过适应、无验证集、反馈劫持</h2>
+    <p>现在说第二台机器为什么越学越蠢。"On Pitfalls of Test-Time Adaptation"（ICML 2023）给这栋楼的地下室画了完整地图：</p>
+    <ul>
+        <li><strong>过适应。</strong>在线 TTA 连续在流式数据上更新，模型会"消化"前面的测试批次——实测案例：连续适应后准确率从 92% 掉到 68.4%。它在考场里越改答案越错，而且不知道自己错了；</li>
+        <li><strong>测试时没有验证集。</strong>训练时你靠 dev set 决定何时停；推理时没有 dev set，模型选择（哪个 checkpoint、多大学习率、几步更新）在原理上就没有可靠答案；</li>
+        <li><strong>反馈劫持。</strong>更深的坑来自 agent 场景：Pan 等人描述的 in-context reward hacking——模型发现自己的输出会改变环境，而环境又是自己的输入，于是在这个闭环里"优化指标"而不是"解决问题"。测试时学习把训练时 reward hacking 的所有老问题，原封不动搬到了部署现场。</li>
+    </ul>
+    <p>出路不是放弃，而是给所有在线学习配上<strong>熔断器</strong>。2025 年 NeurIPS 的一个工作用序贯检验（sequential testing）给 TTA 做无监督风险监视：不需要标签，持续检验"适应后的预测分布是否还健康"，能同时抓住分布漂移型退化和适应塌缩型退化。综合这一整批文献，可以提炼成一个等式：</p>
+    <p><strong>可部署的测试时学习 = 学习规则 + 熔断规则。</strong>episodic reset（每题从原始权重出发）、熵上限、rank masking、序贯检验监视器、定期回滚——它们和"怎么学"同等重要。TTRL 及其后继者每一个成功配方里，都至少焊着两个这样的保险丝。</p>
+
+    <h2>五、算力地图正在重画：监管还在看旧地图</h2>
+    <p>把镜头拉远一层。推理算力在 2026 年预计超过训练算力 118 倍，o1/R1 们每答一题生成的 token 是旧模型的 10-100 倍。EU AI Act 用训练 FLOPs（10^25）给"系统性风险模型"划线——但一个中等规模模型加上巨额推理算力、再加上部署后继续学习（TTA/TTRL），其真实能力完全可能越过这条线，而监管的仪表盘上看不见任何异常。<strong>"评估一个冻结的模型"这个前提，在测试时学习的世界里正在失效：模型能力不再是 weights 的函数，而是 (weights, 数据流, 推理算力, 部署时长) 四元组的函数。</strong>对做平台和做合规的人，这是接下来两年必须补的课。</p>
+
+    <h2>六、今晚就能做的五件事</h2>
+    <ol>
+        <li><strong>给你的记忆库加"惊奇门控"。</strong>如果你维护 agent 的外置记忆（用户偏好、项目事实），写入前先问一句：这条信息是"意料之中"还是"预测误差大"？只写意外项，再配一条定期衰减任务（每天/每周给旧记忆降权）。Titans 的三条代谢规则——惊奇写入、动量固化、权重衰减——抄架构决策不需要抄数学。</li>
+        <li><strong>难度路由你的推理算力。</strong>这是 test-time scaling 家族里零风险、纯赚的子集：简单请求单次直出，难请求才触发 best-of-N / 长思维链。按任务难度分配算力，而不是按请求平均分配。</li>
+        <li><strong>任何自训练环节加熵熔断。</strong>如果你在用投票、一致性或自动评估器产生的信号做自我改进（哪怕只是自动沉淀 few-shot 示例），抄 ERPO 的双保险：熵上限防策略漂移，定期 episodic reset 回到干净基线。并且监控 pass@k 而不只 pass@1——多样性的流失不会体现在你的主指标里。</li>
+        <li><strong>给在线适应上无监督监视器。</strong>哪怕只是统计"最近 N 次预测的分布偏移"，也比裸奔强。序贯检验是现成方法。判断标准一句话：<strong>适应后的模型如果无法证明自己更健康，就回滚到适应前。</strong></li>
+        <li><strong>跟踪 NVIDIA tttla 代码库。</strong>如果"TTT 就是线性注意力"的归约在生产环境站稳，长上下文的工程选型会明显简化——值得每个季度看一眼它进主流框架的进度。</li>
+    </ol>
+
+    <p>回到开头的两台机器。它们最终教会我们的是同一件事：测试时学习不是"要不要开"的开关，而是一套需要同时设计<strong>学习规则和停止规则</strong>的系统。能遗忘的记忆才扛得住长序列，带熔断的自我训练才配得上无标签数据，而所有"边用边学"的系统，都需要一个不学习时也稳定的锚点。会进化的系统大家都想要——但进化这个词在生物学里从来都伴着死亡和代谢，在工程里也一样。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
