@@ -1,20 +1,22 @@
 {
-  "lastUpdated": "2026-10-04T22:02:55Z",
-  "generatedAt": "2026-10-05 06:02 CST",
+  "lastUpdated": "2026-10-05T22:01:30Z",
+  "generatedAt": "2026-10-06 06:01 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 4038428,
+      "pid": 185964,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
-      "openclawVersion": "2026.4.14"
+      "openclawVersion": "2026.4.14",
+      "uptime": "1h43m (restarted ~04:18 today)",
+      "rpcProbe": "ok"
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "165 days, 16 hours, 41 minutes",
-      "loadAverage": "0.55, 0.21, 0.11",
+      "uptime": "166 days, 16 hours, 41 minutes",
+      "loadAverage": "0.42, 0.18, 0.10",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
@@ -23,66 +25,38 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1317,
-        "freeMB": 384,
-        "availableMB": 617
+        "usedMB": 1094,
+        "freeMB": 446,
+        "availableMB": 840
       }
     },
     "model": "zai/glm-5.3-flash"
   },
   "cronSummary": {
     "total": 7,
-    "ok": 6,
-    "error": 0,
+    "ok": 4,
+    "error": 2,
     "running": 1,
-    "errorJobs": [],
+    "errorJobs": [
+      "knowledge-organization-morning",
+      "essay-generation-morning"
+    ],
     "notes": [
-      "全线绿灯：7 个 cron 任务全部 ok，连续错误 0（昨日 knowledge-organization-morning 的 err 1 已在今晨 02:00 自愈 1→0）",
-      "essay-generation-morning 今晨 05:00 正常产出并推送博文（c2a36af）",
-      "dashboard-update-morning 正在运行（本快照）",
-      "Gateway PID 4038428（昨日快照 3680269，24h 内又重启过一次，RPC probe ok）",
-      "主机可用内存 ~617MB（昨日 622MB，持平）；磁盘 68% 持平；load 峰值 0.55 来自本任务构建"
+      "essay-generation-morning 报 error（连续 1 次）但博文实际已产出并推送（eff9da2，05:04）——工作产物落地，疑似收尾/delivery 阶段报错，与既往自愈模式一致",
+      "knowledge-organization-morning 今晨 02:00 报 error（连续 1 次），待观察明日是否自愈",
+      "其余 4 任务全绿：trending-daily / trending-deep-analysis / creative-evening / deep-exploration-evening",
+      "Gateway PID 185964（昨日快照 4038428，今晨 ~04:18 又重启一次，RPC probe ok）",
+      "主机可用内存 ~840MB（昨日 617MB，改善）；磁盘 68% 持平；uptime 166d"
     ]
   },
   "cronJobs": [
-    {
-      "id": "ad37c59a",
-      "name": "github-creative-evening",
-      "schedule": "0 19 * * *",
-      "status": "ok",
-      "lastRun": "11.0h ago",
-      "consecutiveErrors": 0
-    },
-    {
-      "id": "1ea6e3b0",
-      "name": "knowledge-organization-morning",
-      "schedule": "0 2 * * *",
-      "status": "ok",
-      "lastRun": "4.0h ago",
-      "consecutiveErrors": 0
-    },
-    {
-      "id": "a4bf5e2a",
-      "name": "deep-exploration-evening",
-      "schedule": "0 20 * * *",
-      "status": "ok",
-      "lastRun": "10.0h ago",
-      "consecutiveErrors": 0
-    },
-    {
-      "id": "f0362050",
-      "name": "essay-generation-morning",
-      "schedule": "0 5 * * *",
-      "status": "ok",
-      "lastRun": "1.0h ago",
-      "consecutiveErrors": 0
-    },
     {
       "id": "f38e0365",
       "name": "dashboard-update-morning",
       "schedule": "0 6 * * *",
       "status": "running",
       "lastRun": "1.0d ago",
+      "lastRunAt": "10-05 06:00",
       "consecutiveErrors": 0
     },
     {
@@ -91,6 +65,7 @@
       "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23.0h ago",
+      "lastRunAt": "10-05 07:00",
       "consecutiveErrors": 0
     },
     {
@@ -99,7 +74,44 @@
       "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22.0h ago",
+      "lastRunAt": "10-05 08:00",
       "consecutiveErrors": 0
+    },
+    {
+      "id": "ad37c59a",
+      "name": "github-creative-evening",
+      "schedule": "0 19 * * *",
+      "status": "ok",
+      "lastRun": "11.0h ago",
+      "lastRunAt": "10-05 19:00",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "a4bf5e2a",
+      "name": "deep-exploration-evening",
+      "schedule": "0 20 * * *",
+      "status": "ok",
+      "lastRun": "10.0h ago",
+      "lastRunAt": "10-05 20:00",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "1ea6e3b0",
+      "name": "knowledge-organization-morning",
+      "schedule": "0 2 * * *",
+      "status": "error",
+      "lastRun": "4.0h ago",
+      "lastRunAt": "10-06 02:00",
+      "consecutiveErrors": 1
+    },
+    {
+      "id": "f0362050",
+      "name": "essay-generation-morning",
+      "schedule": "0 5 * * *",
+      "status": "error",
+      "lastRun": "1.0h ago",
+      "lastRunAt": "10-06 05:00",
+      "consecutiveErrors": 1
     }
   ],
   "sessions": {
@@ -109,48 +121,54 @@
       "direct": 49,
       "group": 1
     },
+    "models": {
+      "glm-5.3-flash": 27,
+      "glm-5": 12,
+      "glm-5.1": 10,
+      "glm-5-turbo": 1
+    },
     "notable": [
+      {
+        "type": "ou_c5a7b0f4f0b",
+        "kind": "direct",
+        "lastActive": "18.3d ago",
+        "model": "glm-5.3-flash",
+        "context": "205k total tokens"
+      },
+      {
+        "type": "ou_4c5d3e00a26",
+        "kind": "direct",
+        "lastActive": "22.3d ago",
+        "model": "glm-5.3-flash",
+        "context": "205k total tokens"
+      },
+      {
+        "type": "ou_448ef51fcfb",
+        "kind": "direct",
+        "lastActive": "38.3d ago",
+        "model": "glm-5.3-flash",
+        "context": "205k total tokens"
+      },
+      {
+        "type": "7cef529b-1c8c-",
+        "kind": "direct",
+        "lastActive": "71.2d ago",
+        "model": "glm-5.1",
+        "context": "205k total tokens"
+      },
       {
         "type": "main",
         "kind": "direct",
-        "lastActive": "15.1m ago",
+        "lastActive": "0.1h ago",
         "model": "glm-5",
-        "context": "138k total tokens"
+        "context": "153k total tokens"
       },
       {
-        "type": "77a5bcc6-1342-4",
+        "type": "77a5bcc6-1342-",
         "kind": "direct",
-        "lastActive": "8.1d ago",
+        "lastActive": "9.1d ago",
         "model": "glm-5.3-flash",
         "context": "126k total tokens"
-      },
-      {
-        "type": "1ea6e3b0-4744-4",
-        "kind": "direct",
-        "lastActive": "4.0h ago",
-        "model": "glm-5.1",
-        "context": "121k total tokens"
-      },
-      {
-        "type": "804bc410-e768-4",
-        "kind": "direct",
-        "lastActive": "4.0h ago",
-        "model": "glm-5.1",
-        "context": "121k total tokens"
-      },
-      {
-        "type": "265091b6-6c5f-4",
-        "kind": "direct",
-        "lastActive": "36.4d ago",
-        "model": "glm-5.3-flash",
-        "context": "117k total tokens"
-      },
-      {
-        "type": "78eac6fc-c2d7-4",
-        "kind": "direct",
-        "lastActive": "8.3d ago",
-        "model": "glm-5.3-flash",
-        "context": "106k total tokens"
       }
     ]
   }
