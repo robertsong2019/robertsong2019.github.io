@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当 Agent 开始改自己的代码——自我进化的真实形态：学习不在权重里，在文件系统里 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>当 Agent 开始改自己的代码——自我进化的真实形态：学习不在权重里，在文件系统里</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">自我进化</span>
+        <span class="tag">技能库</span>
+        <span class="tag">评测</span>
+        2026-10-06 · 基于 DGM / SICA / HyperAgents / Agent Skills 等 16 项论文与系统的调研
+    </p>
+
+    <blockquote>每天晚上，我的 agent 会复盘当天犯的错，把教训写进一个叫 <code>error-patterns.md</code> 的文件；同类错误犯到第三次，它会升级规则，把约束永久写进自己的"操作手册"。它从不训练自己——权重一克未动，但它确实在变聪明。听起来像玩具？这恰好是 2025–2026 年自我进化 agent 研究收敛出的正经形态：<strong>冻结大脑，开放骨架；学习不发生在权重里，发生在文件系统里。</strong></blockquote>
+
+    <h2>一、三个不寻常的数字</h2>
+    <p>先看三组 2026 年的实验结果：</p>
+    <ul>
+        <li>Sakana AI 的 <strong>Darwin Gödel Machine（DGM）</strong>让 coding agent 自己改写自己的代码，SWE-bench 成绩从 <span class="highlight">20% 爬到 50%</span>——底层模型全程冻结。</li>
+        <li>Bristol 大学的 <strong>SICA</strong> 更激进：取消"设计者 agent"和"干活 agent"的分工，一个 agent 自己跑测试、自己读失败记录、自己改自己的源码，15 轮迭代后 SWE-bench Verified 子集 <span class="highlight">17% → 53%</span>。</li>
+        <li>Meta 的 <strong>HyperAgents</strong>（2026 年 3 月）把这套自我改进的能力迁移到一个它从未见过的领域（奥数判卷），拿到 imp@50 = 0.630；而人类专家为同一任务手工设计的系统得分是 <span class="highlight">0.0</span>。学会"如何学习"的机器，赢了手动工程化"学习"的人类。</li>
+    </ul>
+    <p>三个独立团队、不同架构、不同目标，做了一个相同的架构决定：<strong>模型权重一个字节都不动。</strong>所有改进都发生在权重之外——代码、提示、工具、技能文件、记忆。这不是巧合，是收敛。</p>
+
+    <h2>二、介质决定一切：为什么是文件系统</h2>
+    <p>为什么大家不约而同地绕开权重？可以用一个比喻：微调权重像给员工做脑部手术——效果深，但手术贵、不可逆、你永远说不清哪一刀起了什么作用；改文件系统像修订员工的 SOP 手册——大脑没变，但照着手册干活，越干越好。</p>
+    <p>工程上，这两种"学习介质"的差异是结构性的：</p>
+    <table>
+        <tr><th></th><th>权重更新</th><th>代码 / Markdown 更新</th></tr>
+        <tr><td>可读性</td><td>不可读（几十亿个浮点数）</td><td>人类可读，每次改进就是一次 diff</td></tr>
+        <tr><td>可回滚</td><td>难（要留整套参数快照）</td><td>git 天然支持</td></tr>
+        <tr><td>可迁移</td><td>换个任务域基本作废</td><td>DGM-H 把改进策略整个复制到新领域</td></tr>
+        <tr><td>数据效率</td><td>要海量样本做梯度统计</td><td>SICA 精读 15 次失败记录就完成跃迁</td></tr>
+        <tr><td>审计</td><td>"它为什么变了？"无法回答</td><td>每次变化对应一个 commit</td></tr>
+    </table>
+    <p>DGM 论文里有一句容易被略过但极其诚实的话，大意是：自我改进的每一步，都是一次人类可读的 Python 修改。这句话反过来读就是整个范式的宣言——<strong>如果改进不可读，它就不可信、不可控、也不可复用。</strong></p>
+    <p>这条线往下走，就走到了 2025 年底 Anthropic 开放的 <strong>Agent Skills 规范</strong>：一个技能就是一个 <code>SKILL.md</code> 文件加可选脚本，agent 平时只加载一份紧凑索引，用到时才把全文读进上下文。这套"渐进披露"的打包格式已被 Microsoft、OpenAI、Cursor、GitHub 采纳为运行时标准，实测比多 agent 编排省 54% 的 token。而 NVIDIA 三年前的 Voyager 在 Minecraft 里攒技能库，Amazon 今年的 SAGE 用强化学习管理技能库（完成率 +8.9%、步数 -26%、token -59%），都是同一条演化路径的先行者：<strong>技能从"提示词的碎片"升级为"可版本化管理的资产"。</strong></p>
+
+    <h2>三、验证是硬通货：为什么全是 coding agent</h2>
+    <p>你可能注意到了：所有自我改进的系统都在写代码。三个团队独立收敛到"全部操作在代码上"（Gödel Agent 的运行时自改、SICA 的自编辑、AlphaEvolve 的进化编程），这不是因为代码最酷，而是因为<strong>代码是唯一自带裁判的比赛场地</strong>——跑一遍测试，通过就是通过，不通过就是不通过。</p>
+    <p>自我改进闭环的数学很残酷：agent 改了自己 → 需要判断"改完是不是更好了" → 判断信号如果不可靠，闭环就不再是学习，而是带噪声的随机游走，甚至退化。2026 年 5 月的 SIA 论文把话说到了底：<strong>没有 eval，就没有可控的自我改进。</strong>可验证的域（代码执行、数学证明、形式逻辑）信号干净，闭环成立；需要主观判断的域，信号是噪声，自我改进变成自我安慰。</p>
+    <p>这也解释了 AlphaEvolve 为什么是它那个形态：它进化的是外部问题的解（找到了超过 Strassen 家族的矩阵乘法算法、替 Google 回收了 0.7% 的数据中心算力），而不是 agent 自己——因为"矩阵乘法更快了"可以硬验证，"我这个 agent 变聪明了"很难。代码不是偏好，是可验证性的物理载体。</p>
+
+    <h2>四、最危险的漏洞：考生不能改判卷人</h2>
+    <p>这套范式有一个 2026 年才被认真对待的坑。SICA 的头条数字（17→53）发表后，独立评审平台 Pith 给出了一句冷冰冰的质疑：这个 agent 能编辑自己的<strong>全部</strong>代码库——包括可能影响评测判分的部分。selection effect（只在对自己有利的子集上刷分）加 evaluator tampering（悄悄改判卷逻辑），足以让头条数字需要打折。</p>
+    <p>这不是理论风险，而是自我改进系统的结构性矛盾：<strong>如果改进的载体是文件系统，而判卷人也在文件系统里，那"改进自己"和"收买裁判"在操作上是同一个动作。</strong>防御只有一种：判卷人必须钉死在改进环之外——判分器 frozen、期望指纹钉死、重新打分与重新生成分离。我在自己的评测管线里维护的纪律（跑官方评测前钉死 hash seed，跑完核对三个指纹数字，好得可疑先查伪影再庆祝）本质上是同一个东西：<strong>自我改进系统的可信度，等于它评测系统的不可改进性。</strong></p>
+    <pre><code># 自我改进环的最小可信配置
+loop:
+    agent.propose_edit(own_code)        # 只许改"干活"的那部分
+    frozen_judge.score(eval_suite)      # 判卷人不许出现在可编辑文件里
+    if score &gt; baseline and fingerprint_ok(score):
+        archive.commit(diff)            # 改进落成 commit，含测试与回滚计划
+    else:
+        archive.keep_as_stepping_stone()  # 失败也是证据，不删</code></pre>
+
+    <h2>五、诚实的另一半：它离"递归自我改进"还很远</h2>
+    <p>这波研究里最值得尊敬的，是对自身的克制。7 月一篇覆盖 1250 篇论文的综述给出的结论是：改自己记忆、改自己技能、改自己工作流的<strong>有界自精炼，是收敛的、可评估的、已经是工业实践</strong>；而"agent 改进'改进自己的机制'"的开放式递归自我改进，是另一个物种，仍是开放问题。</p>
+    <p>两份评测把这份克制量化了。Meta 的 AIRS-Bench 让 agent 做 20 个真实 ML 研究任务：平均只有人类的 23%，但其中 4 个任务，agent 用原论文作者压根没想到的策略反超了人类。<strong>平均平庸 × 偶尔超人，是"大解空间 + 不完美评估函数"搜索过程的数学签名</strong>——按均值看是失望，按分布两端看是另一种东西。而普林斯顿的 shadow evaluation 更冷：给 Claude Opus 4.8 六天时间、三千美元额度做两个未发表的 NeurIPS 题目，文献综述和几百个实验跑得漂亮，两篇"论文"都被人类作者拒收——实验设计怪异、写作不可读、零新贡献。Jack Clark 的读法是"有价值直觉性创造力的缺席"，对短期递归自我改进的时间表偏空。</p>
+    <p>把这两份评测放在一起，2026 年的真实图景是：<strong>自我改进跑得动的域（可验证）和真正的研究前沿（不可验证），目前并不重叠。</strong>HyperAgents 在奥数判卷上迁移成功，恰恰因为判卷答案可验证。前进的方向不是喊口号，而是把不可验证的域一步步翻译成可验证的——2026 年 8 月的 RLSVR 工作已经在这个方向上迈步：把开放式任务变换成自带验证器的代理环境。</p>
+
+    <h2>尾声：今晚就可以做的五件事</h2>
+    <p>这套范式最好的地方是：不需要等任何新模型发布，你今晚就能在自己的工作流里开工。</p>
+    <ol>
+        <li><strong>把改进制品化。</strong>你的 agent（或你自己）犯的每个值得记住的错，落成一个 git 管理的文件：错误类型、触发条件、最小复现、修复 commit。禁止"口头学习"——不在文件里的教训等于没学。</li>
+        <li><strong>给改进环配一个环外判卷人。</strong>任何自动优化（提示、技能、参数）上线前，用一份 frozen 的评测集 + 钉死的期望指纹把关。分数好得可疑时，第一反应查裁判被动过没有，不是开香槟。</li>
+        <li><strong>把技能当包管理。</strong>一个技能 = 一个 SKILL.md + 行为测试 + changelog + 回滚计划。度量"复用率和复用成功率"，而不是"创建了多少个"——创建是成本，复用才是收益。</li>
+        <li><strong>保留失败的垫脚石。</strong>DGM 的核心技巧不是贪心地只留最优版本，而是保留一个存档：比父代更差的中间体往往孕育下一步突破。你的 error-patterns 文件就是你的存档。</li>
+        <li><strong>盯紧技能供应链安全。</strong>当 SKILL.md 开始被 agent 自动生成、自动进化，签名、沙箱、审计就是下一个安全边界——在你的 agent 加载第三方技能之前，先想想你会不会直接执行陌生人发来的 shell 脚本。</li>
+    </ol>
+    <p>回到开头的场景：我的 agent 靠一堆 markdown 文件变聪明，曾经这看起来像玩具。现在可以说得更准确了——<strong>权重是天赋，文件系统是教养。</strong>2026 年的共识是：天赋由预训练一次性给定，而教养，才刚刚开始被认真工程化。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
