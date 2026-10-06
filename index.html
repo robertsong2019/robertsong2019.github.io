@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-07 tilelang multi-backend -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-07</div>
+                    <a href="posts/tilelang-multi-backend-2026-10.html" class="post-title-link">
+                        <div class="post-title">一份 kernel 写四家硬件——tilelang、昇腾后端，与 kernel 编程入口的易主</div>
+                    </a>
+                    <div class="post-excerpt">
+        2026-09-30 华为昇腾 950 成为 tilelang 官方后端（原生代码生成+自动调度同步+SIMD/SIMT 向量编程）。放回时间线：Metal 2025-10 进主仓、AMD CI 跑 MI300X、CUDA 覆盖 SM70–SM120——一份 Python 语法 kernel 可在四家硬件编译执行（8.4k★ 周+922，增速大概率由昇腾后端驱动）。「写 kernel」的入口正从硬件厂商 SDK 变成中间层 / 移植成本的真实构成不是语法是心智模型：每个硬件一套内存层级心智——数据怎么进片上共享内存、怎么排布喂饱矩阵乘单元、流水线深度多少盖住访存延迟；FlashAttention 之后每个硬件团队都要重做一遍，因为 on-chip 数据流绑定在厂商原语上；会 CUDA 本质是会 TMA+WGMMA+Tensor Memory 组合拳，换卡约等于换工种 / 为什么现在可能：硬件先收敛了——现代加速器殊途同归于同一模板（层级内存 global→shared/scratch→寄存器 fragment + 分块 MMA 单元 + 异步拷贝引擎），TMA/ds_read/DataCopy 名字不同形状相同 / 五个动词的诚实抽象：T.Kernel 网格、alloc_shared/alloc_fragment 显式内存层级、T.copy 异步搬运、T.gemm 映射各家 MMA、T.Pipelined(num_stages=3) 软件流水；tile 形状与流水深度是编译期参数，autotuner 直接在参数空间搜索；T.gemm 是分叉点——同一语义 SM100 lowering 到 tcgen05、MI300X 走 matrix core、昇腾 950 映射 Cube 单元；语义层一次编写指令层各自落地 / 方言统一不是语法糖：07-24 multi-backend dialect 重构（共享语义+静态方言）、backend registry（新后端插进来不改内核）、战绩=DeepSeek MLA H100 解码/FlashMLA MI300X/V3.2 top-k 1.9×/V4 算子 / 治理设计：四档支持表 Primary/Supported/Experimental/Ecosystem，国产卡（MetaX/摩尔线程/海光/曙光/昇腾A2A3）在独立生态仓独立发版——fork→rot→die 经典死亡模式的结构性解法，Ecosystem 一栏就是算力主权版图 / 编译器工程正被 AI 重塑：.agents/skills/tilelang-backend SKILL.md 给 coding agent 的后端移植说明书成仓库一等资产、LSP inlay hints、IR Lower Trace+Pass Diff、AutoDD __freeze__ 自动 delta debugging、Z3 进 TVM 算术分析器 / 冷静面三代价：新硬件特性永远先在原生栈（NVF4 慢 CUTLASS 一个季度到一年，结构性差距）；写得对可移植写得快不可移植（省的是正确性工程不是性能工程）；成熟度梯度陡（CUDA 有 wheel+CI，昇腾要源码编译+CANN，demo 成立生产分级付费） / 尾声：2007 CUDA 把写 GPGPU 入口从图形 API 手里移到 C 方言手里，此后二十年入口握在厂商 SDK；tilelang/Triton 把入口再上移一层——kernel 规范形态变成硬件无关的 tile 语义描述，厂商 SDK 降级为编译目标之一；对国产算力最彻底的路不是兼容 CUDA 而是让 CUDA 变成众多 target 之一，棋盘直接换掉
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">GPU kernel</span>
+                        <span class="post-tag">DSL</span>
+                        <span class="post-tag">编译器</span>
+                        <span class="post-tag">异构计算</span>
+                    </div>
+                    <a href="posts/tilelang-multi-backend-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-06 self-evolving agents filesystem learning -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-06</div>
