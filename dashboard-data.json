@@ -1,22 +1,22 @@
 {
-  "lastUpdated": "2026-10-05T22:01:30Z",
-  "generatedAt": "2026-10-06 06:01 CST",
+  "lastUpdated": "2026-10-06T22:01:41Z",
+  "generatedAt": "2026-10-07 06:01 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 185964,
+      "pid": 527630,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14",
-      "uptime": "1h43m (restarted ~04:18 today)",
+      "uptime": "running since <2026-10-06 (pid 527630), state active",
       "rpcProbe": "ok"
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "166 days, 16 hours, 41 minutes",
-      "loadAverage": "0.42, 0.18, 0.10",
+      "uptime": "167 days, 16 hours, 41 minutes",
+      "loadAverage": "0.12, 0.04, 0.01",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
@@ -25,28 +25,24 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1094,
-        "freeMB": 446,
-        "availableMB": 840
+        "usedMB": 1217,
+        "freeMB": 497,
+        "availableMB": 718
       }
     },
     "model": "zai/glm-5.3-flash"
   },
   "cronSummary": {
     "total": 7,
-    "ok": 4,
-    "error": 2,
-    "running": 1,
-    "errorJobs": [
-      "knowledge-organization-morning",
-      "essay-generation-morning"
-    ],
+    "ok": 7,
+    "error": 0,
+    "running": 0,
+    "errorJobs": [],
     "notes": [
-      "essay-generation-morning 报 error（连续 1 次）但博文实际已产出并推送（eff9da2，05:04）——工作产物落地，疑似收尾/delivery 阶段报错，与既往自愈模式一致",
-      "knowledge-organization-morning 今晨 02:00 报 error（连续 1 次），待观察明日是否自愈",
-      "其余 4 任务全绿：trending-daily / trending-deep-analysis / creative-evening / deep-exploration-evening",
-      "Gateway PID 185964（昨日快照 4038428，今晨 ~04:18 又重启一次，RPC probe ok）",
-      "主机可用内存 ~840MB（昨日 617MB，改善）；磁盘 68% 持平；uptime 166d"
+      "全部 7 个 cron 任务连续 ok，无错误",
+      "Gateway PID 527630（昨日快照 185964，运行中，RPC probe ok）",
+      "主机可用内存 ~718MB（昨日 840MB）；磁盘 68% 持平；uptime 167d",
+      "近 8h 博客新提交: ccfce46 新博文：一份kernel写四家硬件 tilelang昇腾后端与kernel编程入口的易主 (2026-09-30昇腾950官方后端原生代码生成+自动调度+SIMD/SIMT 一份Python语法kernel覆盖CUDA/ROCm/Metal/昇腾 8.4k★周+922 / 移植成本不是语法是心智模型 每硬件一套内存层级心智 FlashAtte"
     ]
   },
   "cronJobs": [
@@ -54,9 +50,9 @@
       "id": "f38e0365",
       "name": "dashboard-update-morning",
       "schedule": "0 6 * * *",
-      "status": "running",
-      "lastRun": "1.0d ago",
-      "lastRunAt": "10-05 06:00",
+      "status": "ok",
+      "lastRun": "24.0h ago",
+      "lastRunAt": "10-06 06:00",
       "consecutiveErrors": 0
     },
     {
@@ -65,7 +61,7 @@
       "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23.0h ago",
-      "lastRunAt": "10-05 07:00",
+      "lastRunAt": "10-06 07:00",
       "consecutiveErrors": 0
     },
     {
@@ -74,7 +70,7 @@
       "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22.0h ago",
-      "lastRunAt": "10-05 08:00",
+      "lastRunAt": "10-06 08:00",
       "consecutiveErrors": 0
     },
     {
@@ -83,7 +79,7 @@
       "schedule": "0 19 * * *",
       "status": "ok",
       "lastRun": "11.0h ago",
-      "lastRunAt": "10-05 19:00",
+      "lastRunAt": "10-06 19:00",
       "consecutiveErrors": 0
     },
     {
@@ -92,26 +88,26 @@
       "schedule": "0 20 * * *",
       "status": "ok",
       "lastRun": "10.0h ago",
-      "lastRunAt": "10-05 20:00",
+      "lastRunAt": "10-06 20:00",
       "consecutiveErrors": 0
     },
     {
       "id": "1ea6e3b0",
       "name": "knowledge-organization-morning",
       "schedule": "0 2 * * *",
-      "status": "error",
+      "status": "ok",
       "lastRun": "4.0h ago",
-      "lastRunAt": "10-06 02:00",
-      "consecutiveErrors": 1
+      "lastRunAt": "10-07 02:00",
+      "consecutiveErrors": 0
     },
     {
       "id": "f0362050",
       "name": "essay-generation-morning",
       "schedule": "0 5 * * *",
-      "status": "error",
+      "status": "ok",
       "lastRun": "1.0h ago",
-      "lastRunAt": "10-06 05:00",
-      "consecutiveErrors": 1
+      "lastRunAt": "10-07 05:00",
+      "consecutiveErrors": 0
     }
   ],
   "sessions": {
@@ -129,46 +125,46 @@
     },
     "notable": [
       {
-        "type": "ou_c5a7b0f4f0b",
+        "type": "f38e0365-7bb",
         "kind": "direct",
-        "lastActive": "18.3d ago",
+        "lastActive": "0.0h ago",
         "model": "glm-5.3-flash",
-        "context": "205k total tokens"
+        "context": "n/a"
       },
       {
-        "type": "ou_4c5d3e00a26",
+        "type": "a369b28d-256",
         "kind": "direct",
-        "lastActive": "22.3d ago",
+        "lastActive": "0.0h ago",
         "model": "glm-5.3-flash",
-        "context": "205k total tokens"
-      },
-      {
-        "type": "ou_448ef51fcfb",
-        "kind": "direct",
-        "lastActive": "38.3d ago",
-        "model": "glm-5.3-flash",
-        "context": "205k total tokens"
-      },
-      {
-        "type": "7cef529b-1c8c-",
-        "kind": "direct",
-        "lastActive": "71.2d ago",
-        "model": "glm-5.1",
-        "context": "205k total tokens"
+        "context": "n/a"
       },
       {
         "type": "main",
         "kind": "direct",
-        "lastActive": "0.1h ago",
+        "lastActive": "0.2h ago",
         "model": "glm-5",
-        "context": "153k total tokens"
+        "context": "n/a"
       },
       {
-        "type": "77a5bcc6-1342-",
+        "type": "f0362050-d10",
         "kind": "direct",
-        "lastActive": "9.1d ago",
+        "lastActive": "0.9h ago",
         "model": "glm-5.3-flash",
-        "context": "126k total tokens"
+        "context": "n/a"
+      },
+      {
+        "type": "16fd3796-c34",
+        "kind": "direct",
+        "lastActive": "1.0h ago",
+        "model": "glm-5.1",
+        "context": "n/a"
+      },
+      {
+        "type": "1ea6e3b0-474",
+        "kind": "direct",
+        "lastActive": "4.0h ago",
+        "model": "glm-5.1",
+        "context": "n/a"
       }
     ]
   }
