@@ -1,22 +1,22 @@
 {
-  "lastUpdated": "2026-10-06T22:01:41Z",
-  "generatedAt": "2026-10-07 06:01 CST",
+  "lastUpdated": "2026-10-07T22:01:41Z",
+  "generatedAt": "2026-10-08 06:01 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 527630,
+      "pid": 863071,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14",
-      "uptime": "running since <2026-10-06 (pid 527630), state active",
+      "uptime": "running since 2026-10-08 03:47 CST (pid 863071, 2h14m; restarted overnight, prev pid 527630)",
       "rpcProbe": "ok"
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "167 days, 16 hours, 41 minutes",
-      "loadAverage": "0.12, 0.04, 0.01",
+      "uptime": "168 days, 16 hours, 42 minutes",
+      "loadAverage": "0.29, 0.15, 0.06",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
@@ -25,9 +25,9 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1217,
-        "freeMB": 497,
-        "availableMB": 718
+        "usedMB": 1240,
+        "freeMB": 450,
+        "availableMB": 695
       }
     },
     "model": "zai/glm-5.3-flash"
@@ -36,13 +36,13 @@
     "total": 7,
     "ok": 7,
     "error": 0,
-    "running": 0,
+    "running": 1,
     "errorJobs": [],
     "notes": [
       "全部 7 个 cron 任务连续 ok，无错误",
-      "Gateway PID 527630（昨日快照 185964，运行中，RPC probe ok）",
-      "主机可用内存 ~718MB（昨日 840MB）；磁盘 68% 持平；uptime 167d",
-      "近 8h 博客新提交: ccfce46 新博文：一份kernel写四家硬件 tilelang昇腾后端与kernel编程入口的易主 (2026-09-30昇腾950官方后端原生代码生成+自动调度+SIMD/SIMT 一份Python语法kernel覆盖CUDA/ROCm/Metal/昇腾 8.4k★周+922 / 移植成本不是语法是心智模型 每硬件一套内存层级心智 FlashAtte"
+      "Gateway 今晨 03:47 重启（新 PID 863071，旧 527630），端口 34524 探活正常",
+      "主机可用内存 ~695MB（昨日 718MB）；磁盘 68% 持平；uptime 168d",
+      "近 24h 博客新提交: f9564c5 新博文：Agent 安全做错了层 NVIDIA OpenShell、内核级策略，与凭证不过手 (10-08 05:04); b966c8f 新博文：当 Agent 开始做梦 睡眠成为第三条计算轴以及被跳过的那门考试 (10-07 20:05)"
     ]
   },
   "cronJobs": [
@@ -52,7 +52,7 @@
       "schedule": "0 6 * * *",
       "status": "ok",
       "lastRun": "24.0h ago",
-      "lastRunAt": "10-06 06:00",
+      "lastRunAt": "10-07 06:00",
       "consecutiveErrors": 0
     },
     {
@@ -61,7 +61,7 @@
       "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23.0h ago",
-      "lastRunAt": "10-06 07:00",
+      "lastRunAt": "10-07 07:00",
       "consecutiveErrors": 0
     },
     {
@@ -70,7 +70,7 @@
       "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22.0h ago",
-      "lastRunAt": "10-06 08:00",
+      "lastRunAt": "10-07 08:00",
       "consecutiveErrors": 0
     },
     {
@@ -79,7 +79,7 @@
       "schedule": "0 19 * * *",
       "status": "ok",
       "lastRun": "11.0h ago",
-      "lastRunAt": "10-06 19:00",
+      "lastRunAt": "10-07 19:00",
       "consecutiveErrors": 0
     },
     {
@@ -87,8 +87,8 @@
       "name": "deep-exploration-evening",
       "schedule": "0 20 * * *",
       "status": "ok",
-      "lastRun": "10.0h ago",
-      "lastRunAt": "10-06 20:00",
+      "lastRun": "10.1h ago",
+      "lastRunAt": "10-07 20:00",
       "consecutiveErrors": 0
     },
     {
@@ -97,7 +97,7 @@
       "schedule": "0 2 * * *",
       "status": "ok",
       "lastRun": "4.0h ago",
-      "lastRunAt": "10-07 02:00",
+      "lastRunAt": "10-08 02:00",
       "consecutiveErrors": 0
     },
     {
@@ -106,7 +106,7 @@
       "schedule": "0 5 * * *",
       "status": "ok",
       "lastRun": "1.0h ago",
-      "lastRunAt": "10-07 05:00",
+      "lastRunAt": "10-08 05:00",
       "consecutiveErrors": 0
     }
   ],
@@ -125,14 +125,7 @@
     },
     "notable": [
       {
-        "type": "f38e0365-7bb",
-        "kind": "direct",
-        "lastActive": "0.0h ago",
-        "model": "glm-5.3-flash",
-        "context": "n/a"
-      },
-      {
-        "type": "a369b28d-256",
+        "type": "cron:f38e0365 (dashboard)",
         "kind": "direct",
         "lastActive": "0.0h ago",
         "model": "glm-5.3-flash",
@@ -146,24 +139,31 @@
         "context": "n/a"
       },
       {
-        "type": "f0362050-d10",
+        "type": "cron:f0362050 (essay)",
         "kind": "direct",
         "lastActive": "0.9h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
-        "type": "16fd3796-c34",
+        "type": "cron:1ea6e3b0 (knowledge-org)",
         "kind": "direct",
-        "lastActive": "1.0h ago",
+        "lastActive": "4.0h ago",
         "model": "glm-5.1",
         "context": "n/a"
       },
       {
-        "type": "1ea6e3b0-474",
+        "type": "cron:a4bf5e2a (deep-exploration)",
         "kind": "direct",
-        "lastActive": "4.0h ago",
-        "model": "glm-5.1",
+        "lastActive": "9.9h ago",
+        "model": "glm-5.3-flash",
+        "context": "n/a"
+      },
+      {
+        "type": "cron:ad37c59a (creative-evening)",
+        "kind": "direct",
+        "lastActive": "11.0h ago",
+        "model": "glm-5.3-flash",
         "context": "n/a"
       }
     ]
