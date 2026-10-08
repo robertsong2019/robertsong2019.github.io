@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-08 speculative execution agent runtime -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-08</div>
+                    <a href="posts/speculative-execution-agent-runtime-2026-10.html" class="post-title-link">
+                        <div class="post-title">Agent 运行时正在重演 CPU 设计史——乱序推测执行、TomasuLLM，与 Pentium Pro 的第二次就业</div>
+                    </a>
+                    <div class="post-excerpt">
+        开场算一笔账：coding agent 一次修复任务 4 分钟，模型推理只占 8 秒，其余全在干等 npm test/重启/git diff——你的 agent 是一台 1994 年的 CPU，计算单元飞快，每次访存整条流水线停摆；而这张考卷芯片业 30 年前就交过答案，2026-09 论文 TomasuLLM 把它原样搬进 agent 运行时，名字致敬 1967 年 Robert Tomasulo 为 IBM 360/91 设计的算法 / 瓶颈搬家：专用硬件推理已数千 token/s，解码不再是最慢一环，PASTE 量化工具执行占总请求时间 35%–61%；TomasuLLM 命名 observation stall（观察停顿）——顺序接口掩盖了本可预测、本可提前开始的工作，与 1990 年代 memory stall 同构 / Tomasulo 三段契约逐条翻译：按序发射→乱序执行→按序提交（插队干活可以，出货必须按序，可见状态永不携带推测）；映射表堪称论文最精彩部分——工具调用=长延迟指令、已提交任务状态=体系结构状态、文件版本绑定=寄存器重命名（读时绑定过期即 squash）、COW overlay=物理寄存器堆（推测改动写在可整段撕掉的描图纸上）、Action Drafter=分支预测器、Observation Drafter=值预测（连工具会返回什么都先预测一份让下一草案不等真实返回）、Trace IR 提交验证=ROB / 成绩单：SWE-bench Verified 1.31×、Terminal-Bench 2.0 1.35×、SWE-Marathon 1.27×，加速比随工具延迟增长（瓶颈在等待的判定性证据）；最硬数字在验证侧——4,010 次提交验证审计零误接受 / 不是孤例是运动：Speculative Decoding（2023 快慢配对方法论起源）→ LLMCompiler（ICML 2024 并行函数调用，延迟 3.7× 成本 6.9× 精度反涨）→ Speculative Actions（Google，一切 agent-环境交互皆可推测，接口保持仿佛串行）→ PASTE（边想边做，参数从历史预取，搜索天然成批）→ 缓存层（prompt prefix/suffix cache reuse 省 ~35%）；超标量/分支预测/重命名/ROB/缓存层级全部有了对应物——上一代研究体系结构，这一代研究 harness，同一门手艺换了介质 / 类比断裂处才是难点：指令是取的动作是生成的（预测错=整条指令变了）、工具不声明读集合、观察非 bit-exact（验证只能查依赖与效果边界不能精确比对）、副作用落在寄存器之外 / Spectre 教训 agent 版一句话：推测状态永不可见、推测副作用必须可丢弃——工具按可逆性分级（读随便推测/写进 COW/不可逆动作永不推测），与 OpenShell 同一条线：提示词管意图运行时管能力，调度器管快慢验证器管对错 / 三个判断：下一个 10× 不在模型在调度（1.31× 只是第一代，对照 486→P6 跨度）；预测定上限验证定信任（4,010 零误接受才是最值钱数字，验证正确性是乘号后面的 1，它归零一切归零）；无损是产品化钥匙（仿佛串行接口=不改动 agent 逻辑/提示词/评测语义直接装进现有 harness） / 今天就能做四件事：打时间戳算 tool-wait 占比（>40% 才是主战场）；独立读并行零风险纯赚；N-gram 模式预取起步（npm test 后多半是 git diff，固定后缀命中白捡往返）；碰推测执行前先立规矩（overlay 内推测+可逆性分级+误接受必须为零不是接近零）。1967 年的算法等了 agent 五十九年，你的 agent 没理由再干等一个 npm test
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">Agent 运行时</span>
+                        <span class="post-tag">体系结构</span>
+                        <span class="post-tag">性能工程</span>
+                    </div>
+                    <a href="posts/speculative-execution-agent-runtime-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-08 openshell agent runtime security -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-08</div>

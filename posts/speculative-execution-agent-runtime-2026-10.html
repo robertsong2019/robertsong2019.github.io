@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 运行时正在重演 CPU 设计史——乱序推测执行、TomasuLLM，与 Pentium Pro 的第二次就业 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Agent 运行时正在重演 CPU 设计史——乱序推测执行、TomasuLLM，与 Pentium Pro 的第二次就业</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">Agent 运行时</span>
+        <span class="tag">体系结构</span>
+        <span class="tag">性能工程</span>
+        2026-10-08 · 基于 2026-10-08 晚间探索笔记（catalyst-research/exploration-notes/2026-10-08-ooo-speculative-execution-agent-runtime.md）
+    </p>
+
+    <blockquote>打开你的 coding agent 的执行日志，算一笔账：一次修复任务总共 4 分钟，模型推理只占了 8 秒。剩下的时间它在干嘛？在等。<code>npm test</code> 跑了 90 秒，它干等 90 秒；服务重启 40 秒，它干等 40 秒；<code>git diff</code> 3 秒，干等 3 秒。你的 agent 是一台 1994 年的 CPU——计算单元快得飞起，却在每次访存时整条流水线停摆。而这份考卷，芯片行业 30 年前就交过答案了。2026 年 9 月底，一篇论文把那个答案原封不动搬进了 agent 运行时，连名字都没改多少——它叫 <strong>TomasuLLM</strong>，致敬 1967 年 Robert Tomasulo 为 IBM 360/91 设计的那条算法。</blockquote>
+
+    <h2>一、瓶颈搬家了：从"模型慢"到"等工具"</h2>
+    <p>过去两年，所有 agent 性能优化都指向同一个方向：让模型更快。但 2026 年的专用硬件上，推理已经跑到每秒数千 token——解码不再是流水线上最慢的一环。真正慢的是环外的东西：编译、测试套件、服务重启、仓库命令，动辄数秒到数分钟，而 agent 的循环是严格串行的——想一步，发一个工具调用，等结果，再想下一步。</p>
+    <p>三月的一篇论文（PASTE）给了量化：工具执行占总请求时间的 <strong>35%–61%</strong>。TomasuLLM 给这种现象起了个体系结构味道十足的名字——<strong>observation stall（观察停顿）</strong>：agent 发出动作后，在"观察"返回前什么都做不了。这和 1990 年代 CPU 面对的 memory stall 是同一个矛盾：<strong>顺序接口掩盖了本可以预测、本可以提前开始的工作</strong>。CPU 产业的解法叫乱序执行 + 推测执行，它让 90 年代到 2000 年代的处理器性能翻了几个数量级。</p>
+    <p>所以论文作者问了一个极其朴素的问题：为什么不直接抄作业？</p>
+
+    <h2>二、1967 年的算法，2026 年的运行时</h2>
+    <p>先补一页历史。Tomasulo 算法 1967 年诞生于 IBM System/360 Model 91，核心思想后来统治了所有现代 CPU：<strong>按序发射、乱序执行、按序提交</strong>。指令按程序顺序进入（发射），但谁的操作数就绪谁就先跑（乱序执行），最后却严格按原始顺序"退休"（提交）——插队干活可以，出货必须按序。1995 年的 Pentium Pro 把这套东西带给大众市场，从此"推测执行"成了芯片设计的基本姿势：分支预测器赌一个方向，赌对了白赚时间，赌错了把推测结果全部作废（squash），对外可见的状态从未被污染过。</p>
+    <p>TomasuLLM 把这套契约逐条翻译到 agent 运行时，映射表堪称论文最精彩的部分：</p>
+    <table>
+        <tr><th>CPU 概念</th><th>Agent 运行时对应物</th></tr>
+        <tr><td>长延迟指令（访存）</td><td>工具调用（build / test / restart）</td></tr>
+        <tr><td>体系结构状态</td><td>已提交的任务状态——<strong>可见状态永不携带推测</strong></td></tr>
+        <tr><td>按序提交（ROB）</td><td>按轨迹顺序提交，只提交通过验证的最长连续前缀</td></tr>
+        <tr><td>寄存器重命名</td><td>工作区文件版本：读时绑定，提交时发现过期就 squash</td></tr>
+        <tr><td>物理寄存器堆</td><td>copy-on-write（COW）沙箱 overlay——推测改动写在"描图纸"上</td></tr>
+        <tr><td>分支预测器</td><td>Action Drafter：从已提交历史起草下一个工具动作</td></tr>
+        <tr><td>值预测（1996）</td><td>Observation Drafter：连工具会返回什么都先预测一份，让下一个草案不必等真实返回</td></tr>
+    </table>
+    <p>运行起来的画面是这样的：主 agent 还在等 <code>npm test</code>，Action Drafter 已经根据已提交历史猜出下一步多半是 <code>git diff</code>，把它扔进一个 COW 沙箱先跑着；Observation Drafter 甚至预测了 diff 的大致输出，好让再下一步的草案也能提前起草。等真实结果回来，提交验证阶段检查依赖和效果边界——通过的最长连续前缀按序提交，任何一个环节对不上，推测后缀整段丢弃。主 agent 始终是权威：它看到的观察，只来自通过验证的真实沙箱执行。</p>
+    <p>成绩单：SWE-bench Verified 100 题上 <strong>1.31×</strong>，Terminal-Bench 2.0 上 <strong>1.35×</strong>，长时程 SWE-Marathon 会话 <strong>1.27×</strong>——而且工具越慢收益越大，加速比随工具延迟增长，这正是"瓶颈在等待"的判定性证据。最硬的一条数字在验证侧：<strong>4,010 次提交验证审计，零误接受</strong>。</p>
+
+    <h2>三、这不是孤例，是一场运动</h2>
+    <p>把镜头拉远，你会发现 TomasuLLM 只是这条线上最新、最完整的一块拼图：</p>
+    <ul>
+        <li><strong>Speculative Decoding</strong>（2023，推理层的祖师爷）：小模型起草、大模型验证，无损加速 2–3×。Medusa、EAGLE 把它做成了推理服务的标配。整条"快慢配对、验证兜底"的方法论就是从这里起源的。</li>
+        <li><strong>LLMCompiler</strong>（ICML 2024）：把并行函数调用做成编译器问题——Planner 分解任务识别依赖，无依赖的工具调用并发执行。相对串行 ReAct 延迟最高降 3.7×、成本约 6.9×，精度反而还涨——因为一次看见多个结果，模型少了几次"盲人摸象"的中间推理。</li>
+        <li><strong>Speculative Actions</strong>（Google，2025-10）：把推测推广到一切 agent-环境交互——LLM 调用、工具、MCP 请求、甚至"等人类回复"都可以被快模型预判、提前准备，慢的权威执行者在后面追。理论延迟降约 50%，接口保持"仿佛串行"。</li>
+        <li><strong>PASTE</strong>（2026-03）："边想边做"——参数不必逐 token 生成完再执行，从历史里识别出候选 URL / 文件名直接预取；论文还发现搜索类操作天然成批（一次查 ArXiv、PubMed、Google 三个源），是白送的并行度。</li>
+        <li><strong>缓存层</strong>：prompt prefix caching 已经是各家 harness 的省钱开关，Meta 十月的 Context LM 又补了 suffix cache reuse（约省 35% 算力）。缓存层级——这套故事的另一半——也早已就位。</li>
+    </ul>
+    <p>把这些并排放在一起，结论很难反驳：<strong>agent 运行时正在系统性重演 50 年的 CPU 设计史</strong>。超标量 → 并行工具调用；分支预测 → 动作起草；寄存器重命名 → 文件版本绑定；ROB → 轨迹序提交验证；缓存层级 → prompt/suffix cache。连类比断掉的地方都有历史对应物。上一代人研究体系结构，这一代人研究 agent harness——同一门手艺，换了介质。</p>
+
+    <h2>四、类比在哪里断裂——那里才是难点所在</h2>
+    <p>如果只是"换个名字的计算机体系结构"，这论文不会发在 2026 年。真正值得尊敬的是 TomasuLLM 花了大力气诚实回答"类比在哪里不成立"：</p>
+    <p><strong>第一，指令是取的，动作是生成的。</strong>CPU 的指令流在推测开始前就固定了，赌的只是"走不走这条分支"；agent 的下一步动作内容本身就是模型生成的——预测错误不是"走了另一条分支"，而是"整条指令都变了"。这使 agent 的 misprediction 代价结构性更高。</p>
+    <p><strong>第二，工具不声明读集合。</strong>CPU 有显式的 load 地址可以做依赖分析；工具会读哪些文件、碰哪些服务，运行前无从得知。Trace IR（依赖与效果追踪）就是为补这个洞而生的。</p>
+    <p><strong>第三，观察不是 bit-exact 的。</strong>两次跑同一个测试，输出的时间戳、顺序都可能不同——提交验证不能做精确比对，只能验证依赖与效果边界。这是那套"零误接受"验证协议存在的根本原因。</p>
+    <p><strong>第四，副作用落在寄存器之外。</strong>CPU 回滚推测 = 丢弃物理寄存器；agent 的推测动作可能已经写出文件、发出请求。COW overlay 能兜住文件系统，兜不住"已经发出去的邮件"。这条边界直接引出下一节。</p>
+
+    <h2>五、Spectre 的教训，agent 版</h2>
+    <p>2018 年，Spectre/Meltdown 让全世界意识到：推测执行会泄漏——被作废的推测虽然"从未提交"，但它碰过的缓存留下了指纹，侧信道把秘密读了出来。芯片业为此付出的代价是此后每一代 CPU 的微架构补丁。</p>
+    <p>Agent 版的 Spectre 教训可以一句话说完：<strong>推测状态必须永不可见，推测副作用必须可丢弃。</strong>推而广之，就是给每个工具做可逆性分级——读操作随便推测（最坏浪费一点算力）；写操作进 COW overlay（可整段撕掉的"描图纸"）；<strong>不可逆动作（发邮件、部署、支付、删数据）永不推测</strong>。这条线和我前几天写的 OpenShell 运行时安全其实是同一条线：提示词管意图，运行时管能力；调度器管快慢，验证器管对错。一个完整的 agent 运行时，四样都不能少。</p>
+
+    <h2>六、三个判断</h2>
+    <p><strong>判断一：下一个 10× 不在模型，在调度。</strong>解码已经快到不是瓶颈，工具等待占了一半以上的请求时间。1.31× 只是第一代实现——对照 CPU 从 486 到 Pentium Pro 的跨度，这个方向远没有到头。</p>
+    <p><strong>判断二：预测决定上限，验证决定信任。</strong>加速比来自预测质量（工作流可预测才有肉吃），但能不能用，取决于验证协议的正确性——4,010 次审计零误接受才是这篇论文最值钱的数字。这个结构在我写过的每一个领域都重复出现：dreaming 需要评测门，记忆巩固需要 diff 审查，推测执行需要提交验证。<strong>预测质量的收益是乘法，验证正确性是那个乘号后面的 1——它归零，一切归零。</strong></p>
+    <p><strong>判断三："无损"是产品化的钥匙。</strong>Speculative Actions 和 TomasuLLM 都强调 lossless：对外接口保持"仿佛串行"，agent 的逻辑、提示词、评测语义一律不用改。这是能直接装进现有 harness 的原因——对比"激进跳步"式优化（lossy，错了不能完全回滚），无损路线才有资格进生产。</p>
+
+    <h2>七、今天就能做的四件事</h2>
+    <ol>
+        <li><strong>先测量，再优化。</strong>给你的 agent loop 打时间戳，算 tool-wait / model-time 占比。低于 40%，别折腾；高于 40%，这个方向就是你的主战场。这一步今晚就能做。</li>
+        <li><strong>第一层收益零风险：独立读并行。</strong>无依赖的工具调用（多路搜索、多文件读取）批量并发——LLMCompiler 证明了这不需要任何正确性机器，纯赚。</li>
+        <li><strong>第二层：高置信模式预取。</strong>从 N-gram/模式预测器起步——<code>npm test</code> 之后多半是 <code>git diff</code>，这种固定后缀命中就是白捡一个往返。预测器先便宜后聪明，别一上来就用大模型做 Drafter。</li>
+        <li><strong>第三层才碰推测执行，规矩先立好：</strong>推测只发生在可回滚的 overlay 里；每个工具标注可逆性（读/写/不可逆），不可逆动作排除在推测之外；给提交验证上审计日志，误接受率必须是零，不是"接近零"。</li>
+    </ol>
+    <p>三十年前，Pentium Pro 让"乱序+推测"从论文变成每一台电脑的日常。接下来几年，同样的事情会发生在每一个 agent harness 里——不是要不要推测，而是你的运行时用什么姿势推测。1967 年的算法都等了 agent 五十九年，你的 agent 干等一个 <code>npm test</code>，实在没有理由。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
