@@ -1,22 +1,22 @@
 {
-  "lastUpdated": "2026-10-07T22:01:41Z",
-  "generatedAt": "2026-10-08 06:01 CST",
+  "lastUpdated": "2026-10-08T22:01:00Z",
+  "generatedAt": "2026-10-09 06:01 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 863071,
+      "pid": 1204836,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
-      "openclawVersion": "2026.4.14",
-      "uptime": "running since 2026-10-08 03:47 CST (pid 863071, 2h14m; restarted overnight, prev pid 527630)",
+      "openclawVersion": "2026.4.14 (323493f)",
+      "uptime": "running since 2026-10-09 03:47 CST (pid 1204836, 2h14m; restarted overnight again, prev pid 863071 — second consecutive daily ~03:47 restart)",
       "rpcProbe": "ok"
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "168 days, 16 hours, 42 minutes",
-      "loadAverage": "0.29, 0.15, 0.06",
+      "uptime": "169 days, 16 hours, 41 minutes",
+      "loadAverage": "0.62, 0.25, 0.11",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
@@ -25,9 +25,9 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1240,
-        "freeMB": 450,
-        "availableMB": 695
+        "usedMB": 1391,
+        "freeMB": 338,
+        "availableMB": 543
       }
     },
     "model": "zai/glm-5.3-flash"
@@ -40,9 +40,9 @@
     "errorJobs": [],
     "notes": [
       "全部 7 个 cron 任务连续 ok，无错误",
-      "Gateway 今晨 03:47 重启（新 PID 863071，旧 527630），端口 34524 探活正常",
-      "主机可用内存 ~695MB（昨日 718MB）；磁盘 68% 持平；uptime 168d",
-      "近 24h 博客新提交: f9564c5 新博文：Agent 安全做错了层 NVIDIA OpenShell、内核级策略，与凭证不过手 (10-08 05:04); b966c8f 新博文：当 Agent 开始做梦 睡眠成为第三条计算轴以及被跳过的那门考试 (10-07 20:05)"
+      "Gateway 连续第二天在 ~03:47 自动重启（今晨 pid 1204836，昨日 863071）— 疑似定时/内存触发，暂无影响，持续观察",
+      "主机可用内存 543MB（昨日 695MB，-22%）；磁盘 68% 持平；uptime 169d",
+      "近 24h 博客新提交: 9808480 新博文：安装文档开始写给 Agent 读 install.md 自然语言程序与软件分发的第四次重写 (10-09 05:04); d3fb73b 新博文：Agent 运行时正在重演 CPU 设计史 乱序推测执行 TomasuLLM 与 Pentium Pro 的第二次就业 (10-08 20:05)"
     ]
   },
   "cronJobs": [
@@ -52,7 +52,7 @@
       "schedule": "0 6 * * *",
       "status": "ok",
       "lastRun": "24.0h ago",
-      "lastRunAt": "10-07 06:00",
+      "lastRunAt": "10-08 06:00",
       "consecutiveErrors": 0
     },
     {
@@ -61,7 +61,7 @@
       "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23.0h ago",
-      "lastRunAt": "10-07 07:00",
+      "lastRunAt": "10-08 07:00",
       "consecutiveErrors": 0
     },
     {
@@ -70,7 +70,7 @@
       "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22.0h ago",
-      "lastRunAt": "10-07 08:00",
+      "lastRunAt": "10-08 08:00",
       "consecutiveErrors": 0
     },
     {
@@ -79,7 +79,7 @@
       "schedule": "0 19 * * *",
       "status": "ok",
       "lastRun": "11.0h ago",
-      "lastRunAt": "10-07 19:00",
+      "lastRunAt": "10-08 19:00",
       "consecutiveErrors": 0
     },
     {
@@ -87,8 +87,8 @@
       "name": "deep-exploration-evening",
       "schedule": "0 20 * * *",
       "status": "ok",
-      "lastRun": "10.1h ago",
-      "lastRunAt": "10-07 20:00",
+      "lastRun": "10.0h ago",
+      "lastRunAt": "10-08 20:00",
       "consecutiveErrors": 0
     },
     {
@@ -97,7 +97,7 @@
       "schedule": "0 2 * * *",
       "status": "ok",
       "lastRun": "4.0h ago",
-      "lastRunAt": "10-08 02:00",
+      "lastRunAt": "10-09 02:00",
       "consecutiveErrors": 0
     },
     {
@@ -106,7 +106,7 @@
       "schedule": "0 5 * * *",
       "status": "ok",
       "lastRun": "1.0h ago",
-      "lastRunAt": "10-08 05:00",
+      "lastRunAt": "10-09 05:00",
       "consecutiveErrors": 0
     }
   ],
@@ -118,9 +118,9 @@
       "group": 1
     },
     "models": {
-      "glm-5.3-flash": 27,
+      "glm-5.3-flash": 26,
       "glm-5": 12,
-      "glm-5.1": 10,
+      "glm-5.1": 11,
       "glm-5-turbo": 1
     },
     "notable": [
@@ -155,8 +155,8 @@
       {
         "type": "cron:a4bf5e2a (deep-exploration)",
         "kind": "direct",
-        "lastActive": "9.9h ago",
-        "model": "glm-5.3-flash",
+        "lastActive": "10.0h ago",
+        "model": "glm-5.1",
         "context": "n/a"
       },
       {
