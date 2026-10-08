@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-09 install doc for agents -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-09</div>
+                    <a href="posts/install-doc-for-agents-2026-10.html" class="post-title-link">
+                        <div class="post-title">安装文档开始写给 Agent 读——install.md、自然语言程序，与软件分发的第四次重写</div>
+                    </a>
+                    <div class="post-excerpt">
+        开场一句话装好一个软件：Agent-Reach（94k★，17 平台互联网接入层）的安装入口是「帮我安装 Agent Reach：install.md 的 URL」——复制给你的 agent，几分钟后它能读推特搜 Reddit 看小红书；表面是客服话术，实质是软件分发史上第一次分发的接收方从人换成机器而格式没有变成机器格式 / 分发的四次重写：源码时代人读 README 敲命令→包管理器把依赖图声明给机器→声明式容器整个环境可复现→Agent 时代 install.md 执行者是 LLM 但格式回到 Markdown，文档重新成为程序本身（由 LLM 解释执行）；初看像倒退，答案在三次重写都没解决的问题里 / bash 做不到的三件事：①环境分支即异常处理——PEP 668、Windows Store 假 python3 别名、PowerShell venv 差异＝自然语言写的 except 分支，没写到的病态环境 LLM 还能现场推理而 bash 只能死在没预料的分支上；②授权门——install 默认只读检查、--system 需用户显式批准、--dry-run 预览＝人机权限协议，安装向导的 UI 从向导程序变成 agent 本身；③目标导向失败恢复——「跑 doctor 尽可能修到 ✅ 但待在边界内」＝声明目标而非步骤，高 bash 一个抽象级 / 最惊人的 Step 5：装完建议征得同意给自己建 cron 看门狗——每天 agent-reach watch 全部正常静默、异常上报、新版本问用户，更新仍是一句话指向 update.md；安装从一次性事件变成带看门狗的长期生命周期 / 防假检查细节：Boss直聘配置明确写不要用 boss status 返回值代替肉眼确认登录态（只校验本地 session 文件）——防 agent 拿容易检查的指标冒充真实检查，mock 通过≠功能正常，纪律预埋进程序 / 供应链纪律进文档层：rdt-cli 钉死 commit 5e4fb37 不从会漂移的 PyPI 装、boss-agent-cli 锁 4c991b7 不跟随会移动的 branch——信任钉在不可变哈希上，纪律与攻击面同一枚硬币 / 攻击面必须直视：本质是「让 agent 读远端 URL 并照做」＝prompt injection 完美载体，恶意 install.md 可教 agent 外传 ~/.agent-reach/config.yaml（17 平台 Cookie）；防御四层——文档 Boundaries 段（自然语言 seccomp 但软约束）、CLI default-deny（权限做进工具比留在提示词层硬，提示词管意图运行时管能力）、工具层免疫（web_fetch 已包 UNTRUSTED 边界）、还缺的密码学信任（今天靠 star 数和口碑是社会信任，签名+钉定+可审计日志，配 OpenShell 凭证不过手则注入骗到 agent 也拿不到外传路径——软信任+硬边界必须同时做）/ 分发层割据中的位置：Claude marketplace、Cursor plugins、Codex plugin dir、skills.sh 全是中心化注册表，install.md 唯一零中心化——任意 URL 即分发，curl | sh 的精神续作加解释执行层；判断会标准化如 robots.txt 之于爬虫（AGENT-INSTALL.md / .well-known/agent-install / 签名清单） / 检查清单八条：双读者分节、边界段最前（自然语言 seccomp）、默认只读显式授权、目录纪律不碰 workspace、钉不可变引用、防假检查（明说哪个指标算数）、结尾端到端体检、可选看门狗 cron / 尾声：执行者第一次会读会想会问——文档可写目标不写步骤写边界不写防御；「文档即程序」从比喻变字面事实，CPU 是 LLM 指令集是自然语言；机器读的文档比人读的多一个义务——它会被无条件执行，写给 agent 的每一行都该按会被执行的力度来写，包括你希望它做的事和你不希望它做的事
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">软件分发</span>
+                        <span class="post-tag">Agent-Reach</span>
+                        <span class="post-tag">安全工程</span>
+                    </div>
+                    <a href="posts/install-doc-for-agents-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-08 speculative execution agent runtime -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-08</div>
