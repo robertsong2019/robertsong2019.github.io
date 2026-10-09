@@ -1,22 +1,21 @@
 {
-  "lastUpdated": "2026-10-08T22:01:00Z",
-  "generatedAt": "2026-10-09 06:01 CST",
+  "lastUpdated": "2026-10-09T22:02:00Z",
+  "generatedAt": "2026-10-10 06:02 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 1204836,
+      "pid": 1547246,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14 (323493f)",
-      "uptime": "running since 2026-10-09 03:47 CST (pid 1204836, 2h14m; restarted overnight again, prev pid 863071 — second consecutive daily ~03:47 restart)",
-      "rpcProbe": "ok"
+      "uptime": "running since 2026-10-10 03:47:46 CST (pid 1547246, 2h14m; third consecutive daily ~03:47 restart, prev pid 1204836 — pattern confirmed, likely scheduled/systemd trigger worth investigating)"
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "169 days, 16 hours, 41 minutes",
-      "loadAverage": "0.62, 0.25, 0.11",
+      "uptime": "170 days, 16 hours, 41 minutes",
+      "loadAverage": "0.74, 0.25, 0.09",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
@@ -25,9 +24,9 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1391,
-        "freeMB": 338,
-        "availableMB": 543
+        "usedMB": 1279,
+        "freeMB": 424,
+        "availableMB": 656
       }
     },
     "model": "zai/glm-5.3-flash"
@@ -40,9 +39,10 @@
     "errorJobs": [],
     "notes": [
       "全部 7 个 cron 任务连续 ok，无错误",
-      "Gateway 连续第二天在 ~03:47 自动重启（今晨 pid 1204836，昨日 863071）— 疑似定时/内存触发，暂无影响，持续观察",
-      "主机可用内存 543MB（昨日 695MB，-22%）；磁盘 68% 持平；uptime 169d",
-      "近 24h 博客新提交: 9808480 新博文：安装文档开始写给 Agent 读 install.md 自然语言程序与软件分发的第四次重写 (10-09 05:04); d3fb73b 新博文：Agent 运行时正在重演 CPU 设计史 乱序推测执行 TomasuLLM 与 Pentium Pro 的第二次就业 (10-08 20:05)"
+      "Gateway 连续第三天在 ~03:47 自动重启（今晨 03:47:46 pid 1547246，昨日 1204836，前日 863071）—— 已成固定模式，疑似 systemd/定时触发，暂无影响但值得排查根因",
+      "主机可用内存 656MB（昨日 543MB，+21% 回落正常）；磁盘 68% 持平；uptime 170d",
+      "近 24h 博客新提交 2 篇: 1cb887f 别把数据库读进上下文 Agent记忆的检索经济学与渐进披露漏斗 (10-10 05:03); eca0348 考卷漏题了 57%-96% 模型成绩来自作弊 验证器危机 (10-09 20:08)",
+      "sessions 统计本次起按 sessionId 去重（原口径含 :run: 变体重复计数，43 去重 vs 50 原始）"
     ]
   },
   "cronJobs": [
@@ -52,7 +52,7 @@
       "schedule": "0 6 * * *",
       "status": "ok",
       "lastRun": "24.0h ago",
-      "lastRunAt": "10-08 06:00",
+      "lastRunAt": "10-09 06:00",
       "consecutiveErrors": 0
     },
     {
@@ -61,7 +61,7 @@
       "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23.0h ago",
-      "lastRunAt": "10-08 07:00",
+      "lastRunAt": "10-09 07:00",
       "consecutiveErrors": 0
     },
     {
@@ -70,7 +70,7 @@
       "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22.0h ago",
-      "lastRunAt": "10-08 08:00",
+      "lastRunAt": "10-09 08:00",
       "consecutiveErrors": 0
     },
     {
@@ -79,7 +79,7 @@
       "schedule": "0 19 * * *",
       "status": "ok",
       "lastRun": "11.0h ago",
-      "lastRunAt": "10-08 19:00",
+      "lastRunAt": "10-09 19:00",
       "consecutiveErrors": 0
     },
     {
@@ -88,7 +88,7 @@
       "schedule": "0 20 * * *",
       "status": "ok",
       "lastRun": "10.0h ago",
-      "lastRunAt": "10-08 20:00",
+      "lastRunAt": "10-09 20:00",
       "consecutiveErrors": 0
     },
     {
@@ -97,7 +97,7 @@
       "schedule": "0 2 * * *",
       "status": "ok",
       "lastRun": "4.0h ago",
-      "lastRunAt": "10-09 02:00",
+      "lastRunAt": "10-10 02:00",
       "consecutiveErrors": 0
     },
     {
@@ -106,21 +106,21 @@
       "schedule": "0 5 * * *",
       "status": "ok",
       "lastRun": "1.0h ago",
-      "lastRunAt": "10-09 05:00",
+      "lastRunAt": "10-10 05:00",
       "consecutiveErrors": 0
     }
   ],
   "sessions": {
-    "total": 50,
-    "active24h": 15,
+    "total": 43,
+    "active24h": 8,
     "byKind": {
-      "direct": 49,
+      "direct": 42,
       "group": 1
     },
     "models": {
-      "glm-5.3-flash": 26,
+      "glm-5.3-flash": 23,
       "glm-5": 12,
-      "glm-5.1": 11,
+      "glm-5.1": 7,
       "glm-5-turbo": 1
     },
     "notable": [
@@ -156,7 +156,7 @@
         "type": "cron:a4bf5e2a (deep-exploration)",
         "kind": "direct",
         "lastActive": "10.0h ago",
-        "model": "glm-5.1",
+        "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
