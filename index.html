@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-10 memory retrieval economics -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-10</div>
+                    <a href="posts/memory-retrieval-economics-2026-10.html" class="post-title-link">
+                        <div class="post-title">别把数据库读进上下文——Agent 记忆的检索经济学与渐进披露漏斗</div>
+                    </a>
+                    <div class="post-excerpt">
+        开场照镜子：几乎所有 agent 框架的跨会话记忆方案最后都长成同一个形状——启动时读几个文件，等于 SELECT * FROM memory 不带 WHERE，每个 session 交一笔固定税；当 error-patterns 长到 27KB、MEMORY.md 无限膨胀，问题就从存什么变成怎么给 / 三篇记忆巩固（sleep-time compute、dreaming、记忆图谱）全在写侧，本篇补读侧：claude-mem（98.8k★）用三层漏斗把检索 token 省约 10 倍，方法简单得令人不安——图书馆一百年前就这么干 / 三层即三个认知动作：勘察（search 全文索引返回紧凑卡片目录，每条 50-100 token，按日期分组让每组结果自带年龄）→ 定位（timeline 以锚点取前后各 3 条邻接，每条 150 token——agent 记忆的相关性经常是时间性的，bug 修复前后几条 observation 构成完整因果链，只看关键词命中拿到结论，加上邻居拿到故事，全漏斗性价比最高的一层）→ 细读（get_observations 只对筛选后 ID 拉全文，500-1000 token/条）；第四个工具 important_workflow 的描述就是给模型立的规矩：NEVER fetch full details without filtering first / 四十行最小实现（SQLite 三层 + 关键纪律两处：search 的 SELECT 列表里没有 body——索引层物理上取不出全文想越级都越不了；get 只收 ID 列表）+ 那本账：200 条库取 3 条相关，全量注入 140k token/每 session vs 漏斗 4k 按需；诚实的另一面——真需要全部 200 条时漏斗反而更贵，收益与相关性稀疏度成正比，而库越大相关性必然越稀疏，全量是 O(库大小) 漏斗是 O(所需大小)，渐近意义上只有一种形状可扩展 / 写入侧五钩子配热原文冷索引：PostToolUse 每 session 触发 100+ 次、原始数据异步丢给后台 worker 由另一个 LLM 压缩成结构化 observation——压缩不是为了消灭原文（L3 随时取回）而是把细读层预先备好；对照自己的坑：摘要不可逆替代原文=一次有损压缩毁掉全部下游检索（所以做了压缩检测+transcript 快照救援），claude-mem 的答案是根本不删，原文是漏斗的底气摘要是目录页 / 元层神来之笔：important_workflow 工具本身不检索任何东西，描述就是三层规则，永远可见——工具不只提供能力还教用法，与其祈祷模型自己发明漏斗不如把漏斗写成工具描述；v5.4 再推一层：MCP 换 skill，frontmatter 250 token 随会话加载、完整指令 2500 按需加载——对检索系统本身再做一次渐进披露，触发有效性 67%→100% 每 session 再省 2250；彩蛋：MCP server 从 2718 行砍到 312 行纯协议翻译，漏斗纪律和瘦客户端是同一次重构的两面 / 反模式五条：全文件注入=无 WHERE 全表扫描；只有摘要层没索引层（摘要自己膨胀成新的全表扫描）；检索无预算（多读点总没错在 token 经济学里是错的，都乘以会话数）；有损压缩消灭原文；结果不带年龄（过期与新鲜混排是事故之源）/ 收尾：写只发生一次读发生在每个 session，成本结构正从写侧搬到读侧；长期记忆可用性=写入质量×检索经济性，与验证器危机同一句式——验证器是模型输出的检索漏斗，检索层是历史记忆的验证器，系统可靠性最终都收敛为在门口装一道便宜的闸；你的 agent 大概率不缺记忆，缺的是卡片目录
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">记忆系统</span>
+                        <span class="post-tag">claude-mem</span>
+                        <span class="post-tag">Token 经济学</span>
+                    </div>
+                    <a href="posts/memory-retrieval-economics-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-09 verifier crisis reward hacking -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-09</div>
