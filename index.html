@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-10 durable execution agents -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-10</div>
+                    <a href="posts/durable-execution-agents-2026-10.html" class="post-title-link">
+                        <div class="post-title">Agent 崩溃在第 8 步，退款已经发出——持久执行与「恢复」的精确语义</div>
+                    </a>
+                    <div class="post-excerpt">
+        开场场景：客服 agent 跑了 47 分钟，调过支付接口，第 8 步进程崩了——真正的问题不是任务没跑完，是那笔退款可能已经发出去了（你不知道），重跑一遍还可能再发一次 / Temporal 联创 Fateev：agent 团队正在重新发现分布式系统十年前解决的问题，学费照交 / 老三样：事件账本（journal 记每个已完成边界）、确定性重放（读棋谱不是重新下棋，记录过的 LLM 结果直接从历史返回，模型不会被再次调用）、幂等副作用（账本管我在哪，幂等管外面世界已经发生了什么）/ 幂等键配方：键派生自操作身份不是时间戳——refund:{order_id}:{amount} 或 (run_id, step_index, action_type)，用时间戳做键等于没做；没有幂等的 checkpointing 不是安全网，是把单次失败升级成失败+重复副作用的放大器（工程师实录：resume 后重发三笔下游写，客户邮件收到两封）/ 完成-记录间隙：activity 完成外部效果但 worker 挂在回报前——账本无完成记录→重试→外部世界被改两次；Temporal 诚实：效果恰好一次由被调用方幂等强制，引擎不单方面兑现，「用了 Temporal 不会重复扣款」中间缺半句前提；Retool signals：等人工批准的 workflow 无限期暂停零资源占用，HITL 从占着连接睡觉变冰冻待命 / Resume Means Resume（arXiv 2608.03836）：六性质契约（前缀延续/效果恰好一次/fork 确定性/checkpoint 有效/consume-once/恢复确定性）+TLA+ 穷举 740 万状态+确定性 harness 实测五框架——无两家 conformance 一致，无一家暴露机器可查契约，两家违反自述文档；LangGraph 1.2.9 持久化了第二个 resume 值然后从不读它，同一 API 上中断 exactly-once 崩溃 at-least-once（SIGKILL 后重执行已记录工作）；CrewAI 重执行已完成带副作用方法违反文档；pydantic-graph 节点中崩后无法 resume；k 个进程同时 resume 同一挂起中断→门控效果触发 k 次（40 格 36 格饱和率 1.0）；结论：resume 是 2026 年 agent 栈最被滥用的词，契约应成 CI 断言而非用户 issue / LLM 带来两招新玩法：记录-替代（非确定性移出重放路径，DBOS durableCalls 把模型调用 checkpoint 进 Postgres，崩溃后已完成调用直接恢复——算一次恢复千次，账本是比进程长寿的缓存，进程死了钱不能白花）+ 持久×可验证合流（Diagrid 每步调用密码学防篡改回执=agent 的不作弊收据，直接接验证器危机；ESAA：LLM 是契约下的意图发射器，状态由 replay 投影，可审计是架构原生属性）/ chat transcript 不是账本：transcript 给模型讲故事，journal 给 runtime 记账，至少六本账分开（身份/对话/执行/工具回执/审批/可观测性），runtime 绝不能依赖模型从对话推断恢复位置——让讲故事的人兼管记账，账本里只剩好听的故事；trace 解释发生了什么，journal 决定什么可重放/跳过/补偿，用 APM 扛恢复=用监控录像带做数据库 / 今天就能做五件事：LLM/工具调用结果按 (run_id, step_index) 落 SQLite 先查后调；外发副作用全上幂等键；拿六性质 checklist 审框架（两进程同时恢复同一会话会发两遍消息吗）；等人批准用暂停不用轮询；transcript 和 journal 分开存 / 收尾：推理层可以天马行空，执行边界必须有账有闸——与卡片目录、隔离卷宗同一句式，灵巧在上面闸门在门口；你的 agent 不缺聪明，缺的是那本比它活得久的账
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">持久执行</span>
+                        <span class="post-tag">分布式系统</span>
+                        <span class="post-tag">可靠性</span>
+                    </div>
+                    <a href="posts/durable-execution-agents-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-10 memory retrieval economics -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-10</div>

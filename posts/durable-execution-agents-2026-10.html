@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 崩溃在第 8 步，退款已经发出——持久执行与「恢复」的精确语义 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Agent 崩溃在第 8 步，退款已经发出——持久执行与「恢复」的精确语义</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">持久执行</span>
+        <span class="tag">分布式系统</span>
+        <span class="tag">可靠性</span>
+        2026-10-10 · 基于 17 项论文/系统调研（Resume Contract、Temporal、DBOS、Diagrid、ESAA 等）
+    </p>
+
+    <blockquote>想象一个跑了 47 分钟的客服 agent：读了订单库、比对了退款政策、给客户发了道歉邮件、调用了支付接口——然后在第 8 步，进程崩了。此时真正的问题不是「任务没跑完」，而是两件更糟的事：<strong>那笔退款可能已经发出去了</strong>（你不知道），而且<strong>重跑一遍它可能会再发一次</strong>。Temporal 联创 Maxim Fateev 在 HumanX 2026 上说的那句话正在应验：agent 团队正在重新发现分布式系统工程师十年前解决过的问题——只是学费照交。但 2026 年的一篇论文用形式化验证给出了一个让人坐不住的结论：五大主流 agent 框架对「恢复」这个词有五种互不兼容的定义，其中两家连自己文档里声称的语义都做不到。本文讲清楚持久执行（durable execution）到底在解决什么、那道「恰好一次」的物理裂缝在哪里、以及为什么 LLM 反而给这套老手艺带来了两招新玩法。</blockquote>
+
+    <h2>一、大多数 agent 把执行当成一次性演出</h2>
+    <p>多数 agent 框架的执行模型是 ephemeral 的：一个内存里的循环，调 LLM、调工具、写数据库。任何一步失败，整个 run 作废——你只能从头再来，或者自己手搓一套谁也不想维护的 checkpoint 逻辑。</p>
+    <p>demo 里这没什么。但当 agent 开始干真实的活——退款、开权限、发邮件、改生产数据——问题就变了性质：<strong>失败之后，外面世界已经被改变的部分怎么办？</strong>重试不是免费的：LLM 调用服务端成功但响应超时，你的代码重试，模型生成了另一个函数调用，现在两封不同的邮件都发出去了，或者钱扣了两次。</p>
+    <p>经典的 <code>try/except</code> 重试在这里会以三种方式失败：重复副作用（第一次其实成功了）、状态丢失（重试从哪开始？）、以及最阴险的一种——<strong>你以为失败了，其实成功了，而且没有任何 durable 记录告诉你到底成没成功</strong>。</p>
+
+    <h2>二、分布式系统的老三样：账本、棋谱、快递单号</h2>
+    <p>持久执行引擎（Temporal 是这一脉的祖师爷，Restate、DBOS、Inngest、Hatchet、Cloudflare Workflows、AWS Lambda Durable Functions、Azure Durable Task 都在 2025-2026 年密集跟进 agent 场景）的核心原语其实只有三件：</p>
+    <ul>
+        <li><strong>事件账本（journal）</strong>：append-only 日志，记下每个<strong>已完成</strong>的执行边界——哪次 LLM 调用、哪次工具调用、返回了什么。</li>
+        <li><strong>确定性重放（replay）</strong>：崩溃重启后，worker 重放账本恢复状态。注意重放不是「重新执行」——是<strong>读棋谱，不是重新下棋</strong>。记录过的 LLM 结果直接从历史返回，模型根本不会被再次调用。</li>
+        <li><strong>幂等副作用（idempotency）</strong>：账本管「我在哪」，幂等管「外面世界已经发生了什么」。重试时外部效果不能重复。</li>
+    </ul>
+    <p>幂等这一件有精确的配方：<strong>键派生自操作身份，不是时间戳</strong>。退款用 <code>refund:{order_id}:{amount}</code>，通知用 <code>notify:{customer_id}:{event_id}</code>，或者通用形式 <code>(run_id, step_index, action_type)</code>。用时间戳做键等于没做——每次重试都是新时间戳。接收端要么按键去重，要么写成 keyed upsert 而非 append。</p>
+    <p>为什么这半边不能省？有位工程师写下了昂贵的教训：他的管线有 checkpoint 没有 idempotency，一次 resume 从第 9 步恢复，把三笔已经成功的下游写<strong>又发了一遍</strong>，其中一笔触发了客户邮件——客户收到了两封。<strong>没有幂等的 checkpointing 不是安全网，是把单次失败升级成「失败 + 重复副作用」的放大器。</strong></p>
+
+    <h2>三、信已寄出，账本没记：恰好一次的物理裂缝</h2>
+    <p>这里有一道所有引擎都绕不过去的缝：<strong>完成-记录间隙（completion gap）</strong>。一个 activity 执行完了外部效果（退款调用已被支付网关受理），但 worker 在把「完成」写回账本之前挂了。账本上没有完成记录，重放时引擎认为这步没做过，于是重试——外部世界被改了两次。</p>
+    <p>Temporal 的文档对此很诚实：<strong>引擎不保证效果层面的恰好一次，幂等键由被调用方强制</strong>。这是 Pat Helland 二十年前的老论断的回声：exactly-once 是效果层的应用纪律，永远不是基础设施能单方面兑现的承诺。所以「我们用了 Temporal，所以不会重复扣款」这句话，中间缺了半句：前提是你的支付调用带幂等键。</p>
+    <p>顺带一提，Retool 在 Temporal 大会上分享的生产用法还有个漂亮的经济学副产品：等人工批准的 workflow 可以用 signal <strong>无限期暂停，零资源占用</strong>，批准到达即解冻。把 human-in-the-loop 从「占着连接睡觉」变成「冰冻待命」——这可能改写长审批流 agent 的成本结构。</p>
+
+    <h2>四、Resume Means Resume：五框架，五种答案，两家说谎</h2>
+    <p>2026 年 8 月的论文 <em>Resume Means Resume</em>（arXiv:2608.03836）做了一件朴素又致命的事：把「恢复到底意味着什么」写成六条可机器检查的性质——前缀延续（恢复点之后接着跑）、效果恰好一次、fork 确定性、checkpoint 有效性、consume-once、恢复确定性——然后用 TLA+ 穷举验证参考语义（740 万状态），再用一个不依赖 LLM 的确定性 harness 去实测五个广泛部署的 agent 框架。</p>
+    <p>结果值得全文背诵：</p>
+    <ul>
+        <li><strong>没有两个框架的 conformance 一致</strong>；没有一个暴露机器可查的契约；实测行为违反它们自己声明的语义。</li>
+        <li><strong>LangGraph 1.2.9</strong>：持久化了第二个 resume 值，然后<strong>从不读它</strong>；静默保存 schema 非法状态；真 SIGKILL 之后重新执行已持久记录过的工作——结果是同一个 API 上，<strong>中断</strong>语义是 exactly-once，<strong>崩溃</strong>语义是 at-least-once。</li>
+        <li><strong>CrewAI 1.15.2</strong>：重新执行已完成的带副作用方法，与其文档声明相反。<strong>pydantic-graph</strong>：节点中途崩溃后根本无法恢复。</li>
+        <li><strong>consume-once 并发失败</strong>：k 个进程同时 resume 同一个挂起的中断，门控效果被触发 k 次——40 个测试格里 36 个饱和率 1.0，跨主机同样炸。</li>
+    </ul>
+    <p>这篇论文真正教会我的不是「这些框架有 bug」，而是：<strong>「resume」是 2026 年 agent 技术栈里最被滥用的词</strong>。崩溃（SIGKILL）和中断（人为暂停）是两种病，需要在同一颗 API 上声明两种不同的语义；而「能从 checkpoint 恢复」这句话底下，藏着一整套没人写过、没人测过、跨版本还在漂移的契约。论文的解法是把契约变成 CI 可跑的断言——每 release 出一份机器判定的 conformance 报告，而不是靠用户 issue 当规格说明书。</p>
+
+    <h2>五、LLM 教给老引擎的两招新玩法</h2>
+    <p>故事如果只到「agent 框架重学分布式系统」，就只是一篇怀旧文。LLM 确实带来了新东西：</p>
+    <p><strong>第一招：记录-替换，替代确定-重放。</strong>经典引擎要求 workflow 代码确定性，重放才能对上历史。LLM 天生非确定——解法不是驯服模型，而是<strong>把 LLM 调用放进 activity 边界</strong>：执行一次，结果记档，重放时读档不重调。非确定性被移出了重放路径。DBOS 2026 年 9 月的 durableCalls 把这做成了产品级原语：模型调用 checkpoint 进 Postgres，进程崩溃后已完成的调用直接恢复——<strong>一次 47 分钟任务里几十次模型调用几万 token，进程死了，钱不能白花</strong>。这和记忆系统的「写一次读千次」是同一枚硬币的另一面：算一次，恢复千次——账本是比进程长寿的缓存。</p>
+    <p><strong>第二招：持久 × 可验证合流。</strong>Diagrid 在 2026 年 7 月把密码学防篡改记录和崩溃恢复做成了同一层：每步 LLM 调用、工具调用、决策都有 tamper-proof 回执。这直接接上了我们昨天聊的验证器危机——agent 说「我做完了」不算数，<strong>账本才是 agent 的不作弊收据</strong>。ESAA 论文走得更远：LLM 只是「契约下的意图发射器」，事实源是 event log，一切状态由 replay 投影得出——可审计性不是事后翻聊天记录，是架构的原生属性。</p>
+
+    <h2>六、最后一个常见混淆：聊天记录不是账本</h2>
+    <p>最容易犯的错，是把 chat transcript 当成恢复日志。transcript 是给<strong>模型</strong>看的上下文，journal 是给 <strong>runtime</strong> 做恢复的事实源——一个负责讲故事，一个负责记账。一个像样的 durable agent 至少要分开记六本账：身份/记忆、对话、执行、工具回执、审批、可观测性。可以把它们摘要后喂给模型，但 runtime 绝不能依赖模型从对话里「推断」自己恢复到哪了。<strong>让讲故事的人兼管记账，账本里就只剩下好听的故事。</strong></p>
+    <p>顺带一提，可观测性（trace）和可恢复性（journal）也不是一回事：trace 解释<strong>发生了什么</strong>，journal 决定<strong>什么可以重放、什么必须跳过、什么需要补偿</strong>。用 APM 工具存聊天痕迹来扛崩溃恢复，就像用监控录像带做数据库。</p>
+
+    <h2>七、今天就能做的五件事</h2>
+    <ol>
+        <li><strong>给 LLM/工具调用结果落一张表</strong>：键 <code>(run_id, step_index, action_type)</code>，每次调用先查表命中即返回。SQLite 就够。一天工作量，崩溃重跑从「全量重来」变「增量续跑」。</li>
+        <li><strong>所有外发副作用上幂等键</strong>：发消息、写库、调支付接口，键派生自操作身份。没有幂等的重试按钮等于双倍事故按钮。</li>
+        <li><strong>用 Resume Contract 六性质当 checklist 审你的框架</strong>：它的崩溃语义和中断语义一致吗？两个进程同时恢复一个会话，会发两遍消息吗？（你可能会吓一跳。）</li>
+        <li><strong>等人批准的场景用暂停而不是轮询</strong>：把 HITL 从「占着连接睡觉」改成「冰冻待命」，这在长审批流里是真金白银。</li>
+        <li><strong>把 transcript 和 journal 分开存</strong>：一个 append-only 的执行回执（调了什么、返回什么、何时），独立于给模型看的对话历史。</li>
+    </ol>
+    <p>架构上这是一句话的事：<strong>推理层可以天马行空，执行边界必须有账有闸。</strong>和你给记忆系统装卡片目录、给验证器装隔离卷宗是同一个句式——灵巧在上面，闸门在门口。你的 agent 不缺聪明，缺的是那本比它活得久的账。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
