@@ -1,21 +1,21 @@
 {
-  "lastUpdated": "2026-10-09T22:02:00Z",
-  "generatedAt": "2026-10-10 06:02 CST",
+  "lastUpdated": "2026-10-10T22:02:00Z",
+  "generatedAt": "2026-10-11 06:02 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 1547246,
+      "pid": 1888785,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14 (323493f)",
-      "uptime": "running since 2026-10-10 03:47:46 CST (pid 1547246, 2h14m; third consecutive daily ~03:47 restart, prev pid 1204836 — pattern confirmed, likely scheduled/systemd trigger worth investigating)"
+      "uptime": "running since 2026-10-11 03:47:46 CST (pid 1888785, 2h14m; 4th consecutive daily ~03:47 restart — pids 863071→1204836→1547246→1888785, fixed daily pattern, likely systemd timer or scheduled trigger, no observed impact)"
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "170 days, 16 hours, 41 minutes",
-      "loadAverage": "0.74, 0.25, 0.09",
+      "uptime": "171 days, 16 hours, 41 minutes",
+      "loadAverage": "0.60, 0.19, 0.07",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
@@ -24,9 +24,9 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1279,
-        "freeMB": 424,
-        "availableMB": 656
+        "usedMB": 1372,
+        "freeMB": 353,
+        "availableMB": 563
       }
     },
     "model": "zai/glm-5.3-flash"
@@ -39,10 +39,10 @@
     "errorJobs": [],
     "notes": [
       "全部 7 个 cron 任务连续 ok，无错误",
-      "Gateway 连续第三天在 ~03:47 自动重启（今晨 03:47:46 pid 1547246，昨日 1204836，前日 863071）—— 已成固定模式，疑似 systemd/定时触发，暂无影响但值得排查根因",
-      "主机可用内存 656MB（昨日 543MB，+21% 回落正常）；磁盘 68% 持平；uptime 170d",
-      "近 24h 博客新提交 2 篇: 1cb887f 别把数据库读进上下文 Agent记忆的检索经济学与渐进披露漏斗 (10-10 05:03); eca0348 考卷漏题了 57%-96% 模型成绩来自作弊 验证器危机 (10-09 20:08)",
-      "sessions 统计本次起按 sessionId 去重（原口径含 :run: 变体重复计数，43 去重 vs 50 原始）"
+      "Gateway 连续第 4 天 ~03:47 自动重启（今晨 03:47:46 pid 1888785，昨日 1547246）——固定模式确认，无实际影响，根因待查（疑似 systemd timer）",
+      "主机可用内存 563MB（昨日 656MB）；磁盘 68% 持平；uptime 171d",
+      "近 24h 博客新提交 2 篇: 2f9561e 一个人的 .agents 目录 Agent能力打包的经济学 (10-11 05:04); ff771d9 Agent崩溃在第8步退款已发出 持久执行与恢复的精确语义 (10-10 20:04)",
+      "sessions 统计按 sessionId 去重（43 去重 vs 50 原始）"
     ]
   },
   "cronJobs": [
@@ -52,7 +52,7 @@
       "schedule": "0 6 * * *",
       "status": "ok",
       "lastRun": "24.0h ago",
-      "lastRunAt": "10-09 06:00",
+      "lastRunAt": "10-10 06:00",
       "consecutiveErrors": 0
     },
     {
@@ -61,7 +61,7 @@
       "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23.0h ago",
-      "lastRunAt": "10-09 07:00",
+      "lastRunAt": "10-10 07:00",
       "consecutiveErrors": 0
     },
     {
@@ -70,7 +70,7 @@
       "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22.0h ago",
-      "lastRunAt": "10-09 08:00",
+      "lastRunAt": "10-10 08:00",
       "consecutiveErrors": 0
     },
     {
@@ -79,7 +79,7 @@
       "schedule": "0 19 * * *",
       "status": "ok",
       "lastRun": "11.0h ago",
-      "lastRunAt": "10-09 19:00",
+      "lastRunAt": "10-10 19:00",
       "consecutiveErrors": 0
     },
     {
@@ -88,7 +88,7 @@
       "schedule": "0 20 * * *",
       "status": "ok",
       "lastRun": "10.0h ago",
-      "lastRunAt": "10-09 20:00",
+      "lastRunAt": "10-10 20:00",
       "consecutiveErrors": 0
     },
     {
@@ -97,7 +97,7 @@
       "schedule": "0 2 * * *",
       "status": "ok",
       "lastRun": "4.0h ago",
-      "lastRunAt": "10-10 02:00",
+      "lastRunAt": "10-11 02:00",
       "consecutiveErrors": 0
     },
     {
@@ -106,7 +106,7 @@
       "schedule": "0 5 * * *",
       "status": "ok",
       "lastRun": "1.0h ago",
-      "lastRunAt": "10-10 05:00",
+      "lastRunAt": "10-11 05:00",
       "consecutiveErrors": 0
     }
   ],
