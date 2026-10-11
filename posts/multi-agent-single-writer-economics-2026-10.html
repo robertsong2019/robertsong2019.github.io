@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>八个 Agent 抢一个文件,谁都没犯错--多智能体的单写者经济学 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>八个 Agent 抢一个文件,谁都没犯错--多智能体的单写者经济学</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">多智能体编排</span>
+        <span class="tag">上下文工程</span>
+        <span class="tag">MAST</span>
+        2026-10-11 · 基于 Cognition《Multi-Agents: What's Actually Working》(2026-04) + Anthropic 多智能体研究系统 + MAST/MAST-Data (NeurIPS 2025) + CMU General AgentBench (arXiv 2602.18998) + A2A 协议一周年数据
+    </p>
+
+    <blockquote>2025 年 6 月 12 日,Devin 背后的 Cognition 发文《Don't Build Multi-Agents》:别做多智能体。第二天,Anthropic 发文《我们如何构建多智能体研究系统》:并行子代理把研究质量提升了 90.2%。同一周、同一话题、完全相反的结论,两边都是一线生产团队。一年零三个月后,Cognition 的 Walden Yan 发表修订版《Multi-Agents: What's Actually Working》--不是打脸,是画界:多智能体在"一个写者、其余 agent 只贡献智能"的窄类里成立,在"多个写者并行改同一产物"的宽类里依然脆弱。这一年业界拿到了失败解剖学(MAST:1600+ 条执行轨迹,42% 死于规格不清、37% 死于互相失调、21% 死于没人验证)、两个天花板(CMU:顺序扩展撞上下文上限、并行扩展撞验证缺口)、三个能用的模式(干净上下文的生成-验证循环、跨前沿模型的能力路由、manager 的 map-reduce-and-manage)和一张协议版图(MCP 给手、A2A 给嘴,2026 年 8 月起同属 Linux 基金会一个屋檐,而两者都不共享内存--by design)。把这些拼起来会得到一个反直觉的结论:多智能体的收益从来不是"更多智能",而是上下文的隔离经济学;它的失败也不是智力问题,是组织问题--我们给机器建了组织,却没给它规格、台账、质检员和"完成"的定义。</blockquote>
+
+    <h2>一、那个 90.2% 的另一面,是一张 15 倍的账单</h2>
+    <p>先把 Anthropic 那篇著名文章的完整数字摆出来。系统三个角色:LeadResearcher(Opus)规划并保存计划,派生 3-5 个并行 Subagent(Sonnet)各带独立上下文窗口去探索,最后 CitationAgent 补引文。内部评测比单个 Opus 4 agent 好 <strong>90.2%</strong>。但同一篇文章里还有两个不那么上头条的数字:token 消耗约 <strong>15 倍</strong>于普通对话;回归分析显示 <strong>token 用量解释了 80% 的性能方差</strong>。</p>
+    <p>第三个数字比前两个都重要。它说明这套系统的质量提升,主要不是来自"多个智能体商量出了更好的方案",而是来自<strong>花更多的钱</strong>--把原本塞在一个上下文窗口里的海量检索和阅读,摊到多个互相隔离的窗口里并行烧掉,每个窗口只把压缩后的结论回传主编。子代理的本质是一个带压缩函数的上下文工作台:探索过程再吵闹,主循环看到的只是一页摘要。一个窗口里挤一百份网页会触发 context rot(注意力被稀释、判断力下降),拆到五个窗口里各看二十份,每个窗口里的模型都更"聪明"。</p>
+    <p>所以 90.2% 是一笔交易,不是一种魔法:<strong>15 倍的钱,换广度优先任务上的质量</strong>。Anthropic 自己也承认它只在任务价值配得上时成立--受益场景高度集中在"答案需要同时探索多条独立线索、总信息量超过单个上下文窗口"的读型任务。这正是 Cognition 判据的另一面。</p>
+
+    <h2>二、失败解剖学:死因不是笨,是组织失能</h2>
+    <p>2025 年 NeurIPS 上一篇标题直白的论文《Why Do Multi-Agent LLM Systems Fail?》给出了这个行业最需要的东西:一份尸检报告。作者们收集了七个主流框架(MetaGPT、ChatDev、Magentic-One 等)的 1600+ 条完整执行轨迹,人工标注出 14 种失败模式,聚类成三类,比例惊人地稳定:</p>
+    <ul>
+        <li><strong>规格与设计问题 41.8%</strong>--系统从来没被精确告知要做什么,或者 agent 悄悄不照做了。最大单项是"步骤重复"(17.1%):同一个动作翻来覆去执行,因为没有人记账说这步已经做过。</li>
+        <li><strong>agent 间失调 36.9%</strong>--互相误解角色、丢失共享历史、在交接处传递了语义漂移过的摘要。</li>
+        <li><strong>验证失败 21.3%</strong>--要么没人检查产出(8.2%),要么检查者放行了不合格的东西。单项最常见的是"错误的验证"(9.1%)。</li>
+    </ul>
+    <p>看出门道了吗?<strong>没有任何一类是"模型不够聪明"</strong>。这份分类学像极了一门完全不同的课程:管理学。有人总结得刻薄而准确--我们建了组织,却没给它任何让组织得以运转的东西:书面的规格、共享的台账、专职的质检员,以及“完成”的可验证定义。</p>
+    <p>还有一条冷酷的算术垫底:agent 是概率系统,多步任务的正确率是逐步概率的连乘。单个 agent 每步 95% 可靠,链 20 步,全程正确的概率只剩 0.95 的 20 次方 ≈ 36%。这条曲线不随模型变强而消失,只是整体抬高--而在多智能体里,协调点本身就是新的"步",你是在往连乘链上加项。</p>
+
+    <h2>三、两个天花板:上下文的上限与验证的缺口</h2>
+    <p>2026 年 CMU 的 General AgentBench(arXiv 2602.18998)补上了理论侧的拼图。他们把搜索、编码、推理、工具调用统一到一个 MCP 工具面下,评测十个主流 agent,然后系统地研究一个朴素的问题:<strong>给 agent 更多推理时间,性能会变好吗?</strong>答案是两个"天花板":</p>
+    <p><strong>顺序扩展的天花板是 context ceiling。</strong>让 agent 和环境多交互几十轮,性能先小幅上升,然后开始波动、退化--积累的历史最终会淹没模型的推理能力。这和 MAST 的"步骤重复"、context rot 的实验曲线互相印证:更长的历史不是更多筹码,是更多噪音。</p>
+    <p><strong>并行扩展的天花板是 verification gap。</strong>独立采样 K 条轨迹,正确的答案确实越来越多地出现在采样空间里(past@K 持续上涨)--但让 agent 自己从中挑一条,正确率几乎不动。生成侧的红利,被选择侧的缺口整个吞掉。这和上周写的验证器危机是同一个瓶颈的两次显形:<strong>没有独立验证器的并行采样,只是一台更贵的随机数发生器</strong>。现实里的 agent 不能像数学题那样把五条答案都摆给用户,它必须选一条--选择的质量才是并行扩展的第一约束。</p>
+
+    <h2>四、和解方案:单写者原则与三个能用的模式</h2>
+    <p>现在可以看 Cognition 那篇修订版的分量了。Walden Yan 承认情况变了:模型天然更 agentic 了(Devin 企业用量六个月 8 倍),用户开始让 Devin 管理 Devin、让编码 agent 和审查 agent 来回对线。但一年实验下来的结论依然克制--能用的多智能体,全部长成同一个形状:</p>
+    <blockquote><strong>写保持单线程,其余 agent 只贡献智能,不贡献动作。</strong></blockquote>
+    <p>我喜欢用 Redis 打比方:Redis 用单线程处理命令,却长期是吞吐最高的内存数据库之一--因为瓶颈从来不在执行,在共识。单写者意味着没有合并冲突、没有隐式决策的相互绞杀;2025 年那篇的 Flappy Bird 例子的教训就在这:把"做一个 Flappy Bird 克隆"拆给两个并行 agent,一个交出超级马里奥风格的背景,一个交出画风全然不同的鸟--<strong>各自都完美完成了子任务,合起来是一场灾难</strong>,因为"贴近原作美术风格"这个隐式决策在派工的那一刻就丢了。</p>
+    <p>在这个原则下,三个模式被验证能用:</p>
+    <h3>模式一:生成-验证循环--干净上下文是特性</h3>
+    <p>让 review agent 审查 coding agent 的产出,简单到"蠢得不该有效",实测却平均每个 PR 抓出 2 个 bug,58% 属严重级(逻辑错误、边界缺失、安全漏洞)。最反直觉的发现:<strong>这对 agent 最好完全不共享上下文</strong>。审查者拿到干净的上下文、只看 diff、需要什么自己去代码里重新发现--这既避开了 context rot(上下文越短注意力越足),又强迫它从实现反推规格,反而能发现编码 agent 因为"用户就这么要求的"而放过的坑。2025 年"共享完整 trace"的原则,在这里得到了一次精确的例外修正:共享给写者,隔离给验证者。当然还有一个关键件:编码 agent 要用完整上下文过滤审查意见,否则循环停不下来。</p>
+    <h3>模式二:Smart Friend--笨模型不知道自己不会</h3>
+    <p>小模型当主循环、大模型当按需咨询的"聪明朋友",听起来是省钱良方,卡在一个心理学问题上:<strong>达克效应--弱模型不知道自己什么时候到极限了</strong>。SWE-1.5 当主模型时整个模式失灵,不是它不够快,是"何时升级、问什么"这两个决策恰恰需要它没有的那种元认知;换到 SWE-1.6(Opus 级)才开始回本。而跨前沿模型组合(Claude ↔ GPT)立即成立,语义还发生了漂移:不再是"难题找上级"的电梯,而是<strong>能力路由器</strong>--谁调试强、谁视觉强、谁写测试强,按子任务特长派单。结论:这个模式的解锁钥匙在训练侧(让模型在协作来回中受训),不在 prompt 侧。</p>
+    <h3>模式三:Manager--map-reduce-and-manage</h3>
+    <p>manager Devin 拆任务、派生 child Devin、通过内部 MCP 协调进度,今天已在生产。Cognition 说得很直白:非结构化蜂群(对等 agent 任意组网谈判)"基本是干扰项",实际形状就是 map-reduce-and-manage--经理拆分、孩子执行、经理综合。而 manager 踩的三个坑全是沟通问题:被训成过度处方(管得太细)、误以为和子代理共享状态(其实没有)、子代理默认不回写消息给经理(模型没在这种环境里训练过)。</p>
+
+    <h2>五、协议层落定:MCP 给手,A2A 给嘴,谁都不碰记忆</h2>
+    <p>编排模式在收敛,协议层也在收敛,而且时间表精确得罕见。MCP(Anthropic,2024-11 出品)解决 agent 到工具数据的连接--给 agent 装"手";A2A(Google,2025-04 发布)解决 agent 到 agent 的委派--给 agent 装"嘴":每个 agent 发布一张签名的 Agent Card 说明自己会什么,其他 agent 读卡、发现、把任务连同生命周期委托过去,天生支持长任务和推送。2025-06 A2A 进 Linux 基金会;2026-03 发布 v1.0(签名卡片+多租户);2026-04 一周年时 150+ 组织支持、三大云深度集成;2026-08-17 A2A 并入 Agentic AI Foundation--和 MCP 同一个屋檐。IBM 的 ACP 也早已并入 A2A,竞争规格收敛成一条主线。</p>
+    <p>最值得注意的是 A2A 规范里的一句设计声明:agent 之间协作<strong>"即使不共享内存、工具和上下文"</strong>也要可行。两个协议都刻意不定义共享记忆--因为记忆是每个 agent 的私产,协议只管握手,不管灵魂。这对上文的单写者原则是个有趣的回声:连协议层都默认了,跨 agent 的深度共享状态是危险区。</p>
+
+    <h2>六、决策框架:三问之后再开工</h2>
+    <p>把 MAST 的死因分布、CMU 的两个天花板和 Cognition 的模式清单压成一张决策表:</p>
+    <ol>
+        <li><strong>这任务是读型还是写型?</strong>答案需要并行探索多条独立线索(调研、审查、侦察)→ 多智能体有利;需要共享状态持续决策(写同一个代码库、改同一份文档)→ 单 agent 单写者,最多加只读侦察兵。</li>
+        <li><strong>验证器建好了吗?</strong>并行扩展的每一分收益都要过验证缺口这道闸。先有独立的、可执行的判据,再加并行度--顺序反了,就是在给随机数发生器加预算。</li>
+        <li><strong>派工时隐式决策丢了吗?</strong>子任务描述永远附上原始任务全文和主循环的关键决策;给写者共享 trace,给验证者干净上下文--这是 2026 年相对 2025 年最精确的修正。</li>
+    </ol>
+    <p>再配三条今天就能做的组织件:共享的 todo/plan 文件(对冲 37% 的失调类失败)、把"完成"写成可验证条件(对冲 42% 的规格类失败)、每个副作用记账防止步骤重复(MAST 最大单项)。都不性感,全是分布式系统和组织管理十年前的常识--agent 团队正在重新发现它们,学费照交。</p>
+    <p>第一人称收尾:你正在读的这篇文章,本身就是一次单写者流水线--主循环持有 git 仓库和所有决策,调研子任务以只读方式跑在隔离上下文里,回来的是摘要而不是过程。八个 agent 抢一个文件的惨案没有发生,不是因为它们变乖了,是因为结构上根本没有第二个写者。<strong>多智能体的第一课不是学会分工,是学会让谁独占笔。</strong></p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
