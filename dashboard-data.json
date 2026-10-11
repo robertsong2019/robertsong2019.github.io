@@ -1,21 +1,21 @@
 {
-  "lastUpdated": "2026-10-10T22:02:00Z",
-  "generatedAt": "2026-10-11 06:02 CST",
+  "lastUpdated": "2026-10-11T22:02:26Z",
+  "generatedAt": "2026-10-12 06:02 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 1888785,
+      "pid": 2224095,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14 (323493f)",
-      "uptime": "running since 2026-10-11 03:47:46 CST (pid 1888785, 2h14m; 4th consecutive daily ~03:47 restart — pids 863071→1204836→1547246→1888785, fixed daily pattern, likely systemd timer or scheduled trigger, no observed impact)"
+      "uptime": "running since 2026-10-12 03:17:47 CST (pid 2224095, 2.7h; 5th consecutive daily early-AM restart — pids 863071→1204836→1547246→1888785→2224095, time drifted 03:47→03:17, no lost cron artifacts; journalctl root-cause still pending idle heartbeat)"
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "171 days, 16 hours, 41 minutes",
-      "loadAverage": "0.60, 0.19, 0.07",
+      "uptime": "172 days, 16 hours, 41 minutes",
+      "loadAverage": "0.41, 0.12, 0.04",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
@@ -24,62 +24,50 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1372,
-        "freeMB": 353,
-        "availableMB": 563
+        "usedMB": 1369,
+        "freeMB": 274,
+        "availableMB": 566
       }
     },
     "model": "zai/glm-5.3-flash"
   },
   "cronSummary": {
     "total": 7,
-    "ok": 7,
-    "error": 0,
+    "ok": 6,
+    "error": 1,
     "running": 1,
-    "errorJobs": [],
+    "errorJobs": [
+      {
+        "name": "github-creative-evening",
+        "lastError": "⚠️ 📝 Edit: in ~/.openclaw/workspace/memory/2026-10-11.md failed",
+        "lastRunAt": "10-11 19:00"
+      }
+    ],
     "notes": [
-      "全部 7 个 cron 任务连续 ok，无错误",
-      "Gateway 连续第 4 天 ~03:47 自动重启（今晨 03:47:46 pid 1888785，昨日 1547246）——固定模式确认，无实际影响，根因待查（疑似 systemd timer）",
-      "主机可用内存 563MB（昨日 656MB）；磁盘 68% 持平；uptime 171d",
-      "近 24h 博客新提交 2 篇: 2f9561e 一个人的 .agents 目录 Agent能力打包的经济学 (10-11 05:04); ff771d9 Agent崩溃在第8步退款已发出 持久执行与恢复的精确语义 (10-10 20:04)",
+      "github-creative-evening 昨晚 19:00 status=error：edit 工具写 memory/2026-10-11.md 失败（模糊匹配命中问题），但报告已正常投递（lastDelivered=true）；consecutiveErrors=1，今晚 19:00 自动重试",
+      "Gateway 连续第 5 天凌晨自动重启（今晨 03:17:47 pid 2224095，昨日 03:47 pid 1888785）——重启时刻漂移 ~30min，五次均未丢 cron 产物；journalctl 根因定位仍待空闲 heartbeat",
+      "主机：可用内存 566MB（昨日 563MB 持平）；磁盘 68% 持平；uptime 172d；负载 0.41",
+      "近 24h 博客新提交 2 篇: 15173ae 719篇数学论文编译器只给173篇盖章 (10-12 05:04); 3e59c06 多智能体单写者经济学 (10-11 20:04)",
       "sessions 统计按 sessionId 去重（43 去重 vs 50 原始）"
     ]
   },
   "cronJobs": [
     {
-      "id": "f38e0365",
-      "name": "dashboard-update-morning",
-      "schedule": "0 6 * * *",
-      "status": "ok",
-      "lastRun": "24.0h ago",
-      "lastRunAt": "10-10 06:00",
-      "consecutiveErrors": 0
-    },
-    {
-      "id": "9b2a8701",
-      "name": "github-trending-daily",
-      "schedule": "0 7 * * *",
-      "status": "ok",
-      "lastRun": "23.0h ago",
-      "lastRunAt": "10-10 07:00",
-      "consecutiveErrors": 0
-    },
-    {
-      "id": "2c714952",
-      "name": "github-trending-deep-analysis",
-      "schedule": "0 8 * * *",
-      "status": "ok",
-      "lastRun": "22.0h ago",
-      "lastRunAt": "10-10 08:00",
-      "consecutiveErrors": 0
-    },
-    {
       "id": "ad37c59a",
       "name": "github-creative-evening",
       "schedule": "0 19 * * *",
-      "status": "ok",
+      "status": "error",
       "lastRun": "11.0h ago",
-      "lastRunAt": "10-10 19:00",
+      "lastRunAt": "10-11 19:00",
+      "consecutiveErrors": 1
+    },
+    {
+      "id": "1ea6e3b0",
+      "name": "knowledge-organization-morning",
+      "schedule": "0 2 * * *",
+      "status": "ok",
+      "lastRun": "4.0h ago",
+      "lastRunAt": "10-12 02:00",
       "consecutiveErrors": 0
     },
     {
@@ -88,16 +76,7 @@
       "schedule": "0 20 * * *",
       "status": "ok",
       "lastRun": "10.0h ago",
-      "lastRunAt": "10-10 20:00",
-      "consecutiveErrors": 0
-    },
-    {
-      "id": "1ea6e3b0",
-      "name": "knowledge-organization-morning",
-      "schedule": "0 2 * * *",
-      "status": "ok",
-      "lastRun": "4.0h ago",
-      "lastRunAt": "10-11 02:00",
+      "lastRunAt": "10-11 20:00",
       "consecutiveErrors": 0
     },
     {
@@ -106,7 +85,34 @@
       "schedule": "0 5 * * *",
       "status": "ok",
       "lastRun": "1.0h ago",
-      "lastRunAt": "10-11 05:00",
+      "lastRunAt": "10-12 05:00",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "f38e0365",
+      "name": "dashboard-update-morning",
+      "schedule": "0 6 * * *",
+      "status": "ok",
+      "lastRun": "24.0h ago",
+      "lastRunAt": "10-11 06:00",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "9b2a8701",
+      "name": "github-trending-daily",
+      "schedule": "0 7 * * *",
+      "status": "ok",
+      "lastRun": "23.0h ago",
+      "lastRunAt": "10-11 07:00",
+      "consecutiveErrors": 0
+    },
+    {
+      "id": "2c714952",
+      "name": "github-trending-deep-analysis",
+      "schedule": "0 8 * * *",
+      "status": "ok",
+      "lastRun": "22.0h ago",
+      "lastRunAt": "10-11 08:00",
       "consecutiveErrors": 0
     }
   ],
@@ -141,7 +147,7 @@
       {
         "type": "cron:f0362050 (essay)",
         "kind": "direct",
-        "lastActive": "0.9h ago",
+        "lastActive": "1.0h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
