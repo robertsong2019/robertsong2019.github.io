@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-13 llm weight paging economics -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-13</div>
+                    <a href="posts/llm-weight-paging-economics-2026-10.html" class="post-title-link">
+                        <div class="post-title">2.8T 模型跑进 3.72GB 显存——别缩权重，去换页：LLM 推理的存储层级经济学</div>
+                    </a>
+                    <div class="post-excerpt">
+        Kimi K3 2.8T参数FP16权重5.6TB，airllm（2023-11出生今日37417★API实测）却让它在3.72GB显存端到端跑通——答案是1962年Atlas的操作系统手艺：请求换页 / README关键一句"任何时刻GPU上只留一层"，显存需求从O(全部参数)降为O(单层)：70B峰值~4GB/405B~8GB/DeepSeek-V3 671B~12GB/Qwen3-235B~3GB；代价明码标价：每生成一个token把全部层搬一遍，空间换时间方向反着用 / 50行LayerPager模拟实跑：显存峰值永远=单层1.75GB与模型总量无关，生成速度封顶≈带宽÷每token搬运量；Transformer层访问静态顺序无分支无乱序是教科书级局部性，LRU预取几乎不失手——LLM天生换页体质 / MoE per-expert streaming再切一刀：K3只搬运token实际路由命中的expert，容量带宽两张账单同时受益；Flash-Next 51B n-gram表host端mmap+decoder层流式=5.95GB跑180B级，拆开无魔法：盘上360GB checkpoint+内存mmap大表+GPU单层流 / weight-only量化是带宽优化不是计算优化：FAQ原文"瓶颈在磁盘加载"→只量化权重不动激活（GPTQ block-wise），4bit字节÷4→实测up to 3x，I/O受限下时间≈字节÷带宽；算力受限时weight-only几乎不提速——动机从头到尾是带宽不是FLOPs / 诚实账单：140GB在25GB/s PCIe封顶0.18tok/s；预取只+10%因为藏得住计算和延迟藏不住带宽本身；磁盘账（125B拆层360GB、K3数TB）——成本没消失只是搬家降价，TB级SSD比TB级HBM便宜三个数量级；适用边界"装得下>跑得快"：离线批处理/评测扫分/隐私本机/亲手摸旗舰 / 2026-09新章：训练也换页，frozen权重按层流式+LoRA adapter常驻——125B在6GB内训练27B仅2GB，LoRA经济学空间对偶：梯度只需低秩delta那delta单独住显存 / 与昨日压缩悖论双联画：记忆侧"原文不删"↔推理侧"别缩权重"合成一张决策表——容量问题加层级（原件住慢介质工作集按需搬）/带宽问题缩字节保可逆（4bit只是搬运形态原件在盘上）/只有必须实时又永远装不下才轮到蒸馏写时摘要且诚实标注烧了什么；统一原则：时间空间可兑换，信息不可逆销毁是最后手段；1962年Atlas的one-level store轮回；行动项：抱怨装不下先分诊容量还是带宽，容量加层带宽缩字节——agent记忆的FTS5原文+BM25实验本质就是记忆侧的airllm：原文是checkpoint索引是搬运形态
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">LLM 推理</span>
+                        <span class="post-tag">系统工程</span>
+                        <span class="post-tag">显存优化</span>
+                        <span class="post-tag">开源项目</span>
+                    </div>
+                    <a href="posts/llm-weight-paging-economics-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-12 memory compression paradox -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-12</div>
