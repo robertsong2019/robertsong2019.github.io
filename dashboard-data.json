@@ -1,21 +1,21 @@
 {
-  "lastUpdated": "2026-10-11T22:02:26Z",
-  "generatedAt": "2026-10-12 06:02 CST",
+  "lastUpdated": "2026-10-12T22:00:00Z",
+  "generatedAt": "2026-10-13 06:00 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 2224095,
+      "pid": 2559855,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14 (323493f)",
-      "uptime": "running since 2026-10-12 03:17:47 CST (pid 2224095, 2.7h; 5th consecutive daily early-AM restart — pids 863071→1204836→1547246→1888785→2224095, time drifted 03:47→03:17, no lost cron artifacts; journalctl root-cause still pending idle heartbeat)"
+      "uptime": "running since 2026-10-13 02:47:46 CST (pid 2559855, 3.2h; 6th consecutive daily early-AM restart — pids 863071→1204836→1547246→1888785→2224095→2559855, restart time 03:47→03:17→02:47 drifting ~30min earlier/day, no lost cron artifacts; journalctl root-cause still pending idle heartbeat)"
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "172 days, 16 hours, 41 minutes",
-      "loadAverage": "0.41, 0.12, 0.04",
+      "uptime": "173 days, 16 hours, 41 minutes",
+      "loadAverage": "0.79, 0.29, 0.15",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
@@ -24,78 +24,38 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1369,
-        "freeMB": 274,
-        "availableMB": 566
+        "usedMB": 1381,
+        "freeMB": 362,
+        "availableMB": 554
       }
     },
     "model": "zai/glm-5.3-flash"
   },
   "cronSummary": {
     "total": 7,
-    "ok": 6,
-    "error": 1,
-    "running": 1,
-    "errorJobs": [
-      {
-        "name": "github-creative-evening",
-        "lastError": "⚠️ 📝 Edit: in ~/.openclaw/workspace/memory/2026-10-11.md failed",
-        "lastRunAt": "10-11 19:00"
-      }
-    ],
+    "ok": 7,
+    "error": 0,
+    "running": 0,
+    "errorJobs": [],
     "notes": [
-      "github-creative-evening 昨晚 19:00 status=error：edit 工具写 memory/2026-10-11.md 失败（模糊匹配命中问题），但报告已正常投递（lastDelivered=true）；consecutiveErrors=1，今晚 19:00 自动重试",
-      "Gateway 连续第 5 天凌晨自动重启（今晨 03:17:47 pid 2224095，昨日 03:47 pid 1888785）——重启时刻漂移 ~30min，五次均未丢 cron 产物；journalctl 根因定位仍待空闲 heartbeat",
-      "主机：可用内存 566MB（昨日 563MB 持平）；磁盘 68% 持平；uptime 172d；负载 0.41",
-      "近 24h 博客新提交 2 篇: 15173ae 719篇数学论文编译器只给173篇盖章 (10-12 05:04); 3e59c06 多智能体单写者经济学 (10-11 20:04)",
+      "近 24h 全绿：7/7 cron 全部 ok、全部 delivered（昨晚 creative-evening 重试成功 337s，前晚 edit 失败已恢复）",
+      "Gateway 连续第 6 天凌晨自动重启（今晨 02:47:46 pid 2559855，昨日 03:17 pid 2224095）——重启时刻呈 -30min/天 规律漂移（03:47→03:17→02:47），六次均未丢 cron 产物；journalctl 根因定位仍待空闲 heartbeat",
+      "今晨 essay cron 05:02 有一次 exec preflight 拒绝（python3 直调被拦需脚本预检），任务整体仍 ok 交付（470s）",
+      "主机：可用内存 554MB（昨日 566MB 基本持平）；磁盘 68% 持平；uptime 173d；负载 0.79",
+      "近 24h 博客新提交 2 篇: 898c381 airllm 存储层级经济学/LLM换页 (10-13 05:06); af66c24 Agent记忆压缩悖论E-mem (10-12 20:05)",
       "sessions 统计按 sessionId 去重（43 去重 vs 50 原始）"
     ]
   },
   "cronJobs": [
-    {
-      "id": "ad37c59a",
-      "name": "github-creative-evening",
-      "schedule": "0 19 * * *",
-      "status": "error",
-      "lastRun": "11.0h ago",
-      "lastRunAt": "10-11 19:00",
-      "consecutiveErrors": 1
-    },
-    {
-      "id": "1ea6e3b0",
-      "name": "knowledge-organization-morning",
-      "schedule": "0 2 * * *",
-      "status": "ok",
-      "lastRun": "4.0h ago",
-      "lastRunAt": "10-12 02:00",
-      "consecutiveErrors": 0
-    },
-    {
-      "id": "a4bf5e2a",
-      "name": "deep-exploration-evening",
-      "schedule": "0 20 * * *",
-      "status": "ok",
-      "lastRun": "10.0h ago",
-      "lastRunAt": "10-11 20:00",
-      "consecutiveErrors": 0
-    },
-    {
-      "id": "f0362050",
-      "name": "essay-generation-morning",
-      "schedule": "0 5 * * *",
-      "status": "ok",
-      "lastRun": "1.0h ago",
-      "lastRunAt": "10-12 05:00",
-      "consecutiveErrors": 0
-    },
     {
       "id": "f38e0365",
       "name": "dashboard-update-morning",
       "schedule": "0 6 * * *",
       "status": "ok",
       "lastRun": "24.0h ago",
-      "lastRunAt": "10-11 06:00",
-      "consecutiveErrors": 0
+      "lastRunAt": "10-12 06:00",
+      "consecutiveErrors": 0,
+      "lastDurationSec": 191
     },
     {
       "id": "9b2a8701",
@@ -103,8 +63,9 @@
       "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23.0h ago",
-      "lastRunAt": "10-11 07:00",
-      "consecutiveErrors": 0
+      "lastRunAt": "10-12 07:00",
+      "consecutiveErrors": 0,
+      "lastDurationSec": 75
     },
     {
       "id": "2c714952",
@@ -112,8 +73,49 @@
       "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22.0h ago",
-      "lastRunAt": "10-11 08:00",
-      "consecutiveErrors": 0
+      "lastRunAt": "10-12 08:00",
+      "consecutiveErrors": 0,
+      "lastDurationSec": 117
+    },
+    {
+      "id": "ad37c59a",
+      "name": "github-creative-evening",
+      "schedule": "0 19 * * *",
+      "status": "ok",
+      "lastRun": "11.0h ago",
+      "lastRunAt": "10-12 19:00",
+      "consecutiveErrors": 0,
+      "lastDurationSec": 337
+    },
+    {
+      "id": "a4bf5e2a",
+      "name": "deep-exploration-evening",
+      "schedule": "0 20 * * *",
+      "status": "ok",
+      "lastRun": "10.0h ago",
+      "lastRunAt": "10-12 20:00",
+      "consecutiveErrors": 0,
+      "lastDurationSec": 474
+    },
+    {
+      "id": "1ea6e3b0",
+      "name": "knowledge-organization-morning",
+      "schedule": "0 2 * * *",
+      "status": "ok",
+      "lastRun": "4.0h ago",
+      "lastRunAt": "10-13 02:00",
+      "consecutiveErrors": 0,
+      "lastDurationSec": 381
+    },
+    {
+      "id": "f0362050",
+      "name": "essay-generation-morning",
+      "schedule": "0 5 * * *",
+      "status": "ok",
+      "lastRun": "1.0h ago",
+      "lastRunAt": "10-13 05:00",
+      "consecutiveErrors": 0,
+      "lastDurationSec": 470
     }
   ],
   "sessions": {
@@ -124,9 +126,9 @@
       "group": 1
     },
     "models": {
-      "glm-5.3-flash": 23,
+      "glm-5.3-flash": 24,
       "glm-5": 12,
-      "glm-5.1": 7,
+      "glm-5.1": 6,
       "glm-5-turbo": 1
     },
     "notable": [
@@ -147,21 +149,21 @@
       {
         "type": "cron:f0362050 (essay)",
         "kind": "direct",
-        "lastActive": "1.0h ago",
+        "lastActive": "0.9h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
         "type": "cron:1ea6e3b0 (knowledge-org)",
         "kind": "direct",
-        "lastActive": "4.0h ago",
-        "model": "glm-5.1",
+        "lastActive": "3.9h ago",
+        "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
         "type": "cron:a4bf5e2a (deep-exploration)",
         "kind": "direct",
-        "lastActive": "10.0h ago",
+        "lastActive": "9.9h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
@@ -169,6 +171,20 @@
         "type": "cron:ad37c59a (creative-evening)",
         "kind": "direct",
         "lastActive": "11.0h ago",
+        "model": "glm-5.3-flash",
+        "context": "n/a"
+      },
+      {
+        "type": "cron:2c714952 (trending-deep)",
+        "kind": "direct",
+        "lastActive": "22.0h ago",
+        "model": "glm-5.3-flash",
+        "context": "n/a"
+      },
+      {
+        "type": "cron:9b2a8701 (trending-daily)",
+        "kind": "direct",
+        "lastActive": "23.0h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       }
