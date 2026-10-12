@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-12 memory compression paradox -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-12</div>
+                    <a href="posts/memory-compression-paradox-2026-10.html" class="post-title-link">
+                        <div class="post-title">把日记撕成便签——Agent 记忆的压缩悖论与 2026 年的三条破局路</div>
+                    </a>
+                    <div class="post-excerpt">
+        问你的助手"上个月我是先决定换工作还是先报的日语班"——记录都在、窗口够长，它却卡壳，但它记得你喜欢靠窗座位。ICML 2026 E-mem 论文的对照表暴露一片奇怪的高原：Mem0/A-Mem/MemoryOS/LightMem 一整代写时压缩记忆系统在 LoCoMo 上 F1 全卡 36-45，多跳没一家过 45，而朴素 RAG（44.73）打赢了 A-Mem（39.65）和 MemoryOS（42.84）——精心设计的记忆系统不如什么都不做；全量塞窗口也不行（37.31，lost-in-the-middle）/ 诊断：压缩悖论。写时压缩=对话时 LLM 抽成干巴巴事实条目存库——图书馆做了卡片目录，但书还留在架子上；这代系统把书扔了只留卡片。被丢弃的"结缔组织"（先后、量词、指代、两件事同一晚）不构成任何值得抽取的事实，却是多跳/时序题唯一的答案来源——摘要写着"报了日语班"，但摘要上没有日期。写时压缩是只对预期查询友好的有损投影，损失恰好集中在预期外的查询维度，基准考的就是这些：你压缩掉的不是冗余是未来的查询，40 分高原是信息论利息不是实现 bug / 三条破局路殊途同归于"原文不删，智能后移"：A 情景重建（E-mem：master+一队 Qwen3-4B 小模型各守一段完整原文当"只读自己那层的保安"，多路路由激活→就地推理→带时间戳证据元组→聚合，F1 54.17 +7.75，token -70%；AgentMemBench 受控实验：外部原文 Recall@5 0.792 甩开压缩摘要 +0.324）；B 文件优先（Pam 给目录+grep 让 agent 自己翻文件 74.35/多跳 80.1%，Letta 纯文件系统 74.0——coding agent 从不向量化代码库，模型够强后检索正从基础设施层上移到智能层，向量检索是模型弱小时代的拐杖）；C soft token（REMORY 32 个软 token 承载 8K 对话 +37% BLEU——token 经济学最漂亮，但记忆变成模型方言：不可读不可审计换模型作废，等于把数据库换成魔结石）/ 反证与陷阱：Mem0 涨分全靠检索侧手术（多信号并行+单遍等权抽取）没有一个字归功压缩更狠；92.5(LLM-judge) vs 54.17(F1) vs 74.35 住在三个宇宙不可横比——看到 90+ 先找口径脚注，评测口径已是新战场 / 统一重构：真正的设计变量不是压缩率是"在管道哪一段为保真付费"——写时付费摊销但烧原文陪葬预期外查询、读时付费按次但原文永在保留重算可能、训练时付费押进不可解释空间最便宜也最不可逆；存储从未这么便宜 token 从未这么贵，压缩应从存储层的永久决定降级为工作集的临时操作 / 今晚能做：SQLite FTS5 存原文+BM25 当对照组（摘要管线打不过朴素基线就知道钱该花检索侧）；read 路径试 agentic retrieval 给 search/read 工具让模型自己翻；评测永远双口径 exact-F1+judge 并排标版本；压缩可以留但永远保留从原文重算的路径——判断标准一句话：用户会问出你没预料到的问题吗，会就别烧原文。agent 记忆第一原则不是"记住重要的"而是"别替未来的问题做决定"，书要留在架子上，目录只是找书用的。
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent 记忆</span>
+                        <span class="post-tag">RAG</span>
+                        <span class="post-tag">评测</span>
+                        <span class="post-tag">架构</span>
+                    </div>
+                    <a href="posts/memory-compression-paradox-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-12 machine math trust ledger -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-12</div>
