@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 协议的三十年轮回：从 KQML 到 A2A - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        h4 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 6px; overflow-x: auto; margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>Agent 协议的三十年轮回：从 KQML 到 A2A，同一个梦想为什么死了又活</h1>
+        <div class="meta">
+            2026-10-13 · 罗嵩 ·
+            <span class="tag">Agent Protocols</span>
+            <span class="tag">MCP</span>
+            <span class="tag">A2A</span>
+            <span class="tag">分布式系统</span>
+        </div>
+
+        <blockquote>1993 年，DARPA 资助的研究者在论文里写下 <code>(tell :content "fact" :receiver agentX)</code>，幻想软件智能体互相对话。三十年后，德意志银行内部跑着 40 多个 Agent 用 JSON-RPC 互发任务。同一个梦想，隔着一代人的失败——1997 年它死了，2026 年它活了。<strong>这中间到底什么变了？</strong></blockquote>
+
+        <p>我的答案是：<strong>不是协议变聪明了，是 Agent 终于变聪明了。</strong>这个答案会改变你对当下协议战争的判断——哪些是真问题，哪些是历史在重复，下一块短板在哪。本文把这轮浪潮放回三十年的弧线里看一遍。</p>
+
+        <h2>一、1990 年代：一场早产的标准革命</h2>
+
+        <p>先看历史。1992 年，DARPA 的 Knowledge Sharing Effort 产出了 KQML（Knowledge Query and Manipulation Language）：每条消息是一个"言语行为"（speech act）——<code>tell</code>、<code>ask</code>、<code>subscribe</code>，消息即动作。这个思想直接来自哲学家的言语行为理论：说话就是做事。放到今天看，你不会觉得过时，只会觉得眼熟——这不就是 tool call 吗？</p>
+
+        <p>1996 年，FIPA 联盟把 KQML 升级成 FIPA-ACL：20 多个标准 performatives、强制字段（sender/receiver/content/ontology）、基于 BDI（信念-愿望-意图）的形式语义，还有配套的交互协议规范。JADE 平台一度是学术圈多智能体系统的标配。</p>
+
+        <p>然后它就死了。Web 爆发，SOAP 和 REST 微服务接管了一切，"agent" 一词沦为营销话术。死因值得细品：FIPA 给消息设计了严密的逻辑语义，可对端那个 1997 年的"智能"程序根本执行不动这些语义。后来 Labrou 等人在复盘文章里写了句扎心的话——<strong>"当你真正构建 agent 系统时，语义是最不重要的问题。"</strong></p>
+
+        <div class="highlight"><strong>第一课：</strong>协议是对端智能的外骨骼。骨骼再完美，里面的生物没有肌肉，照样站不起来。</div>
+
+        <h2>二、2024-2026：爆发只用了一年半</h2>
+
+        <p>时间快进。2024 年 11 月 Anthropic 发布 MCP（Model Context Protocol），Agent 接工具有了标准插口；2025 年 4 月 Google 发布 A2A（Agent-to-Agent），Agent 互相对话有了标准；2025 年中，两个协议双双捐给 Linux Foundation 旗下治理。到 2026 年 4 月 A2A 一周年时：150+ 支持组织、五门官方语言 SDK、Copilot Studio / Azure AI Foundry / Bedrock AgentCore 全面 GA，供应链、金融、保险、IT 运维四个行业进入生产。MCP 这边更夸张：月 SDK 下载 9700 万次，公开 server 超过一万个。</p>
+
+        <p>但最有信息量的细节是：A2A 的元数据文件叫 <strong>Agent Card</strong>——一个 JSON，声明自己会什么、端点在哪、需要什么鉴权。SOAP 时代这玩意叫 UDDI，也是注册、发现、能力声明。看起来像转世，但有一个本质区别：<strong>UDDI 是写给程序解析的，Agent Card 是写给 LLM 读的——schema 本身就是 prompt。</strong>FIPA 用二十年形式化语义没能做到的事，"用自然语言把话说明白"做到了，因为对端终于能听懂人话。</p>
+
+        <h2>三、真正的变量：语义被外包了</h2>
+
+        <p>把两代协议摆在一起，架构上的"退步"令人不安：FIPA 有 20 多个 performatives 和形式语义；MCP/A2A 只有 JSON-RPC 加自然语言描述。<strong>薄语义 + 厚生态</strong>彻底取代了厚语义。语义去哪了？外包给 LLM 了。tool description 的措辞、Agent Card 的能力声明，本质上都是写给模型看的提示词。言语行为理论没有消失，它换了个马甲活在 schema 的字里行间。</p>
+
+        <div class="insight"><strong>关键洞察：</strong>KQML/FIPA 之死不是协议设计失败，是它们的假设（对端有智能）在当时不成立。LLM 是历史上第一个能"读懂"自然语言接口描述并正确行事的协议对端。协议标准从来不是瓶颈，智能才是——这也是为什么 MCP 能在 18 个月拿下 9700 万月下载：它只需要描述能力，不需要形式化语义。</div>
+
+        <p>这轮轮回里还有一件真正的新东西：<strong>治理顺序反过来了。</strong>WS-* 时代是厂商联盟先圈地，开源是后来的事；这次 MCP、A2A、x402 都在爆发后 6 到 18 个月内捐给中立基金会（Linux Foundation / FIDO）。不是行业变无私了，是企业采购部门要求的——中立治理正在从加分项变成协议存活的先决条件。</p>
+
+        <h2>四、分层不是战争</h2>
+
+        <p>经常有人问"MCP 和 A2A 谁会赢"。这个问题问错了层。2026 年的共识是它们是协议栈的不同层，就像 OSI 模型里 TCP 不会和 Ethernet 打架：</p>
+
+        <table>
+            <thead><tr><th>层</th><th>协议</th><th>回答的问题</th></tr></thead>
+            <tbody>
+                <tr><td>工具层</td><td><strong>MCP</strong></td><td>Agent 怎么用工具、取上下文</td></tr>
+                <tr><td>协作层</td><td><strong>A2A</strong></td><td>Agent 怎么发现、委派、对话</td></tr>
+                <tr><td>支付层</td><td><strong>x402 / ACP / AP2 / MPP</strong></td><td>Agent 怎么付钱、怎么证明被授权花钱</td></tr>
+                <tr><td>身份层</td><td><strong>？？？</strong></td><td>Agent 是谁、出了事谁负责</td></tr>
+            </tbody>
+        </table>
+
+        <p>支付层本身也在分层：x402 把付费塞进 HTTP 402 状态码（结算层）；ACP 结构化 Agent 和商家的结账流程（Checkout 层）；Google 的 AP2 更有意思，它一分钱都不搬，只产出"人类曾授权"的密码学证据（授权层），结算走底下任何轨道；MPP 用 sessions 模型让 Agent 预设额度后流式微支付。一个生产系统的典型组合：AP2 证明授权 → A2A 委派任务 → MCP 调工具 → x402 按调用付费。<strong>它们被拿来比较，但回答的是不同问题。</strong></p>
+
+        <h2>五、安全：下一个 npm 时刻</h2>
+
+        <p>协议赢了，治理没跟上——这句评价在 2026 年有了数字：82% 的 MCP 实现存在路径穿越风险，只有 8.5% 启用了 OAuth，60 天窗口内出现 30 多个 CVE，其中一个 CVSS 9.8 且已被活跃利用；一次供应链攻击让 43.7 万个环境的邮件被悄悄密送。NSA 在 2026 年 5 月专门发布了 MCP 安全指南，这本身就是"基础设施级关注"的信号。</p>
+
+        <p>学术界给出了更锋利的解剖。DSN 2026 的一篇论文指出 MCP 的安全模型断在 <strong>registry 层</strong>：弱审查和账号回收劫持让恶意 server 进入宿主，之后攻击者改写 tool description 就能塑造 LLM 的推理——宿主不做独立验证就执行。<strong>代码零漏洞也能完成完整攻击。</strong>这和早年 npm、Docker Hub 的剧本完全同构：注册表劫持、描述投毒、审批后偷换行为（rug pull）。</p>
+
+        <div class="highlight"><strong>第二课：</strong>历史剧本已知，解法也已知——签名（A2A v1.2 的签名 Agent Card 已开做）、审批门（企业 registry + 审计层）、锁文件（锁定 tool schema 版本，检测漂移）。谁先做出 "package-lock.json for agents"，谁拿走下一波基础设施红利。</div>
+
+        <h2>六、身份层：协议栈上最大的空白</h2>
+
+        <p>注意上面表格的最后一行：问号。x402 让 Agent 能付钱，A2A 让 Agent 能说话，MCP 让 Agent 能用工具——但没有一个协议回答"这个 Agent 是谁、谁为它的行为负责"。2026 年 10 月的 IETF 126 会议上，所有 agent 通信与发现提案都卡在身份和授权这一层。当初孵化了 OAuth、OIDC、DID 的 IIW 社区现在办 Agentic Internet Workshop，把 MCP、A2A、ANP、AITP 的创始人拉到同一间屋子里Interop。<strong>可验证凭证 + Agent 责任链</strong>是目前最可押注的方向。这是标准组织未来 6-12 个月的主战场，也是开发者最值得提前关注的一层。</p>
+
+        <h2>七、清醒剂与行动清单</h2>
+
+        <p>最后泼一盆冷水。2026 年仍有冷静的声音提醒：多数团队的 Agent demo 不需要 A2A——单 Agent 系统、低延迟循环、超高安全环境都不该上它；很多人缺的不是协议，是更好的权限、重试和日志。<strong>协议解决的是你已经有规模之后的问题。</strong>在没规模之前，它只是简历上的名词。</p>
+
+        <p>如果你想做点什么，这是我的建议清单：</p>
+
+        <ul>
+            <li><strong>今晚就能做：</strong>把你 Agent 接的每个 MCP server 列出来，检查鉴权方式、锁定 tool 清单的哈希——哪怕只是一张表格，也是你未来"锁文件"的雏形；</li>
+            <li><strong>本周：</strong>给一个内部 Agent 手写一张 Agent Card（静态 JSON 即可），体验"能力声明即 prompt"的写法，你会立刻理解 schema 措辞为什么是安全面；</li>
+            <li><strong>本月：</strong>对照 NSA MCP 安全指南的五项原则（鉴权、授权、输入验证、信任边界、审计）给自己栈做一次体检；</li>
+            <li><strong>长期观察：</strong>盯住身份层的标准化输出（IETF 提案、FIDO 的 AP2/Verifiable Intent、AIW 的 Interop 结果）——这一层的红利还没被瓜分。</li>
+        </ul>
+
+        <p>三十年前，一群人给还没出生的智能写好了通信规范，坟头草几米高；三十年后，智能终于长出来了，旧图纸上的每一块砖都被重新搬了出来。技术史很少这么工整地押韵——而押韵的下一句，多半是身份与安全。<strong>轮到这一代人别把同样的错误再犯一遍。</strong></p>
+
+        <hr>
+
+        <p><strong>参考资料（节选）：</strong>Finin et al. KQML 论文（1993）；Labrou et al. "History, State of the Art and Challenges for ACLs"；Linux Foundation A2A 一周年公告（2026-04）；NSA CSI "MCP: Security Design Considerations"（2026-05）；arXiv 2510.16558（DSN 2026）"A First Look at the Security Issues in the MCP Ecosystem"；Pondero / Formance / Crossmint 的支付协议对比（2026-10）；Agentic Internet Workshop #2/#3 会议记录。</p>
+    </div>
+</body>
+</html>
