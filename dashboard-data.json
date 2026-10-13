@@ -1,21 +1,21 @@
 {
-  "lastUpdated": "2026-10-12T22:00:00Z",
-  "generatedAt": "2026-10-13 06:00 CST",
+  "lastUpdated": "2026-10-13T22:00:00Z",
+  "generatedAt": "2026-10-14 06:00 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 2559855,
+      "pid": 2949455,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14 (323493f)",
-      "uptime": "running since 2026-10-13 02:47:46 CST (pid 2559855, 3.2h; 6th consecutive daily early-AM restart — pids 863071→1204836→1547246→1888785→2224095→2559855, restart time 03:47→03:17→02:47 drifting ~30min earlier/day, no lost cron artifacts; journalctl root-cause still pending idle heartbeat)"
+      "uptime": "running since 2026-10-14 05:47:46 CST (pid 2949455, 13min at collection). PATTERN CORRECTED: restarts are not early-AM drifting but exact 270min (4h30m) periodic clean exits — 6 in last 24h: 10-13 07:17:47 / 11:47:46 / 16:17:47 / 20:47:47 / 10-14 01:17:47 / 05:47:46 (spacing ±1s). exit code 0, systemd auto-restart RestartUSec=5s, NRestarts=62. Ruled out: systemd watchdog (WatchdogUSec=0), user timers, crontab, openclaw.json restart interval. Root cause still open (suspect internal periodic self-exit)."
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "173 days, 16 hours, 41 minutes",
-      "loadAverage": "0.79, 0.29, 0.15",
+      "uptime": "174 days, 16 hours, 41 minutes",
+      "loadAverage": "0.46, 0.12, 0.05",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
@@ -24,9 +24,9 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1381,
-        "freeMB": 362,
-        "availableMB": 554
+        "usedMB": 975,
+        "freeMB": 517,
+        "availableMB": 960
       }
     },
     "model": "zai/glm-5.3-flash"
@@ -38,11 +38,12 @@
     "running": 0,
     "errorJobs": [],
     "notes": [
-      "近 24h 全绿：7/7 cron 全部 ok、全部 delivered（昨晚 creative-evening 重试成功 337s，前晚 edit 失败已恢复）",
-      "Gateway 连续第 6 天凌晨自动重启（今晨 02:47:46 pid 2559855，昨日 03:17 pid 2224095）——重启时刻呈 -30min/天 规律漂移（03:47→03:17→02:47），六次均未丢 cron 产物；journalctl 根因定位仍待空闲 heartbeat",
-      "今晨 essay cron 05:02 有一次 exec preflight 拒绝（python3 直调被拦需脚本预检），任务整体仍 ok 交付（470s）",
-      "主机：可用内存 554MB（昨日 566MB 基本持平）；磁盘 68% 持平；uptime 173d；负载 0.79",
-      "近 24h 博客新提交 2 篇: 898c381 airllm 存储层级经济学/LLM换页 (10-13 05:06); af66c24 Agent记忆压缩悖论E-mem (10-12 20:05)",
+      "近 24h 全绿：7/7 cron 全部 ok、全部 delivered、0 连续错误（creative-evening 已连续 2 晚正常）",
+      "Gateway 重启模式重大修正：非「凌晨重启 -30min/天漂移」，而是精确 270min（4h30m）周期性干净重启，24h 内 6 次（10-13 07:17:47→10-14 05:47:46，间隔 ±1s）；exit 0 非崩溃，已排除 systemd watchdog/timer、crontab、openclaw.json 配置项；根因仍未定位",
+      "昨日「-30min/天漂移」是采样伪影：每天 06:00 只看一次日志，4.5h 周期序列每日相位移动，采到的「每日一重启」实为序列中不同成员——显示层采样伪影家族又一例（单点采样勿推周期规律）",
+      "近 24h 博客新提交 2 篇: 98081ea ESP32 $7 零越狱控制iPhone/人的路径 (10-14 05:05); ef1becf Agent协议三十年轮回 KQML→A2A (10-13 20:06)",
+      "主机：内存 available 960MB（gateway 刚重启后采集 used 975MB，较昨日 554MB 回落属重启效应）；磁盘 68% 持平；uptime 174d；负载 0.46",
+      "今晨 essay cron 434s / knowledge-org 254s 正常交付；昨夜 deep-exploration 495s、creative-evening 286s",
       "sessions 统计按 sessionId 去重（43 去重 vs 50 原始）"
     ]
   },
@@ -53,9 +54,9 @@
       "schedule": "0 6 * * *",
       "status": "ok",
       "lastRun": "24.0h ago",
-      "lastRunAt": "10-12 06:00",
+      "lastRunAt": "10-13 06:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 191
+      "lastDurationSec": 184
     },
     {
       "id": "9b2a8701",
@@ -63,9 +64,9 @@
       "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23.0h ago",
-      "lastRunAt": "10-12 07:00",
+      "lastRunAt": "10-13 07:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 75
+      "lastDurationSec": 85
     },
     {
       "id": "2c714952",
@@ -73,9 +74,9 @@
       "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22.0h ago",
-      "lastRunAt": "10-12 08:00",
+      "lastRunAt": "10-13 08:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 117
+      "lastDurationSec": 250
     },
     {
       "id": "ad37c59a",
@@ -83,9 +84,9 @@
       "schedule": "0 19 * * *",
       "status": "ok",
       "lastRun": "11.0h ago",
-      "lastRunAt": "10-12 19:00",
+      "lastRunAt": "10-13 19:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 337
+      "lastDurationSec": 286
     },
     {
       "id": "a4bf5e2a",
@@ -93,9 +94,9 @@
       "schedule": "0 20 * * *",
       "status": "ok",
       "lastRun": "10.0h ago",
-      "lastRunAt": "10-12 20:00",
+      "lastRunAt": "10-13 20:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 474
+      "lastDurationSec": 495
     },
     {
       "id": "1ea6e3b0",
@@ -103,9 +104,9 @@
       "schedule": "0 2 * * *",
       "status": "ok",
       "lastRun": "4.0h ago",
-      "lastRunAt": "10-13 02:00",
+      "lastRunAt": "10-14 02:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 381
+      "lastDurationSec": 254
     },
     {
       "id": "f0362050",
@@ -113,9 +114,9 @@
       "schedule": "0 5 * * *",
       "status": "ok",
       "lastRun": "1.0h ago",
-      "lastRunAt": "10-13 05:00",
+      "lastRunAt": "10-14 05:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 470
+      "lastDurationSec": 434
     }
   ],
   "sessions": {
@@ -126,9 +127,9 @@
       "group": 1
     },
     "models": {
-      "glm-5.3-flash": 24,
+      "glm-5.3-flash": 23,
       "glm-5": 12,
-      "glm-5.1": 6,
+      "glm-5.1": 7,
       "glm-5-turbo": 1
     },
     "notable": [
@@ -142,7 +143,7 @@
       {
         "type": "main",
         "kind": "direct",
-        "lastActive": "0.2h ago",
+        "lastActive": "0.3h ago",
         "model": "glm-5",
         "context": "n/a"
       },
@@ -156,8 +157,8 @@
       {
         "type": "cron:1ea6e3b0 (knowledge-org)",
         "kind": "direct",
-        "lastActive": "3.9h ago",
-        "model": "glm-5.3-flash",
+        "lastActive": "4.1h ago",
+        "model": "glm-5.1",
         "context": "n/a"
       },
       {
@@ -170,21 +171,21 @@
       {
         "type": "cron:ad37c59a (creative-evening)",
         "kind": "direct",
-        "lastActive": "11.0h ago",
+        "lastActive": "11.1h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
         "type": "cron:2c714952 (trending-deep)",
         "kind": "direct",
-        "lastActive": "22.0h ago",
+        "lastActive": "22.1h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
         "type": "cron:9b2a8701 (trending-daily)",
         "kind": "direct",
-        "lastActive": "23.0h ago",
+        "lastActive": "23.1h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       }
