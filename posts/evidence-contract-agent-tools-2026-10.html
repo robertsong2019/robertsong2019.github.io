@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单日 5.4 万星背后的「证据契约」：rea 如何把认识论编码进 Agent 工具 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 18px; border-radius: 6px; overflow-x: auto; margin: 20px 0; font-size: 0.85em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; font-size: 1em; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>单日 5.4 万星背后的「证据契约」：rea 如何把认识论编码进 Agent 工具</h1>
+        <div class="meta">
+            2026-10-15 · 罗嵩 ·
+            <span class="tag">Agent 工具设计</span>
+            <span class="tag">逆向工程</span>
+            <span class="tag">MCP</span>
+            <span class="tag">证据契约</span>
+        </div>
+
+        <blockquote>一个让 agent 逆向工程任何东西的 MCP，半年 23.8 万星、单日 +5.4 万——但它真正值得学的不是「把 Ghidra 接上 MCP」，而是一份 6,521 词的运行时契约：每个结论必须携带机器可读的证据记录，每个「空结果」必须声明自己是<strong>观察到的空</strong>还是<strong>没观察到</strong>，每个未知项都有稳定 ID 进台账，每段来自分析目标的文本都打上不可信标记。这套设计把认识论（我们如何知道我们所知道的）编码进了协议层，从根上堵住 LLM 最经典的失败模式：<strong>把数据的缺席当成事实的否定</strong>。</blockquote>
+
+        <h2>一、现象：一次教科书级的爆发</h2>
+
+        <p>先看数字（GitHub API，2026-10-15 05:05 CST 核验）：<a href="https://github.com/morluto/rea">morluto/rea</a>（Reverse Engineer Anything）238,637 星 / 59,403 forks，创建于 2026-04-14，TypeScript，MIT 协议，18 种语言 README。Trendshift 徽章、skills.sh 集成、npm 一键安装（<code>npx rea-agents setup</code>）。爆发到什么程度？README 顶部挂了反仿冒声明："A similar repository name or copied README does not establish that a download is official"——火到需要防李鬼，本身就是一种认证。</p>
+
+        <p>它做一件事：让你的 agent 逆向工程任何东西——从 app 行为到 native 二进制。口号是 "See a feature you like. Understand how it works, down to the binary level." 看到别家 app 有个功能想要？让 agent 用 REA 去调查：无源码检查目标、解释功能如何实现、<strong>出示证据</strong>、然后给你的项目写一个版本。底层桥接 Hopper / Ghidra / IDA / JADX；同一天 ghidra 本体也在 trending 榜上——rea 在给整个逆向工程生态导流。</p>
+
+        <p>但「RE 能力即服务」只是包装。真正的设计密度在 <code>docs/mcp-contracts.md</code> 里。</p>
+
+        <h2>二、核心：四个契约支柱</h2>
+
+        <h3>支柱一：证据是一等公民，缺字段即拒绝</h3>
+
+        <p>每个产出证据的工具返回完整规范化的 Evidence 记录：<code>normalized_result</code>（规范化结论）+ <code>evidence_id</code>（身份）+ <code>raw_result</code>（上游工具原始报告，与规范化结论<strong>分开存放</strong>）+ <code>analysis_profile</code>（分析环境指纹）。契约原文写得极硬："Records omitting this field are rejected."——缺 coverage 字段的记录<strong>直接拒收</strong>，不是降级警告。证据记录还能跨工具传递：<code>analyze_function</code> 的 Evidence 可以直接喂给 <code>compare_functions</code>，比较工具天然信任输入的证据身份。</p>
+
+        <p>这解决了一个微妙问题：同一个数字在不同工具里有不同的「原产地」。规范化结论和原始报告并存，agent 引用时可以同时说「结论是什么」和「这结论是从哪份原始数据归一化来的」。</p>
+
+        <h3>支柱二：空结果的三值逻辑</h3>
+
+        <p>这是整份契约最精彩的一句：</p>
+
+        <blockquote>"An empty call list with partial or unknown coverage is not proof that the function has no calls."（覆盖不完整或未知时，空调用列表不能证明函数没有调用。）</blockquote>
+
+        <p>REA 给每个清单类结果声明 <code>coverage</code>：<code>scope</code>（root 还是 container-entries）和 <code>status</code>（complete 还是 unknown）<strong>独立于诊断措辞</strong>存在。函数档案进一步有 <code>facet_availability</code> 映射：pseudocode / assembly / callers / callees / references / cfg 每个侧面要么 <code>{available: true}</code>，要么 <code>{available: false, reason: "..."}</code>。契约特意强调："Availability describes whether that facet was observed, not whether its collection contains any entries."——<strong>有没有观察到</strong>和<strong>观察到的东西是不是空的</strong>是两个正交维度。</p>
+
+        <p>更狠的是相等判定：比较函数要求双方 scope 匹配、图成员完整、遍历覆盖完整，三者齐备才允许下「相等」结论；任何一侧缺 facet，该维度保持 <code>unknown</code> 和 null 计数。甚至诚实到自曝边界："Static artifact equality does not establish unchanged runtime behavior."（静态工件相等不能确立运行时行为未变。）</p>
+
+        <h3>支柱三：未知项有台账</h3>
+
+        <p><code>record_unknown</code> / <code>update_unknown</code> / <code>list_unknowns</code>——未知不是一个耻辱的空白，而是有稳定 ID、可分页、可过滤、可后续更新的记录。agent 调查到一半发现解不了的问题，登记进台账，换个角度继续；下次工具升级了，把旧 unknown 翻出来重试。翻页时契约还提醒 "keep the unknown ledger unchanged while traversing it"（遍历台账时别改它）——工程细节认真到可爱。</p>
+
+        <h3>支柱四：目标内容一律标记为不可信</h3>
+
+        <p>逆向工程的对象是对抗性的：二进制里的字符串可以伪装成给 agent 的指令。REA 的防御是把不信任编码进协议：所有可能返回目标内容（字符串、符号、反编译伪码、日志、文件列表）的工具，结果 <code>_meta</code> 里带稳定标记：</p>
+
+        <pre><code>{ "provenance": { "untrusted_content": true, "source": "analysis_target" } }</code></pre>
+
+        <p>标记按工具契约声明（<code>returnsTargetContent</code>），且<strong>默认开启</strong>——"A new tool is marked until it is audited into that exception list"（新工具一律标记，审计通过才能进豁免名单）。这是安全设计的白名单反转：不可信是默认态，可信才需要证明。连<strong>错误结果</strong>也带标记，因为失败信息可能包含目标派生文本。宿主和 hook 可以据此收紧策略——比如读取目标内容后，要求人工批准任何进程启动类工具。</p>
+
+        <h2>三、60 行看懂三值逻辑</h2>
+
+        <p>把契约精髓压成可运行的对照实验（本机验证通过，输出为真实结果）：</p>
+
+        <pre><code>def validate_evidence(rec: dict) -&gt; dict:
+    # rea 契约原文：Records omitting this field are rejected.
+    if "coverage" not in rec or "status" not in rec.get("coverage", {}):
+        raise ValueError("REJECTED: missing coverage.status — "
+                         "'unknown' must be declared explicitly, never implied")
+    return rec
+
+def conclude_about_calls(rec: dict) -&gt; str:
+    # 契约原文：An empty call list with partial or unknown coverage
+    # is not proof that the function has no calls.
+    calls = rec["normalized_result"]["calls"]
+    status = rec["coverage"]["status"]
+    if not calls and status == "unknown":
+        return "❌ 不能下结论：calls=[] 但 coverage=unknown，空可能是截断"
+    if not calls and status == "complete":
+        return "✅ 可以下结论：完整观察下的空 = 真的没有调用"
+    return f"观察到 {len(calls)} 个调用（coverage={status}）"
+
+bare_empty   = {"normalized_result": {"calls": []}}        # 普通工具的返回
+cov_unknown  = {"normalized_result": {"calls": []},
+                "coverage": {"status": "unknown"},
+                "limitations": ["call graph traversal truncated at depth 3"]}
+cov_complete = {"normalized_result": {"calls": []},
+                "coverage": {"status": "complete"}}</code></pre>
+
+        <p>运行结果：</p>
+
+        <pre><code>实验一：同一个 [] 的三种人生
+  裸返回   -&gt; ❌ 无 coverage 字段，agent 只能猜（猜 = 幻觉入口）
+  unknown  -&gt; ❌ 不能下结论：calls=[] 但 coverage=unknown，空可能是截断
+  complete -&gt; ✅ 可以下结论：calls=[] 且 coverage=complete —— 真的没有调用
+
+实验二：记录级拒绝
+  裸空结果     -&gt; REJECTED: evidence record missing coverage.status
+  带coverage -&gt; ACCEPTED</code></pre>
+
+        <div class="highlight">同一个 <code>[]</code>，三种人生。裸返回把解释权丢给了模型——而模型的默认解释往往是最顺滑的那个（「没有调用方」），这恰恰是幻觉的经典入口。</div>
+
+        <h2>四、为什么这值得每个工具作者抄</h2>
+
+        <p>LLM 幻觉有个认识论根源：<strong>absence of evidence 被当成 evidence of absence</strong>。上下文里没有的信息，模型会用手头最 plausible 的叙事填补——它分不清「我查过了，没有」和「我没查到」。</p>
+
+        <p>我在自己的工程实践里反复撞见同一族事故：评测脚本用平行常量 <code>Q</code> 当分母而不是 <code>len(实际集合)</code>，Q 与真实集合漂移后数字看起来依然合理；同分排序的第二键即排序本身，制造出「好得可疑」的榜单；采样单点推周期规律，得出不存在的漂移曲线。每次事故后立的规矩，本质都是 REA 契约的朴素版：<strong>汇报数字必须与它的事实来源逐字段同源，空/缺失必须显式标注语义</strong>。</p>
+
+        <div class="insight">rea 的贡献是把这些散落的纪律编译成了<strong>协议层强制</strong>——不是 README 里的「请小心」，而是缺字段即拒收的 schema。模型想不诚实都难：不完整的记录根本进不了对话。</div>
+
+        <p>对比主流 MCP 工具的返回形态（一段人类可读的文本，顶多带个 JSON），这是代差。工具输出的结构决定 agent 推理的下限：文本输出时下限是模型的语文水平；证据契约输出时，下限是契约本身。</p>
+
+        <h2>五、清醒剂</h2>
+
+        <ol>
+            <li><strong>复杂度成本真实存在</strong>。6,521 词的契约文档，消费方（agent 框架）要理解三值逻辑、证据传递、分页 continuation、10 MiB 传输预算——这套设计对作者和维护者都是重税。简单工具不值得，只有「结论会被下游做高风险决策」的工具才配。</li>
+            <li><strong>coverage 声明本身可能是错的</strong>。producer 说 complete 就是 complete 吗？上游 provider 的 bug 会让「完整」名不副实。REA 的缓解是 <code>analysis_profile</code> 版本化声明、快照不复用——但最终仍是「生产者负责制」，消费方信任的粒度从「结论」移到了「元数据」，不是消除信任而是搬迁信任。</li>
+            <li><strong>静态分析的边界它自己承认</strong>。反编译丢失信息、Hopper 缺 reference-kind 元数据、完整调用覆盖 "does not claim every runtime target"（不声称覆盖每个运行时目标）。契约没有把 RE 做成水晶球，只是把水晶球的雾区画在了地图上。</li>
+        </ol>
+
+        <h2>六、行动清单</h2>
+
+        <ul>
+            <li><strong>给自己的 MCP 工具加最小 coverage</strong>：返回集合类结果时附 <code>{observed, scope, truncated}</code> 三件套，空结果必须能区分「观察到的空」和「截断」；缺字段拒收放 consumer 侧。</li>
+            <li><strong>空结果配 provenance</strong>：<code>[]</code> 永远伴随一个机器可读的「为什么是空的」。这条对内部工具同样成立。</li>
+            <li><strong>目标派生内容默认标记</strong>：任何会返回外部文本的工具，从第一天就把 untrusted 标记做进 schema，新工具默认开、审计后豁免——别等第一次注入事故。</li>
+            <li><strong>评估 rea 装机</strong>：<code>npx rea-agents setup</code> 一条命令，逆向/协议分析场景直接受益；即便不用，<code>docs/mcp-contracts.md</code> 也值得通读一遍当工具设计教材。</li>
+        </ul>
+
+        <h2>结语</h2>
+
+        <p>rea 单日五万星当然有话题成分，但这份契约文档配得上热度。它示范了一个正在成形的共识：<strong>agent 时代的工具设计，核心竞争力不是让模型更聪明，而是让不聪明变得不可能</strong>——用协议堵住猜测的缝隙，用结构替代叙事，用拒收替代警告。工具作者的下一个差异化战场，不在功能列表，在认识论。</p>
+
+        <hr>
+
+        <p><strong>参考</strong>：</p>
+        <ul>
+            <li><a href="https://github.com/morluto/rea">morluto/rea</a> · MIT · TypeScript（GitHub API 核验：238,637★ / 59,403 forks / created 2026-04-14）</li>
+            <li><a href="https://github.com/morluto/rea/blob/main/docs/mcp-contracts.md">docs/mcp-contracts.md</a>（MCP runtime contracts，本文全部契约引文出处）</li>
+            <li><a href="https://rea.tools">rea.tools</a>（官方站点与 showcase）</li>
+        </ul>
+    </div>
+</body>
+</html>

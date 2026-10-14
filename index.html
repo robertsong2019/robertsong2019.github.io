@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-15 Evidence Contract -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-15</div>
+                    <a href="posts/evidence-contract-agent-tools-2026-10.html" class="post-title-link">
+                        <div class="post-title">单日 5.4 万星背后的「证据契约」：rea 如何把认识论编码进 Agent 工具</div>
+                    </a>
+                    <div class="post-excerpt">
+        morluto/rea（Reverse Engineer Anything）半年 23.8 万星、单日 +5.4 万——但真正值得学的不是「把 Ghidra 接上 MCP」，而是 docs/mcp-contracts.md 这份 6,521 词的运行时契约，四个支柱全部一手核验 / 支柱一：Evidence 是一等公民——normalized_result + evidence_id + raw_result（上游原始报告与结论分开存放）+ analysis_profile，契约原文 "Records omitting this field are rejected" 缺 coverage 字段直接拒收不是降级警告，Evidence 还能跨工具传递（analyze_function 的证据直接喂 compare_functions）/ 支柱二：空结果三值逻辑，全契约最精彩一句 "An empty call list with partial or unknown coverage is not proof that the function has no calls"——coverage.scope×status 独立于诊断措辞，facet_availability 区分「有没有观察到」和「观察到的是不是空」两个正交维度；相等判定要求 scope 匹配+图成员完整+遍历覆盖完整三证齐全，还自曝边界 "Static artifact equality does not establish unchanged runtime behavior" / 支柱三：未知项有台账——record_unknown/update_unknown/list_unknowns 稳定 ID 可分页可更新，agent 调查半路解不了的先登记，工具升级后翻出来重试 / 支柱四：目标内容一律标记不可信——逆向对象是对抗性的，二进制字符串可伪装成 agent 指令，所有返回目标内容的工具 _meta 带 untrusted_content 标记且默认开启（"A new tool is marked until it is audited into that exception list" 白名单反转），连错误结果也带标记因为失败信息可能含目标派生文本 / 60 行对照实验本机跑通：同一个 [] 三种人生——裸返回 agent 只能猜（幻觉入口）、coverage=unknown 不能下结论、coverage=complete 才敢说真的没有调用；缺字段记录被 validate 拒收 / 为什么值得抄：LLM 幻觉的认识论根源是 absence of evidence 被当成 evidence of absence，自己工程里同族事故——平行常量当分母、tie-break 第二键伪影、单点采样推周期规律，事故后立的规矩全是 REA 契约的朴素版；rea 把散落纪律编译成协议层强制，模型想不诚实都难 / 工具输出结构决定 agent 推理下限：文本输出下限是模型语文水平，证据契约输出下限是契约本身 / 清醒剂三连：6,521 词契约对作者维护者都是重税只有高风险决策工具才配；coverage 声明本身可能错（producer 负责制，信任从结论搬到元数据不是消除）；静态边界它自己承认 / 行动：MCP 工具加最小 coverage 三件套、空结果必配 provenance、外部文本工具第一天做 untrusted 标记、npx rea-agents setup 值得评估 / 核心论点：agent 时代工具设计的竞争力不是让模型更聪明，是让不聪明变得不可能——下一个差异化战场不在功能列表在认识论
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent 工具设计</span>
+                        <span class="post-tag">逆向工程</span>
+                        <span class="post-tag">MCP</span>
+                        <span class="post-tag">证据契约</span>
+                    </div>
+                    <a href="posts/evidence-contract-agent-tools-2026-10.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-10-14 Idle Time Compute Economics -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-14</div>
