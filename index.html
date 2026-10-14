@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-14 Idle Time Compute Economics -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-14</div>
+                    <a href="posts/idle-time-compute-economics-2026-10.html" class="post-title-link">
+                        <div class="post-title">AI 没有下班时间：Sleep-time Compute、投机行动与推理的时刻经济学</div>
+                    </a>
+                    <div class="post-excerpt">
+        凌晨三点你的 agent 在干什么？大概率在干等——而 2025-2026 年的一组研究把空闲时间重新定义为免费算力：Letta/UC Berkeley 的 sleep-time compute 证明把计算搬到查询之前，同精度下推理期算力砍 5 倍（Stateful GSM-Symbolic & AIME，加大睡眠期预算再 +13~18%）；摊销账：64K 语料预消化一次 $0.003，500 用户/天省 $2.30 prefill——谷电时段洗衣服的 AI 版 / 灵感明说是神经科学：海马体睡眠期回放巩固记忆，睡眠不是关机是离线整理；但无状态模型不配拥有睡眠——sleep-time 只能长在 MemGPT 这类 stateful 架构上，这是上下文架构的分水岭 / 你其实天天在用它：提示缓存就是商品化的 sleep-time compute 且是最大规模部署——DeepSeek 命中 $0.014/M vs miss $0.14/M 直接一折，Anthropic 写 1.25× 读 0.1× 第二次使用回本；生产实证：挪一个缓存断点位置命中率 7%→84%，时间戳放系统提示开头命中率归零——prompt 结构=缓存拓扑，命中率该进 CI / 等待期的投机是 CPU 教了五十年的老把戏：Speculative Actions（ICLR 2026 Oral，Columbia）快模型预测+慢模型确认、命中才提交严格无损，下一动作预测 55% 准确率端到端提速 20%；IdleSpec（KAIST/Amazon）工具等待期生成 K=5 候选计划（渐进+恢复双策略）GAIA 50.5→55.6%、MLE-Bench 奖牌率 36.4→45.5%，代码执行等待越长收益越大；投机工具调用最细粒度——JSON 字段齐了就先发射，解码与执行重叠 / 诚实账单：IdleSpec 每任务 +5,284 tokens 被丢弃草稿是真金白银，赚墙钟花美元；25-27% 工具调用快到无空隙可填；最扎心反例：睡眠期预写投机上下文让 Qwen3.5-4B 从 33.2% 跌到 29.4%——错误预期不是白干是主动带偏，预测性是入场券不是加成项，庄家按 token 收费 / 谱系终点 TTT：In-Place TTT 把 MLP 末端投影当 fast weights（4B 模型 128K 反超基线），qTTT 只更新 query 投影复用 KV cache（一次全参 TTT≈多解码 1.2×T 个 token），TT-SI 用不确定性门控只对拿不准的样本花预算——模型从制品（train once freeze deploy）变成过程（持续自适应），从出版一本书变成养一个园子 / 时刻调度的统一框架：训练期(月前)→睡眠期(小时前 spot 价)→等待期(秒级重叠)→测试期(用户在看着零售价)→TTT(查询改写模型)，离路径越远越便宜越可摊销但越依赖预测 / 行动：缓存审计 10 分钟见效（稳定前缀→动态尾部，时间戳挪最后）、break-even Q=写入成本÷每查询节省 Q<2 别做、给带心跳的 agent 装睡眠期（闲时记忆蒸馏）、长等待任务并行推演成功+补救双计划、预计算三问（分布可预期/错误能被提交门挡住/污染会不会进上下文）
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Sleep-time Compute</span>
+                        <span class="post-tag">Agent 推理经济学</span>
+                        <span class="post-tag">Prompt Caching</span>
+                        <span class="post-tag">Test-Time Training</span>
+                    </div>
+                    <a href="posts/idle-time-compute-economics-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-14 ESP32 Body for AI Agents -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-14</div>

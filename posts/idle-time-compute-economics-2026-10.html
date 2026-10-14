@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 没有下班时间：Sleep-time Compute、投机行动与推理的时刻经济学 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>AI 没有下班时间：Sleep-time Compute、投机行动与推理的时刻经济学</h1>
+        <div class="meta">
+            2026-10-14 · 罗嵩 ·
+            <span class="tag">Sleep-time Compute</span>
+            <span class="tag">Agent 推理经济学</span>
+            <span class="tag">Prompt Caching</span>
+            <span class="tag">Test-Time Training</span>
+        </div>
+
+        <blockquote>凌晨三点，你的 AI agent 在干什么？答案大概率是：什么也不干。但一个跑代码执行任务的 agent，一天里真正在"思考"的时间可能不到墙钟的零头——其余全在等工具返回、等用户回话、等下一个请求。2025 到 2026 年，一组研究把这块时间重新定义为<strong>免费的算力</strong>：Letta 团队证明，把计算搬到查询到来之前，同样的精度能把推理期算力砍掉 <strong>5 倍</strong>；ICLR 2026 的一篇 Oral 论文让 agent 学会 CPU 的老把戏——等待期投机执行，白拿 20% 提速。计算正在获得第四个维度：<strong>时刻</strong>。</blockquote>
+
+        <h2>一、从"训练一次、推理多次"到全天候调度</h2>
+
+        <p>传统上，模型的时间观很朴素：出生时训练一次（烧几周 GPU），上岗后推理到退休（每次查询现场思考）。o1/R1 的 test-time compute 打开了第二阶段——<strong>查询时多想一会儿更准</strong>。但它有个尴尬的副作用：用户正盯着进度条，多想的每一秒都是延迟。</p>
+
+        <p>过去一年多的新思路是：计算不必发生在用户看着的时刻。把所有技术按"离用户关键路径的距离"排开，会得到一条漂亮的谱系：</p>
+
+        <ul>
+            <li><strong>训练期</strong>（几个月前）：一次性烧钱，全网摊销；</li>
+            <li><strong>睡眠期 sleep-time</strong>（几小时前）：查询到来之前离线预消化上下文——spot 低价算力，延迟不敏感；</li>
+            <li><strong>等待期 idle-time</strong>（几秒内）：工具执行时并行投机——反正闲着；</li>
+            <li><strong>测试期 test-time</strong>（正在发生）：用户在等，每 token 零售价；</li>
+            <li><strong>测试时训练 TTT</strong>（谱系终点）：推理本身改写模型权重，训练与推理的边界消融。</li>
+        </ul>
+
+        <p>离路径越远，算力越便宜、越可摊销，但越依赖<strong>对未来的预测</strong>；越近越准确，但每一 token 都按零售价付费。整条谱系的核心问题只有一个：<strong>这项计算最早能在哪个时刻发生，谁为它买单？</strong></p>
+
+        <h2>二、Sleep-time Compute：让 AI 睡前复习</h2>
+
+        <p>2025 年 4 月，Letta（从 UC Berkeley Sky Lab 长出来的公司，就是做 MemGPT 那批人）和 Ion Stoica 发了论文《Sleep-time Compute: Beyond Inference Scaling at Test-time》。想法一句话讲完：<strong>别等用户提问，让模型在空闲期先读完全部上下文，预写推理密集的摘要和可能的问题集。</strong>用户真来提问时，只需小上下文加短推理。</p>
+
+        <p>数字很硬：在改造过的 Stateful GSM-Symbolic 和 AIME 基准上，达到同样精度所需的测试期算力<strong>减少约 5 倍</strong>；加大睡眠期预算，精度还能再涨 13%–18%。这不是玄学，是摊销——一份 64K token 的语料预消化一次只要约 $0.003 的后台算力，而它服务的每个查询都省一份 prefill：500 个用户一天省 $2.30。谷电时段洗衣服，AI 版。</p>
+
+        <p>神经科学的类比是明说的灵感来源：人在睡眠时海马体会"回放"白天的经历，把记忆巩固进皮层——睡眠不是关机，是离线整理。但这里有个常被忽略的前提：<strong>无状态的模型不配拥有睡眠。</strong>睡眠期学到的东西必须有个地方留下来，否则天亮就忘。这正是为什么 sleep-time compute 只能长在 MemGPT 这类有持久记忆的 stateful 架构上。</p>
+
+        <div class="insight"><strong>关键判断：</strong>睡眠期计算不是省钱技巧，是上下文架构的分水岭。stateful 与 stateless 的差距，会在每天夜里拉开一点，一年后变成代差。</div>
+
+        <h2>三、你其实天天在用它：提示缓存</h2>
+
+        <p>读到这里你可能觉得这离生产还很远。不是的——<strong>提示缓存就是已经商品化的 sleep-time compute，也是它最大规模的部署形态。</strong>系统提示词第一遍过模型时算出的 KV 张量被存下来，后续请求直接复用：这就是"第一遍读时预消化，后续查询摊销"。</p>
+
+        <p>定价表把这套逻辑写得明明白白：DeepSeek 缓存命中 $0.014/M tokens，未命中 $0.14/M——命中价直接打一折，而且写缓存免费（磁盘层自动完成）；Anthropic 写入收 1.25 倍基准价（5 分钟 TTL）、读取只收 0.1 倍，第二次使用就回本。一套 20K token 的系统提示在 80% 复用率下，稳定前缀成本省 55%–70%。</p>
+
+        <p>最有教育意义的是生产事故：有团队只是<strong>挪了一个缓存断点的位置</strong>，命中率从 7% 飙到 84%；也有团队在系统提示开头放了个当前时间戳，缓存命中率直接归零——每次请求前缀都不同，什么也复用不了。今天还在随手拼 prompt 的工程师，实际上是在给一套分布式预计算系统做容量规划，只是自己不知道。</p>
+
+        <div class="highlight"><strong>工程含义：</strong>prompt 结构 = 缓存拓扑。稳定内容（人设、工具定义、规则）放前，动态内容（时间、当日状态、用户输入）放后；缓存命中率应该像编译错误一样进 CI——一次重构悄悄破坏了前缀稳定性，账单会让你知道。</div>
+
+        <h2>四、等待期的投机：CPU 教了 AI 五十年的老把戏</h2>
+
+        <p>睡眠期解决"查询之前"，那"查询进行中"呢？Agent 干活的样子是：观察 → 推理 → 调工具 → <strong>干等结果</strong> → 再推理。代码执行类任务里，等待能占掉墙钟的大头。2026 年有三篇工作从不同粒度收割这段等待：</p>
+
+        <ul>
+            <li><strong>Speculative Actions</strong>（Columbia，ICLR 2026 Oral）：直接照搬 CPU 投机执行。一个快的小模型（Speculator）预测下一步动作，提前并行发起；慢的权威模型（Actor）随后确认，<strong>预测命中才提交</strong>——和投机解码一样严格无损。下一动作预测准确率最高 55%，端到端提速 20%。人类下棋对手思考时，你也在心里推演对方的几步棋，一个道理。</li>
+            <li><strong>IdleSpec</strong>（KAIST/Amazon/Together）：等待期生成最多 K=5 个候选计划，一半"渐进"（假设工具成功的正常路径）、一半"恢复"（假设出错的补救路径），真观察一到就聚合。GAIA/FRAMES 基准 50.5%→55.6%，MLE-Bench 拿奖牌率 36.4%→45.5%——代码执行等待越长，收益越大。</li>
+            <li><strong>投机工具调用</strong>（LLNL）：最细粒度。模型还在逐 token 生成工具调用 JSON 时，解析器发现必填字段已齐就先发射——解码与执行重叠。</li>
+        </ul>
+
+        <p>诚实账单也要看：IdleSpec 每任务多烧 5,284 个 token——被丢弃的草稿是真金白银。它赚的是墙钟延迟，花的是 API 美元，成本敏感的工作负载要掂量。而且 25%–27% 的工具调用快到根本没有空隙可填，投机退化成纯开销。</p>
+
+        <div class="highlight"><strong>最扎心的反面数据：</strong>IdleSpec 论文里测了"睡眠期预写投机上下文"的基线——小模型（Qwen3.5-4B）的准确率从 33.2% <strong>跌到</strong> 29.4%。错误的预期不是白干，是主动把推理带进沟里。预测性是入场券，不是加成项：填满空闲时间是一场对未来的下注，庄家按 token 收费。</div>
+
+        <h2>五、谱系终点：推理即训练</h2>
+
+        <p>谱系走到最深处，连"推理不动权重"这条底线也开始松动。Test-Time Training（TTT）让模型在<strong>读当前输入的同时</strong>用梯度更新一小部分参数（fast weights）：MLP 末端投影矩阵（In-Place TTT，4B 模型在 128K 上下文上反超基线）、或只更新 query 投影并复用 KV cache（qTTT，ICLR 2026——一次全参 TTT 的算力约等于多解码 1.2 倍上下文长度的 token，FLOP 对齐预算下胜过多想几步）。ACL 2026 还有 TT-SI：agent 只对自己<strong>不确定</strong>的样本才触发测试时微调——不确定性门控，把钱花在刀刃上。</p>
+
+        <p>这标志着模型身份的转变：从"制品"（train once, freeze, deploy）变成"过程"（持续自适应的活着的东西）。就像从出版一本书，变成养一个园子——每天都不一样，每天都得照料。</p>
+
+        <h2>六、现在就能做什么</h2>
+
+        <p>这套思想不需要等框架成熟，今天就有一批零成本起步的动作：</p>
+
+        <ol>
+            <li><strong>缓存审计（10 分钟见效）</strong>：把你的系统提示重排成"稳定前缀 → 动态尾部"，时间戳、当日状态一律挪到最后。去 API 控制台看命中率变化，然后把它加进回归测试。</li>
+            <li><strong>算一遍摊销公式</strong>：任何预计算决策，先算 <code>break-even Q = 写入成本 ÷ 每次查询节省</code>。Q&lt;2 别做（Anthropic 的 5 分钟缓存第二次读取回本，就是这条公式的实例）。</li>
+            <li><strong>给你的 agent 装上"睡眠期"</strong>：任何有定时心跳或空闲槽的系统，都能在闲时做记忆蒸馏——把当天的原始日志压缩成滚动摘要，为明天的查询预消化。我自己博客上的 AI 助手已经在这么干了：凌晨的心跳就是它的睡眠期。</li>
+            <li><strong>给长等待任务加投机计划</strong>：如果你的 agent 大量跑代码执行/长查询，在等待期并行推演"成功路径 + 失败补救路径"两条计划，观察一到再聚合。小成本，白捡的准确率。</li>
+            <li><strong>建立预测性检查清单</strong>：每次想预计算，先问三个问题——查询分布可预期吗？预测错了能被"提交门"挡住吗？污染会不会进上下文？三问过不了，就让它继续闲着。</li>
+        </ol>
+
+        <p>最后回到凌晨三点那个问题。你的 agent 在干什么？正确答案逐渐变成：<strong>在睡觉，但梦里在干活。</strong>计算的时刻调度——训练期、睡眠期、等待期、测试期、测试时训练——正在成为和模型架构本身同等重要的设计空间。上一轮竞赛比谁的模型更大，这一轮比谁的每一秒都花对了地方。</p>
+
+        <p><em>（本文是"推理经济学"系列的第三篇：前两篇分别是《2.8T 模型跑进 3.72GB 显存：存储层级经济学》——计算往便宜的存储层搬；《记忆压缩悖论》——压缩往写入时还是读取时搬。本篇补上时间维度：计算往便宜的时刻搬。三角不变：容量、延迟、成本。）</em></p>
+
+        <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
