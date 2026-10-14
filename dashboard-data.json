@@ -1,21 +1,21 @@
 {
-  "lastUpdated": "2026-10-13T22:00:00Z",
-  "generatedAt": "2026-10-14 06:00 CST",
+  "lastUpdated": "2026-10-14T22:00:00Z",
+  "generatedAt": "2026-10-15 06:00 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 2949455,
+      "pid": 3281267,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14 (323493f)",
-      "uptime": "running since 2026-10-14 05:47:46 CST (pid 2949455, 13min at collection). PATTERN CORRECTED: restarts are not early-AM drifting but exact 270min (4h30m) periodic clean exits — 6 in last 24h: 10-13 07:17:47 / 11:47:46 / 16:17:47 / 20:47:47 / 10-14 01:17:47 / 05:47:46 (spacing ±1s). exit code 0, systemd auto-restart RestartUSec=5s, NRestarts=62. Ruled out: systemd watchdog (WatchdogUSec=0), user timers, crontab, openclaw.json restart interval. Root cause still open (suspect internal periodic self-exit)."
+      "uptime": "running since 2026-10-15 04:47:52 CST (pid 3281267, 73min at collection). ROOT CAUSE FOUND (二次修正, closes yesterday's open question): restarts are Node.js JS-heap OOM crashes — journalctl shows 'Main process exited, code=dumped, status=6/ABRT' + 'FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory' at heap ~990MB (peak RSS 1.1G). Crash stacks differ per incident (Runtime_StringSplit / JsonParser::ParseJson) = parsing a big in-memory string/JSON that grows until heap exhaustion. Period ~270min (last interval stretched to 300min), NRestarts=67, systemd auto-restart 5s keeps service alive. YESTERDAY'S 'exit code 0 clean exits' CONCLUSION WAS WRONG — sampled from file logs which lack stderr; openclaw gateway status 'last exit 0' reads the current generation, not the crash."
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "174 days, 16 hours, 41 minutes",
-      "loadAverage": "0.46, 0.12, 0.05",
+      "uptime": "175 days, 16 hours, 41 minutes",
+      "loadAverage": "0.56, 0.22, 0.08",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
@@ -24,9 +24,9 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 975,
-        "freeMB": 517,
-        "availableMB": 960
+        "usedMB": 1216,
+        "freeMB": 355,
+        "availableMB": 718
       }
     },
     "model": "zai/glm-5.3-flash"
@@ -38,12 +38,12 @@
     "running": 0,
     "errorJobs": [],
     "notes": [
-      "近 24h 全绿：7/7 cron 全部 ok、全部 delivered、0 连续错误（creative-evening 已连续 2 晚正常）",
-      "Gateway 重启模式重大修正：非「凌晨重启 -30min/天漂移」，而是精确 270min（4h30m）周期性干净重启，24h 内 6 次（10-13 07:17:47→10-14 05:47:46，间隔 ±1s）；exit 0 非崩溃，已排除 systemd watchdog/timer、crontab、openclaw.json 配置项；根因仍未定位",
-      "昨日「-30min/天漂移」是采样伪影：每天 06:00 只看一次日志，4.5h 周期序列每日相位移动，采到的「每日一重启」实为序列中不同成员——显示层采样伪影家族又一例（单点采样勿推周期规律）",
-      "近 24h 博客新提交 2 篇: 98081ea ESP32 $7 零越狱控制iPhone/人的路径 (10-14 05:05); ef1becf Agent协议三十年轮回 KQML→A2A (10-13 20:06)",
-      "主机：内存 available 960MB（gateway 刚重启后采集 used 975MB，较昨日 554MB 回落属重启效应）；磁盘 68% 持平；uptime 174d；负载 0.46",
-      "今晨 essay cron 434s / knowledge-org 254s 正常交付；昨夜 deep-exploration 495s、creative-evening 286s",
+      "🎯 Gateway 重启根因确认（修正昨日结论）：是 Node.js 堆内存 OOM 崩溃（SIGABRT + core dump），堆 ~990MB 触顶时在大字符串/JSON 解析中爆掉，内存峰值 1.1G；非昨天记录的「exit 0 干净退出」——文件日志不含 stderr、gateway status 的 last exit 读的是当前代，均属采样伪影；周期 ~270min（最近一次拉长到 300min），NRestarts=67，systemd 5s 自动拉起 = 事实自愈，服务可用性未受影响",
+      "根因画像：2GB 小内存主机 + Node 默认堆上限 ~1GB，会话/转录缓存随运行时长增长，~4.5h 触顶即崩，崩完重来；可选缓解：NODE_OPTIONS=--max-old-space-size 或定位泄漏源（当前节律性重启本身就在止血）",
+      "⚠️ 附带发现：崩溃前最后日志之一显示 MEMORY.md 已 119051 chars（limit 20000）被截断注入——需要清理瘦身",
+      "近 24h cron 全绿：7/7 ok、全部 delivered、0 连续错误；今晨 essay 388s / knowledge-org 516s；昨夜 deep-exploration 479s / creative-evening 245s",
+      "近 24h 博客新提交 2 篇: 7a4447b 单日 5.4 万星背后的「证据契约」rea (10-15 05:03); 69216b0 AI 没有下班时间 Sleep-time Compute (10-14 20:05)",
+      "主机：mem available 718MB（gateway 04:47 崩溃重启后已运行 73min，堆爬升中，较昨日刚重启时 960MB 更低符合 OOM 增长曲线）；磁盘 68% 持平；uptime 175d；负载 0.56",
       "sessions 统计按 sessionId 去重（43 去重 vs 50 原始）"
     ]
   },
@@ -54,9 +54,9 @@
       "schedule": "0 6 * * *",
       "status": "ok",
       "lastRun": "24.0h ago",
-      "lastRunAt": "10-13 06:00",
+      "lastRunAt": "10-14 06:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 184
+      "lastDurationSec": 304
     },
     {
       "id": "9b2a8701",
@@ -64,9 +64,9 @@
       "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23.0h ago",
-      "lastRunAt": "10-13 07:00",
+      "lastRunAt": "10-14 07:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 85
+      "lastDurationSec": 37
     },
     {
       "id": "2c714952",
@@ -74,9 +74,9 @@
       "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22.0h ago",
-      "lastRunAt": "10-13 08:00",
+      "lastRunAt": "10-14 08:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 250
+      "lastDurationSec": 151
     },
     {
       "id": "ad37c59a",
@@ -84,9 +84,9 @@
       "schedule": "0 19 * * *",
       "status": "ok",
       "lastRun": "11.0h ago",
-      "lastRunAt": "10-13 19:00",
+      "lastRunAt": "10-14 19:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 286
+      "lastDurationSec": 245
     },
     {
       "id": "a4bf5e2a",
@@ -94,9 +94,9 @@
       "schedule": "0 20 * * *",
       "status": "ok",
       "lastRun": "10.0h ago",
-      "lastRunAt": "10-13 20:00",
+      "lastRunAt": "10-14 20:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 495
+      "lastDurationSec": 479
     },
     {
       "id": "1ea6e3b0",
@@ -104,9 +104,9 @@
       "schedule": "0 2 * * *",
       "status": "ok",
       "lastRun": "4.0h ago",
-      "lastRunAt": "10-14 02:00",
+      "lastRunAt": "10-15 02:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 254
+      "lastDurationSec": 516
     },
     {
       "id": "f0362050",
@@ -114,22 +114,22 @@
       "schedule": "0 5 * * *",
       "status": "ok",
       "lastRun": "1.0h ago",
-      "lastRunAt": "10-14 05:00",
+      "lastRunAt": "10-15 05:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 434
+      "lastDurationSec": 388
     }
   ],
   "sessions": {
     "total": 43,
-    "active24h": 8,
+    "active24h": 9,
     "byKind": {
       "direct": 42,
       "group": 1
     },
     "models": {
-      "glm-5.3-flash": 23,
+      "glm-5.3-flash": 24,
       "glm-5": 12,
-      "glm-5.1": 7,
+      "glm-5.1": 6,
       "glm-5-turbo": 1
     },
     "notable": [
@@ -143,7 +143,7 @@
       {
         "type": "main",
         "kind": "direct",
-        "lastActive": "0.3h ago",
+        "lastActive": "0.2h ago",
         "model": "glm-5",
         "context": "n/a"
       },
@@ -157,8 +157,8 @@
       {
         "type": "cron:1ea6e3b0 (knowledge-org)",
         "kind": "direct",
-        "lastActive": "4.1h ago",
-        "model": "glm-5.1",
+        "lastActive": "3.9h ago",
+        "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
@@ -171,21 +171,21 @@
       {
         "type": "cron:ad37c59a (creative-evening)",
         "kind": "direct",
-        "lastActive": "11.1h ago",
+        "lastActive": "11.0h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
         "type": "cron:2c714952 (trending-deep)",
         "kind": "direct",
-        "lastActive": "22.1h ago",
+        "lastActive": "22.0h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
         "type": "cron:9b2a8701 (trending-daily)",
         "kind": "direct",
-        "lastActive": "23.1h ago",
+        "lastActive": "23.0h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       }
