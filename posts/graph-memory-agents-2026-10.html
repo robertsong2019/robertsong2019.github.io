@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 的记性为什么需要图：从相似度搜索到激活扩散 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 18px; border-radius: 6px; overflow-x: auto; margin: 20px 0; font-size: 0.85em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; font-size: 1em; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>Agent 的记性为什么需要图：从相似度搜索到激活扩散</h1>
+        <div class="meta">
+            2026-10-15 · 罗嵩 ·
+            <span class="tag">Agent 记忆</span>
+            <span class="tag">知识图谱</span>
+            <span class="tag">RAG</span>
+            <span class="tag">时序数据库</span>
+        </div>
+
+        <blockquote>你的 agent 昨天「知道」用户对花生过敏，今天却忘了——或者更糟：用户上周说换了工作，它还在恭喜旧的职位，因为它的记忆库里新事实和旧事实安安静静躺在一起，谁也没告诉谁。你给它加了向量库，还是不行。为什么？因为向量检索只能回答「<strong>什么最像</strong>」，而记忆真正要回答的是「<strong>什么相连、什么在先、什么已经不算数了</strong>」。这三个问题，都长在图上。</blockquote>
+
+        <h2>一、相似度检索的天花板，2023 年就露了馅</h2>
+
+        <p>向量检索像图书馆的主题书架：你拿着一本书问「还有没有类似的」，它很称职。但人的记忆不是这么工作的——你想起一位老同事，不是因为「相似」，而是因为他<strong>认识</strong>谁、出现在哪段经历<strong>里</strong>、和哪件事<strong>有关</strong>。</p>
+
+        <p>最早的信号来自斯坦福 2023 年的 Generative Agents（那批住在 Smallville 的 AI 小镇居民）：它们的记忆检索从来不是纯相似度，而是三项加权——<strong>时近性</strong>（越新的事权重越高，指数衰减）、<strong>重要性</strong>（LLM 给每条记忆打分，分手比吃早餐重要）、<strong>相关性</strong>（才轮到向量相似度）。后来的研究者把这条路走到了底：<strong>如果记忆之间的关系本身就是一等公民，那数据结构就该是图。</strong></p>
+
+        <h2>二、激活扩散：一次图遍历 = 多轮迭代推理</h2>
+
+        <p>这条线的代表作是俄亥俄州立大学的 <a href="https://arxiv.org/abs/2405.14831">HippoRAG</a>（NeurIPS 2024），名字取自神经科学的海马体索引理论：大脑的新皮层存内容（读书的大脑），海马体存索引（「哪本书讲过什么」的卡片柜），两者分工而不是混在一起。HippoRAG 的对应物是三件套——LLM 是新皮层，知识图 + Personalized PageRank（PPR）是海马体，检索编码器负责搭桥。</p>
+
+        <p>检索过程用个比喻：像在一座城市里打听消息。向量检索是「按门牌号找最像的房子」；PPR 是<strong>谣言扩散</strong>——从你点名的那几个人开始往外传，消息沿街道扩散，最后谁耳朵里嗡嗡响，谁就跟你问的人有关。这个扩散天然是<strong>多跳</strong>的：A 的邻居的邻居也会被激活，只是声音小一点。于是「多跳推理」不再需要 agent 反复检索、反复思考（IRCoT 那套迭代法），而是<strong>一次图遍历</strong>。账单很硬：单步检索达到与迭代方法相当或更好的效果，在线检索成本 10–30 倍便宜、速度 6–13 倍快，多跳 QA 基准最高 +20%。</p>
+
+        <div class="insight"><strong>核心洞察一：图不是「更好的检索」，是把查询期的推理提前搬进了索引期的结构。</strong>建图时花的钱，换来查询时不用让 LLM 一轮一轮地想。这与 GraphRAG 的社区摘要是同一门经济学——结构 = 预付的计算。</div>
+
+        <p>2025 年的 <a href="https://arxiv.org/abs/2502.14802">HippoRAG 2</a>（ICML 2025）补上了前作的坑：早期图增强 RAG 常常用「简单问答的准确率」换「关联能力」——图里的结构噪声会干扰直白的事实题。HippoRAG 2 把原始段落本身也变成图节点（不再只有实体），加了一步「识别记忆」（LLM 过滤候选三元组），在<strong>事实、关联、意义建构</strong>三种记忆模态上同时超越标准 RAG，关联任务比最强的嵌入检索再 +7% F1。一句话：图结构成熟了，不再需要拿基础题陪葬。</p>
+
+        <h2>三、结构是有价格的，而且账单结构很怪</h2>
+
+        <p>微软 GraphRAG 是「重装路线」：抽取实体关系 → Leiden 社区检测 → 给每个社区写层级摘要。社区摘要相当于给图书馆每一层楼写导览牌，「这批文档的主要主题是什么」这类<strong>全局问题</strong>只有它能答得好。代价呢？AWS 做过实测：</p>
+
+        <table>
+            <tr><th></th><th>GraphRAG</th><th>LightRAG</th></tr>
+            <tr><td>500 页语料索引</td><td>~45 分钟 / $50–200（GPT-4 价）</td><td>~3 分钟 / ~$0.5</td></tr>
+            <tr><td>全局查询</td><td>$66.22 / 千题，每题 ~17.6 次 LLM 调用</td><td>不支持（明显更弱）</td></tr>
+            <tr><td>局部/混合查询</td><td>贵 8 倍，换 ~0.12 F1</td><td>拿到 70–90% 的质量</td></tr>
+            <tr><td>增量更新</td><td>重建或自研增量逻辑</td><td>天然支持</td></tr>
+        </table>
+
+        <p>两个反直觉的细节值得记：</p>
+
+        <p>第一，GraphRAG 的全局查询成本<strong>随语料规模增长</strong>——每答一题都要把所有社区摘要读一遍，文档越多、社区越多、每题越贵。别的检索是「按需取」，它是「全书扫」。10 万题/月的量级下，hybrid 比 local 每月多花 $3,700 换那 0.12 F1。</p>
+
+        <p>第二，声名显赫的「社区摘要」其实只占 GraphRAG 摄取账单的 <strong>7.6%</strong>——真正的大头是逐文档抽取实体和关系，而这笔钱 GraphRAG 和 LightRAG <strong>谁也躲不掉</strong>。所以「上不上图」的真实决策不是「贵不贵」，是「你想买全局摘要能力吗」——买，付全价；不买，抽取层照样要付。</p>
+
+        <div class="insight"><strong>核心洞察二：大多数 agent 用例根本问不出全局问题。</strong>用户问的是「我的订单呢」「上周聊过什么」，不是「全部对话的主题分布」。为不存在的需求付 GraphRAG 索引价，是 2025–2026 年最常见的架构错配之一。</div>
+
+        <h2>四、被遗忘的维度：时间，以及「当时我们以为」</h2>
+
+        <p>真正让我觉得「这东西是给 agent 造的」是 <a href="https://arxiv.org/abs/2501.13956">Zep/Graphiti</a> 的设计：每条事实边带<strong>四个时间戳</strong>——<code>valid_at / invalid_at</code>（这件事在真实世界里何时为真）和 <code>created_at / expired_at</code>（系统何时知道它）。两个时间轴是分开的：用户「两周前换了工作」这句话是今天说的，但事实生效在两周前。</p>
+
+        <p>更关键的一条纪律：<strong>事实变化时，旧边失效而不是删除。</strong>CRM 里「客户手机号」字段改了五次，普通系统只剩最后一个；时序知识图能回答「去年 3 月报价的时候，我们以为的号码是多少」。这是事实世界的 git blame，对 agent 的意义是审计：当 agent 做错事，你能回放<strong>它当时依据的世界版本</strong>，而不是现在的。LongMemEval 基准上这套设计拿到 +18.5% 准确率、90% 延迟下降——注意 LongMemEval 的五个能力维度里，「时间推理」和「知识更新」直接占了两席，而 MemoryAgentBench 的四个维度里「冲突消解」（遇到矛盾证据时改写旧记忆）恰恰是所有系统的最弱项。</p>
+
+        <div class="insight"><strong>核心洞察三：记忆系统最缺的不是「记得更多」，是「记得当时的版本」。</strong>失效不删除，等于给记忆装了黑匣子记录仪——这和逆向工具 rea 的「unknown 台账」是同一个思想家族：不抹掉过去，只标记状态。</div>
+
+        <h2>五、两句诚实话</h2>
+
+        <p><strong>第一句：这行的基准数字都在打架。</strong>Mem0 和 Zep 在 LOCOMO 基准上互相质疑对方的方法论（数据污染、答案泄漏），LongMemEval 上 Zep 自报 63.8% 对 Mem0 的 49.0%，Mem0 立刻反驳评测设定不公。我的态度：所有厂商自报数字一律打折，<strong>自建一套「问题 → 期望事实」的召回测试集</strong>是唯一安全的选择——大概 100 题就够做守门测试了。</p>
+
+        <p><strong>第二句：写入端才是新前线。</strong>检索已经卷得差不多了，「存什么、何时存、怎么组织」刚开始被系统性地解决。2025 年的 Mem-α 用强化学习训练 agent 管理三组件记忆（核心/情景/语义），reward 不看记忆本身好不好看，直接取<strong>下游问答准确率</strong>，7B 模型学出的写入策略外推到训练长度 13 倍的流上依然有效。这意味着「记忆 schema 怎么设计」这个手工活，正在变成一个可训练的问题。同理，「记忆比模型长寿」——模型半年一换，用户记忆要活几年，所以别把记忆锁进任何一家 SaaS 的黑盒里，导出格式从第一天就该存在。</p>
+
+        <h2>六、可以立刻做什么</h2>
+
+        <ul>
+            <li><strong>先建 eval，再上结构</strong>：从真实会话和 LongMemEval 抽 100 题定版召回测试集。没有它，你无法知道图结构在你的数据上到底是 +18% 还是 -8%。</li>
+            <li><strong>给事实加双时间戳</strong>：<code>valid_at / known_at</code> 两个字段，更新时失效不删除。一天工作量，审计能力从 0 到 1，是全篇性价比最高的改动。</li>
+            <li><strong>从混合检索起步</strong>：BM25 + 向量 + 图遍历三路召回（Zep 的生产配方），图只在多跳和时间类问题持续失分时才加码。</li>
+            <li><strong>别为全局问题预付索引费</strong>：你的 agent 用例里真有「语料级主题综合」的需求再上 GraphRAG 式社区摘要；增量更新能力对会话型记忆不是可选项。</li>
+            <li><strong>跟踪写入端 RL 化</strong>：Mem-α / Memory-R1 一族如果成熟，「写什么」会从 prompt 工程变成训练问题——现在设计记忆操作接口时对齐「操作即工具、奖励看下游」的抽象，将来省一次重构。</li>
+        </ul>
+
+        <h2>结语</h2>
+
+        <p>2023 年我们讨论「要不要向量库」，2025 年讨论「要不要记忆层」，2026 年的答案越来越清晰：<strong>记忆不是一个存储组件，是一个数据结构问题</strong>。相似度只解决「像不像」；关系（图）、层级（社区摘要）、时间（双时间轴）分别解决「连不连」「整体是什么」「还算不算数」。Agent 的记性不是仓库——仓库按货位存取就行——记忆更像一座城市：你要的答案不在某个门牌号里，而在街道的走向里。今年的这批系统，说到底是在给 agent 修路。</p>
+
+        <hr>
+
+        <p><strong>参考</strong>：</p>
+        <ul>
+            <li><a href="https://arxiv.org/abs/2405.14831">HippoRAG: Neurobiologically Inspired Long-Term Memory for LLMs</a>（NeurIPS 2024，OSU）</li>
+            <li><a href="https://arxiv.org/abs/2502.14802">HippoRAG 2: From RAG to Memory — Non-Parametric Continual Learning</a>（ICML 2025）</li>
+            <li><a href="https://arxiv.org/abs/2501.13956">Zep: A Temporal Knowledge Graph Architecture for Agent Memory</a>（Graphiti 引擎，Apache-2.0，20k+ stars）</li>
+            <li><a href="https://github.com/microsoft/graphrag">Microsoft GraphRAG</a> · <a href="https://github.com/HKUDS/LightRAG">LightRAG</a>（HKU）</li>
+            <li><a href="https://arxiv.org/abs/2504.19413">Mem0</a>（ECAI 2025）· <a href="https://arxiv.org/abs/2502.12110">A-MEM: Agentic Memory</a> · <a href="https://arxiv.org/abs/2509.25911">Mem-α: Learning Memory Construction via RL</a></li>
+            <li><a href="https://aws.amazon.com/blogs/opensource/unified-knowledge-graph-rag-on-aws-graphrag-and-lightrag-on-one-stack">AWS Open Source Blog: GraphRAG 与 LightRAG 同栈实测</a>（成本数字出处）</li>
+            <li>Park et al., <em>Generative Agents</em>（2023）· Wu et al., <em>LongMemEval</em>（ICLR 2025）</li>
+        </ul>
+    </div>
+</body>
+</html>

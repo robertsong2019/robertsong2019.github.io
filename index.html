@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-15 Graph Memory Agents -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-15</div>
+                    <a href="posts/graph-memory-agents-2026-10.html" class="post-title-link">
+                        <div class="post-title">Agent 的记性为什么需要图：从相似度搜索到激活扩散</div>
+                    </a>
+                    <div class="post-excerpt">
+        你的 agent 昨天「知道」用户对花生过敏，今天却忘了——或者更糟：用户上周换了工作，它还在恭喜旧职位。加了向量库还是不行，因为向量检索只能回答「什么最像」，而记忆要回答的是「什么相连、什么在先、什么已经不算数了」——这三个问题都长在图上 / 2023 年 Generative Agents 的记忆检索从来不是纯相似度：recency+importance+relevance 三项加权，最早暗示了相似度的天花板 / HippoRAG（NeurIPS 2024）把检索建模成图上扩散：PPR 像谣言在城市里扩散，从你点名的人开始往外传，天然多跳——「多跳推理」从迭代 LLM 调用（IRCoT）变成一次图遍历，在线成本 10-30 倍便宜、6-13 倍快、多跳 QA 最高 +20%；海马体索引理论的工程版：LLM 是新皮层，KG+PPR 是海马体，编码器是旁海马区 / HippoRAG 2（ICML 2025）补坑：把原始段落也变成图节点+识别记忆过滤，事实/关联/意义建构三种记忆模态同时超越标准 RAG，关联任务比 SOTA 嵌入再 +7% F1，图结构不再需要拿基础题陪葬 / 核心洞察一：图不是更好的检索，是把查询期推理提前搬进索引期结构——结构=预付的计算 / 结构是有价格的：GraphRAG 500 页 $50-200/45min 索引 vs LightRAG $0.5/3min；全局查询 $66.22/千题、每题 17.6 次 LLM 调用且成本随语料规模涨（每题都读全部社区摘要）；两个反直觉：10 万题/月下 hybrid 比 local 贵 $3,700 换 0.12 F1；社区摘要只占 GraphRAG 摄取账单 7.6%，大头是实体抽取而两家都要付——「上不上图」的真实决策是「想不想买全局摘要能力」，为不存在的需求付索引价是 2025-2026 最常见架构错配 / 核心洞察二：大多数 agent 用例问不出全局问题 / 最给 agent 造的设计是 Zep/Graphiti 的四时间戳：valid_at/invalid_at（世界何时为真）× created_at/expired_at（系统何时知道），事实变化时失效不删除——CRM 手机号改五次也能回答「去年 3 月报价时我们以为的号码」，事实世界的 git blame，agent 审计能回放它当时依据的世界版本；LongMemEval +18.5%、延迟 -90%；五个能力维度里时间推理+知识更新占两席，冲突消解是全场最弱项 / 核心洞察三：记忆最缺的不是记得更多，是记得当时的版本——失效不删除=记忆的黑匣子，与 rea unknown 台账同一思想家族 / 诚实话两连：Mem0 与 Zep 在 LOCOMO 互相揭方法论、自报数字全打折、自建 100 题召回测试集是唯一安全选择；写入端才是新前线——Mem-α 用 RL 学「存什么何时存」，reward 直接取下游 QA 准确率，7B 写入策略外推 13 倍长度仍有效，「记忆 schema 设计」正从手工活变成可训练问题 / 行动：先建 eval 再上结构、给事实加 valid_at/known_at 双时间戳（一天工作量性价比之王）、BM25+向量+图三路混合起步、别为全局问题预付索引费、记忆导出格式第一天就要有（记忆比模型长寿） / 记忆不是存储组件是数据结构问题：相似度解决像不像，关系（图）、层级（社区摘要）、时间（双时间轴）分别解决连不连、整体是什么、还算不算数——记忆不是仓库是城市，你要的答案不在门牌号里在街道走向里
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent 记忆</span>
+                        <span class="post-tag">知识图谱</span>
+                        <span class="post-tag">RAG</span>
+                        <span class="post-tag">时序数据库</span>
+                    </div>
+                    <a href="posts/graph-memory-agents-2026-10.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-10-15 Evidence Contract -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-15</div>
