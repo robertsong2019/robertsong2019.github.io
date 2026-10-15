@@ -1,50 +1,51 @@
 {
-  "lastUpdated": "2026-10-14T22:00:00Z",
-  "generatedAt": "2026-10-15 06:00 CST",
+  "lastUpdated": "2026-10-15T22:00:00Z",
+  "generatedAt": "2026-10-16 06:00 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 3281267,
+      "pid": 3524551,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14 (323493f)",
-      "uptime": "running since 2026-10-15 04:47:52 CST (pid 3281267, 73min at collection). ROOT CAUSE FOUND (二次修正, closes yesterday's open question): restarts are Node.js JS-heap OOM crashes — journalctl shows 'Main process exited, code=dumped, status=6/ABRT' + 'FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory' at heap ~990MB (peak RSS 1.1G). Crash stacks differ per incident (Runtime_StringSplit / JsonParser::ParseJson) = parsing a big in-memory string/JSON that grows until heap exhaustion. Period ~270min (last interval stretched to 300min), NRestarts=67, systemd auto-restart 5s keeps service alive. YESTERDAY'S 'exit code 0 clean exits' CONCLUSION WAS WRONG — sampled from file logs which lack stderr; openclaw gateway status 'last exit 0' reads the current generation, not the crash."
+      "uptime": "running since 2026-10-15 21:51:14 CST (pid 3524551, 8.2h at collection). OOM crash pattern continues but current generation is an outlier: 3 crashes last night (13:47 / 18:17 / 21:51, intervals 270/270/214min, restart counter 69/70/71, all code=dumped status=6/ABRT consistent with JS-heap OOM), yet current gen has survived 8.2h — well past the typical ~270min period — with RSS 932MB already near the historic ~990MB crash line. Either growth slowed or a crash is due this morning; watch next cycle."
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "175 days, 16 hours, 41 minutes",
-      "loadAverage": "0.56, 0.22, 0.08",
+      "uptime": "176 days, 16 hours, 41 minutes",
+      "loadAverage": "1.65, 0.55, 0.20",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
         "available": "16G",
-        "usage": "68%"
+        "usage": "69%"
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1216,
-        "freeMB": 355,
-        "availableMB": 718
+        "usedMB": 1369,
+        "freeMB": 364,
+        "availableMB": 566
       }
     },
     "model": "zai/glm-5.3-flash"
   },
   "cronSummary": {
     "total": 7,
-    "ok": 7,
-    "error": 0,
+    "ok": 6,
+    "error": 1,
     "running": 0,
-    "errorJobs": [],
+    "errorJobs": [
+      "knowledge-organization-morning (cron: job execution timed out)"
+    ],
     "notes": [
-      "🎯 Gateway 重启根因确认（修正昨日结论）：是 Node.js 堆内存 OOM 崩溃（SIGABRT + core dump），堆 ~990MB 触顶时在大字符串/JSON 解析中爆掉，内存峰值 1.1G；非昨天记录的「exit 0 干净退出」——文件日志不含 stderr、gateway status 的 last exit 读的是当前代，均属采样伪影；周期 ~270min（最近一次拉长到 300min），NRestarts=67，systemd 5s 自动拉起 = 事实自愈，服务可用性未受影响",
-      "根因画像：2GB 小内存主机 + Node 默认堆上限 ~1GB，会话/转录缓存随运行时长增长，~4.5h 触顶即崩，崩完重来；可选缓解：NODE_OPTIONS=--max-old-space-size 或定位泄漏源（当前节律性重启本身就在止血）",
-      "⚠️ 附带发现：崩溃前最后日志之一显示 MEMORY.md 已 119051 chars（limit 20000）被截断注入——需要清理瘦身",
-      "近 24h cron 全绿：7/7 ok、全部 delivered、0 连续错误；今晨 essay 388s / knowledge-org 516s；昨夜 deep-exploration 479s / creative-evening 245s",
-      "近 24h 博客新提交 2 篇: 7a4447b 单日 5.4 万星背后的「证据契约」rea (10-15 05:03); 69216b0 AI 没有下班时间 Sleep-time Compute (10-14 20:05)",
-      "主机：mem available 718MB（gateway 04:47 崩溃重启后已运行 73min，堆爬升中，较昨日刚重启时 960MB 更低符合 OOM 增长曲线）；磁盘 68% 持平；uptime 175d；负载 0.56",
-      "sessions 统计按 sessionId 去重（43 去重 vs 50 原始）"
+      "🔴 首个 cron 错误：knowledge-organization-morning 今晨 02:00 执行超时被杀（600s 上限，600022ms 触顶，lastError=\"cron: job execution timed out\"），其余 6 job 全绿全部 delivered；下次运行 10-17 02:00，若再超时建议拆分子任务或提高 timeoutSeconds",
+      "连带效应：MEMORY.md 24h 内从 119051 → 158216 chars（+33%）——整理 job 超时未瘦身，而 gateway OOM 根因笔记里 MEMORY.md 截断注入（limit 20000）正是已知风险项；两个问题在此形成恶性循环，值得优先处理",
+      "Gateway OOM 周期继续但形态有变：昨夜 13:47/18:17/21:51 三次 SIGABRT 崩溃（间隔 270/270/214min，restart 69→71），与既定 ~270min 周期吻合；但当前代 21:51 启动已存活 8.2h 远超典型周期，RSS 932MB 已逼近历史崩溃线 ~990MB——增长放缓或今晨将崩，观察下一个周期",
+      "近 24h 博客新提交 2 篇: 22d2294 Agent 宿主 270 分钟 OOM 周期取证 (10-16 05:05); 720e15f Agent 的记性为什么需要图 HippoRAG (10-15 20:05)",
+      "主机：mem available 566MB（昨日 718MB ↓21%，gateway RSS 932MB 占大头）；磁盘 69%（+1pt）；uptime 176d；负载 1.65 为采集瞬时值",
+      "sessions 统计按 sessionId 去重（43 去重 vs 50 原始），24h 活跃 9"
     ]
   },
   "cronJobs": [
@@ -54,9 +55,9 @@
       "schedule": "0 6 * * *",
       "status": "ok",
       "lastRun": "24.0h ago",
-      "lastRunAt": "10-14 06:00",
+      "lastRunAt": "10-15 06:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 304
+      "lastDurationSec": 268
     },
     {
       "id": "9b2a8701",
@@ -64,9 +65,9 @@
       "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23.0h ago",
-      "lastRunAt": "10-14 07:00",
+      "lastRunAt": "10-15 07:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 37
+      "lastDurationSec": 72
     },
     {
       "id": "2c714952",
@@ -74,9 +75,9 @@
       "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22.0h ago",
-      "lastRunAt": "10-14 08:00",
+      "lastRunAt": "10-15 08:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 151
+      "lastDurationSec": 232
     },
     {
       "id": "ad37c59a",
@@ -84,9 +85,9 @@
       "schedule": "0 19 * * *",
       "status": "ok",
       "lastRun": "11.0h ago",
-      "lastRunAt": "10-14 19:00",
+      "lastRunAt": "10-15 19:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 245
+      "lastDurationSec": 194
     },
     {
       "id": "a4bf5e2a",
@@ -94,19 +95,19 @@
       "schedule": "0 20 * * *",
       "status": "ok",
       "lastRun": "10.0h ago",
-      "lastRunAt": "10-14 20:00",
+      "lastRunAt": "10-15 20:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 479
+      "lastDurationSec": 350
     },
     {
       "id": "1ea6e3b0",
       "name": "knowledge-organization-morning",
       "schedule": "0 2 * * *",
-      "status": "ok",
+      "status": "error",
       "lastRun": "4.0h ago",
-      "lastRunAt": "10-15 02:00",
-      "consecutiveErrors": 0,
-      "lastDurationSec": 516
+      "lastRunAt": "10-16 02:00",
+      "consecutiveErrors": 1,
+      "lastDurationSec": 600
     },
     {
       "id": "f0362050",
@@ -114,9 +115,9 @@
       "schedule": "0 5 * * *",
       "status": "ok",
       "lastRun": "1.0h ago",
-      "lastRunAt": "10-15 05:00",
+      "lastRunAt": "10-16 05:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 388
+      "lastDurationSec": 417
     }
   ],
   "sessions": {
@@ -127,16 +128,16 @@
       "group": 1
     },
     "models": {
-      "glm-5.3-flash": 24,
+      "glm-5.3-flash": 22,
       "glm-5": 12,
-      "glm-5.1": 6,
+      "glm-5.1": 8,
       "glm-5-turbo": 1
     },
     "notable": [
       {
-        "type": "cron:f38e0365 (dashboard)",
+        "type": "cron:cron (cron)",
         "kind": "direct",
-        "lastActive": "0.0h ago",
+        "lastActive": "-0.0h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
@@ -148,42 +149,42 @@
         "context": "n/a"
       },
       {
-        "type": "cron:f0362050 (essay)",
+        "type": "cron:cron (cron)",
         "kind": "direct",
         "lastActive": "0.9h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
-        "type": "cron:1ea6e3b0 (knowledge-org)",
+        "type": "cron:cron (cron)",
         "kind": "direct",
-        "lastActive": "3.9h ago",
-        "model": "glm-5.3-flash",
+        "lastActive": "4.0h ago",
+        "model": "glm-5.1",
         "context": "n/a"
       },
       {
-        "type": "cron:a4bf5e2a (deep-exploration)",
+        "type": "cron:cron (cron)",
         "kind": "direct",
-        "lastActive": "9.9h ago",
-        "model": "glm-5.3-flash",
+        "lastActive": "10.0h ago",
+        "model": "glm-5.1",
         "context": "n/a"
       },
       {
-        "type": "cron:ad37c59a (creative-evening)",
+        "type": "cron:cron (cron)",
         "kind": "direct",
         "lastActive": "11.0h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
-        "type": "cron:2c714952 (trending-deep)",
+        "type": "cron:cron (cron)",
         "kind": "direct",
         "lastActive": "22.0h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
-        "type": "cron:9b2a8701 (trending-daily)",
+        "type": "cron:cron (cron)",
         "kind": "direct",
         "lastActive": "23.0h ago",
         "model": "glm-5.3-flash",
