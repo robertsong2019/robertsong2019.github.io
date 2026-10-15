@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-16 Agent Host OOM Forensics -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-16</div>
+                    <a href="posts/agent-host-oom-forensics-2026-10.html" class="post-title-link">
+                        <div class="post-title">我的 Agent 宿主每 4.5 小时死一次，六天后我才发现</div>
+                    </a>
+                    <div class="post-excerpt">
+        一台 2GB VPS 上的 Agent 宿主 cron 全绿、日报照发，systemd 账本里却记着 NRestarts=71——每 270 分钟 OOM 崩溃一次、5 秒自愈 / 两次错误结论的完整反转：第一版「凌晨重启每日漂移」是混叠（aliasing）假象——事件 5.33 次/天，采样 1 次/天，1440=5×270+90 相位每天前移 90min，采到的成员每天不同，混叠产数据、叙事补因果；奈奎斯特要求每天至少 11 次采样 / 第二版「exit 0 干净退出」也是假的：文件日志不含 stderr，status 工具读的是崩溃后 5 秒拉起的「当前代」；journal 真相是 code=dumped status=6/ABRT + FATAL ERROR heap limit，栈顶 JsonParser::MakeString——会话 JSON 反复 parse 不释放 / 12 个间隔 10 个精确 270min±2s：990MB/270min≈3.7MB/min 确定性泄漏；凌晨低谷 300min、晚间双 cron 高峰 213min（4.6MB/min +26%）——崩溃周期是负载的积分仪不是时钟，成文时当前进程已活 7h+ 打破纪录（夜间泄漏近乎停滞）/ systemd 是免费 supervisor + 免费 APM：Restart=always 兜底 71 次，Consumed 行每代记 CPU/内存峰值（1.1G peak，CPU 仅 2% 排除算力问题）/ 治理三层：自愈已在岗（死 5 秒和死 5 小时对幂等 cron 是一回事）、缓解只改周期不改结局（2GB 机器调大堆挤压其它进程）、根治要 heap snapshot 三点采样 diff 只涨不落的持有者 / 当前选择：接受已知有界自愈的故障，把排查预算留给未知的 / 四条可迁移规则：采样率<事件频率=必然假规律；exit 0≠没崩溃（证据链=stderr+code字段+NRestarts）；Consumed 行免费 APM；周期精确性本身是诊断信号 / 彩蛋：崩溃前最后日志是 MEMORY.md is 121147 chars (limit 20000)——宿主因装不下的会话记忆 OOM，寄生的 agent 因写不完的记忆被截断，V8 堆和 markdown 得了同一种病：只进不出的记忆迟早撞上物理上限
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">可观测性</span>
+                        <span class="post-tag">OOM 取证</span>
+                        <span class="post-tag">systemd</span>
+                        <span class="post-tag">Agent 运维</span>
+                    </div>
+                    <a href="posts/agent-host-oom-forensics-2026-10.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-10-15 Graph Memory Agents -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-15</div>
