@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的 Agent 记了 12 万字符的笔记，其中 83% 它自己再也读不到 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 18px; border-radius: 6px; overflow-x: auto; margin: 20px 0; font-size: 0.85em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; font-size: 1em; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>我的 Agent 记了 12 万字符的笔记，其中 83% 它自己再也读不到</h1>
+        <div class="meta">
+            2026-10-17 · 罗嵩 ·
+            <span class="tag">Agent 记忆</span>
+            <span class="tag">上下文工程</span>
+            <span class="tag">可观测性</span>
+        </div>
+
+        <blockquote>今天凌晨 02:03，我的 Agent 完成了一次记忆大瘦身：长期记忆文件 MEMORY.md 从 158,216 字节减到 12,371 字节，全文归档，零丢失。但早上 04:47，宿主网关的日志里仍然打印着旧数字。磁盘上的文件明明只剩 8,694 字符了——一个数字是磁盘的，一个数字是缓存里的，还有一个数字是警告里的。三个数字对不上，就是这篇故事的起点。</blockquote>
+
+        <h2>一、减肥时间线：git 考古出一条真实的肥胖曲线</h2>
+
+        <p>MEMORY.md 是每天 02:00 由 knowledge-organization cron 提交的，于是 git 历史就是一份现成的体检档案。一条管道把每个历史版本的体积挖出来：</p>
+
+        <pre><code>for c in $(git log --format=%h --follow -- MEMORY.md | head -40); do
+  d=$(git show -s --format=%ci $c)
+  s=$(git show $c:MEMORY.md | wc -c)
+  echo "$d $s"
+done | sort</code></pre>
+
+        <p>真实输出（节选，字节）：</p>
+
+        <pre><code>2026-09-05  320,449   ← 九月峰值：上一轮肥胖的顶点
+2026-09-19  140,124   ← 一次暴力减肥
+2026-09-24  121,700   ┐
+2026-09-28  120,182   │ 平台期：每天修剪 = 每天增量，均衡
+2026-10-01  125,801   ┘
+2026-10-02  130,067   ← 均衡失守，此后单调上涨
+2026-10-07  138,136
+2026-10-12  148,569
+2026-10-15  158,216   ← 最后一次成功提交
+2026-10-16  （无提交）  ← 整理任务 600 秒超时被杀
+2026-10-17   12,371   ← 归档 + 重写</code></pre>
+
+        <p>这条曲线讲了一个完整的故事：九月胖到 320k，一刀切到 140k；接下来一周是平台期，每天的整理刚好抵消每天的新增——然后 10 月 2 日起均衡失守，每天净增约 2.2k，十三天爬到 158k。10 月 16 日 02:00，负责整理它的 cron 在 600,022 毫秒处撞上超时上限被杀——<strong>整理知识的任务，死于知识太多</strong>。</p>
+
+        <p>为什么失守？把归档文件按 <code>##</code> 分节称重，答案自己浮出来：</p>
+
+        <pre><code>$ python3 memory_checkup.py archive-2026-10-17-memory-slim-full.md
+158,216 bytes, ~43,952 tokens (估算), 10.5x 预算
+  分节数: 14, Top 肥肉:
+   74,302B ████████… Current Focus (10-02 及更早)
+   53,632B █████…    Key Insights (Carry Forward)</code></pre>
+
+        <p><code>Current Focus</code> 按日期堆了整整八层——10-14、10-13、10-12、10-11……每一层都是一次「追加」而不是「合并」。<strong>修剪是局部的，肥胖是结构的</strong>：每天的整理任务只敢碰当天新增的那一节，没人有权限（也没人有预算）去重组 74k 的沉积层。就像给囤积症患者的房子做保洁——擦桌子解决不了结构问题。</p>
+
+        <h2>二、暗物质：注入层早就截断了，没人告诉写入层</h2>
+
+        <p>更难堪的发现埋在系统日志里。统计一下宿主网关的截断警告：</p>
+
+        <pre><code>$ journalctl | grep -c 'MEMORY.md is .* truncating'
+1802</code></pre>
+
+        <p>从日志留存的 9 月 9 日起，<strong>39 天里这条警告响了 1,802 次</strong>，平均每天 46 次——每次主会话心跳（约 30 分钟一次）注入工作区文件时，网关都发现 MEMORY.md 超过 20,000 字符的上限，于是静默截断后再注入。</p>
+
+        <p>这意味着病理比「浪费 token」严重得多。以超限顶点的 121,147 字符计，注入上限 20,000，<strong>83.5% 的内容对未来会话不可见</strong>。那 53k 字节的 <code>Key Insights (Carry Forward)</code>——字面意思上要「传承」下去的洞察——排在文件第 132 行之后，早在截断线以外。写入侧的策展人勤勤恳恳往里搬运，读取侧的读者根本进不了那间阅览室。</p>
+
+        <div class="highlight">记忆的暗物质：写入预算和读取预算不对称时，多出来的部分是只写不读的死信区。Agent 的「长期记忆」名义上 12 万字符，实际有效只有前 2 万。</div>
+
+        <p>而讽刺的是，20k 上限明明白白写在文件头部第一行注释里（<code>限 20k</code>），网关也忠实地喊了 1,802 次——<strong>规则存在、告警存在，只是从来没有接线成动作</strong>。不接线的规则是装饰品，没人看的告警是白噪音。</p>
+
+        <h2>三、手术，以及排异反应</h2>
+
+        <p>10 月 17 日 02:03 的手术方案是：全文归档到 <code>archive-2026-10-17-memory-slim-full.md</code>（158k，一字不丢），重写主文件为 8,694 字符——保留近两日焦点、计数快照、纪律清单、洞察精选，旧结构全部换成归档指针。整个手术耗时 207,861 毫秒，不到前一天「修剪失败」所耗时间的一半。</p>
+
+        <p>这个对比本身就是教训：在大文件里做多处原地编辑，每处都要读上下文、对齐、改写，成本是 O(文件 × 编辑数)；归档 + 重写小文件，成本是 O(1) 次全量拷贝加 O(新文件)。<strong>换血比输血便宜</strong>。归档也不等于删除——失效的事实带指针留在原地，这正是 Zep 双时间戳的思路：记忆不该被抹掉，该被标记为「已过期」。历史的问题问历史，现在的问题问现在。</p>
+
+        <p>但故事还有第三层。02:03 磁盘上的文件瘦了，04:47 的警告却还是旧数字——<strong>运行中的网关在启动时缓存了文件内容，重启之前，它注入的仍是手术前的肥胖记忆</strong>。药已经吃了，血还没换完。而宿主的重启由什么触发？正是每 270 分钟一次的 OOM 崩溃循环（NRestarts 已到 76，昨夜 00:17 又崩了一次）。疾病和治疗，出自同一台机器的同一个重启循环——这大概是本周最好的黑色幽默：<strong>那个一直杀掉宿主的 bug，明天上午将第一次扮演救生员</strong>。</p>
+
+        <h2>四、体检脚本：先量再整理</h2>
+
+        <p>这次手术唯一的代码产物是三十行的体检脚本，现在它是整理任务的第一步——先称重、找肥肉、对预算，再决定动不动刀：</p>
+
+        <pre><code>#!/usr/bin/env python3
+"""记忆体检：按 ## 分节统计体积，找出肥胖区块"""
+import sys
+
+def checkup(path, budget=15000):
+    text = open(path, encoding='utf-8').read()
+    size = len(text.encode('utf-8'))
+    cjk = sum(1 for c in text if ord(c) > 0x2E80)
+    tok = int(cjk + (size - 3 * cjk) / 4)   # CJK≈1 token, ASCII≈1/4
+    print(f"{path}: {size:,}B, ~{tok:,} tokens, {size/budget:.1f}x 预算")
+    lines, sections, cur, start = text.splitlines(), [], None, 0
+    for i, line in enumerate(lines):
+        if line.startswith('## '):
+            if cur is not None:
+                b = sum(len(l.encode('utf-8'))+1 for l in lines[start:i])
+                sections.append((cur, b))
+            cur, start = line[3:].strip(), i
+    for name, b in sorted(sections, key=lambda x: -x[1])[:6]:
+        print(f"  {b:&gt;7,}B {'█'*int(b/2000)} {name[:44]}")
+
+checkup(sys.argv[1])</code></pre>
+
+        <p>运行在术后文件上：<code>12,371B, ~3,536 tokens, 0.8x 预算</code>——首次回到预算内。配套的永久纪律已经写进 HEARTBEAT.md：<strong>超过 15k 即归档瘦身，禁止逐日堆叠</strong>。15k 而不是 20k，是给整理任务留的提前量：阈值必须小于上限，就像 GC 的水位线必须低于堆的最大值，否则又是一次 concurrent mode failure。</p>
+
+        <h2>五、三次发作，一种病</h2>
+
+        <p>把本周三篇并排放：V8 堆 990MB 撞物理上限，是 RAM 的只进不出；ACE 论文里整篇重写导致笔记坍缩，是编辑的只删不留；MEMORY.md 堆到 158k 而 83% 读不到，是存储的只写不读。三次发作的共同病理只有一句话：<strong>无界累积遇上有界资源，而清理动作总是迟到</strong>。</p>
+
+        <p>解药也只有一个方向——让写入、读取、清理共用同一个预算，并且让预算的执行发生在线路上而不是纸面上：</p>
+
+        <ul>
+            <li><strong>告警必须接线。</strong>1,802 条没人读的警告，正确形态是超阈值时把「先归档再整理」直接写进 cron 的任务指令，而不是躺在 journal 里等事后考古。</li>
+            <li><strong>归档优先于修剪。</strong>局部修剪只能维持均衡，不能修复结构；结构病要靠「归档 + 指针 + 重写」一次治好。</li>
+            <li><strong>delta 编辑防坍缩，定期归档防肥胖。</strong>昨天 ACE 的结论（禁止整篇重写、只许增量）和今天的结论（禁止只堆叠不归档）是一枚硬币的两面，少哪一面都会复发。</li>
+            <li><strong>给记忆配读取预算的测试。</strong>如果注入层会截断，写入侧就应该知道截断线在哪——把「关键洞察永远排在截断线以内」当成一条可验证的约束，而不是运气。</li>
+        </ul>
+
+        <p>今早这条跑了 39 天的警告应该会在宿主下一次崩溃重启后消失。如果明天 dashboard 的 NRestarts 跳到 77 而日志归于安静，那就是这台机器第一次用同一次重启，同时治好两种病。</p>
+
+        <hr>
+
+        <p><strong>参考</strong>：</p>
+        <ul>
+            <li><a href="context-engineering-ace-playbook-2026-10.html">昨日本博：《Agent 为什么永远是「入职第一天」：上下文工程与会长大的笔记本》</a>（ACE, arXiv:2510.04618）</li>
+            <li><a href="agent-host-oom-forensics-2026-10.html">昨日本博：《我的 Agent 宿主每 4.5 小时死一次，六天后我才发现》</a></li>
+            <li><a href="https://research.trychroma.com/context-rot">Context Rot</a>（Chroma Research, 2025）：注入长度上升，18 个模型全线退化</li>
+            <li>Zep / Graphiti 双时间戳：valid/invalid × created/expired，失效不删除</li>
+        </ul>
+
+        <p style="margin-top: 30px;"><a href="../index.html" class="back-link">← 返回首页</a></p>
+    </div>
+</body>
+</html>
