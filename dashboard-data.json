@@ -1,51 +1,49 @@
 {
-  "lastUpdated": "2026-10-15T22:00:00Z",
-  "generatedAt": "2026-10-16 06:00 CST",
+  "lastUpdated": "2026-10-16T22:00:00Z",
+  "generatedAt": "2026-10-17 06:00 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 3524551,
+      "pid": 3979624,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14 (323493f)",
-      "uptime": "running since 2026-10-15 21:51:14 CST (pid 3524551, 8.2h at collection). OOM crash pattern continues but current generation is an outlier: 3 crashes last night (13:47 / 18:17 / 21:51, intervals 270/270/214min, restart counter 69/70/71, all code=dumped status=6/ABRT consistent with JS-heap OOM), yet current gen has survived 8.2h — well past the typical ~270min period — with RSS 932MB already near the historic ~990MB crash line. Either growth slowed or a crash is due this morning; watch next cycle."
+      "uptime": "running since 2026-10-17 05:38:00 CST (pid 3979624, 23min at collection, RSS 673MB). OOM cycle confirmed and now textbook-regular: 6 SIGABRT crashes in 23.5h (10-16 06:33 / 10:47 / 15:17 / 19:47 / 10-17 00:17 / 05:37, intervals 254/270/270/270/320min, restart counter 71->77). Yesterday's outlier gen (21:51 start) indeed died 10-16 06:33 after ~8.7h, back on the ~270min rhythm since. Current gen born 05:38, next crash projected ~10:08 if pattern holds. Host memory pressure eased: available 863MB (vs 566MB yesterday) partly because fresh gateway RSS is low."
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "176 days, 16 hours, 41 minutes",
-      "loadAverage": "1.65, 0.55, 0.20",
+      "uptime": "177 days, 16 hours, 41 minutes",
+      "loadAverage": "0.75, 0.26, 0.13",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
         "available": "16G",
-        "usage": "69%"
+        "usage": "68%"
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1369,
-        "freeMB": 364,
-        "availableMB": 566
+        "usedMB": 1072,
+        "freeMB": 493,
+        "availableMB": 863
       }
     },
     "model": "zai/glm-5.3-flash"
   },
   "cronSummary": {
     "total": 7,
-    "ok": 6,
-    "error": 1,
+    "ok": 7,
+    "error": 0,
     "running": 0,
-    "errorJobs": [
-      "knowledge-organization-morning (cron: job execution timed out)"
-    ],
+    "errorJobs": [],
     "notes": [
-      "🔴 首个 cron 错误：knowledge-organization-morning 今晨 02:00 执行超时被杀（600s 上限，600022ms 触顶，lastError=\"cron: job execution timed out\"），其余 6 job 全绿全部 delivered；下次运行 10-17 02:00，若再超时建议拆分子任务或提高 timeoutSeconds",
-      "连带效应：MEMORY.md 24h 内从 119051 → 158216 chars（+33%）——整理 job 超时未瘦身，而 gateway OOM 根因笔记里 MEMORY.md 截断注入（limit 20000）正是已知风险项；两个问题在此形成恶性循环，值得优先处理",
-      "Gateway OOM 周期继续但形态有变：昨夜 13:47/18:17/21:51 三次 SIGABRT 崩溃（间隔 270/270/214min，restart 69→71），与既定 ~270min 周期吻合；但当前代 21:51 启动已存活 8.2h 远超典型周期，RSS 932MB 已逼近历史崩溃线 ~990MB——增长放缓或今晨将崩，观察下一个周期",
-      "近 24h 博客新提交 2 篇: 22d2294 Agent 宿主 270 分钟 OOM 周期取证 (10-16 05:05); 720e15f Agent 的记性为什么需要图 HippoRAG (10-15 20:05)",
-      "主机：mem available 566MB（昨日 718MB ↓21%，gateway RSS 932MB 占大头）；磁盘 69%（+1pt）；uptime 176d；负载 1.65 为采集瞬时值",
-      "sessions 统计按 sessionId 去重（43 去重 vs 50 原始），24h 活跃 9"
+      "✅ 全绿 7/7：昨晨首个超时的 knowledge-organization-morning 已恢复（10-17 02:00 运行 208s 完成，远低于 600s 上限），其余 6 job 全部 delivered",
+      "恢复连带验证：MEMORY.md 归档手术后现为 12371 chars（limit 20000），昨日 119k->158k 的恶性循环已打断；gateway 日志 00:17 最后一次截断告警仍报 121147（旧代缓存），05:38 新一代启动后应不再出现",
+      "Gateway OOM 周期进入稳定态：6 次崩溃间隔 254/270/270/270/320min，高度贴合 ~270min 节奏（restart 71->77）；昨日『当前代已存活 8.2h 的异常代』预测兑现——10-16 06:33 崩溃后回归正轨。每次都是 JS 堆 OOM（code=dumped status=6/ABRT），根因未修但节奏可预测",
+      "近 24h 博客 2 篇新博文: aee7540 记忆暗物质终章-12万字符笔记83%再也读不到 (10-17 05:06); d6d6e66 ACE 上下文工程-会长大的笔记本 (10-16 20:05)",
+      "主机：mem available 863MB（昨日 566MB ↑53%，新代 gateway RSS 673MB 低位是主因）；磁盘 68%（-1pt）；uptime 177d",
+      "sessions 统计按 sessionId 去重（43 去重 vs 50 原始），24h 活跃 8；24h token 总量 in 2.75M / out 633k"
     ]
   },
   "cronJobs": [
@@ -55,9 +53,9 @@
       "schedule": "0 6 * * *",
       "status": "ok",
       "lastRun": "24.0h ago",
-      "lastRunAt": "10-15 06:00",
+      "lastRunAt": "10-16 06:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 268
+      "lastDurationSec": 224
     },
     {
       "id": "9b2a8701",
@@ -65,9 +63,9 @@
       "schedule": "0 7 * * *",
       "status": "ok",
       "lastRun": "23.0h ago",
-      "lastRunAt": "10-15 07:00",
+      "lastRunAt": "10-16 07:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 72
+      "lastDurationSec": 85
     },
     {
       "id": "2c714952",
@@ -75,9 +73,9 @@
       "schedule": "0 8 * * *",
       "status": "ok",
       "lastRun": "22.0h ago",
-      "lastRunAt": "10-15 08:00",
+      "lastRunAt": "10-16 08:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 232
+      "lastDurationSec": 262
     },
     {
       "id": "ad37c59a",
@@ -85,9 +83,9 @@
       "schedule": "0 19 * * *",
       "status": "ok",
       "lastRun": "11.0h ago",
-      "lastRunAt": "10-15 19:00",
+      "lastRunAt": "10-16 19:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 194
+      "lastDurationSec": 237
     },
     {
       "id": "a4bf5e2a",
@@ -95,19 +93,19 @@
       "schedule": "0 20 * * *",
       "status": "ok",
       "lastRun": "10.0h ago",
-      "lastRunAt": "10-15 20:00",
+      "lastRunAt": "10-16 20:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 350
+      "lastDurationSec": 384
     },
     {
       "id": "1ea6e3b0",
       "name": "knowledge-organization-morning",
       "schedule": "0 2 * * *",
-      "status": "error",
+      "status": "ok",
       "lastRun": "4.0h ago",
-      "lastRunAt": "10-16 02:00",
-      "consecutiveErrors": 1,
-      "lastDurationSec": 600
+      "lastRunAt": "10-17 02:00",
+      "consecutiveErrors": 0,
+      "lastDurationSec": 208
     },
     {
       "id": "f0362050",
@@ -115,27 +113,31 @@
       "schedule": "0 5 * * *",
       "status": "ok",
       "lastRun": "1.0h ago",
-      "lastRunAt": "10-16 05:00",
+      "lastRunAt": "10-17 05:00",
       "consecutiveErrors": 0,
-      "lastDurationSec": 417
+      "lastDurationSec": 479
     }
   ],
   "sessions": {
     "total": 43,
-    "active24h": 9,
+    "active24h": 8,
     "byKind": {
-      "direct": 42,
+      "direct": 49,
       "group": 1
     },
     "models": {
-      "glm-5.3-flash": 22,
+      "glm-5.3-flash": 27,
       "glm-5": 12,
-      "glm-5.1": 8,
+      "glm-5.1": 10,
       "glm-5-turbo": 1
+    },
+    "tokens24h": {
+      "input": 2752476,
+      "output": 633033
     },
     "notable": [
       {
-        "type": "cron:cron (cron)",
+        "type": "cron:dashboard-update-morning",
         "kind": "direct",
         "lastActive": "-0.0h ago",
         "model": "glm-5.3-flash",
@@ -149,42 +151,42 @@
         "context": "n/a"
       },
       {
-        "type": "cron:cron (cron)",
+        "type": "cron:essay-generation-morning",
         "kind": "direct",
         "lastActive": "0.9h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
-        "type": "cron:cron (cron)",
+        "type": "cron:knowledge-organization-morning",
         "kind": "direct",
         "lastActive": "4.0h ago",
         "model": "glm-5.1",
         "context": "n/a"
       },
       {
-        "type": "cron:cron (cron)",
+        "type": "cron:deep-exploration-evening",
         "kind": "direct",
         "lastActive": "10.0h ago",
         "model": "glm-5.1",
         "context": "n/a"
       },
       {
-        "type": "cron:cron (cron)",
+        "type": "cron:github-creative-evening",
         "kind": "direct",
         "lastActive": "11.0h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
-        "type": "cron:cron (cron)",
+        "type": "cron:github-trending-deep-analysis",
         "kind": "direct",
         "lastActive": "22.0h ago",
         "model": "glm-5.3-flash",
         "context": "n/a"
       },
       {
-        "type": "cron:cron (cron)",
+        "type": "cron:github-trending-daily",
         "kind": "direct",
         "lastActive": "23.0h ago",
         "model": "glm-5.3-flash",
