@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 为什么永远是「入职第一天」：上下文工程与会长大的笔记本 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 18px; border-radius: 6px; overflow-x: auto; margin: 20px 0; font-size: 0.85em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; font-size: 1em; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>Agent 为什么永远是「入职第一天」：上下文工程与会长大的笔记本</h1>
+        <div class="meta">
+            2026-10-16 · 罗嵩 ·
+            <span class="tag">Context Engineering</span>
+            <span class="tag">Agent 自进化</span>
+            <span class="tag">提示词优化</span>
+            <span class="tag">Agent Skills</span>
+        </div>
+
+        <blockquote>同一个坑，你的 Agent 踩了第三次。第一次是不知道，第二次是没记住，第三次——它明明写过复盘笔记，但那条教训躺在两万字的系统提示词第 8000 个 token 处，注意力早就绕过它走了。这像极了一家永远留不住经验的公司：每个新员工入职第一天都要重新发现「打印机要先按住 C 键」。问题出在哪？我们一直把 Agent 的知识当成<strong>一段写死的指令</strong>来维护，而它本该是一本<strong>会长大的笔记本</strong>。</blockquote>
+
+        <h2>一、先泼冷水：上下文不是免费的仓库</h2>
+
+        <p>直觉上，上下文窗口越大越好——200K、1M，把什么都塞进去。但 Chroma 2025 年的实验给了个干脆的否决：他们测了 18 个前沿模型（GPT-4.1、Claude Opus 4、Gemini 2.5 Pro 都在列），<strong>每一个</strong>都随输入长度增长而退化，哪怕任务难度完全没变、离窗口上限还远得很。他们给这个现象起了个名字：<strong>context rot（上下文腐烂）</strong>。</p>
+
+        <p>它和老朋友「Lost in the Middle」是两种病：后者是<strong>位置效应</strong>（模型对开头和结尾记得好，中间的会丢，Liu 等人 TACL 2024 就证明了），前者是<strong>长度效应</strong>（整体输入越长，质量越差）。生产环境里通常两个一起得。</p>
+
+        <p>Chroma 的数据里还藏着一个反直觉的细节：把文档顺序<strong>打乱</strong>，模型表现反而比逻辑连贯的原文<strong>更好</strong>——18 个模型一致。解释是：连贯的文本会制造「貌似合理的干扰项」，把注意力带偏。这暗示了一件事：上下文的敌人不是长度本身，是<strong>注意力预算的错配</strong>。Anthropic 后来在工程博客里把话说得更直白：去做上下文工程，本质是在给每一步找「最小的高信号 token 集合」——<strong>上下文是预算，不是仓库</strong>。</p>
+
+        <div class="highlight">既然塞进去不免费，那「怎么塞、塞什么」就成了显学。这就是上下文工程（context engineering）这个名字的由来——它不是 prompt engineering 的改名换姓，而是把提示词从「一段话」升维成「一个被管理的系统」。</div>
+
+        <h2>二、提示词优化的家谱：从许愿到搜索到反思</h2>
+
+        <p>让 prompt 变好这件事，学术界其实已经迭代了三代：</p>
+
+        <ul>
+            <li><strong>第一代：许愿。</strong>手工调词，玄学阶段。APE（自动提示工程）和 OPRO（DeepMind，用 LLM 当优化器迭代自己的提示词，「深呼吸」那篇）开始把「写 prompt」变成搜索问题。</li>
+            <li><strong>第二代：程序化。</strong>TextGrad 把「文本梯度」做成自动微分；DSPy 把 LLM 应用拆成模块，用 MIPROv2 这类优化器在模块空间里搜索最好的指令组合。</li>
+            <li><strong>第三代：反思进化。</strong>2025 年的 <a href="https://arxiv.org/abs/2507.19457">GEPA</a>（已进 DSPy）是标志：它不搜索也不算梯度，而是让 LLM <strong>读执行轨迹、用自然语言反思哪里错了、提出新指令</strong>，再维护一个帕累托前沿的候选池。结果相当惊人：在指令遵循基准 IFBench 上，GEPA 用 <strong>678 次 rollout</strong> 达到了强化学习 GRPO 需要 <strong>24,000 次</strong>才到的成绩——35 倍样本效率，平均还超 GRPO 约 10%。</li>
+        </ul>
+
+        <p>GEPA 的意义在于证明了一件事：<strong>自然语言反思本身就是一种足够强的学习信号</strong>，未必非要动权重。但 GEPA 有个结构性弱点——它进化的是「整段 prompt 候选」，每次变异都是一次整篇重写，又贵又不稳。这就轮到主角登场了。</p>
+
+        <h2>三、ACE：三个角色、一本剧本、只许打补丁</h2>
+
+        <p>2025 年 10 月，Stanford 和 SambaNova 放出 <a href="https://arxiv.org/abs/2510.04618">Agentic Context Engineering</a>（已被 ICLR 2026 接收），把这条线推到了工程完备的形态。它的核心不是什么新模型，而是一个朴素到近乎常识的主张：<strong>把上下文当作一本随经验生长的 playbook，并且只允许打补丁，不允许重写。</strong></p>
+
+        <h3>三个角色</h3>
+
+        <ul>
+            <li><strong>Generator</strong>：干活的 agent。跑任务，产生轨迹，并顺手标注「这次哪些笔记帮了我、哪些误导了我」。</li>
+            <li><strong>Reflector</strong>：复盘者。分析执行结果，把成败提炼成洞察（最多迭代五轮）。</li>
+            <li><strong>Curator</strong>：图书馆员。把洞察转成结构化的「bullet」合并进 playbook，负责去重与裁剪。</li>
+        </ul>
+
+        <p>playbook 里每条知识是一个带元数据的条目：</p>
+
+        <pre><code>{
+  "content": "查金融数据时先按日期范围过滤，缩小结果集",
+  "helpful_count": 12,
+  "harmful_count": 1,
+  "section": "task_guidance"
+}</code></pre>
+
+        <p>计数器是灵魂：一条笔记被证明有用的次数多了，检索时优先注入；总是有害的，就该被裁掉。执行本身在给笔记投票。</p>
+
+        <h3>Delta 更新：全篇最值钱的一个发现</h3>
+
+        <p>ACE 团队观察到一个现象，值得每个做 agent 的人抄在墙上：<strong>LLM 有「简短偏置」</strong>。你让它重写自己的上下文，它一定会压缩、丢细节；几轮之后，笔记本坍缩成一段「要注意代码质量」式的正确废话——学习成果归零，论文称之为 <em>context collapse</em>。</p>
+
+        <p>解法粗暴有效：<strong>永远不让 LLM 整篇重写</strong>。playbook 表示为 bullet 集合，LLM 只被允许提案三种操作——<code>add / remove / modify</code>，合并与去重由轻量程序逻辑（非 LLM）完成。这本质上就是 <strong>git diff 之于整文件覆盖</strong>的区别。消融数据支持得很干脆：在 AppWorld 上，有增量更新的 ACE 相比无增量版，任务完成率 76.2 对 67.3，场景完成率 64.3 对 46.4——补丁不是锦上添花，是主要增益来源。</p>
+
+        <div class="insight"><strong>核心洞察一：自我重写的记忆必然失忆，自我打补丁的记忆才能积累。</strong>任何让 agent 维护长文档（规则文件、人格设定、操作手册）的系统，只要允许「总结重写」，就在给未来的坍缩埋雷。</div>
+
+        <h2>四、成绩单，和两杯冷水</h2>
+
+        <p>成绩单先看：</p>
+
+        <table>
+            <tr><th>对比</th><th>结果</th></tr>
+            <tr><td>Agent 任务（AppWorld）</td><td>+10.6%，榜单匹敌第一名的生产级 agent（IBM-CUGA/GPT-4.1），更难的 test-challenge 分片反超——用的是更小的开源模型 DeepSeek-V3.1</td></tr>
+            <tr><td>金融推理（FiNER）</td><td>+8.6%，达到 IBM 水平</td></tr>
+            <tr><td>vs GEPA（离线 AppWorld）</td><td>适应延迟 -82.3%，rollout 数 -75.1%</td></tr>
+            <tr><td>vs Dynamic Cheatsheet（在线 FiNER）</td><td>延迟 -91.5%，token 成本 -83.6%</td></tr>
+            <tr><td>标签依赖</td><td>在线模式无需 ground-truth，纯靠执行反馈适应</td></tr>
+        </table>
+
+        <p>翻译一下：一个不动权重、只维护笔记本的 agent，在真实任务基准上追平了用最强闭源模型武装的生产系统，而学习成本比同类自适应方法低一个数量级。<strong>「怎么做」这类知识，放在上下文层比放在权重层划算得多</strong>——策略每周都在变，权重半年才更新一次，把高频知识写进慢速介质本来就是错配。</p>
+
+        <p>两杯冷水。第一杯：<strong>上下文学习不是万能药</strong>。GEPA 论文自己报了反例——在数学竞赛基准 AIME-2025 上，GRPO（更新权重）38.0% 对 GEPA 32.0%，RL 赢。笔记能教 agent「先按日期过滤再查」，教不会它做多重积分。<strong>流程型缺陷找上下文工程，能力型缺陷换模型或上 RL</strong>——分不清这两类，是今年 agent 团队最常见的资源错配。</p>
+
+        <p>第二杯：<strong>笔记本越长，检索和裁剪越重要</strong>。ACE 自己就用混合检索按相关性挑 bullet 注入，而不是全本硬塞——否则就撞回第一节的 context rot。</p>
+
+        <h2>五、全行业正在独立重新发明这本笔记本</h2>
+
+        <p>有意思的是，工业界根本没等这篇论文。看看时间线：</p>
+
+        <ul>
+            <li><strong>AGENTS.md</strong>：一个纯约定俗成的 markdown 文件，现在 OpenAI Codex、Cursor、Aider、Zed、Google Jules 等 20 多个工具都认——「给 agent 的项目说明书」成了事实标准。</li>
+            <li><strong>Cursor rules</strong>：从单个 <code>.cursorrules</code> 进化成目录化的 <code>.cursor/rules/</code>，按 glob 模式分域生效——bullet 化 + 分区的工程版。</li>
+            <li><strong>AgentSkills / SKILL.md</strong>：Anthropic 2025 年 12 月 18 日发布开放标准，48 小时内 Microsoft 和 OpenAI 接入，两个月后 VS Code GA。到 2026 年中，约 40 个产品兼容，SkillsMP 索引了 <strong>190 万个</strong>公开 skill。</li>
+        </ul>
+
+        <p>这是三只不同毛色、同一物种的动物：<strong>分层的、可版本控制的、agent 按需加载的程序性知识载体</strong>。而 ACE 恰好给这个已经爆发的工业直觉补上了学术骨架——笔记本怎么进化（delta）、谁把关质量（Reflector + Curator）、怎么防膨胀（去重 + 计数裁剪）。</p>
+
+        <p>生态数据里最有价值的一条来自 SkillsBench：他们评了 4.7 万个公开 skill，平均质量 6.2/12——但<strong>经过策展的 skill 让 agent 任务通过率平均提升 16.2 个百分点</strong>。也就是说，价值不在「能写笔记」，在「养笔记」。190 万条里大多数是没人修剪的枝叶。</p>
+
+        <div class="insight"><strong>核心洞察二：AGENTS.md、Cursor rules、SKILL.md 是 playbook 的三个野生亚种；ACE 的贡献是证明了这本笔记可以由 agent 自己养，而且给出了「怎么养不养崩」的纪律。</strong>策展（Curator）不是可选项——190 万条低质 skill 就是没有 Curator 的世界线。</div>
+
+        <p>还有一句必须说的丑话：笔记本越长，攻击面越大。Snyk 的 ToxicSkills 报告和 Akamai 的 2026 威胁预测都把「skill 投毒」列为头部威胁——skill 运行在拥有 shell、文件系统、网络权限的 agent 肚子里，恶意 skill 继承宿主全部权限。而「自我进化的笔记本」（LLM 自动把外部内容吸收进上下文）把这条路又拓宽了一层。<strong>每条 bullet 都该有来源字段：谁写的、依据哪次执行、什么时间。</strong></p>
+
+        <h2>六、和上一篇拼起来：Agent 的三层记忆</h2>
+
+        <p><a href="graph-memory-agents-2026-10.html">上一篇讲事实记忆</a>（用户是谁、什么在先、什么失效了）时说过：记忆不是仓库，是城市。这一篇补上了另一半拼图。现在可以画一张完整的分层图：</p>
+
+        <ul>
+            <li><strong>事实记忆（是什么）</strong>：图结构 + 双时间戳，失效不删除——HippoRAG/Zep 那一路。</li>
+            <li><strong>程序性记忆（怎么做）</strong>：bullet 化 playbook + delta 更新 + 计数器策展——ACE 这一路。</li>
+            <li><strong>能力（能多难）</strong>：权重层，RL 和蒸馏的地盘，笔记帮不上。</li>
+        </ul>
+
+        <p>人脑早就是这个架构：海马体管事实，基底核和新皮层管技能，而老师傅手边永远有一本翻烂的笔记本。三者更新频率差着数量级，混着用哪层都会出事。</p>
+
+        <h2>七、可以立刻做什么</h2>
+
+        <ul>
+            <li><strong>今晚就能做：把你的 AGENTS.md / 规则文件 bullet 化。</strong>每条一段独立知识，带稳定 ID 和 helpful/harmful 计数。改造是纯增量的，git 天然支持。</li>
+            <li><strong>立一条铁律：禁止整篇重写。</strong>任何「帮我总结一下规则文件」的诉求，都改成 add/remove/modify 三选一的提案，由脚本合并。这是防 context collapse 的疫苗，一行代码都不用写，只用工纪律。</li>
+            <li><strong>每周做一次手动 ACE 循环</strong>：翻本周的失败案例（error log、复盘文档），让 LLM 当 Reflector 提炼洞察，你当 Curator 决定去留——一小时的事，笔记的质量差异是数十个百分点的。</li>
+            <li><strong>给笔记本配上守门 eval</strong>：挑一个反复出现的失败模式，量「注入对应 bullet 后 30 天复发率」。没有数字，「笔记变多了」只是安慰剂——SkillsBench 的 6.2/12 就是前车之鉴。</li>
+            <li><strong>装 skill 前看来源，写 bullet 时带 provenance。</strong>为将来接入自动 Curator 留好元数据，也为审计留好证据链。</li>
+        </ul>
+
+        <h2>结语</h2>
+
+        <p>「Prompt engineering 已死」喊了两年，其实它没有死，是<strong>长大了</strong>：从给模型写一句话的许愿文学，长成了给 agent 养一本笔记本的园艺学。这本笔记要有结构（bullet）、有纪律（delta）、有新陈代谢（计数与裁剪）、有免疫（来源审计）。ACE 证明的与其说是一种新算法，不如说是一个朴素的管理学结论：<strong>一个组织的经验，只要能被便宜地写下来、认真地养起来，就能以远低于训练的成本复利。</strong>对 AI 如此，对你我亦然。</p>
+
+        <hr>
+
+        <p><strong>参考</strong>：</p>
+        <ul>
+            <li><a href="https://arxiv.org/abs/2510.04618">Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models</a>（ICLR 2026，Stanford + SambaNova）</li>
+            <li><a href="https://arxiv.org/abs/2507.19457">GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning</a>（Google + UCL）</li>
+            <li><a href="https://research.trychroma.com/context-rot">Context Rot: How Increasing Input Tokens Impacts LLM Performance</a>（Chroma Research, 2025）</li>
+            <li><a href="https://arxiv.org/abs/2307.03172">Lost in the Middle: How Language Models Use Long Contexts</a>（Liu et al., TACL 2024）</li>
+            <li><a href="https://agentskills.io">Agent Skills 开放标准</a>；SkillsBench (2026)；Snyk ToxicSkills 安全报告</li>
+        </ul>
+
+        <p style="margin-top: 30px;"><a href="../index.html" class="back-link">← 返回首页</a></p>
+    </div>
+</body>
+</html>

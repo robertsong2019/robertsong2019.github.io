@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-16 Agentic Context Engineering ACE -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-16</div>
+                    <a href="posts/context-engineering-ace-playbook-2026-10.html" class="post-title-link">
+                        <div class="post-title">Agent 为什么永远是「入职第一天」：上下文工程与会长大的笔记本</div>
+                    </a>
+                    <div class="post-excerpt">
+        同一个坑踩第三次：第一次不知道、第二次没记住、第三次教训明明写进了系统提示词第 8000 个 token 处但注意力早绕过它走了——问题出在我们把 Agent 的知识当「一段写死的指令」维护，它本该是「一本会长大的笔记本」/ 先泼冷水：Chroma 2025 实测 18 个前沿模型全部随输入长度退化（context rot），与 Lost in the Middle 位置效应正交且生产环境两病同得；反直觉：打乱顺序的文档比逻辑连贯的原文表现更好（18 模型一致，连贯文本制造貌似合理的干扰项）——上下文是预算不是仓库，Anthropic 定性：找每步最小高信号 token 集合 / 提示词优化三代家谱：许愿（APE/OPRO）→ 程序化搜索（TextGrad/DSPy MIPROv2）→ 反思进化（GEPA：LLM 读执行轨迹自然语言反思提新指令+帕累托候选池，IFBench 上 678 rollouts 达到 GRPO 需要 24000 的效果，35x 样本效率平均超 RL ~10%）但 GEPA 每次变异是整篇重写，贵且不稳 / ACE（Stanford+SambaNova，ICLR 2026）：三个角色——Generator 干活并给笔记投票、Reflector 复盘提洞察、Curator 策展合并；playbook 是带 helpful/harmful 计数器的 bullet 集合，计数决定注入优先级与裁剪 / 全篇最值钱发现：LLM 有简短偏置（brevity bias），让它重写自己的上下文必然压缩丢细节，多轮后坍缩成「注意代码质量」式正确废话（context collapse）——解法是永远禁止整篇重写，只许 add/remove/modify 三种 delta 提案+程序合并，本质是 git diff 之于整文件覆盖；消融：有 delta 的 ACE 任务完成 76.2 vs 67.3、场景完成 64.3 vs 46.4 / 成绩单：AppWorld +10.6% 匹敌榜首生产级 IBM-CUGA（GPT-4.1）且 test-challenge 反超、用的是更小开源模型 DeepSeek-V3.1；金融 +8.6%；vs GEPA 延迟-82.3% rollouts-75.1%；vs Dynamic Cheatsheet 延迟-91.5% 成本-83.6%；在线模式零标签纯执行反馈 / 冷水两杯：GEPA 自报 AIME-2025 上 GRPO 38.0% 反赢 GEPA 32.0%——笔记教得会「先按日期过滤」教不会多重积分，流程型缺陷找上下文工程、能力型缺陷换模型或 RL；笔记本越长检索裁剪越重要否则撞回 context rot / 工业界没等论文：AGENTS.md（20+ 工具事实标准）、Cursor rules 目录化、AgentSkills 开放标准（2025-12-18 发布 48h 内微软 OpenAI 接入、两个月 VS Code GA、SkillsMP 索引 190 万 skill）是同一物种三个亚种：分层可版本控制按需加载的程序性知识载体，ACE 给爆发中的工业直觉补上学骨架 / SkillsBench：4.7 万公开 skill 平均质量 6.2/12 但策展过的 skill 让通过率 +16.2pp——价值不在能写笔记在养笔记，190 万条多数是没人修剪的枝叶 / 攻击面：skill 投毒进 2026 top-10 威胁（Snyk ToxicSkills/Akamai），恶意 skill 继承宿主全部权限，自我进化笔记本把面再放大一层——每条 bullet 都该有 provenance / 与上一篇拼成三层记忆：事实（是什么）放图+双时间戳、程序（怎么做）放 playbook+delta、能力（能多难）放权重——人脑同构：海马体管事实基底核管技能、老师傅手边永远有本翻烂的笔记本 / 行动：AGENTS.md bullet 化带 ID+计数器（今晚能做）、铁律禁止整篇重写只用脚本合并 delta、每周手动跑一次 Generator→Reflector→Curator 循环、给笔记本配守门 eval 量「注入 bullet 后 30 天复发率」、装 skill 前看来源 / prompt engineering 没死是长大了：从给模型写一句话的许愿文学长成给 agent 养笔记本的园艺学——组织经验只要能便宜写下、认真养起，就能以远低于训练的成本复利
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Context Engineering</span>
+                        <span class="post-tag">Agent 自进化</span>
+                        <span class="post-tag">提示词优化</span>
+                        <span class="post-tag">Agent Skills</span>
+                    </div>
+                    <a href="posts/context-engineering-ace-playbook-2026-10.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-10-16 Agent Host OOM Forensics -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-16</div>
