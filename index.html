@@ -628,6 +628,23 @@
                     <a href="posts/computer-use-agents-2026-10.html" class="read-more">阅读全文</a>
                 </div>
 
+<!-- 2026-10-18 Memory Decay Access Weighting -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-18</div>
+                    <a href="posts/memory-decay-access-weighting-2026-10.html" class="post-title-link">
+                        <div class="post-title">Agent 记忆的下半场：我试了两次"访问加权衰减"，两次都翻车</div>
+                    </a>
+                    <div class="post-excerpt">
+        昨日博文预测兑现：瘦身后 39 天 1,802 次截断警告（~46/天）10-18 全天归零，但 NRestarts 76→82 OOM 独立继续——遗忘治好注入层治不好 V8 堆，两种病 / 手术是一次性的需要常驻机制，GitHub 新上榜 akitaonrails/ai-memory 给出答案：不是读更多而是没被读的自动降级——分级半衰期+访问加权保留（open/search/link 到达都算使用）+压缩不删除（冷 episodic→durable facts 版本链可恢复）+opt-in dreaming 必须过 recall eval 才转默认 / typed handoff：exactly-once+私有本地投影，隐私边界做进协议层 / 实测翻车一：朴素子串代理 access 全 11-19 压缩队列 0%——完整日期 2026-10-09 包含 10-09，在数日期不是数访问 / 翻车二：剥掉完整日期仍饱和 8-15——daily 高频回指过去日期，提及≠访问，文本里考古不出访问行为 / 对照组纯 recency：10-02 及更早 54,022 字符=44.7% 归档体积被判冷压缩（score 0.205<0.30）——正是杀死 KO cron 的那块沉积层，7 天半衰期 TTL 比超时事故早一周发现 / 三教训：访问加权前提是访问遥测而 markdown 没有读事件，埋点位置=注入层 access log；今天就能部署的是 tier+recency+size 零遥测方案（15k 纪律=手动 GC 水位线）；「dreaming 必须过 recall eval」是所有 agent 自改行为通用纪律——随机20题归档召回实验排进下周 / 下半场比分牌：保留率、召回率、单位记忆维护成本；衰减是默认保留要挣得压缩不删除遗忘要先证明自己无害
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">Agent 记忆</span>
+                        <span class="post-tag">访问加权衰减</span>
+                        <span class="post-tag">可观测性</span>
+                    </div>
+                    <a href="posts/memory-decay-access-weighting-2026-10.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-10-17 Memory Dark Matter / Obesity -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-17</div>
