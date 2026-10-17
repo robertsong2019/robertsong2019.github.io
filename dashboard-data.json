@@ -1,197 +1,198 @@
 {
-  "lastUpdated": "2026-10-16T22:00:00Z",
-  "generatedAt": "2026-10-17 06:00 CST",
-  "system": {
-    "gateway": {
-      "status": "running",
-      "pid": 3979624,
-      "port": 34524,
-      "bind": "lan (0.0.0.0)",
-      "nodeVersion": "v22.22.1",
-      "openclawVersion": "2026.4.14 (323493f)",
-      "uptime": "running since 2026-10-17 05:38:00 CST (pid 3979624, 23min at collection, RSS 673MB). OOM cycle confirmed and now textbook-regular: 6 SIGABRT crashes in 23.5h (10-16 06:33 / 10:47 / 15:17 / 19:47 / 10-17 00:17 / 05:37, intervals 254/270/270/270/320min, restart counter 71->77). Yesterday's outlier gen (21:51 start) indeed died 10-16 06:33 after ~8.7h, back on the ~270min rhythm since. Current gen born 05:38, next crash projected ~10:08 if pattern holds. Host memory pressure eased: available 863MB (vs 566MB yesterday) partly because fresh gateway RSS is low."
-    },
-    "host": {
-      "os": "Linux 6.8.0-71-generic (x64)",
-      "hostname": "VM-0-5-ubuntu",
-      "uptime": "177 days, 16 hours, 41 minutes",
-      "loadAverage": "0.75, 0.26, 0.13",
-      "disk": {
-        "total": "/dev/vda2",
-        "used": "32G",
-        "available": "16G",
-        "usage": "68%"
-      },
-      "memory": {
-        "totalMB": 1935,
-        "usedMB": 1072,
-        "freeMB": 493,
-        "availableMB": 863
-      }
-    },
-    "model": "zai/glm-5.3-flash"
+ "lastUpdated": "2026-10-17T22:01:57Z",
+ "generatedAt": "2026-10-18 06:01 CST",
+ "system": {
+  "gateway": {
+   "status": "running",
+   "pid": 101515,
+   "port": 34526,
+   "bind": "lan (0.0.0.0)",
+   "nodeVersion": "v22.22.1",
+   "openclawVersion": "2026.4.14 (323493f)",
+   "uptime": "running since 2026-10-18 03:47:46 CST (pid 101515, ~2.2h at collection, RSS not sampled this gen). OOM cycle now perfectly metronomic: 5 crashes in 24h, generation births 10-17 09:48 / 14:18 / 18:48 / 23:18 / 10-18 03:48 CST, intervals 270/270/270/270min - four identical 270min cycles in a row (NRestarts 77->82). Yesterday's drift (250min) snapped back to the stable ~270min attractor. Next crash projected ~08:18 CST if pattern holds."
   },
-  "cronSummary": {
-    "total": 7,
-    "ok": 7,
-    "error": 0,
-    "running": 0,
-    "errorJobs": [],
-    "notes": [
-      "✅ 全绿 7/7：昨晨首个超时的 knowledge-organization-morning 已恢复（10-17 02:00 运行 208s 完成，远低于 600s 上限），其余 6 job 全部 delivered",
-      "恢复连带验证：MEMORY.md 归档手术后现为 12371 chars（limit 20000），昨日 119k->158k 的恶性循环已打断；gateway 日志 00:17 最后一次截断告警仍报 121147（旧代缓存），05:38 新一代启动后应不再出现",
-      "Gateway OOM 周期进入稳定态：6 次崩溃间隔 254/270/270/270/320min，高度贴合 ~270min 节奏（restart 71->77）；昨日『当前代已存活 8.2h 的异常代』预测兑现——10-16 06:33 崩溃后回归正轨。每次都是 JS 堆 OOM（code=dumped status=6/ABRT），根因未修但节奏可预测",
-      "近 24h 博客 2 篇新博文: aee7540 记忆暗物质终章-12万字符笔记83%再也读不到 (10-17 05:06); d6d6e66 ACE 上下文工程-会长大的笔记本 (10-16 20:05)",
-      "主机：mem available 863MB（昨日 566MB ↑53%，新代 gateway RSS 673MB 低位是主因）；磁盘 68%（-1pt）；uptime 177d",
-      "sessions 统计按 sessionId 去重（43 去重 vs 50 原始），24h 活跃 8；24h token 总量 in 2.75M / out 633k"
-    ]
+  "host": {
+   "os": "Linux 6.8.0-71-generic (x64)",
+   "hostname": "VM-0-5-ubuntu",
+   "uptime": "25 weeks, 3 days, 16 hours, 42 minutes",
+   "loadAverage": "0.14, 0.10, 0.03",
+   "disk": {
+    "total": "/dev/vda2",
+    "used": "32G",
+    "available": "16G",
+    "usage": "68%"
+   },
+   "memory": {
+    "totalMB": 1935,
+    "usedMB": 1227,
+    "freeMB": 411,
+    "availableMB": 708
+   }
   },
-  "cronJobs": [
-    {
-      "id": "f38e0365",
-      "name": "dashboard-update-morning",
-      "schedule": "0 6 * * *",
-      "status": "ok",
-      "lastRun": "24.0h ago",
-      "lastRunAt": "10-16 06:00",
-      "consecutiveErrors": 0,
-      "lastDurationSec": 224
-    },
-    {
-      "id": "9b2a8701",
-      "name": "github-trending-daily",
-      "schedule": "0 7 * * *",
-      "status": "ok",
-      "lastRun": "23.0h ago",
-      "lastRunAt": "10-16 07:00",
-      "consecutiveErrors": 0,
-      "lastDurationSec": 85
-    },
-    {
-      "id": "2c714952",
-      "name": "github-trending-deep-analysis",
-      "schedule": "0 8 * * *",
-      "status": "ok",
-      "lastRun": "22.0h ago",
-      "lastRunAt": "10-16 08:00",
-      "consecutiveErrors": 0,
-      "lastDurationSec": 262
-    },
-    {
-      "id": "ad37c59a",
-      "name": "github-creative-evening",
-      "schedule": "0 19 * * *",
-      "status": "ok",
-      "lastRun": "11.0h ago",
-      "lastRunAt": "10-16 19:00",
-      "consecutiveErrors": 0,
-      "lastDurationSec": 237
-    },
-    {
-      "id": "a4bf5e2a",
-      "name": "deep-exploration-evening",
-      "schedule": "0 20 * * *",
-      "status": "ok",
-      "lastRun": "10.0h ago",
-      "lastRunAt": "10-16 20:00",
-      "consecutiveErrors": 0,
-      "lastDurationSec": 384
-    },
-    {
-      "id": "1ea6e3b0",
-      "name": "knowledge-organization-morning",
-      "schedule": "0 2 * * *",
-      "status": "ok",
-      "lastRun": "4.0h ago",
-      "lastRunAt": "10-17 02:00",
-      "consecutiveErrors": 0,
-      "lastDurationSec": 208
-    },
-    {
-      "id": "f0362050",
-      "name": "essay-generation-morning",
-      "schedule": "0 5 * * *",
-      "status": "ok",
-      "lastRun": "1.0h ago",
-      "lastRunAt": "10-17 05:00",
-      "consecutiveErrors": 0,
-      "lastDurationSec": 479
-    }
-  ],
-  "sessions": {
-    "total": 43,
-    "active24h": 8,
-    "byKind": {
-      "direct": 49,
-      "group": 1
-    },
-    "models": {
-      "glm-5.3-flash": 27,
-      "glm-5": 12,
-      "glm-5.1": 10,
-      "glm-5-turbo": 1
-    },
-    "tokens24h": {
-      "input": 2752476,
-      "output": 633033
-    },
-    "notable": [
-      {
-        "type": "cron:dashboard-update-morning",
-        "kind": "direct",
-        "lastActive": "-0.0h ago",
-        "model": "glm-5.3-flash",
-        "context": "n/a"
-      },
-      {
-        "type": "main",
-        "kind": "direct",
-        "lastActive": "0.2h ago",
-        "model": "glm-5",
-        "context": "n/a"
-      },
-      {
-        "type": "cron:essay-generation-morning",
-        "kind": "direct",
-        "lastActive": "0.9h ago",
-        "model": "glm-5.3-flash",
-        "context": "n/a"
-      },
-      {
-        "type": "cron:knowledge-organization-morning",
-        "kind": "direct",
-        "lastActive": "4.0h ago",
-        "model": "glm-5.1",
-        "context": "n/a"
-      },
-      {
-        "type": "cron:deep-exploration-evening",
-        "kind": "direct",
-        "lastActive": "10.0h ago",
-        "model": "glm-5.1",
-        "context": "n/a"
-      },
-      {
-        "type": "cron:github-creative-evening",
-        "kind": "direct",
-        "lastActive": "11.0h ago",
-        "model": "glm-5.3-flash",
-        "context": "n/a"
-      },
-      {
-        "type": "cron:github-trending-deep-analysis",
-        "kind": "direct",
-        "lastActive": "22.0h ago",
-        "model": "glm-5.3-flash",
-        "context": "n/a"
-      },
-      {
-        "type": "cron:github-trending-daily",
-        "kind": "direct",
-        "lastActive": "23.0h ago",
-        "model": "glm-5.3-flash",
-        "context": "n/a"
-      }
-    ]
+  "model": "zai/glm-5.3-flash"
+ },
+ "cronSummary": {
+  "total": 7,
+  "ok": 7,
+  "error": 0,
+  "running": 0,
+  "errorJobs": [],
+  "notes": [
+   "✅ 全绿 7/7 连续第二天：knowledge-organization-morning 恢复后第二跑（10-18 02:00，446s < 600s 上限，比昨天 208s 略慢但仍健康）；essay-generation-morning 05:00 完成 343s 并已发出博文 a7a1f1d",
+   "🏆 MEMORY.md 手术预测完全兑现：昨日预测『05:38 新一代启动后 10-18 截断告警应归零』——今日全天截断告警 0 次（10-17 为 10 次且全在旧代缓存期内）。体型 12.4k->14.1k chars（limit 20k），knowledge-organization 02:00 作业正常归档后回涨属预期",
+   "⏱️ Gateway OOM 进入『节拍器』稳态：5 代出生时间 09:48/14:18/18:48/23:18/03:48，间隔 270/270/270/270min 四连相同（NRestarts 77->82）；昨日预测的 ~270min 节奏今日零漂移。根因（JS 堆 OOM）仍未修，但监控基线极其干净——任何偏离 270min 的间隔都值得当日排查",
+   "📉 24h token 总量 0.40M in / 58k out（昨日 2.75M/633k，↓~85%）：主因是 gateway 5 次 OOM 重启重置了会话内累计计数器，叠加今日凌晨仅 2 个夜间 cron 运行；非异常信号，明日 6 cron 全跑完后口径恢复",
+   "📝 近 24h 博客 2 篇新博文: a7a1f1d 记忆的下半场-访问加权衰减两次实测翻车 (10-18 05:04); 5ad7d9a AI 拿起鼠标的这两年-Computer-Use Agents (10-17 20:03)",
+   "主机：mem available 720MB（昨日 863MB ↓17%，属 gateway 代内正常爬升区间）；磁盘 68% 持平；uptime 178d；load 0.43",
+   "sessions 统计按 sessionId 去重（43 去重 vs 50 原始），24h 活跃 8（7 cron + 1 main）"
+  ]
+ },
+ "cronJobs": [
+  {
+   "id": "f38e0365",
+   "name": "dashboard-update-morning",
+   "schedule": "0 6 * * *",
+   "status": "ok",
+   "lastRun": "24.0h ago",
+   "lastRunAt": "10-17 06:00",
+   "consecutiveErrors": 0,
+   "lastDurationSec": 216
+  },
+  {
+   "id": "9b2a8701",
+   "name": "github-trending-daily",
+   "schedule": "0 7 * * *",
+   "status": "ok",
+   "lastRun": "23.0h ago",
+   "lastRunAt": "10-17 07:00",
+   "consecutiveErrors": 0,
+   "lastDurationSec": 107
+  },
+  {
+   "id": "2c714952",
+   "name": "github-trending-deep-analysis",
+   "schedule": "0 8 * * *",
+   "status": "ok",
+   "lastRun": "22.0h ago",
+   "lastRunAt": "10-17 08:00",
+   "consecutiveErrors": 0,
+   "lastDurationSec": 148
+  },
+  {
+   "id": "ad37c59a",
+   "name": "github-creative-evening",
+   "schedule": "0 19 * * *",
+   "status": "ok",
+   "lastRun": "11.0h ago",
+   "lastRunAt": "10-17 19:00",
+   "consecutiveErrors": 0,
+   "lastDurationSec": 236
+  },
+  {
+   "id": "a4bf5e2a",
+   "name": "deep-exploration-evening",
+   "schedule": "0 20 * * *",
+   "status": "ok",
+   "lastRun": "10.0h ago",
+   "lastRunAt": "10-17 20:00",
+   "consecutiveErrors": 0,
+   "lastDurationSec": 310
+  },
+  {
+   "id": "1ea6e3b0",
+   "name": "knowledge-organization-morning",
+   "schedule": "0 2 * * *",
+   "status": "ok",
+   "lastRun": "4.0h ago",
+   "lastRunAt": "10-18 02:00",
+   "consecutiveErrors": 0,
+   "lastDurationSec": 446
+  },
+  {
+   "id": "f0362050",
+   "name": "essay-generation-morning",
+   "schedule": "0 5 * * *",
+   "status": "ok",
+   "lastRun": "1.0h ago",
+   "lastRunAt": "10-18 05:00",
+   "consecutiveErrors": 0,
+   "lastDurationSec": 343
   }
+ ],
+ "sessions": {
+  "total": 43,
+  "active24h": 8,
+  "byKind": {
+   "direct": 42,
+   "group": 0
+  },
+  "models": {
+   "glm-5.3-flash": 23,
+   "glm-5": 12,
+   "glm-5.1": 7,
+   "glm-5-turbo": 1
+  },
+  "tokens24h": {
+   "input": 395914,
+   "output": 57606
+  },
+  "notable": [
+   {
+    "type": "cron:f38e0365",
+    "kind": "direct",
+    "lastActive": "0.0h ago",
+    "model": "glm-5.3-flash",
+    "context": "n/a"
+   },
+   {
+    "type": "main",
+    "kind": "direct",
+    "lastActive": "0.2h ago",
+    "model": "glm-5",
+    "context": "n/a"
+   },
+   {
+    "type": "cron:f0362050",
+    "kind": "direct",
+    "lastActive": "0.9h ago",
+    "model": "glm-5.3-flash",
+    "context": "n/a"
+   },
+   {
+    "type": "cron:1ea6e3b0",
+    "kind": "direct",
+    "lastActive": "4.0h ago",
+    "model": "glm-5.1",
+    "context": "n/a"
+   },
+   {
+    "type": "cron:a4bf5e2a",
+    "kind": "direct",
+    "lastActive": "9.9h ago",
+    "model": "glm-5.3-flash",
+    "context": "n/a"
+   },
+   {
+    "type": "cron:ad37c59a",
+    "kind": "direct",
+    "lastActive": "11.0h ago",
+    "model": "glm-5.3-flash",
+    "context": "n/a"
+   },
+   {
+    "type": "cron:2c714952",
+    "kind": "direct",
+    "lastActive": "22.0h ago",
+    "model": "glm-5.3-flash",
+    "context": "n/a"
+   },
+   {
+    "type": "cron:9b2a8701",
+    "kind": "direct",
+    "lastActive": "23.0h ago",
+    "model": "glm-5.3-flash",
+    "context": "n/a"
+   }
+  ]
+ }
 }
