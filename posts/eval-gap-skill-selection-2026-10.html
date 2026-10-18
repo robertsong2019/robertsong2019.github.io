@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google 官方给 Agent 写技能，只写 LLM 考砸的题——我用这条判据自查了 49 个技能 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 18px; border-radius: 6px; overflow-x: auto; margin: 20px 0; font-size: 0.85em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; font-size: 1em; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>Google 官方给 Agent 写技能，只写 LLM 考砸的题——我用这条判据自查了 49 个技能</h1>
+        <div class="meta">
+            2026-10-19 · 罗嵩 ·
+            <span class="tag">Agent Skills</span>
+            <span class="tag">评测驱动</span>
+            <span class="tag">Skill 工程</span>
+        </div>
+
+        <blockquote>选题依据：2026-10-18 GitHub Trending 深度分析（android/skills 单日 10.6 倍跃升）+ 工作区技能清单自查。关键引文已对照官方 README 核实。</blockquote>
+
+        <h2>一、一条不寻常的声明</h2>
+        <p>这周 GitHub Trending 上最大的变化不是哪个项目拿了多少星，而是一条只有两句话的产品声明。</p>
+        <p><code>android/skills</code>，Google 官方维护的 Android 开发 AI 技能仓库，8,592 星，单日增速从 +36 跳到 +381——十倍跃升，当日全榜最大变化。但它真正值得注意的是 README 里这段话（官方原文的直译）：</p>
+        <blockquote>「我们的 Android 技能开发聚焦于<strong>评测显示 LLM 表现不佳</strong>的场景和工作流。我们不会优先投入 LLM 已经熟练的成熟领域——比如基础的 Jetpack Compose 最佳实践。」</blockquote>
+        <p>翻译成大白话：<strong>考砸的题才配拥有技能，考得好的不写。</strong></p>
+        <p>这条声明的不寻常之处，要放在整个 skills 生态的背景里看。skills（SKILL.md 格式的模块化指令）已经连续霸榜四周：Anthropic 官方插件目录日增过千且周增速还在涨 54%，个人品牌（mattpocock/skills）、垂直领域（K-Dense 科学技能，号称覆盖 25 万科学家）同榜。Google 这次入场，是平台厂商第一次以官方身份为 agentskills.io 开放标准背书——而且立场很微妙：<code>android skills add --all</code> 会探测机器上所有 agent 目录并全部安装，默认装给 Gemini/Antigravity，也支持 Claude Code 的 <code>/plugin install android-skills --marketplace android/skills</code> 和 Codex 插件市场。中立分发，不锁自家。</p>
+        <p>但生态繁荣的另一面是：<strong>绝大多数社区 skills 库本质上在做文档搬运</strong>——把 developer 文档换个格式塞进 SKILL.md，赌模型注入后表现会变好。没人验证过"变好"是否发生。这不完全是作者的懒惰，是激励结构使然：复读型技能好写、好晒、README 截图漂亮；缺口型技能的前提是先建一套失败案例库，产出还不好展示。<strong>生态会自然生产出大量看起来很专业的复读机，除非有人把判据钉在墙上。</strong> Google 那两句话是四周末见的东西：一条可证伪的选型判据，钉在了 8.6k 星的墙上。</p>
+
+        <h2>二、skill 的价值不在覆盖度，在缺口</h2>
+        <p>把那条声明抽象出来，是一个公式：</p>
+        <div class="highlight"><strong>skill 的价值 = 评测缺口 × 触发频率。</strong></div>
+        <p>文档复读型技能的缺口项恒为零——模型预训练里早就见过这些内容，注入 SKILL.md 只是重复了一遍。它们不毁掉什么（除了上下文预算），但也挣不到什么。而直觉恰恰把人往复读的方向推：<strong>写技能的人最熟悉的是文档，不是失败案例。</strong> 你刚读完一篇 API 教程，最想做的就是把它存成技能；你上周被一个隐蔽 bug 坑了两小时，反而想不起把它固化下来。</p>
+        <p>最小可行的判据其实只有一句话：<strong>存在一道裸模型考不过、带着技能考得过、且真实出现在你工作流里的题。</strong> 缺任何一环——没有题、题是编的、题不出现——这个技能就是装饰品。</p>
+
+        <h2>三、三十行评测：配对实验 + 符号检验</h2>
+        <p>判据听起来简单，但"考得过"需要测量。很多人栽在这一步：跑一次，均分从 62 涨到 78，宣布有效。问题是 temperature 不为零时 16 分的波动可能全是噪声。</p>
+        <p>最小可信的版本用<strong>配对实验 + 符号检验</strong>，三十行 Python，零第三方依赖：</p>
+        <pre><code>import os, json, math, urllib.request
+
+def call_llm(task, skill=None):
+    body = {
+        "model": os.environ["EVAL_MODEL"],
+        "temperature": 0,                        # 消掉随机性，剩下的差异才归 skill
+        "messages": ([{"role": "system", "content": skill}] if skill else [])
+                  + [{"role": "user", "content": task["prompt"]}],
+    }
+    req = urllib.request.Request(
+        os.environ["EVAL_BASE"] + "/chat/completions",
+        data=json.dumps(body).encode(),
+        headers={"Authorization": "Bearer " + os.environ["EVAL_KEY"]})
+    return json.loads(urllib.request.urlopen(req).read())["choices"][0]["message"]["content"]
+
+def run(tasks, judge, skill=None):
+    return [judge(t, call_llm(t, skill)) for t in tasks]  # 判分器返回 0/1
+
+def sign_test(base, armed):
+    pairs = [(b, s) for b, s in zip(base, armed) if b != s]  # 只留分出胜负的题
+    wins, n = sum(s for _, s in pairs), len(pairs)
+    tail = sum(math.comb(n, k) for k in range(wins, n + 1)) / 2 ** n
+    return wins, n, round(min(tail, 1 - tail) * 2, 6)  # 双侧精确 p 值
+
+tasks = json.load(open("eval_tasks.json"))   # 20 道真实工作流里的题，每题带程序化判分器
+base  = run(tasks, judge)
+armed = run(tasks, judge, skill=open("SKILL.md").read())
+print(sign_test(base, armed))
+# (17, 18, 0.000145) → 18 道分出胜负、技能赢 17 道，p≈0.00015：值得存在
+# (3, 20, 0.000402)  → 赢 3 输 17，同样显著——显著地有害，删</code></pre>
+        <p>三个设计点比代码本身重要：</p>
+        <ul>
+            <li><strong>temperature=0</strong>。噪声不归零，测出来的效应就不知道归谁。</li>
+            <li><strong>只统计分出胜负的题</strong>（discordant pairs）。两臂都对或都错的题对符号检验没有贡献，这天然剔除了"题太简单"的干扰——这正是 eval-gap 判据的统计化身。</li>
+            <li><strong>判分器必须程序化</strong>。本系列之前专门写过判分伪影怎么造假数字：<code>agree/{Q}</code> 的分母不是实际集合、同分排序的 tie-break 伪影。"看着像答对了"的判分器会把复读型技能也判成有效。</li>
+        </ul>
+        <p>注意那个反直觉的输出：<strong>输 17 道也是显著的</strong>。技能不只是可能没用，还可能显著有害——它把模型从正确的先验上拽偏了。这也是"删技能"需要评测的原因：不测，你连它在帮倒忙都不知道。</p>
+
+        <h2>四、自查：我数了工作区的 49 个技能</h2>
+        <p>拿这条判据照自己的工作区：18 个自建技能 + 31 个系统技能，共 49 个。老实说，我没有跑 49 组对照实验（那是下周的活），但只做静态画像，结论已经足够刺眼：</p>
+        <p><strong>第一类，eval-gap 型（真有存在理由）。</strong> <code>karpathy-guidelines</code> 排第一——LLM 的过度工程倾向是有公论的弱项（加没被要求的功能、顺手重构、隐藏假设），这个技能条的每一条都对着一个已知的失败模式。人物视角技能（Karpathy / 李飞飞）也在这一类：<strong>风格迁移是真弱项</strong>，模型的默认输出是"平均语气"，让它持续保持某个具体的人的思维方式，不注入就是做不到。</p>
+        <p><strong>第二类，工作流型（判据要换）。</strong> <code>better-ralph</code>（PRD 驱动的自主循环）、<code>tech-briefing</code>（每日简报格式）、这类技能传的不是知识是流程。对它们问"裸模型考不考得过"问错了题，该问的是：<strong>这个流程不写下来，agent 下次会忘吗？</strong> 会忘的留下——流程技能对抗的是会话间的遗忘，不是模型的无知。</p>
+        <p><strong>第三类，文档复读嫌疑型（最该上评测台）。</strong> API 封装类的技能最可疑：接口文档模型基本都见过，真正的缺口在版本变动和坑位（哪个参数在新版被废弃了、哪个组合会静默失败、返回结构里哪个字段偶尔缺省）。这类技能的内容大多在给模型复习它已知的东西——49 个里粗数有七八个落在这一格。真要救活它们，写法也不是塞文档，而是反过来：先写 20 道带程序化判分器的真实调用题，跑配对评测，只把判分器抓出来的失败模式写进 SKILL.md。<strong>技能内容应该是评测的产出物，而不是评测的输入。</strong></p>
+        <p>画像不是判决。但画像暴露的事实是：<strong>如果没有评测，第三类会以"看起来很有用"的理由无限增殖</strong>，每个都消耗上下文预算——那正是技能版的"记忆暗物质"。</p>
+
+        <h2>五、技能与本能：一条被忽略的分界线</h2>
+        <p>顺带一提当晚榜单上的另一个项目 <code>affaan-m/ECC</code>（单人维护 7 个 harness 的性能优化系统）。它有个概念划分值得单独拎出来：除了 skills，它引入了 <strong>instincts</strong>——skill 是领域知识（怎么做成某件事），instinct 是跨领域的行为纪律（什么时候该停手、什么时候该问而不是猜）。</p>
+        <p>按这个划分，<code>karpathy-guidelines</code> 其实是 instinct 披着 skill 的皮，人物视角技能更接近本能而不是知识。这个二分法解释了第四节的疑惑：为什么有些技能明明不含新信息却明显有效——<strong>因为它们改变的不是模型知道什么，而是模型倾向于做什么。</strong> 评测这类"本能"时，考题也别出成知识问答，要出成两难场景：测"知不知道该先问"的方式是给它一个该先问的场景，看它问不问。</p>
+        <p>ECC 的 README 顶部还有一段大号字警告：只从官方渠道安装，第三方镜像可能夹带恶意软件。技能生态的供应链安全问题，已经真实到需要单个维护者在 README 里贴防伪声明——技能既然是注入模型上下文的指令，它就是攻击面。评测判据管"有没有用"，分发渠道管"有没有毒"，两件事都正在从品味问题变成测量问题。</p>
+
+        <h2>六、三问清单</h2>
+        <p>Google 那条两句话的声明，价值不在 8,592 个星，而在把"要不要写这个技能"从品味问题变成了测量问题。此后每写一个技能前过三问：</p>
+        <ol>
+            <li><strong>有没有一道裸模型考砸的真实题目？</strong>（没有 → 不缺技能，缺的是认清模型已经会了）</li>
+            <li><strong>有没有可复现的配对评测？</strong>（没有 → 先写评测，再写技能）</li>
+            <li><strong>它传的是知识、流程，还是本能？</strong>（知识查缺口，流程查遗忘，本能查两难场景）</li>
+        </ol>
+        <div class="insight">技能生态四周就完成了"社区验证 → 个人品牌 → 平台官方"三级跳。跳得快的东西，更需要慢的判据。</div>
+
+        <hr>
+        <p style="color:#999; font-size:0.85em;">本文是 Agent 工程系列的一篇。数据快照：2026-10-18 GitHub Trending；android/skills 引文已对照官方 README 核实；工作区技能计数为当日实测。</p>
+    </div>
+</body>
+</html>
