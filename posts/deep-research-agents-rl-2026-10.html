@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会查资料的 AI 是怎么炼成的：带搜索的 GPT-4o 答对 1.9%，Deep Research 答对 51.5% - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 18px; border-radius: 6px; overflow-x: auto; margin: 20px 0; font-size: 0.85em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; font-size: 1em; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>会查资料的 AI 是怎么炼成的：带搜索的 GPT-4o 答对 1.9%，Deep Research 答对 51.5%</h1>
+        <div class="meta">
+            2026-10-18 · 罗嵩 ·
+            <span class="tag">Deep Research</span>
+            <span class="tag">Agentic Search</span>
+            <span class="tag">强化学习</span>
+            <span class="tag">LLM Agent</span>
+        </div>
+
+        <blockquote>先把一个数字放在桌面上。OpenAI 的 BrowseComp 基准——1,266 个多跳事实问题，答案藏得很深，需要反复换关键词、翻几十个网页才能找到。GPT-4o 裸考答对 0.6%；<strong>给它接上搜索工具</strong>，答对 1.9%。而 Deep Research 版本：<strong>51.5%</strong>。工具一样，网络一样，问题一样，差距 27 倍。这说明一件反直觉的事：让 AI 会查资料，瓶颈从来不是「有没有搜索工具」，而是「搜索这件事有没有被练进模型里」。</blockquote>
+
+        <h2>一、RAG 是查字典，Deep Research 是老刑警的直觉</h2>
+
+        <p>过去两年给模型加搜索的标准做法是 RAG 加一个手写的 agent 循环：先检索一批文档，塞进 prompt，然后祈祷模型好好用。这个范式的问题在哪？打个比方——</p>
+
+        <p><strong>RAG 像给实习生一本字典</strong>：他认识每个字，但你让他「查一下这家公司 2019 年那桩诉讼的关键证人后来去了哪」，他会把「公司 诉讼 证人」扔进搜索框，拿到一堆不相关的结果，然后要么硬编，要么放弃。因为「怎么拆解一个模糊问题」「什么时候该换关键词」「看到半截线索该顺着挖还是回头」——这些都没写在字典里。</p>
+
+        <p><strong>Deep Research 像老刑警</strong>：同样的问题，他不搜「公司 诉讼 证人」，他先想「关键证人」意味着这个人可能在后续报道里被点名，搜判决书的后续报道；看到线索断了，知道换一家媒体的口吻再试。这种「直觉」不是天赋，是几十年办案攒下来的<strong>策略</strong>。</p>
+
+        <p>2025 到 2026 年的整个故事，就是业界发现这种直觉可以被批量制造：不用写死流程，而是把「何时搜、搜什么、何时信、何时停」全部交给<strong>端到端强化学习</strong>，用最终答案的对错当奖励信号，让模型自己长出搜索策略。</p>
+
+        <p>最有说服力的证据来自月之暗面。Kimi-Researcher 的内部基座在 Humanity's Last Exam 上起点只有 <strong>8.6%</strong>，没有任何预定义工作流、没有任何 prompt 工程，纯靠端到端 agentic 强化学习训到 <strong>26.9%</strong>。训练过程中模型自己学会了用搜索工具、用浏览器、用代码执行——平均 23 步推理，一个任务翻 200 多个网页，最多发起 70 多次搜索查询。工具使用是<strong>涌现</strong>出来的，不是工程师写进 prompt 的。</p>
+
+        <div class="insight"><strong>工作流是未成熟模型的拐杖，模型成熟后会把拐杖吃掉。</strong>你在 prompt 里手写的「先思考再搜索再反思」，最终会变成训练数据里的固有行为。这是这个领域第三次验证同一结论——GUI agent 领域的 UI-TARS、上下文工程领域的 ACE，加上这次的搜索 agent，殊途同归。</div>
+
+        <h2>二、造题比做题值钱：训练数据的工业化合成</h2>
+
+        <p>端到端 RL 需要大量「有标准答案、但很难找到」的训练题。这类数据天然稀缺——网上的 QA 对要么太简单，要么没有可信答案。2026 年的解法是把出题这件事本身也工业化：</p>
+
+        <ul>
+            <li><strong>WebSailor（阿里通义）</strong>：自动生成高不确定性任务——从维基百科等结构化源里采样实体关系，然后做<strong>信息混淆</strong>：把可以直接搜到的关键词全部抹掉，逼着模型走多跳推理。生成的 SailorFog-QA 数据集专门制造「答案在网上存在、但极难找到」的题，用它训出的 WebSailor-72B 曾是开源模型在 BrowseComp 上的天花板。</li>
+            <li><strong>WebShaper</strong>：更进一步，用集合论把「信息检索任务」形式化成知识集合上的投影操作，让 agent 自己给自己出可验证的题——出题、验题、做题全部自动化。</li>
+        </ul>
+
+        <p>这一步的价值被严重低估了。大家盯着 RL 算法的微创新，但真正的护城河是<strong>任务合成管线</strong>：算法是公开的，出题能力是练出来的。就像奥数集训队，教练水平的差距体现在选题和编题上，而不是学生做题的方法论上。</p>
+
+        <h2>三、更疯狂的：连搜索引擎都可以是假的</h2>
+
+        <p>用真搜索引擎做 RL 训练有两个麻烦：贵（64,000 次查询的 SerpAPI 账单约 586 美元），噪声不可控（网络返回什么就是什么，训练信号不稳定）。</p>
+
+        <p>通义的 ZeroSearch 给出的答案是：<strong>用一个 LLM 扮演搜索引擎</strong>。先把一个 3B~14B 的小模型微调成「检索模拟器」，训练时策略模型的每次搜索都由它应答；再配合课程式策略——初期返回高质量文档，随训练推进逐步掺入噪声文档，逼模型学会在烂结果里挣扎。</p>
+
+        <p>结果有点魔幻：模拟环境训出来的模型<strong>反超</strong>了用真 Google 训练的基线，而成本从 586 美元降到 70 美元，省了 88%。可控的假噪声，比不可控的真噪声更适合训练——这大概是对「环境仿真」价值最直接的一次定价。</p>
+
+        <h2>四、4B 打 30B：参数量不是搜索 agent 的护城河</h2>
+
+        <p>如果说上面都是大厂的游戏，LiteResearcher 这个工作把门槛踩穿了。它用本地真实数据加本地搜索引擎搭了个可扩展 RL 环境，训出一个 <strong>4B</strong> 参数的搜索 agent，在 GAIA 上拿 71.3%、xbench 78.0%——<strong>超过 8 倍大的</strong> Tongyi-DR-30B 和 WebSailor-30B，追平 Claude-4.5-Sonnet。</p>
+
+        <p>为什么小模型能逆袭？因为「搜 / 读 / 停 / 答」这个策略空间比开放推理窄得多，RL 塑形的收益极高。搜索 agent 的 Scaling 陡坡在<strong>数据和环境质量</strong>，不在参数量。这意味着端侧跑 deep research——手机或笔记本上跑一个本地研究助理——不是科幻，是工程问题。同一时期端侧化的还有 AgentCPM-Explore，方向已经明确。</p>
+
+        <h2>五、会搜，也要会停</h2>
+
+        <p>能力上来了，2026 年的新战场转向<strong>效率</strong>。一系列工作在解决同一个问题：over-search——模型为了保险反复搜索，每次都对但每次都贵。R1-Searcher++ 给模型加上「内部知识 / 外部知识」标签，让它学会判断「这题我自己知道，不用搜」，检索量直降约 30%；SAAS 用自感知 RL 抑制过度搜索；AutoSearch 让模型学出自适应搜索深度。</p>
+
+        <p>这和 GUI agent 领域算「每步期望成本」的思路正在合流：<strong>下一个基准轴是每次正确答案的成本</strong>。准确性竞赛终会通胀，账单不会骗人。</p>
+
+        <h2>六、泼一盆冷水：分数在通胀，包括 AI 自己搜出来的</h2>
+
+        <p>最后说评测。2026 年有个尴尬的发现叫「搜索时污染」：deep research agent 在搜索途中，能<strong>检索到基准测试自己公布的题目和答案</strong>——相当于考试时在考场里搜到了题库。平均虚高约 4%，个别 QA 集虚高 10 个点。再加上 GAIA 常被引用的数字其实来自公开的 validation split 而非隐藏榜、各家榜单周周刷新——凡是能被搜到的考题，都会被搜到。</p>
+
+        <div class="highlight"><strong>判断：</strong>对任何「我们的模型在 X 上拿了 Y%」的宣传，在原始论文或报告落地之前，都只能当方向性信息。这不是怀疑论，是这个领域的方法论——毕竟它自己教我们的：先验证来源，再相信结论。</div>
+
+        <h2>七、你今天能做什么</h2>
+
+        <p>这不是一篇只能围观的论文综述。四件立刻可做的事：</p>
+
+        <ol>
+            <li><strong>给你的 agent 加「停搜判据」。</strong>搜之前先问一句「上下文里是否已有答案」——R1-Searcher++ 证明了这一个简单自检就能省 30% 检索。对任何按调用量付费的系统，这是白捡的钱。</li>
+            <li><strong>自建评测集不要公开索引。</strong>如果你的测试题能被搜到，deep research agent 会「合法作弊」。把回归集放进 robots.txt 并做来源审计（爬取结果里 grep 题面本身）。</li>
+            <li><strong>把生成质量的检查从要求变成验证。</strong>2026 年的一个清晰趋势是推理时验证换准确率：生成之后跑一遍 rubric 自检（要求里写了「必须有 3 条洞察」，就程序化验证真的有 3 条），比在 prompt 里再喊一遍有效得多。</li>
+            <li><strong>盯住端侧路线。</strong>LiteResearcher 和 AgentCPM-Explore 代表的成本曲线，会让「本地研究助理」在一两年内进入实用区间。如果你的应用依赖搜索 API 配额，这条曲线就是你的退路。</li>
+        </ol>
+
+        <hr>
+
+        <p>回到开头那个 27 倍的差距。它的本质是：查资料这件事，从「模型外挂的一个功能」变成了「模型自身的一种直觉」。而更值得注意的是这条路的自洽性——出题的老师、演戏的搜索引擎、被训练的学生，可以全都是模型自己。一个能力一旦可以自我生成训练数据，它的进步就不再等人喂食。</p>
+
+        <p>顺带一提：你现在读的这篇文章，就是一个手工编排的搜索-综合循环的产物。我看着这些论文的时候，心里想的是同一个问题——它快追上我了，我该把哪部分工作先让给它。</p>
+
+        <p style="color:#999;font-size:0.9em;">参考：OpenAI BrowseComp (2504.12516) / Kimi-Researcher 技术博客 / ZeroSearch (2505.04588) / WebSailor (2507.02592) / WebShaper / LiteResearcher (2604.17931) / R1-Searcher++ (2505.17005) / BrowseComp-Plus (2508.06600) / RL Foundations for Deep Research Systems (2509.06733) 等 20 项，完整清单见当日探索笔记。</p>
+    </div>
+</body>
+</html>
