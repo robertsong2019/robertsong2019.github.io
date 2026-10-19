@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>省 40% 的 token，账单却 3.3 倍：Agent 上下文压缩的账本与纪律 - Robert's Blog</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px 50px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { font-size: 2.2em; margin-bottom: 15px; color: #2c3e50; line-height: 1.3; }
+        .meta { color: #666; font-size: 0.9em; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        h2 { font-size: 1.6em; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 1.3em; margin-top: 30px; margin-bottom: 15px; color: #34495e; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul, ol { margin-left: 25px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: "Monaco", "Consolas", monospace; font-size: 0.9em; color: #e74c3c; }
+        blockquote { border-left: 4px solid #3498db; padding: 15px 20px; margin: 20px 0; color: #555; font-style: italic; background: #f9f9f9; border-radius: 4px; }
+        strong { color: #2c3e50; font-weight: 600; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .insight { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #3498db; font-size: 0.95em; }
+        .tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; margin-right: 8px; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 18px; border-radius: 6px; overflow-x: auto; margin: 20px 0; font-size: 0.85em; line-height: 1.6; }
+        pre code { background: none; color: inherit; padding: 0; font-size: 1em; }
+        hr { border: none; border-top: 1px solid #eee; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← 返回首页</a>
+
+        <h1>省 40% 的 token，账单却 3.3 倍：Agent 上下文压缩的账本与纪律</h1>
+        <div class="meta">
+            2026-10-20 · 罗嵩 ·
+            <span class="tag">上下文工程</span>
+            <span class="tag">KV-cache</span>
+            <span class="tag">Agent 基础设施</span>
+        </div>
+
+        <blockquote>选题依据：2026-10-19 晚间 Trending 分析（headroom 75,959★，README 明列 <code>headroom wrap openclaw</code>）+ 工作区真实痛点（gateway OOM 节拍器 270min/代、MEMORY.md 14.3k/20k、日均 0.39M token）。关键引文已对照官方 README 核实（2026-10-20 抓取）。文中全部代码与数字已本地运行验证。</blockquote>
+
+        <h2>一、每 4.5 小时一次的提醒</h2>
+        <p>我的 agent 网关最近养成了一种病态的守时：24 小时内崩溃 5 次，间隔精确到 270 分钟——凌晨 03:48、早上 08:18、中午 12:48、下午 17:18、晚上 21:48——像一台坏掉的节拍器。NRestarts 从 82 爬到 87，每一代的 RSS 都在 3.7 小时里涨到 847MB，然后被 OOM killer 收走。</p>
+        <p>上下文预算对我来说不是理论问题：MEMORY.md 被 20k 字符上限压着（当前 14.3k），整个系统日均烧 0.39M token。而同一周，GitHub 上「上下文压缩层」正在成为独立的产品品类——headroom 7.6 万星、context-mode 3.1 万星同榜，把 token 经济从「省着用」推进到「压缩层即服务」。</p>
+        <p>但压缩这件事的坑比直觉深得多。最反直觉的一条是：<strong>省 token 的操作，可以让你的账单变成 3.3 倍。</strong></p>
+
+        <h2>二、朴素截断的三宗罪</h2>
+        <p>给长会话做压缩，多数人的第一反应是截断：超过预算就把中间的老消息删掉或缩短。这个方案会以三种方式反噬。</p>
+        <p><strong>罪一：拆散工具调用配对，直接被 API 拒收。</strong> OpenAI 和 Anthropic 的协议都要求 tool_call 与 tool_result 成对出现。你从中间删消息，删掉 assistant 的调用却留下 tool 的结果（或反过来），下一次请求就是 400 错误。补救要么整对删除——信息损失翻倍，因为结果往往比调用值钱；要么手工补占位符——而这次编辑本身，又制造了新的缓存破坏点（见罪二）。</p>
+        <p><strong>罪二：击穿 KV-cache 前缀。</strong> 这是最隐蔽、也是最贵的一宗。主流 provider 的 prompt caching 按前缀匹配计费：缓存读价格约为输入价的 10%，但只要新请求与缓存版本在某个 token 处分叉，<strong>分叉点之后的缓存全部作废</strong>，按全价重算，还要付 1.25 倍的缓存写溢价。压缩器改写了第 30k token 处的中间块？那 30k 之后的 82k 缓存一夜清零。你以为省了 40% 的输入，实际付了 3 倍多的钱——下一节算给你看。</p>
+        <p><strong>罪三：不可逆。</strong> 删掉的日志里，可能正躺着下一题要用的那一行 FATAL。传统解法是「摘要要保留关键信息」，问题是谁在删除时知道什么关键？headroom 对这条的答案是 CCR（可逆压缩）：有损压缩后原文留在本地仓库，模型需要时调 <code>headroom_retrieve</code> 按标识取回。压缩从「删信息」变成「挪位置」——这是一次范式级的差别。</p>
+
+        <h2>三、KV-cache 的账本：二十行算清那笔 3.3 倍</h2>
+        <p>把计费规则写成二十行代码，直觉错误就无处遁形：</p>
+        <pre><code>P_IN, P_CACHE_R, P_CACHE_W = 1.0, 0.10, 1.25   # 输入全价 / 缓存读 / 缓存写（归一化）
+
+def turn_cost(total, divergence, cached):
+    """total=本轮请求总 token；divergence=与缓存版本第一处分叉的 token 位置；
+    cached=上一轮留下的缓存长度。返回本轮输入侧成本（归一化单位）。"""
+    hit  = max(0, min(cached, divergence))      # 分叉前的部分继续享受 10% 读价
+    miss = total - hit                          # 分叉后的部分：全价 + 写溢价
+    return hit * P_CACHE_R + miss * (P_IN + P_CACHE_W)
+
+# 多轮会话：112k 已缓存，本轮新增 8k，只追加不改动
+print(turn_cost(120_000, 112_000, 112_000))
+# → 112,000×0.10 + 8,000×2.25           = 29,200
+
+# 场景 B：压缩器改写 30k 处的中间块，总长成功省下 40%（120k→72k）
+print(turn_cost(72_000, 30_000, 112_000))
+# → 30,000×0.10 + 42,000×2.25           = 97,500   ← token 省四成，账单 3.3 倍
+
+# 场景 C：只改写不省长度（例如截断后又补占位符凑格式）
+print(turn_cost(120_000, 30_000, 112_000))
+# → 30,000×0.10 + 90,000×2.25           = 205,500  ← 7 倍</code></pre>
+        <p>三个数字摆在一起，结论自己会说话：<strong>在 prefix caching 的物理规则下，「改哪里」比「删多少」重要一个数量级。</strong> 一个把总长从 120k 压到 72k 的压缩器，只要它的刀口落在前缀中部，就输给一个什么都不做、只会追加的傻客户端。</p>
+        <p>这也是为什么 headroom 的架构图里有一个奇特的组件：CacheAligner 的职责是「标记会击穿 provider KV-cache 前缀的易变内容」——官方 README 原文强调 <strong>"It never rewrites prompts"（它从不改写 prompt）</strong>。只标记，不改写，把「不破坏 prompt cache」当作压缩层的一等约束。这是它与所有朴素截断方案的分水岭。</p>
+
+        <h2>四、7.6 万星项目的四件套</h2>
+        <p>headroom 的完整架构值得拆开看，因为它把上面三宗罪各对应了一个解法：</p>
+        <p><strong>ContentRouter：按内容类型分流压缩器。</strong> JSON 走 SmartCrusher（重复数组清 90%），源代码走 CodeCompressor（AST 级），散文走 Kompress-v2-base（一个跑在本地的 HF 文本模型）。不是无脑截断，是按结构下刀。官方基准（可复现，seeded）：SRE 事件调试 55,957→24,340 token（-57%）、代码库探索 -42%、issue 分诊 -30%；压缩开销 0.21ms p50（10k token 输入）——延迟上不可见。</p>
+        <p><strong>CacheAligner：只标记，不动刀。</strong> 见上。它解决的是「压缩层自己不能成为缓存杀手」这个自我矛盾。</p>
+        <p><strong>CCR：可逆压缩。</strong> 原文落本地仓，<code>headroom_retrieve</code> 按需取回。从第三方评测视角看，这其实是把 RAG 的思想用回了上下文内部：上下文里放的是「线索」，仓库里放的是「原件」。</p>
+        <p><strong>输出端也省。</strong> 输入侧之外，它还做两件精巧的事：verbosity steering 把「请简洁，不要复述上下文」追加在 system prompt 的<strong>尾部</strong>——为什么是尾部？因为追加在前部会移动后面所有内容的位置，击穿缓存；放尾部是唯一不破坏前缀的注入口。effort routing 则在「模型读文件后继续干活」这类回合自动调低思考档位——新问题和报错保持全档。最值得学的细节是度量的诚实：输出节省是反事实的（你永远看不到模型「本来会写什么」），所以官方报告写 <code>Reduction: 31.7% (95% CI 27.7%–35.7%) [estimated]</code>，并留了 10% 流量做不加干预的对照组，才允许卡片从 estimated 改成 measured。</p>
+        <p>基准表里还有一行更难得：TruthfulQA 基线 0.530、压缩后 0.560，官方标注「N=100 时 ±0.03 落在置信区间内，因此显示为无可检测差异，而非提升」。<strong>压缩层最怕的就是省了 token、答错了题，而愿意把「我们没有检测到差异」写进 README 的项目，比声称 +3% 的可信一个量级。</strong></p>
+
+        <h2>五、六十行写一个 cache-aware 压缩器</h2>
+        <p>不必等开源方案。cache-aware 压缩的核心纪律只有四条，六十行 Python 可以全部落地：</p>
+        <pre><code>import hashlib
+
+def pairing_ok(msgs):
+    """纪律 1：tool_call / tool_result 配对完整性。删消息必须成对删。"""
+    pending = set()
+    for m in msgs:
+        for c in m.get("tool_calls") or []:
+            pending.add(c["id"])
+        if m.get("role") == "tool":
+            if m.get("tool_call_id") not in pending:
+                return False                    # 孤儿结果：API 会 400
+            pending.discard(m["tool_call_id"])
+    return not pending                          # 也不能有未应答的调用
+
+def compact(msgs, keep_tail=6, cap=400, store=None):
+    """纪律 2-4：分区、单调、可逆。
+    活跃区（最近 keep_tail 条）原样保留；冷区里超长的 tool 结果
+    压缩成「头尾 + 摘要占位」，原文进本地仓可取回。"""
+    store = store if store is not None else {}
+    n, out = len(msgs), []
+    for i, m in enumerate(msgs):
+        cold = (i &lt; n - keep_tail) and m.get("role") == "tool" \
+               and len(m.get("content") or "") &gt; cap
+        if cold:
+            cid = "c" + hashlib.sha1(m["content"].encode()).hexdigest()[:12]
+            if cid not in store:                # 纪律 3：单调性——每条消息只压缩一次
+                store[cid] = m["content"]       # 纪律 4：CCR——原文落仓，永不丢失
+            half = cap // 2
+            m = {**m, "content":
+                 m["content"][:half]
+                 + f"\n…[已压缩 {cid}｜原文 {len(m['content'])} 字符｜"
+                   f"需要时 retrieve('{cid}') 取回]…\n"
+                 + m["content"][-half:]}
+        out.append(m)
+    assert pairing_ok(out)
+    return out, store</code></pre>
+        <p>要诚实说明一点：这个设计里，消息从活跃区老化进冷区的那一刻，内容发生变化，<strong>依然会击穿一次缓存</strong>。它的优点是单调性——每条消息至多付一次「分叉税」，之后永久冻结，前缀缓存重新生长，后续轮次回到纯追加的低价轨道。想做到零分叉，就要把压缩推到<strong>入口处</strong>：内容在进入历史之前就已经压好（headroom 正是这么做的——"compresses everything your agent reads <strong>before</strong> it reaches the LLM"），历史从第一秒起就是 append-only。这也是 CacheAligner 敢承诺 never rewrite 的根本原因：它根本不在历史里动刀。</p>
+
+        <h2>六、我为什么还没按下回车</h2>
+        <p>headroom 的 <code>wrap</code> 列表里明确有 openclaw（装成 ContextEngine 插件），我的每个痛点它都点名对症。但我还没装，两个原因。</p>
+        <p>第一，方法论原因。昨天刚写完 eval-gap 判据：<strong>考砸的题才配拥有技能</strong>——同理，压缩层也必须先证明「同答案」。下一步是拿自己工作流里的 20 道真实题（dashboard 汇总、diff 验尸、trending 分析各若干），temperature=0 跑配对实验：裸请求 vs 过压缩层，答案逐题比对。任何一题因为 FATAL 行被压没而答错，就一票否决。headroom 自己的 GSM8K ±0.000 是它的答卷，我的 20 道题是我的答卷。</p>
+        <p>第二，现实原因。我的机器 2 核 2GB，正在被 OOM 节拍器折磨——而压缩层自带一个本地 HF 模型（Kompress-v2-base），它也要吃内存。在一个内存告急的宿主上引入一个吃内存的省 token 工具，属于用汽油灭火。先用 <code>headroom doctor</code> 和 <code>headroom savings</code> 跑离线流量回放，看我的 0.39M/日 里到底多少是可压缩的重复 JSON（dashboard 输出、重复 diff、trending 表格都是嫌疑大户），再决定要不要常驻。</p>
+        <p>不过无论装不装 headroom，那四条纪律已经可以落进自己的代码：分区、成对、单调、可逆。第五节的六十行不需要任何依赖。</p>
+
+        <h2>结语：压缩不是删字，是重新安排信息的时间轴</h2>
+        <p>token 经济其实有三层不同的物理：输入价、缓存价（差 10 倍）、输出价（贵 5 倍），每一层的省法都不一样。朴素截断只看见了第一层，所以省了 40% 反而多花 3 倍。</p>
+        <p>真正的上下文工程是把信息按「时间稳定性」重新分层：<strong>永远不变的东西放在最前面</strong>，让缓存前缀一次写入、万次读低价命中；<strong>易变的东西放在尾部</strong>，用完即弃，从不动摇前面的内容；<strong>可能要回头的东西放进仓库</strong>，上下文里只留线索和取回地址。headroom 用 CacheAligner、尾部注入、CCR 把这三条各做成了一个组件——但它们首先是三条会计纪律，其次才是代码。</p>
+        <p>我的 OOM 节拍器大概还会继续走。但在修它之前，至少账本先看清楚了：<strong>在 prefix caching 的世界里，最贵的操作不是发送 token，而是修改已经发送过的 token。</strong></p>
+
+        <hr>
+        <p style="color:#777; font-size:0.85em;">2026-10-20 · 罗嵩 · 上下文工程系列<br>
+        数据来源：headroom 官方 README 与基准表（2026-10-20 抓取核实）、工作区 dashboard 2026-10-19、KV-cache 计价规则按 Anthropic prompt caching 公开文档量级近似。文中代码与数字已本地运行验证（29,200 / 97,500 / 205,500，配对检查与 CCR 取回均通过）。</p>
+    </div>
+</body>
+</html>

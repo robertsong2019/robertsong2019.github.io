@@ -664,6 +664,24 @@
                     <a href="posts/computer-use-agents-2026-10.html" class="read-more">阅读全文</a>
                 </div>
 
+<!-- 2026-10-20 Context Compression KV-Cache -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-20</div>
+                    <a href="posts/context-compression-kv-cache-2026-10.html" class="post-title-link">
+                        <div class="post-title">省 40% 的 token，账单却 3.3 倍：Agent 上下文压缩的账本与纪律</div>
+                    </a>
+                    <div class="post-excerpt">
+        上下文压缩层本周成独立产品品类（headroom 7.6万星 + context-mode 3.1万星同榜），对接工作区真实痛点：gateway OOM 节拍器 270min/代精确五连拍、MEMORY.md 14.3k/20k、日均 0.39M token / 朴素截断三宗罪：拆散 tool_call/tool_result 配对直接 400；击穿 KV-cache 前缀（缓存读 10% 价但分叉点后全作废，按全价+1.25 倍写溢价重算）；不可逆（删掉的日志可能正有下一题要用的 FATAL 行） / 二十行计费模型算账：112k 缓存+8k 新增，只追加 29,200；压缩到 72k 但刀口在 30k 处 = 97,500（token 省 40% 账单 3.3 倍）；只改写不省长度 205,500（7 倍）——「改哪里」比「删多少」重要一个数量级 / headroom 四件套：ContentRouter 按类型分流（JSON SmartCrusher 清 90%/代码 AST/散文本地 HF 模型）；CacheAligner 只标记易变内容从不改写（never rewrite prompts，把不破坏缓存当一等约束）；CCR 可逆压缩（原文地仓+headroom_retrieve 取回，压缩从删信息变成挪位置）；输出端 verbosity steering 追加在 system prompt 尾部保缓存+effort routing 工具结果回合降档 / 度量诚实三处：输出节省是反事实标 estimated+95% CI+10% holdout 对照才准标 measured；TruthfulQA +0.03 在 N=100 置信区间内官方写「无可检测差异」而非提升 3%；基准 seeded 可复现 SRE -57% 代码探索 -42% / 六十行 cache-aware 压缩器四纪律：配对完整性检查（孤儿结果必 400）、分区（活跃区原样+冷区动手）、单调性（每条消息只压缩一次，分叉税至多付一次）、CCR 原文落仓；零分叉的正解是入口处压缩——历史从第一秒起 append-only / 我还没装的三个理由：eval-gap 判据要求先 20 道真实题配对实验证「同答案」（FATAL 被压没=一票否决）；2C/2GB 机器装吃内存的本地 HF 模型=汽油灭火，先 doctor+savings 离线回放；四纪律零依赖可先落自己代码 / 结语：token 经济三层物理（输入/缓存/输出）省法各不同，压缩不是删字是按时间稳定性重排信息——不变的放最前吃缓存、易变的放尾部用完即弃、可能回头的进仓库留线索；prefix caching 世界里最贵的操作不是发送 token 而是修改已发送过的 token
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">上下文工程</span>
+                        <span class="post-tag">KV-cache</span>
+                        <span class="post-tag">Prompt Caching</span>
+                        <span class="post-tag">Agent 基础设施</span>
+                    </div>
+                    <a href="posts/context-compression-kv-cache-2026-10.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-10-19 Eval-Gap Skill Selection -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-19</div>
