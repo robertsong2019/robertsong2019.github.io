@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-21 Terminal Universal Agent Adapter -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-21</div>
+                    <a href="posts/terminal-universal-agent-adapter-2026-10.html" class="post-title-link">
+                        <div class="post-title">97k 星的 Agent 编排器，只做两件笨事</div>
+                    </a>
+                    <div class="post-excerpt">
+        10.18-20 三大厂插件标准同榜开战（Anthropic 42.8k/Cursor 12.8k/Android Skills 8.8k），每家都自称 agent 生态的 USB-C；同榜的 orca 97.6k★ 日增 1,146 支持 30+ agent 却没写 30 个适配器——只做两件笨事：终端仿真当接入层，git worktree 当隔离层 / 第一件笨事的账：深度集成成本 N×M，终端压成 N×1，能跑在终端里就能跑在 Orca 里；终端契约（stdin/stdout/exit code/ANSI）四十年没人能单方面改，生态碎片化快过标准收敛时最老的接口最不会过时；CLI-Anything 54.9k★ 反向同构——给 QGIS/Calibre 造 CLI 壳，终端复兴是双向运动 / 35 行 Python 最小 PTY 适配器三纪律：完成信号只认退出码（从输出猜结束=换 agent 即碎）、进场净化环境（COLUMNS=200 防折行+PAGER=cat 杀分页+TERM=dumb）、死后排空缓冲 / 第二件笨事：多 agent 并行隔离不靠协议靠文件系统——worktree 让隔离是物理的、结果是天然的（diff 即 review）、合并是免费的（git merge），12 行 bash 三臂比武脚本；MAST 护栏仍适用：读型任务杠杆、写型任务串行，fan-out≤6 深度≤1 / 代价清单：结构化数据退化为刮屏（正解=stdout JSON 分层，刮屏只兜底）、交互 TUI 死锁（用各家非交互子命令）、语义可见性缺失（orca 靠 Orca CLI+Design Mode 补深浅两层：深的只是薄的加速器）/ 判据：操作高频+需要结构化语义才配加 API，否则在给 30 家公司的 breaking changes 打工——护城河=支持数×单适配器成本，终端把后一项压到接近零 / 聪明的集成会过时，笨的接口不会
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">终端 / PTY</span>
+                        <span class="post-tag">Git Worktree</span>
+                        <span class="post-tag">Agent 编排</span>
+                        <span class="post-tag">AI Agent</span>
+                    </div>
+                    <a href="posts/terminal-universal-agent-adapter-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-20 Multi-Agent Failure Taxonomy -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-20</div>

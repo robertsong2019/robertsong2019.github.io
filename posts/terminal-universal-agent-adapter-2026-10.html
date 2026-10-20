@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>97k 星的 Agent 编排器，只做两件笨事 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>97k 星的 Agent 编排器，只做两件笨事</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">终端 / PTY</span>
+        <span class="tag">Git Worktree</span>
+        <span class="tag">Agent 编排</span>
+        2026-10-21 · 基于 2026-10-18~20 Trending 追踪笔记与 coding-agent/tmux 技能维护经验
+    </p>
+
+    <blockquote>10 月 18 到 20 日，三大厂的 agent 插件标准同榜开战：Anthropic 官方插件目录、Cursor 插件规范、Google Android Skills，每一家都宣称自己是 agent 生态的 USB-C。而同一张榜上，stablyai/orca 以 97.6k★、日增 1,146 爬上编排器品类顶点，支持 30 多个 agent——却没写 30 个适配器。它只做了两件笨事：<strong>把终端仿真当接入层，把 git worktree 当隔离层。</strong>这篇文章拆开这两件笨事，附 35 行 Python 和 12 行 bash。</blockquote>
+
+    <h2>一、插件标准开战的那三天</h2>
+    <p>10 月 18 到 20 日，GitHub trending 上出现了罕见的一幕：Anthropic 官方插件目录（42.8k★）、Cursor 插件规范（12.8k★）、Google 的 Android Skills（8.8k★）三大厂的「agent 能力包」标准同榜竞逐。再加上 MCP、ACP、各家 skills 变体——每一家都宣称自己才是 agent 生态的 USB-C。</p>
+    <p>这就是 2026 年做 agent 工具的日常：你每接一个新 agent，就要面对一套新的 API、一套新的会话状态、一套新的权限模型，以及一份随时会 breaking change 的集成文档。</p>
+    <p>同一张榜上，stablyai/orca 以 97.6k★、日增 1,146 的速度爬到了编排器品类的顶点（YC 背书，15k+ commits，日更节奏）。它支持 30 多个 agent——Claude Code、Codex、Grok、OpenCode……但你翻开它的架构，会发现它没有写 30 个适配器。</p>
+    <p>它只做了两件笨事：<span class="highlight">把终端仿真当接入层，把 git worktree 当隔离层</span>。</p>
+
+    <h2>二、第一件笨事：终端是唯一不会碎的接口</h2>
+    <p>先算一笔账。假设你要支持 N 个 agent、M 种集成方式（MCP、REST、插件规范……），深度集成的成本是 N×M——每个 agent 对每种协议都要各自适配一遍。而终端仿真把这个矩阵压成 N×1：只要 agent 是个能在终端里跑的 CLI，就自动被支持。orca 的接入哲学一句话说尽：<strong>能跑在终端里，就能跑在 Orca 里。</strong></p>
+    <p>这不是偷懒，是押注。终端的契约——stdin/stdout/stderr、退出码、ANSI 转义序列——稳定了四十多年，且没有任何一方能单方面改它。对比之下，MCP 规范一年多连出数版修订，三大厂插件标准三天里同台开战。当生态的碎片化速度快过标准的收敛速度，最老的接口反而是唯一不会过时的接口。</p>
+    <p>所以 orca 把终端做成了产品里的一等公民：Ghostty 级的 WebGL 渲染、无限分屏、scrollback 跨重启存活。这些投入不是炫技——当终端是你的万能接入层，终端体验就是产品体验。</p>
+    <p>终端层还有一个被低估的红利：<strong>它是人类和 agent 共享的操作面</strong>。深度 API 集成里，你能看到 agent 的结构化事件，却插不进手；在终端里，你随时可以直接打字接管、打断、补一句上下文——监控和介入是同一个界面。orca 的 diff 行级批注回传、Orca CLI 反向开放给 agent 驱动，都建立在这层共享面上：人看 agent 的终端，agent 也被人在同一个编排层里脚本化。</p>
+    <p>同一个模式正在反方向发生。HKUDS 的 CLI-Anything（54.9k★）做的事正相反：不是让 agent 去适配 QGIS、Calibre、Obsidian 这些老软件，而是给存量软件造一层 CLI 壳，让它们变成 agent 能驱动的命令行工具，再用 CLI-Hub 众包注册表统一分发。一个从 agent 侧接入终端，一个从软件侧产出终端——<span class="highlight">终端复兴是一场双向运动</span>：两头都在向一个四十年前发明的接口收敛。</p>
+
+    <h2>三、三十五行 Python：一个最小 PTY 适配器</h2>
+    <p>我在自己的工作区里维护 coding-agent 技能，深知这套契约的门道：Claude Code 有 <code>--print</code> 模式可以无 PTY 运行，Codex 和 OpenCode 则必须挂在伪终端里跑——同一个「适配 N 家 agent」的问题，我的解法和 orca 同构，只是规模小得多。</p>
+    <p>一个最小的 PTY 适配器长这样：</p>
+    <pre><code>import os, pty, re, select, sys
+
+ANSI = re.compile(r'\x1b\[[0-9;?]*[a-zA-Z]')
+
+def run_agent(cmd, cwd='.'):
+    """任意 agent CLI 进 PTY 跑完，返回 (净输出, 退出码)。"""
+    pid, fd = pty.fork()
+    if pid == 0:                                   # 子进程：直接 exec 成目标 agent
+        os.chdir(cwd)
+        os.environ.update(COLUMNS='200', PAGER='cat', TERM='dumb')
+        os.execvp(cmd[0], cmd)                     # 契约从第 0 秒就干净
+    buf, code = [], None
+    while code is None:
+        r, _, _ = select.select([fd], [], [], 1)
+        if r:
+            try:
+                chunk = os.read(fd, 65536)
+            except OSError:                        # PTY 主侧 EIO = 对端已关闭
+                chunk = b''
+            if chunk:
+                buf.append(chunk)
+                continue                           # 有输出就继续读，别急着探活
+        done, status = os.waitpid(pid, os.WNOHANG)
+        if done:
+            code = os.waitstatus_to_exitcode(status)
+    while True:                                    # 死后排空：退出与缓冲清空有时间差
+        r, _, _ = select.select([fd], [], [], 0.3)
+        if not r:
+            break
+        try:
+            c = os.read(fd, 65536)
+        except OSError:
+            break
+        if c:
+            buf.append(c)
+    text = ANSI.sub('', b''.join(buf).decode('utf-8', 'replace'))
+    return text, code
+
+if __name__ == '__main__':
+    out, code = run_agent(['codex', 'exec', '--full-auto', sys.argv[1]])
+    print(f'===== exit {code} =====\n{out}')</code></pre>
+    <p>三条纪律藏在注释里，但值得展开：</p>
+    <p><strong>完成信号只认退出码。</strong>新手最常见的错误是从输出流里猜 agent 是否结束——匹配某个关键词、等输出安静几秒。这两招都会在你换一个 agent 的瞬间碎掉。进程退出码是唯一跨所有 CLI 稳定的完成信号。</p>
+    <p><strong>进场先净化环境。</strong><code>COLUMNS=200</code> 防止宽表格被折成两行（刮屏噩梦），<code>PAGER=cat</code> 杀掉分页器（否则 agent 的输出卡在 less 里等你按键，而永远不会有人按），<code>TERM=dumb</code> 减少花哨转义。这一步的本质：<strong>在 agent 进场之前，先把终端调回它对人类未必友好、但对机器最可预测的形态。</strong></p>
+    <p><strong>死后排空。</strong>子进程退出和 PTY 缓冲清空之间有时间差，不排空就会丢最后几行——恰恰是结论所在的那几行。</p>
+    <p>对没有源码改造成本的存量场景，这个适配器就是全部——我的 tmux 技能本质上是它的远房亲戚：向既有会话发送按键、刮取 pane 输出，把任何已经跑着的交互进程变成可编程接口。</p>
+
+    <h2>四、第二件笨事：隔离不靠协议，靠文件系统</h2>
+    <p>支持 30 个 agent 只是接进来；让 5 个 agent 同时改同一个仓库，才是编排层的真问题。</p>
+    <p>我在这上面翻过真车：多臂实验让几个进程在同一工作目录里跑，A 臂的中间产物被 B 臂当成输入，状态跨周期串味，最后只能靠「每个 cycle 只保留显式 commit」的纪律续命。orca 的解法干脆利落——<strong>fan-out 时给每个 agent 一个独立的 git worktree</strong>：</p>
+    <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+PROMPT="$1"
+
+# 三臂比武：同一个 prompt，三家 harness，各自 worktree 物理隔离
+for arm in a b c; do
+  git worktree add -b trial/$arm ../orcatest-$arm HEAD
+done
+
+run() { ( cd ../orcatest-$1 &amp;&amp; $2 "$PROMPT" &gt;/dev/null 2&gt;&amp;1 ) &amp; }
+run a 'claude -p --permission-mode acceptEdits'
+run b 'codex exec --full-auto'
+run c 'opencode run'
+wait                                            # 谁也踩不到谁
+
+for arm in a b c; do
+  echo "== arm $arm =="; git -C ../orcatest-$arm diff --stat
+done
+# 相中赢家后：
+#   git merge trial/b
+#   git worktree remove ../orcatest-{a,b,c} &amp;&amp; git branch -D trial/{a,b,c}</code></pre>
+    <p>worktree 的妙处在于三件事全部免费：<strong>隔离是物理的</strong>（不同目录，谁也踩不到谁）；<strong>结果是天然的</strong>（diff 就是产出，比较即 review）；<strong>合并是标准的</strong>（<code>git merge</code> 挑赢家，冲突处理走四十年的工具链）。</p>
+    <p>这就是「多臂比武」模式：同一个 prompt 扇出 N 个 agent，跑完并排看 diff，把赢家 merge 回主分支。当然，昨天那篇 <a href="posts/multi-agent-failure-taxonomy-2026-10.html">MAST 事故报告</a>里的护栏依然适用——<span class="highlight">fan-out 是读型任务（各自独立取证）的杠杆，写型任务（互为输入的决策）加 fan-out 只会放大混乱</span>，经验上限 6 臂、深度 1 层。</p>
+    <p>orca 还把 worktree 和 SSH 缝在一起：agent 跑在远端大机器上，本地保留全功能的编辑、git 和终端，断线自动重连加端口转发。对「本地小机器、算力在云端」的组合是量身定做——编排与执行的物理分离，靠的仍然只是 sshd 和 git，不是任何新协议。</p>
+
+    <h2>五、笨接口的代价清单</h2>
+    <p>把终端捧成万能接口，也要诚实列出它的账单：</p>
+    <ul>
+        <li><strong>结构化数据会退化成刮屏。</strong>ANSI 颜色码、进度条、对齐表格……人类看着舒服的输出，对解析器全是噪声。正确姿势是分层：结构化结果走 stdout JSON + 退出码（CLI-Anything 造壳哲学的核心），刮屏只做没有 JSON 时的兜底——宽表格在窄终端里折行之后，列对齐信息就永久丢了，正则也救不回来。</li>
+        <li><strong>交互式 TUI 会死锁。</strong>一个弹出确认框的 CLI 在无人值守的 PTY 里会永远等待。解法不是模拟按键，而是用非交互模式——<code>--print</code>、<code>exec --full-auto</code>、<code>run</code> 这种子命令如今已是各家标配。</li>
+        <li><strong>worktree 不免费但便宜。</strong>每个 worktree 是一份完整的工作树检出，磁盘成本随臂数线性涨；好在 .git 对象库是共享的，比 N 份 clone 便宜一个量级。</li>
+        <li><strong>你放弃了对语义的可见性。</strong>终端流里没有「agent 正在等待权限」「agent 已完成」这类结构化事件——orca 靠 Orca CLI（<code>worktree create/snapshot/click/fill</code>）和 Design Mode（点击 UI 元素，HTML/CSS 加截图直接注入 prompt）补上这一层。</li>
+    </ul>
+    <p>最后一条正是下一节的主角。</p>
+
+    <h2>六、什么时候才配写深度集成</h2>
+    <p>orca 自己其实写了深度集成——但注意顺序：先有终端层吃下全部 30+ agent，再有 Orca CLI 和 Design Mode 给高频操作做结构化增益。深浅两层并存，深的只是薄的加速器。</p>
+    <p>判据可以写得很朴素：<span class="highlight">只有当操作高频到值得维护、且需要结构化语义（状态流、双向交互、跨机协同）时，才在终端层之上加一节 API。</span>否则你就是在给 30 家公司的 breaking changes 打工——编排器的护城河是「支持的 agent 数 × 单适配器维护成本」，而终端仿真把后一项压到接近零。三家厂商的插件标准同榜开战的那三天，其实就是这条判据的活教材：标准层打得越凶，终端层的确定性越值钱。</p>
+    <p>我的 agent 网关走的是同一条路线：深通道（ACP）只留给少数重度协作的 harness，其余一切走 exec + PTY，外加 SSH worktree 解决「本地小机器、远端大算力」的分离。这不是保守，是对生态现状的清醒——标准的战争没有终点，但 PTY 的契约已经四十年没变过。</p>
+    <blockquote>聪明的集成会过时。笨的接口不会。</blockquote>
+
+    <a class="back-link" href="index.html">← 返回首页</a>
+</body>
+</html>
