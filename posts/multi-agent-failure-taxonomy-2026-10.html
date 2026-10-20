@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>两个最强团队给出相反建议，却都对：多智能体系统的 1600 份事故报告 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>两个最强团队给出相反建议，却都对：多智能体系统的 1600 份事故报告</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">Multi-Agent Systems</span>
+        <span class="tag">MAST</span>
+        <span class="tag">Agent 可靠性</span>
+        2026-10-20 · 基于 2026-10-20 晚间探索笔记（catalyst-research/exploration-notes/2026-10-20-multi-agent-failure-modes.md）
+    </p>
+
+    <blockquote>2025 年 6 月，地球上最会造 agent 的两家公司在 24 小时内发表了完全相反的建议。Anthropic 发布了他们的多智能体研究系统：内部评测上<strong>比单 agent 高 90.2%</strong>，他们说"干得漂亮"。Cognition（Devin 背后的公司）发了一篇标题毫不客气的文章：<strong>《Don't Build Multi-Agents》</strong>——别建多智能体。两家都有生产数据，两家都没说谎。这大概是 agent 工程史上最有趣的一次"矛盾"，而答案藏在伯克利拆解的 1600 多份事故报告里。</blockquote>
+
+    <h2>一、先看尸体解剖报告</h2>
+    <p>多智能体系统（MAS）——一个编排者把任务拆给若干子 agent 并行干活的架构——是 2025-2026 年最流行的 agent 模式，也是最被滥用的模式。流行到什么程度？调研显示 57% 的组织已经有 agent 在生产环境跑。滥用到什么程度？伯克利 Cemri 等人的论文《Why Do Multi-Agent LLM Systems Fail?》（NeurIPS 2025）对 7 个主流框架的 <strong>1600 多条执行轨迹</strong>做了系统标注，结论是：<span class="highlight">主流框架的任务失败率在 41% 到 86.7% 之间</span>。</p>
+    <p>他们提炼出了 MAST（Multi-Agent System Failure Taxonomy）：14 种失败模式，归成三大类——</p>
+    <table>
+        <tr><th>类别</th><th>占比</th><th>典型模式</th></tr>
+        <tr><td>系统设计缺陷</td><td>41.8%</td><td>步进重复（17.1%）、不遵守任务规范、不知何时终止（12.4%）、丢失对话历史</td></tr>
+        <tr><td>智能体间错位</td><td>—</td><td>想一套做一套（13.2%）、答案没对齐目标、信息截留、格式对不上</td></tr>
+        <tr><td>任务验证缺失</td><td>—</td><td>不验证即终止、虚假终止信号</td></tr>
+    </table>
+    <p>注意第一名：<strong>步进重复</strong>——agent 把同一个动作做了又做，像卡了碟的播放器。第二名：<strong>想一套做一套</strong>——推理文本里说"我应该先跑测试"，行动却直接提交了代码。这些不是"模型变笨"，是协调层的病。</p>
+
+    <h2>二、最扎心的发现：41.8% 的失败，是 brief 没写清楚</h2>
+    <p>把三大类摊开看，<span class="highlight">"系统设计缺陷"独占 41.77%</span>。翻译成人话：系统从没被讲清楚要做什么。角色边界模糊、终止条件缺失、验收标准没写。</p>
+    <p>这听起来是不是很耳熟？一家公司项目失败，事后复盘最常见的结论不是"员工太蠢"，而是：需求没对齐、验收标准缺失、没人知道做到什么程度算完。我们在用 LLM <strong>复刻人类组织的病理学</strong>——而且是复刻一家没有书面文档、没有共享记录、没有 QA、没有 definition of done 的公司。agentswarms 的总结很毒舌：多智能体系统之所以失败，是因为我们把它建成了组织，却没给它任何让组织能运转的东西。</p>
+    <p>Cognition 那篇"唱反调"文章的核心例子也是这个病：让两个子 agent 合作写一个 Flappy Bird 克隆。一个画了 Super Mario 风格的背景，另一个做了只美术风格完全不搭的鸟。<strong>各自都"完成了任务"，拼起来不可用</strong>。"保持和原版一致的美术风格"这个隐含决策，在拆分任务的那一刻就丢了——每个动作都携带隐式决策，拆上下文就是拆决策。</p>
+
+    <h2>三、概率链复利：为什么"等下一代模型"救不了你</h2>
+    <p>MAST 每条失败模式底下，都压着一条简单算术。agent 链是串行的概率系统：假设每步可靠性 95%，听起来很好？20 步下来 0.95 的 20 次方 ≈ 36%。整条链只剩下三分之一的机会走对。</p>
+    <p>这就是"长链必烂"的数学本质。你可以说"下一代模型单步可靠性到 99%就好了"——但工程现实是链长也在增长，任务越复杂链越长，<span class="highlight">模型进步会被链长吃掉</span>。对抗乘法衰减只有三招：<strong>缩短链</strong>（合并步骤）、<strong>断链</strong>（检查点+人工审核，把长乘法拆成短乘法）、<strong>把链变树</strong>（并行独立分支+中心化收敛，把串行乘法换成近似并行加法）。第三招，恰恰就是多智能体的正确用法。</p>
+
+    <h2>四、和解：读型任务 vs 写型任务</h2>
+    <p>回到开头的矛盾。Anthropic 的 +90.2% 和 Cognition 的"别建"，其实回答的是不同的问题。</p>
+    <p>LangChain 的 Harrison Chase 在两篇文章发出几天后给了调停：多智能体系统里<strong>"读"远易过"写"</strong>。Anthropic 的研究系统是典型的读型任务——开 3-5 个子 agent 并行检索不同方向，各自带回证据，主 agent 汇总引用。子任务天然独立，隔离就是收益，重复劳动可以用搜索去重。Cognition 面对的写型任务——写一个风格统一的软件——每个决策都依赖前序决策，拆开上下文等于主动制造 Flappy Bird 式翻车。</p>
+    <p>所以判据很简单，动手前问一句：<strong>这个任务的子任务，是各自独立的证据（读），还是互为输入的决策（写）？</strong>读型，multi-agent 是杠杆；写型，单线程长上下文 agent 是正解。</p>
+    <p>2026 年的后续给这场争论补了个漂亮的结局：Cognition 在 2026 年 3 月上线了"Devin Manages Devins"——一个协调者把限域任务分给跑在隔离 VM 里的子 Devin。这不是打脸，是收敛：两边最终都落在同一种拓扑上——<span class="highlight">编排者 + 隔离限域的子 agent（hub-and-spoke）</span>，而平面互等的"讨论组式"swarm 在生产环境里死绝了。Google 2026 年的 scaling 研究（180 种配置）给了定量注脚：中心化协调在可并行任务上 +80.9%，但在串行规划任务上<strong>所有</strong> multi-agent 变体都掉 39%-70%。架构重要，任务形态更重要。</p>
+
+    <h2>五、账单：能力是买来的，事故也是</h2>
+    <p>Anthropic 公布过一组诚实的数字：单 agent 大约消耗对话 4 倍的 token，多智能体系统约 <strong>15 倍</strong>；token 用量单独解释了 BrowseComp 上 80% 的性能方差。15 倍不是 bug，是入场费——但你得确认任务配得上这张票。生产环境最贵的不是票价，是事故：编排层一个逻辑错误触发递归子调用，<strong>一夜烧掉一个月预算</strong>的案例不止一个。所以护栏不是可选项：每 agent 请求硬上限、异常花费自动熔断、fan-out 上限（OpenAI Codex 子 agent 默认 6 并发、深度 1）。好消息是修 ROI 是正的：加一个轻量 supervisor 剪掉冗余子调用，15% 的开销换 19%-30% 的净 token 节省。</p>
+
+    <h2>六、另一个冷发现：失败模式互相独立，没有银弹</h2>
+    <p>MAST 测了三类失败之间的相关性：只有 0.17-0.32。<strong>修好"不遵守角色定义"不会顺带修好"信息截留"</strong>，它们是不同的病，需要不同的结构手术。论文里最有效的单点修复：给 ChatDev 的"CEO agent"终止裁决权（对应"不知何时该停"），成功率 +9.4%。这说明多智能体调优不是一次 prompt 微调能搞定的，是<strong>逐失败模式的结构工程</strong>——而第一步是诊断。好消息是他们验证了 o1 做自动评判与人类标注一致性 κ=0.77，可跨域泛化：把 MAST 式的轨迹分类做成标配观测层，在今天完全可行。IBM 已经把它用到了 ITBench 的 310 条 SRE 生产轨迹上，把"分数很烂"翻译成"哪里坏了、怎么修"。</p>
+
+    <h2>七、今天就可以做的五件事</h2>
+    <ol>
+        <li><strong>spawn 前过三问。</strong>派子 agent 前核对：任务规范是否自包含（不看主对话也能干）、终止条件是否显式、验收标准是否可判定。这三问对着 MAST 前三大失败模式，成本为零。</li>
+        <li><strong>先做读写判据。</strong>新任务先判断耦合度："子任务的输出是彼此的输入，还是各自独立的证据？"写型默认单线程，读型才 fan-out。</li>
+        <li><strong>给拓扑上保险。</strong>fan-out 上限（并发 ≤6、深度 ≤1 是被生产验证过的默认值）、每 agent 预算熔断、编排者单一持有聚合权——hub-and-spoke，别搞讨论组。</li>
+        <li><strong>把事故轨迹变成失败签名。</strong>存下所有 agent 轨迹，跑一遍 LLM-as-judge 按 MAST 14 模式分类，看自己的失败分布长什么样。修最贵的那一类先。</li>
+        <li><strong>盯住一个指标：每次正确答案的 token 成本。</strong>token 用量解释 80% 的性能方差，它就是 multi-agent 的核心 KPI——不是"看起来更聪明"。</li>
+    </ol>
+
+    <p>最后回到那对"矛盾"。Anthropic 和 Cognition 都对，因为<strong>架构不是信仰，是任务形态的函数</strong>。多智能体不是让你显得先进的勋章，也不是该被恐惧的怪兽——它是一把读型任务的加农炮：威力巨大，后坐力（15 倍 token、错误放大、协调成本）同样巨大。开炮之前，先确认你打的真的是一座能拆成碎片的碉堡，而不是一根需要一整块钢梁的桥。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
