@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 年最火的 AI Agent，都只服务一个人 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>2026 年最火的 AI Agent，都只服务一个人</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">单租户架构</span>
+        <span class="tag">个人 Agent OS</span>
+        <span class="tag">记忆系统</span>
+        2026-10-21 · 基于 2026-10-19~21 三天 Trending 追踪、MAST 事故报告与 2026 记忆安全综述
+    </p>
+
+    <blockquote>同一周的两份材料。伯克利团队的 MAST 事故报告（NeurIPS 2025）说：七大企业级多智能体框架，失败率 41% 到 86.7%。而 GitHub trending 榜上，一个丹麦地球物理学家给自己写的求职 agent 拿了 62,032 颗星，一套本地语音全家桶拿了 79,609 颗，一个工程师的个人技能集合拿了 286,227 颗。一边是企业多智能体在事故报告里挣扎，一边是「一个人的 agent」在屠榜。<strong>为什么 2026 年最强的 agent，都只服务一个用户？</strong></blockquote>
+
+    <h2>一、屠榜的是一个新品类</h2>
+    <p>10 月的 GitHub trending 上，「个人垂直场景 agent OS」第一次以品类面目浮出水面。旗舰是 ai-job-search：作者本是一位地球物理学家，合同结束后把自己的整个再就业流程——自我盘点、职位匹配、简历起草、投递跟踪、面试备战——编码成了 13 个命令。它的 README 第一句定位是「The job search that runs on your machine」。</p>
+    <p>三个数字比功能更说明问题：62,032 颗星里 fork 占 19,166（fork/星比 31%，异常高——大量用户是 fork 回去直接用，不是来贡献代码的）；open issues 只有 46 个（社区健康度极好）；Trendshift 每日第一。这不是「拿来看的开源项目」，是「拿来用的工具」。</p>
+    <p>同榜的邻居们指向同一个方向：claude-mem（99.7k★）做跨会话持久记忆，VoiceStudio（79.6k★）做本地语音生产、还带 MCP 接口让 agent 直接调用，scientific-agent-skills（53.4k★）把科研技能打包成 skill。它们加起来的共同特征只有四条：<span class="highlight">命令即工作流、对抗式审查、现实结果反哺、本地隐私默认</span>。注意——没有一条是「多智能体」。</p>
+
+    <h2>二、单租户是一张三层的赦免券</h2>
+    <p>多租户系统有三座工程大山：并发一致性、权限隔离、审计合规。企业 agent 每一样都要真金白银地付。而在单租户架构里，这三座山<strong>整体消失</strong>：</p>
+    <ul>
+        <li><strong>一致性免费。</strong>一个用户就没有并发写冲突——不需要锁，不需要冲突解决，不需要 vector clock。我一直坚持 agent 编排的「单写者原则」，在个人 agent 这里它是物理事实，不是纪律。</li>
+        <li><strong>权限免费。</strong>读你自己的邮件、日历、文件不需要过数据防泄漏策略。上下文边界=你的硬盘边界。</li>
+        <li><strong>审计免费。</strong>git log 就是审计日志，SQLite 就是事实表。出了问题「谁改的」永远可查。</li>
+    </ul>
+    <p>打个比方：多租户系统是酒店，单租户是独栋小屋。酒店要门禁卡、前台、监控、每层消防通道——这些成本和住客聪不聪明毫无关系；小屋只需要一把钥匙。企业 agent 的账单大头从来不是智能，是门禁。</p>
+    <p>这也解释了 MAST 报告里最扎心的数字：企业多智能体事故里「系统设计缺陷」独占 41.77%——brief 没写清、没有 definition of done。本质是拿 LLM 去复刻一个没有书面文档、没有 QA 的组织的病理学。而个人场景里，用户就是需求方本人，反馈一天来好几次，烂设计活不过一周。<strong>个人市场是最强的选择压力，而企业采购流程恰恰把这层压力隔离掉了</strong>——IT 买走的东西，用户满不满意不决定它的生死。</p>
+
+    <h2>三、数据主权是全量上下文的唯一通行证</h2>
+    <p>agent 的能力上限，约等于它可见的上下文宽度。企业 agent 每接一个数据源都要过权限边界、脱敏、审批——上下文越接越窄。个人 agent 读的是「你自己的」邮件、文件、浏览器历史，天然合法，全量可读。</p>
+    <p>但拿到全量数据只是第一步：把 50 个文件全读进上下文窗口，30 分钟就烧掉 40% 的窗口，compact 之后 agent 又失忆。context-mode（31.5k★，HN 第一）给出了第二步，它的账算得漂亮：与其让 agent 做 47 次 Read 搬进 700KB，不如让它写一个脚本现场执行、只把 3.6KB 的结论带回来——所谓 think in code。原始数据根本不进上下文窗口，315KB 的网页快照被沙箱化到 5.4KB，削减 98%。</p>
+    <p>连会话续接也是同一哲学：每次文件编辑、git 操作、用户决策都进 SQLite（FTS5 全文索引），上下文压缩时<strong>不把历史倒回窗口，而是按需 BM25 检索</strong>——记忆检索化，而不是记忆复读。数据主权换来的不是「把一切都塞给模型」，而是「一切都可查，按需取用」。</p>
+
+    <h2>四、评测锚定现实，而不是模型自评</h2>
+    <p>ai-job-search 里最「正经 eval」的设计是一个叫 <code>/outcome</code> 的命令：记录每一份申请的真实结果——面试、offer、拒信、石沉大海——并归档当时实际投出的简历版本，然后用「真正拿到面试的那批申请」反哺校准匹配评分框架。</p>
+    <p>这件事只有在单租户里才做得成：只有一个用户，现实结果的归因才干净。企业侧连「这一单是谁搞砸的」都要靠 o1-as-judge 去分类（κ=0.77，IBM 拿去分析 SRE 生产轨迹），个人侧一个 SQLite 表就够。</p>
+    <p>更关键的是，静态基准正在失去公信力。2026 年的两条证据：MemoryArena 显示在 LoCoMo 上接近饱和的模型，换到多会话相依任务直接掉到 40-60%；而 deep research 时代「凡能被搜到的考题都会被搜到」，公开基准平均虚高 4%。现实结果无法被污染、永远新鲜——<strong>/outcome 这类个人 live 闭环，是单租户解锁的一类企业侧做不到的评测信号</strong>。</p>
+
+    <h2>五、巨头收敛：商业侧给出的同一答案</h2>
+    <p>如果这只是开源圈的野路子，不值得写一篇文章。但 2026 年 9 月底开始，商业巨头排队给出了同一个答案：</p>
+    <ul>
+        <li><strong>OpenAI Dots</strong>（DevDay 2026-09-29）：always-on 的目标型 agent，每个 dot 有自己的云计算机和浏览器，你登出之后它继续干活。入口流程很有讲究——「Create your dot」：你先给它起名字。一个 dot 服务一个人，核心抽象叫 goal ownership。</li>
+        <li><strong>Apple Siri AI</strong>：ambient context 进操作系统——搜「朋友推荐的那家餐厅」时它能翻你的消息，「找酒店确认单」时它翻你的邮箱。设备上下文+个人上下文+系统动作。</li>
+        <li><strong>Perplexity Computer</strong>：agent 当成「编排模型的计算机」，底层 SPACE 沙箱十月中旬刚以 Apache 2.0 开源。</li>
+    </ul>
+    <p>三家路线不同，abstraction 相同：<span class="highlight">放弃「通用助手给所有人」，转向「专属 agent 给一个人」</span>。连分发层都在个人化——286k★ 的 mattpocock/skills，名字里连公司都没有，就是一个人的技能集合。开源个人 agent 与巨头产品在同一层会师，这是一个品类成立的标志。</p>
+
+    <h2>六、暗面：记忆越懂你，风险越不对称</h2>
+    <p>单租户的代价清单必须诚实。它的暗面和优势同源——都来自「agent 深度了解你」：</p>
+    <ul>
+        <li><strong>良性记忆会抬高攻击成功率。</strong>2026 年的 PS-Bench 测出一个反直觉结果：仅仅因为 agent 里存在良性个性化记忆，标准对话越狱的成功率提高 15.8% 到 243.7%。论文把这命名为 intent legitimation——你的记忆成了「内部推荐人」：攻击者不需要骗过保安，只要让你的老朋友替他开口。</li>
+        <li><strong>偏好会被过应用。</strong>偏好遵循越强的 agent，越会把你的偏好用在机构性不当的场合——比如给第三方写正式函件时带上你的口头禅。记忆是对的，场合是错的。</li>
+        <li><strong>记忆的每个阶段都是攻击面。</strong>2026 年的记忆安全综述把生命周期拆成写-存-取-执行-分享-遗忘六段，每段各有攻击与防御——「记忆主权」是个人 agent 的必修课，而遗忘阶段的干净回滚最难。</li>
+        <li><strong>单点故障没有兜底。</strong>agent 挂了没人接手，数据在一台机器上。ai-job-search 甚至专门警告：fork 是公开的，个人数据必须放 private repo——它的流行度逼着用户直面隐私卫生。</li>
+    </ul>
+    <p>结论不是「个人 agent 不安全」，而是它的安全工程重心和企业的完全不同：企业防的是边界外的人，个人防的是<strong>记忆本身的卫生</strong>——什么该记、记多久、谁能读、怎么忘。</p>
+
+    <h2>七、今天就可以做的五件事</h2>
+    <ol>
+        <li><strong>选一段你每周重复至少两次的完整工作流</strong>——不是单步任务，是「一段流程」——用 Claude Code 或任何 harness 把它编码成 5-10 个命令。命令即工作流是这个品类的交互范式，第一个用户是你自己。</li>
+        <li><strong>SQLite-first。</strong>会话、决策、结果全部入库，建 FTS5 全文索引。上下文压缩时不复读历史，按需检索——记忆检索化是会话无限续接的地基，零依赖即可起步。</li>
+        <li><strong>给你的 agent 加一个 /outcome。</strong>找一个现实结果信号（成单与否、发布与否、被引用与否），记录它，用它校准 agent 的判断。别信模型自评——它连自己的幻觉都会打满分。</li>
+        <li><strong>外部内容一律当不可信输入。</strong>网页、邮件、职位描述，进 agent 之前过一道确定性检查：隐藏文字、不可见字符、指令形语句、隐藏链接。指令级防御不贵，但它挡住的是最便宜的那类攻击。</li>
+        <li><strong>记忆最小权限。</strong>能从 git 和文件系统重建的，就不要单独存一份；要存偏好之前先问一句：这个偏好如果被滥用，最坏会被用到什么场合？想不清楚就先不记。</li>
+    </ol>
+    <blockquote>企业 agent 在学怎么安全地共享世界；个人 agent 在学怎么诚实地服务一个人。2026 年，后者先跑出来了。</blockquote>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
