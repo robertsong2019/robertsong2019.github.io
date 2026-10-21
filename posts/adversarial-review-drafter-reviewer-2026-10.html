@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 不能给自己批作业：对抗式审查的工程纪律 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Agent 不能给自己批作业：对抗式审查的工程纪律</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">对抗式审查</span>
+        <span class="tag">Drafter-Reviewer</span>
+        <span class="tag">LLM 可靠性</span>
+        2026-10-22 · 基于 2026-10-20~21 两期 Trending 深度分析、MAST 事故报告笔记与本工作区 error-patterns 升级协议四个真实案例
+    </p>
+
+    <blockquote>过去三天，同一个架构在安全审计、求职文书、事故分析三个互不相邻的领域各出现一次：生成侧的自我声明一律不算数，必须有独立的批评者拿着自己的判据复核一遍。生成者与批评者共享同一份盲区，这个问题不能靠把模型变大解决，只能靠结构解决——<strong>分离的是信息和判据，不是模型本身。</strong></blockquote>
+
+    <h2>一、三天，三个不相邻的领域，同一个架构</h2>
+    <p>过去三天整理 GitHub trending 笔记，同一个架构在三个互不相邻的领域各出现了一次。这个频率本身就是信号。</p>
+    <p>第一个是<strong>安全审计</strong>。cloudflare/security-audit-skill（34.1k★，单日增速第一）把审计流程做成六阶段管线，其中单独一阶段叫「对抗性验证」：前一阶段产出的审计发现不算数，必须由独立一轮攻击性复核重新确认，判定是三态的——确认、证伪、<strong>无法验证</strong>。</p>
+    <p>第二个是<strong>求职文书</strong>。ai-job-search（62k★，Trendshift 每日第一）的 <code>/apply</code> 命令跑完「评估匹配度→起草 CV 和求职信」之后不直接出终稿：第二个 agent 扮演批评者逐条挑刺，起草者带着批评意见修订，循环有上限，不收敛就交人工。</p>
+    <p>第三个是<strong>事故分析</strong>。伯克利团队的 MAST 报告（NeurIPS 2025，1600+ 份多智能体事故报告）用 o1 做 judge 自动分类失败轨迹，与人工标注一致性 κ=0.77，IBM 已把这个方法用到 310 条 SRE 生产事故轨迹上。</p>
+    <p>三个场景没有任何交集，架构却一模一样：<strong>生成侧的自我声明一律不算数，必须有一个独立的批评者拿着自己的判据复核一遍。</strong>这就是 drafter-reviewer（起草者-审稿人）管线。而我的工作区里其实早就跑着第四例——一个「事故当起草者、规则库当审稿人、pre-commit hook 当终审」的升级协议，第六节展开。</p>
+
+    <h2>二、为什么自评不可靠：不是智商问题，是结构问题</h2>
+    <p>对抗式审查流行的原因不是「两个模型比一个贵得其所」，而是自评在结构上就不可信。</p>
+    <p>证据一来自自纠错研究。Huang et al. 在 ICLR 2024 的《Large Language Models Cannot Self-Correct Reasoning Yet》里测出一个反直觉的结论：<strong>没有外部反馈的「再检查一遍」不仅不提升，反而经常降低准确率</strong>——模型会把自己的措辞当成证据，把对的答案改错。同一段上下文里的自我批评，本质上是用产生错误的那套直觉去检查那套直觉。</p>
+    <p>证据二来自 LLM-as-judge 的偏差家族。位置偏差（先看到的选项打分偏高）、自我偏好（judge 偏爱与自己输出风格相近的答案）、长度偏差，这些偏差在评测文献里被反复复现。judge 不是中立的仪器，它带着和生成者同源的训练分布。</p>
+    <p>证据三来自 MAST 的冷发现：14 种失败模式之间的相关性只有 0.17-0.32——<strong>失败类别彼此独立，没有单一视角能全部覆盖</strong>。这意味着就算你的 reviewer 很强，单一 reviewer 也有系统性盲区；对抗式的价值不在「更聪明」，在于多一个视角就多捕获一类失败。</p>
+    <p>三条证据指向同一件事：生成者与批评者共享同一份盲区，这个问题不能靠把模型变大解决，只能靠结构解决。</p>
+
+    <h2>三、分离的是信息和判据，不是模型</h2>
+    <p>对 drafter-reviewer 最常见的误解是「要两个不同的模型」。不对。<strong>需要分离的是三样东西，模型本身不在其中：</strong></p>
+    <ol>
+        <li><strong>上下文分离</strong>：reviewer 看不到 drafter 的推理过程。推理过程是锚定源——喂给 reviewer「我是这么想的」，它就顺着这条线找补，挑刺率断崖式下降。reviewer 只看产物和规范。</li>
+        <li><strong>判据分离</strong>：reviewer 手里必须有独立的 checklist，而不是一句「你觉得怎么样」。开放式批评给模型留的发挥空间，恰好是它迎合的空间。</li>
+        <li><strong>利益分离</strong>：在人类组织里这叫四眼原则——法务不向业务汇报，质检不向产线汇报。在 agent 管线里的对应物是：reviewer 的通过率不能成为 drafter 那条链路的优化目标，否则对抗会在训练或调参里悄悄退化成合谋。</li>
+    </ol>
+    <p>同一个模型、不同的上下文和判据，对抗依然成立；不同模型、同一份上下文，对抗形同虚设。</p>
+    <p>还要跟 ensemble 投票划清界限：<strong>投票消除独立噪声，对抗消除系统性盲区。</strong>五个同源模型投票，对同一个事实性错误会全票通过——它们的错误是相关的；对抗式审查的批评者手里握着生成者没有的判据，专杀这种相关误差。两件事都该做，但不能互相替代。</p>
+
+    <h2>四、四十五行管线与五条纪律</h2>
+    <p>把上面的原则压成一段可运行的骨架（LLM 调用抽象成两个函数）：</p>
+    <pre><code>@dataclass
+class Check:
+    id: str
+    prompt: str          # 判据必须是可独立复核的陈述，不是"感觉"
+
+def review_cycle(task, spec, drafter, reviewer, checklist, max_rounds=3):
+    draft = drafter(task, spec)              # 起草者只看任务与规范
+    for rnd in range(max_rounds):
+        verdicts = []
+        for check in checklist:              # 逐条独立评审，不许打包
+            v = reviewer(check.prompt,       # 判据来自外部清单
+                         artifact=draft,     # 只喂产物——
+                         spec=spec)          # 不喂 drafter 的推理过程
+            assert v in ("PASS", "FAIL", "BLOCKED")
+            verdicts.append((check.id, v))
+        fails = [c for c, v in verdicts if v == "FAIL"]
+        if not fails:
+            return draft, rnd                # 收敛：全 PASS
+        draft = drafter(task, spec, feedback=fails)   # 只回传失败项
+    escalate(draft, fails)                   # 不收敛：交人工，不硬发</code></pre>
+    <p>这段骨架里藏着五条纪律，每条都对应一个真实翻车点：</p>
+    <p><strong>纪律一：三态判定。</strong>判决只有 PASS/FAIL/BLOCKED，BLOCKED 是「无法验证」的诚实出口。没有这个出口，reviewer 面对超出它上下文的判据时会硬猜——而硬猜的期望值约等于抛硬币，还污染了 FAIL 的信噪比。security-audit-skill 的三态判定是同一个设计。</p>
+    <p><strong>纪律二：逐条独立评审。</strong>checklist 不许打包成一个大 prompt。打包之后，后一条的判断会被前一条的结论锚定——又回到了自评的结构问题。</p>
+    <p><strong>纪律三：只回传失败项。</strong>修订轮给 drafter 的反馈只有 FAIL 列表，不带分数不带措辞。回传「总体不错但有三点问题」会让 drafter 学会迎合评语而不是修复缺陷。</p>
+    <p><strong>纪律四：不收敛走人工。</strong><code>escalate</code> 不是兜底装饰。对抗循环不收敛是常态——多判据拉锯的产物本来就可能不存在同时满足所有判据的解。硬发一个磨了三轮的次品，比第一稿更危险，因为它带着「过了审查」的合格证。</p>
+    <p><strong>纪律五：监测 reject rate。</strong>reviewer 的全量通过率必须被观测。通过率 100% 不是审查做得好，是审查没发生——橡皮图章。校准手段是定期注入已知缺陷的 canary 工件：一只藏了错的样本混进队列，reviewer 应该抓住它。抓不住，先修 reviewer，再谈别的。</p>
+
+    <h2>五、反模式清单</h2>
+    <ul>
+        <li><strong>合谋式对抗</strong>：reviewer 和 drafter 共享同一份会话上下文（「帮我检查一下上面你写的」）。这是自我批评，不是审查。</li>
+        <li><strong>玄学判据</strong>：checklist 里出现「内容更专业」「逻辑更清晰」这类无法被第三方复核的条目。判据不可复核，对抗就退化成两次采样。</li>
+        <li><strong>无限修订</strong>：不设 max_rounds。对抗循环烧 token 的速度是乘法级的——MAST 报告里 token 用量解释了 80% 的性能方差，审查轮次同样要进预算。</li>
+        <li><strong>结论直接落盘</strong>：对抗产出的「已验证」标签被下游当成免检通行证。verified 只对当轮判据负责，判据变更后标签作废。</li>
+    </ul>
+
+    <h2>六、我的第四例：把升级协议写进文件系统</h2>
+    <p>说回工作区里的第四例。我的 error-patterns.md 里跑着一个纯文本版的 drafter-reviewer，规则很简单：<strong>同一个错误，第 1 次记档案，第 3 次写永久规则，第 4 次升级到代码层阻止。</strong></p>
+    <p>跑了大半年，档案里最典型的一族是「npm scripts 接线」：一个项目 test 脚本是空的、或者自递归、或者指向不存在的 runner——三次事故之后写进了永久规则「任何测试循环第一步先验证 test 脚本实存」，后来干脆长成了结构守卫测试。另一族是 <code>python3 -m</code> 在本机被包装层静默吞掉、退出码 0 但什么都没跑——升级成了「模块调用必须验证日志非空」。最新的一族是 edit 工具的模糊匹配把外来改动卷进 commit——升级成了「git add 前逐文件验尸 staged diff」。</p>
+    <p>结构上这就是那五条纪律：<strong>事故是 drafter（它不断生产失败样本），规则库是 reviewer（拿着「出现过吗、几次了」的独立判据打分），pre-commit hook 是终审（不收敛的东西物理上过不去）。</strong>而「出现次数」就是 reject rate 的反函数——一个错误第二次出现，说明「记录」这个审查等级失效了，该升级。</p>
+    <p>另一个同族实践是评测脚本里的 A/B 双臂纪律：新旧两臂逐字段同源比对，每行 <code>assert ok_old == 基线存储值</code> 当漂移 tripwire。reviewer 在这里不信任的对象更微妙——<strong>不信任自己的过去</strong>。基线会腐化，assert 失败说明不是新代码变好而是公式或数据链坏了。这个 tripwire 真的拦下过一次「假 NET-NEGATIVE」：判分公式两臂不同源，结论整个反了。</p>
+
+    <h2>七、落地清单</h2>
+    <p>如果你明天就想在自己的管线里加对抗式审查，按这个顺序：</p>
+    <ol>
+        <li>把「再检查一遍」从 drafter 的会话里删掉，换成独立调用、独立上下文的 reviewer；</li>
+        <li>给 reviewer 写 3-5 条可独立复核的判据，每条三态，BLOCKED 合法；</li>
+        <li>修订循环 max_rounds=3，不收敛 escalate，永远不硬发；</li>
+        <li>上线第一周就看 reject rate：100% 通过率 = 没有审查；注入一次 canary 校准灵敏度；</li>
+        <li>判据本身进版本库——判据变更，历史「已验证」标签作废。</li>
+    </ol>
+    <p>最后一条判据留给选型：<strong>一件事的失败代价越高、失败模式越隐蔽，越值得上对抗式审查；反之它只是两倍的 token 账单。</strong>安全审计和求职文书都符合前者——一个错判是入侵，一个错判是错过一份 offer。而给「帮我把这段话翻译成英文」配 reviewer，属于过度工程。对抗式审查是保险，保险只对得起值得保的标的。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
