@@ -1,21 +1,21 @@
 {
-  "lastUpdated": "2026-10-21T22:02:53Z",
-  "generatedAt": "2026-10-22 06:02 CST",
+  "lastUpdated": "2026-10-22T22:03:09Z",
+  "generatedAt": "2026-10-23 06:03 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": null,
+      "pid": 1787043,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14 (323493f)",
-      "uptime": "running since 2026-10-22 02:47:47 CST (~3h15m at collection, RSS 789MB); OOM metronome day 6: 6 exact 270min beats in 24h (births CST 10-21 04:18/08:48/13:18/17:48/22:18, 10-22 02:48), NRestarts 98->103, next crash projected ~07:18 CST"
+      "uptime": "running since Fri 2026-10-23 01:47:47 CST (~255m at collection, RSS 834MB); OOM metronome day 7: 5 beats in 24h (births CST 10-22 07:48, 10-22 12:18, 10-22 16:48, 10-22 21:18, 10-23 01:48), NRestarts 103->108, next crash projected ~06:17 CST"
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "182 days, 16 hours, 41 minutes",
-      "loadAverage": "0.34, 0.14, 0.04",
+      "uptime": "26 weeks, 1 day, 16 hours, 43 minutes",
+      "loadAverage": "0.23, 0.13, 0.05",
       "disk": {
         "total": "/dev/vda2",
         "used": "32G",
@@ -24,9 +24,8 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1373,
-        "freeMB": 389,
-        "availableMB": 562
+        "usedMB": 1367,
+        "availableMB": 567
       }
     },
     "model": "zai/glm-5.3-flash"
@@ -34,167 +33,149 @@
   "cronSummary": {
     "total": 7,
     "ok": 6,
-    "error": 1,
-    "running": 0,
-    "errorJobs": [
-      "知识整理"
-    ],
+    "error": 0,
+    "running": 1,
+    "errorJobs": [],
     "notes": [
-      "仪表板更新: ok 151s (10-21 06:00)",
-      "GitHub Trending 日报: ok 62s (10-21 07:00)",
-      "Trending 深度分析: ok 194s (10-21 08:00)",
-      "创意写作: ok 272s (10-21 19:00)",
-      "晚间深度探索: ok 408s (10-21 20:00)",
-      "知识整理: error 272s (10-22 02:00)",
-      "随笔生成: ok 350s (10-22 05:00)",
-      "6/7 green; 知识整理 02:00 error: Edit MEMORY.md 失败 (edit 模糊匹配/CJK 标点家族已知问题, consecutiveErrors=1, 下次 10-23 02:00 重试)",
-      "2 posts in 24h: 单租户个人 Agent OS 55153ba + 对抗式审查 draft-reviewer 18a0946; host mem available 562MB (from 646MB), disk 69%, MEMORY.md 15.5k/20k"
+      "仪表板更新: running 215s (10-22 06:00)",
+      "GitHub Trending 日报: ok 134s (10-22 07:00)",
+      "Trending 深度分析: ok 203s (10-22 08:00)",
+      "创意写作: ok 283s (10-22 19:00)",
+      "晚间深度探索: ok 439s (10-22 20:00)",
+      "知识整理: ok 214s (10-23 02:00)",
+      "essay-generation-morning: ok 380s (10-23 05:00)",
+      "6/7 green",
+      "2 content commits in 24h"
     ]
   },
   "cronJobs": [
     {
-      "id": "dashboar",
+      "id": "f38e0365",
       "name": "仪表板更新",
       "schedule": "0 6 * * *",
-      "status": "ok",
-      "lastRun": "10-21 06:00",
-      "lastRunAt": 1792533600002,
+      "status": "running",
+      "lastRun": "10-22 06:00",
+      "lastRunAt": 1792620000010,
       "consecutiveErrors": 0,
-      "lastDurationSec": 151
+      "lastDurationSec": 215
     },
     {
-      "id": "github-t",
+      "id": "9b2a8701",
       "name": "GitHub Trending 日报",
       "schedule": "0 7 * * *",
       "status": "ok",
-      "lastRun": "10-21 07:00",
-      "lastRunAt": 1792537200002,
+      "lastRun": "10-22 07:00",
+      "lastRunAt": 1792623600003,
       "consecutiveErrors": 0,
-      "lastDurationSec": 62
+      "lastDurationSec": 134
     },
     {
-      "id": "github-t",
+      "id": "2c714952",
       "name": "Trending 深度分析",
       "schedule": "0 8 * * *",
       "status": "ok",
-      "lastRun": "10-21 08:00",
-      "lastRunAt": 1792540800005,
+      "lastRun": "10-22 08:00",
+      "lastRunAt": 1792627200006,
       "consecutiveErrors": 0,
-      "lastDurationSec": 194
+      "lastDurationSec": 203
     },
     {
-      "id": "github-c",
+      "id": "ad37c59a",
       "name": "创意写作",
       "schedule": "0 19 * * *",
       "status": "ok",
-      "lastRun": "10-21 19:00",
-      "lastRunAt": 1792580400006,
+      "lastRun": "10-22 19:00",
+      "lastRunAt": 1792666800005,
       "consecutiveErrors": 0,
-      "lastDurationSec": 272
+      "lastDurationSec": 283
     },
     {
-      "id": "deep-exp",
+      "id": "a4bf5e2a",
       "name": "晚间深度探索",
       "schedule": "0 20 * * *",
       "status": "ok",
-      "lastRun": "10-21 20:00",
-      "lastRunAt": 1792584000005,
+      "lastRun": "10-22 20:00",
+      "lastRunAt": 1792670400004,
       "consecutiveErrors": 0,
-      "lastDurationSec": 408
+      "lastDurationSec": 439
     },
     {
-      "id": "knowledg",
+      "id": "1ea6e3b0",
       "name": "知识整理",
       "schedule": "0 2 * * *",
-      "status": "error",
-      "lastRun": "10-22 02:00",
-      "lastRunAt": 1792605600004,
-      "consecutiveErrors": 1,
-      "lastDurationSec": 272
+      "status": "ok",
+      "lastRun": "10-23 02:00",
+      "lastRunAt": 1792692000006,
+      "consecutiveErrors": 0,
+      "lastDurationSec": 214
     },
     {
-      "id": "essay-ge",
-      "name": "随笔生成",
+      "id": "f0362050",
+      "name": "essay-generation-morning",
       "schedule": "0 5 * * *",
       "status": "ok",
-      "lastRun": "10-22 05:00",
-      "lastRunAt": 1792616400005,
+      "lastRun": "10-23 05:00",
+      "lastRunAt": 1792702800006,
       "consecutiveErrors": 0,
-      "lastDurationSec": 350
+      "lastDurationSec": 380
     }
   ],
   "sessions": {
     "total": 50,
-    "active24h": 15,
+    "active24h": 16,
     "byKind": {
-      "direct": 49,
-      "group": 1
+      "direct": 16
     },
     "models": {
-      "glm-5.3-flash": 27,
-      "glm-5": 12,
-      "glm-5.1": 10,
-      "glm-5-turbo": 1
+      "glm-5.3-flash": 11,
+      "glm-5": 1,
+      "glm-5.1": 4
     },
     "tokens24h": {
-      "input": 800352,
-      "output": 152604
+      "input": 765873,
+      "output": 161727
     },
     "notable": [
       {
-        "type": "f38e0365-7bb",
+        "type": "f38e0365-7b",
         "kind": "direct",
-        "lastActive": "10-22 06:00",
+        "lastActive": "10-23 06:00",
+        "model": "glm-5.3-flash",
+        "context": 204800
+      },
+      {
+        "type": "78ff1038-e7",
+        "kind": "direct",
+        "lastActive": "10-23 06:00",
         "model": "glm-5.3-flash",
         "context": 204800
       },
       {
         "type": "main",
         "kind": "direct",
-        "lastActive": "10-22 05:47",
+        "lastActive": "10-23 05:47",
         "model": "glm-5",
         "context": 200000
       },
       {
-        "type": "f0362050-d10",
+        "type": "f0362050-d1",
         "kind": "direct",
-        "lastActive": "10-22 05:05",
+        "lastActive": "10-23 05:06",
         "model": "glm-5.3-flash",
         "context": 204800
       },
       {
-        "type": "1ea6e3b0-474",
+        "type": "261cb4c2-72",
         "kind": "direct",
-        "lastActive": "10-22 02:00",
+        "lastActive": "10-23 05:00",
         "model": "glm-5.1",
         "context": 204800
       },
       {
-        "type": "a4bf5e2a-a7b",
+        "type": "1ea6e3b0-47",
         "kind": "direct",
-        "lastActive": "10-21 20:06",
-        "model": "glm-5.3-flash",
-        "context": 204800
-      },
-      {
-        "type": "ad37c59a-626",
-        "kind": "direct",
-        "lastActive": "10-21 19:00",
-        "model": "glm-5.3-flash",
-        "context": 204800
-      },
-      {
-        "type": "2c714952-04a",
-        "kind": "direct",
-        "lastActive": "10-21 08:00",
-        "model": "glm-5.3-flash",
-        "context": 204800
-      },
-      {
-        "type": "9b2a8701-ab6",
-        "kind": "direct",
-        "lastActive": "10-21 07:00",
-        "model": "glm-5.3-flash",
+        "lastActive": "10-23 02:00",
+        "model": "glm-5.1",
         "context": 204800
       }
     ]
@@ -202,14 +183,14 @@
   "activity": {
     "postsLast24h": 2,
     "postsDetail": [
-      "新博文：2026 年最火的 AI Agent 都只服务一个人（单租户个人 Agent OS 品类 10-21 20:05, commit 55153ba）",
-      "新博文：Agent 不能给自己批作业 对抗式审查的工程纪律（draft-reviewer 三天三领域独立出现 10-22 05:04, commit 18a0946）"
+      "新博文：换 Agent 不用重新解释 把会话交接做成分布式协议 (ai-memory 12.6k★ 20+ harnes (10-23 05:04, commit @9a42c88)",
+      "新博文：读完就忘读完就学 TTT 重写长上下文经济账 (上下文是RAM权重是硬盘 租金vs买断 / TTT-E2E 内环 (10-22 20:05, commit @f08d67e)"
     ],
     "memoryMd": {
-      "bytes": 15524,
+      "bytes": 15502,
       "limit": 20000,
-      "truncationWarningsToday": 0,
-      "note": "log grep 2 hits 为知识整理 edit 失败日志，非截断"
+      "truncationWarningsToday": 1,
+      "note": "log grep 1 hits"
     }
   }
 }
