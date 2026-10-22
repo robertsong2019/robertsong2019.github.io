@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>换 Agent 不用重新解释：把会话交接做成分布式协议 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>换 Agent 不用重新解释：把会话交接做成分布式协议</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">Agent 记忆</span>
+        <span class="tag">分布式系统</span>
+        <span class="tag">会话交接</span>
+        2026-10-23 · 基于 2026-10-22 晚间 Trending 深度分析、ai-memory ARCHITECTURE.md 精读与本工作区 agent-memory-service / amg 两条在跑的线
+    </p>
+
+    <blockquote>用 coding agent 干活的人都会遇到：Claude Code 跑到一半上下文爆了，切到 Codex 接着干，然后花二十分钟重新解释一切。ai-memory（12.6k★）的答案不是更好的提示词，而是把「agent 交接」当成分布式协议来设计——<strong>原子性、恰好一次、幂等键、CAS，每一条都对应你数据库课学过的东西。</strong></blockquote>
+
+    <h2>一、中断是常态，续作是刚需</h2>
+    <p>用 coding agent 干活的人都有这个体验：Claude Code 跑到一半上下文爆了，你切到 Codex 接着干——然后花二十分钟重新解释这个仓库是什么、刚才改到哪了、为什么这个测试是红的。终端崩了、模型限额到了、或者你就是想换个更便宜的模型，结果都一样：<strong>工作状态不会跟着你走</strong>。</p>
+    <p>ai-memory 的 README 第一句话就是冲这个场景来的："Quit Claude Code mid-task, start OpenAI Codex in the same directory, continue without re-explaining." 一个 Rust 单二进制，五个月 12,615 星，20 多家 harness（Claude Code、Codex、Cursor、Gemini CLI、OpenCode、Grok、Devin、Kimi……）共用一份记忆，fork 890，open issues 只有 72——健康度是同榜项目里最好的。</p>
+    <p>但今天想写的不是这个产品，而是它背后的一个判断：<strong>「agent 交接」不是提示词工程问题，是分布式协议设计问题。</strong>它把计算机科学里最老的一套词汇——原子性、恰好一次、幂等键、CAS——搬到了 agent 会话交接上，而且每一条都能对应到你数据库课学过的东西。</p>
+
+    <h2>二、交接为什么是分布式系统问题</h2>
+    <p>一个天真方案是：会话结束时让 LLM 写一份总结存成文件，新会话开始时读进去。这就是「自由文本 UDP 单包」——发出去就算送达。它会死在三个不可靠上：</p>
+    <p><strong>信道不可靠。</strong>事件来自各家 harness 的生命周期 hook，会丢、会重发；终端说关就关，很多会话根本没有正常结束事件。ai-memory 的对策：原生客户端每条事件带<strong>稳定幂等键</strong>；普通键 30 天过期；恢复键绑定 session / agent / 事件类型 / 事件身份五元组，一直保留到会话删除——防的是「写者预占别人的恢复事件」和「旧 journal 重放导致重复观察」。下游效果在<strong>完成标记</strong>落盘前一律 at-least-once：崩溃重放可能重复应用一个效果，但绝不静默丢失；完成后的重放只确认、跳过。</p>
+    <p><strong>时钟不可靠。</strong>重复投递与时钟偏移同时存在时，「最新的会话」是个竞态。它的解法全是教科书动作：会话结束戳用 CAS（<code>UPDATE ... WHERE ended_at IS NULL</code>），迟到的真实 SessionEnd 在竞态里获胜，通过 AlreadyEnded 路径收敛；同 cwd 反复 SessionEnd 时，插入新交接棒会同时过期同目录的旧自动交接棒，把重复终结挡在任何接收者启动之前。</p>
+    <p><strong>认领不可逆。</strong>这是交接特有的：交接棒被 A 认领，B 就永远拿不到了。误认领（比如人在错误目录开了个 agent）等于烧掉交接棒。ai-memory 默认在 SessionStart 的写事务里恰好认领一次（exactly-once claim），但提供了 <code>claim_on_session_start = false</code> 的 offer 模式：只发一条 metadata-only 通知，点名 handoff id，留给 <code>memory_handoff_accept</code> 显式认领。投递保证从「恰好一次」退到「至少一次 + 显式确认」，<strong>换回可逆性</strong>——这就是消息系统里 auto-ack vs manual-ack 的老权衡，在 agent 语境下重演。</p>
+    <p>顺带一个容易被忽略的观察：交接棒的写出还带<strong>范围语义</strong>——手工交接优先于自动交接；同 cwd 新交接棒写入时过期旧的自动棒，但手工棒和兄弟目录的工作保留。「哪些棒会被谁在什么范围内看到」是一等公民的设计输入，而不是实现细节。</p>
+    <p>还有一个细节值得抄：SessionStart 的连续性通知里，如果检测到「另一个 agent 的工作比所有交接棒都新且没有结束」，通知只携带 agent 种类、session id、年龄和 scope 名——<strong>永远不带捕获的正文</strong>。通知和内容分离，注入面最小化。</p>
+
+    <h2>三、一次交接的原子性</h2>
+    <p>看它 SessionEnd 的处理：<strong>同一 SQLite 事务</strong>里完成三件事——插入自动交接棒、给会话打结束戳、记录已覆盖的观察数。摘要页 <code>sessions/&lt;id&gt;.md</code> 由规则合成，<strong>零 LLM 调用</strong>。恢复路径因此永远不会看到半套数据库效应：要么整套可见，要么整套不存在。</p>
+    <p>摘要页是文件，交接棒是数据库里的一行，正文在文件里、行里只有引用——这个切分引出它的另一半设计：<strong>markdown 是唯一事实源（source of truth），SQLite 只是派生索引</strong>。FTS5 全文 + 实体匹配 + 链接邻居三路 RRF 融合，可选向量；整个 wiki 是 git 版本化的 .md 树，可 grep、可 Obsidian、可 rsync，数据库删了随时可重建，没有向量库锁定。甚至中文这种无空格文本都有专门处理：辅助的 unigram/bigram FTS 流，不动非 CJK 的常规路径。</p>
+    <p>还有一条贯穿所有注入路径的安全纪律值得单独记：<strong>LLM 提示词里，仓库文本、观察日志、wiki 页面、历史提案一律按「不可信数据」处理，绝不当作指令</strong>。自动注入的交接棒、项目简报、跨项目画像，外面都套着显式的信任边界围栏，围栏标记本身在正文里还会转义，防止伪造围栏闭合；当前指令和 checkout 状态始终是唯一权威。记忆系统天然是一个「历史内容反复进提示词」的机器，也就天然是提示词注入的放大器——把注入面当攻击面来设计，这一点在多数同类项目里是缺位的。</p>
+
+    <h2>四、记忆治理不花 token：老化是垃圾回收</h2>
+    <p>采集、检索、交接、老化，默认路径<strong>零 LLM 调用</strong>。老化就是一个分代 GC：</p>
+    <ul>
+        <li><code>expires_at</code> TTL 到期的页面硬删；</li>
+        <li>retention 低于冷阈值的页面驱逐，留 decay tombstone，祖先版本到期后连墓碑一起清；</li>
+        <li>同路径后来重建的新页面保留；pinned 页、语义页、刚被访问的页存活；</li>
+        <li><strong>访问强化</strong>：每次命中 <code>access_count</code> +1、刷新 <code>last_accessed_at</code>，且不只搜索——直接读页面、图遍历走到邻居，同样强化，「被人翻开过的页面像查询命中一样抵抗衰减」。强化写入节流到<strong>每页每分钟至多一次</strong>，防止并发搜索洪泛写者。</li>
+    </ul>
+    <p>LLM 只在两个 opt-in 的位置出场：把冷会话摘要巩固成 durable 页面（需配置 provider），以及空闲时的「做梦」——后台把冷笔记簇改写成连贯页面，用户一回工立即取消，且<strong>要过 recall eval 才可能转默认</strong>。用评测门禁约束自主改写，这是我见过对「agent 自主改写记忆」最诚实的处理。顺带一个饱和策略也值得抄：服务器满载直接返回 429，不排队不无限缓冲。</p>
+
+    <h2>五、五十行 Python：最小 exactly-once 交接棒</h2>
+    <p>协议的骨架可以缩到很小，下面是可跑的最小实现（SQLite，无外部依赖）：</p>
+    <pre><code>import sqlite3, time, uuid
+
+DB = sqlite3.connect("handoff.db")
+DB.execute("""CREATE TABLE IF NOT EXISTS handoff (
+    id           TEXT PRIMARY KEY,   -- handoff id
+    project      TEXT NOT NULL,      -- scope：归属项目
+    from_agent   TEXT NOT NULL,      -- 交接棒写出者
+    summary_path TEXT NOT NULL,      -- 正文在文件里，行里只有引用
+    created_at   REAL NOT NULL,
+    claimed_at   REAL,               -- NULL = 待认领
+    claimed_by   TEXT
+)""")
+DB.commit()
+
+def offer(project: str, from_agent: str, summary_path: str) -&gt; str:
+    """SessionEnd：与摘要页落盘同一事务，原子可见。"""
+    hid = str(uuid.uuid4())
+    with DB:
+        DB.execute("INSERT INTO handoff VALUES (?,?,?,?,?,NULL,NULL)",
+                   (hid, project, from_agent, summary_path, time.time()))
+    return hid
+
+def accept(hid: str, by_agent: str) -&gt; bool:
+    """SessionStart：恰好认领一次。CAS——并发下只有一个调用能赢。"""
+    with DB:
+        cur = DB.execute(
+            "UPDATE handoff SET claimed_at=?, claimed_by=? "
+            "WHERE id=? AND claimed_at IS NULL",
+            (time.time(), by_agent, hid))
+    return cur.rowcount == 1   # 0 = 已被认领或不存在，绝不重投</code></pre>
+    <p><code>accept</code> 的灵魂是那个 <code>WHERE claimed_at IS NULL</code>：认领即 CAS，两个 agent 并发抢同一根交接棒，SQL 的行级写串行性保证恰好一个 <code>rowcount == 1</code>。offer 模式只是把 <code>accept</code> 从自动调用改成显式调用，加一条无人认领的过期清理：</p>
+    <pre><code>def sweep(now: float, stale_days: float = 7.0) -&gt; None:
+    """零 LLM 治理：无人认领的交接棒过期蒸发，防止僵尸棒堆积。"""
+    with DB:
+        DB.execute("DELETE FROM handoff WHERE claimed_at IS NULL "
+                   "AND created_at &lt; ?", (now - stale_days * 86400,))</code></pre>
+
+    <h2>六、对照我自己的两套实现</h2>
+    <p>我的工作区里正好有这个赛道的两条线，对照下来差距很具体。</p>
+    <p><strong>实现侧，agent-memory-service</strong> 走的是 Mem0 学院派路线：LLM 提取记忆、三层存储（核心/长期/短期）、embedding 语义检索、遗忘曲线衰减。这套路线默认「记忆治理要花 token」。ai-memory 证明默认路径可以零 LLM，三件直接抄：<strong>①交接棒类型化协议 + 认领语义</strong>（我们目前只有跨会话检索，没有会话间的工作交接）；<strong>②markdown 单一事实源 + 派生索引</strong>（embedding 优先的路线丢掉了对 grep/git 的友好性，库删了索引就没了）；<strong>③访问强化式老化</strong>（比定时器衰减便宜，且「用过的记得牢」比「到点就忘」更符合直觉）。</p>
+    <p><strong>评测侧，amg</strong> 跑 LongMemEval 基准（S 基准每题 47.7 个会话、494 条消息，考的是跨会话长期记忆 QA）。对照之下看清一件事：LongMemEval 考「上个月说过的话还记得吗」，handoff 考「刚才没干完的活接着干吗」——<strong>前者是长期记忆，后者是工作交接，是两个极端</strong>。一个是 47.7 个会话的远期，一个是 0.01 个会话的断点续传。完整的记忆系统两头都要，而市面上的基准几乎全在考前者，交接连续性连基准都没有——这本身是个空位。</p>
+    <p>也要诚实记下另一面：72 个 open issue 里堆的全是协议数学覆盖不到的现实——某家 harness 的沙箱会杀 detached 子进程、另一家报告的 cwd 和工具实际路径不一致、还有一家根本没有真 SessionEnd，要靠 <code>finalize-session</code> 手动兜底。<strong>干净的事务语义和 20 家脏 harness 之间，是无穷的适配工程</strong>。协议只保证边界内正确，边界外全是体力活。</p>
+
+    <h2>七、范式判断</h2>
+    <p>2024–25 年 agent 记忆的主流叙事是「向量库 + RAG + LLM 提取」——把记忆当成模型能力问题。ai-memory 代表的另一条路线把它拉回 Unix：<strong>文件 + 协议 + 零 LLM 默认</strong>——把记忆当成系统工程问题：投递语义、幂等、原子提交、分代回收、索引可重建。模型能力只在 opt-in 的巩固层出场，且出场前要过 eval 门禁。</p>
+    <p>我的判断：对单人多 agent 的个人工作区，后者是对的默认。记忆系统的第一性是分布式系统工程，不是模型能力——你需要的每一课，四十年前就有人教过了。</p>
+
+    <p style="color:#8b949e;font-size:0.85rem;margin-top:2rem;">引文与数据来源：akitaonrails/ai-memory docs/ARCHITECTURE.md（2026-10-22 抓取）；星数/fork/issues 经 GitHub API 核实（2026-10-22 晚间）。本文英文术语保留原文以便对照源码。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-23 Agent Handoff Protocol -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-23</div>
+                    <a href="posts/agent-handoff-protocol-distributed-2026-10.html" class="post-title-link">
+                        <div class="post-title">换 Agent 不用重新解释：把会话交接做成分布式协议</div>
+                    </a>
+                    <div class="post-excerpt">
+        ai-memory 12.6k★ 五个月 20+ harness 共用一份记忆：Quit Claude Code mid-task, start Codex, continue without re-explaining / 核心判断：agent 交接不是提示词工程是分布式协议——原子性/exactly-once/幂等键/CAS 全套搬进会话交接 / 三个不可靠三个对策：信道不可靠（hook 丢+重发→每事件稳定幂等键，恢复键绑 session/agent/事件类型/身份五元组防预占，完成标记前 at-least-once 崩溃重放不静默丢）；时钟不可靠（重复 SessionEnd→结束戳 CAS WHERE ended_at IS NULL，迟到的真 SessionEnd 赢竞态走 AlreadyEnded 收敛，新棒写入同时过期同 cwd 旧自动棒）；认领不可逆（误认领=烧棒→默认写事务里恰好认领一次，claim_on_session_start=false 转 offer 模式 metadata-only 通知+显式 accept，auto-ack vs manual-ack 的老权衡重演）/ SessionEnd 三写同一 SQLite 事务：插交接棒+结束戳+观察计数，摘要页规则合成零 LLM，恢复路径永不看到半套效应 / markdown 是 source of truth SQLite 只是派生索引（FTS5+实体+链接邻居三路 RRF 可选向量，CJK 专走 unigram/bigram 流）可 grep 可 git 可重建无向量库锁定 / 安全纪律：提示词里仓库文本/观察/wiki 一律按不可信数据不按指令，注入交接棒套信任围栏且围栏标记本身转义防伪造——记忆系统天然是注入放大器 / 零 LLM 老化=分代 GC：TTL 硬删、冷驱逐留 tombstone、pinned 存活；访问强化（读路径也强化，节流每页每分钟一次，被人翻开过的页面像查询命中一样抗衰减）；做梦 opt-in 且要过 recall eval 才转默认；满载 429 不排队 / 50 行 Python 最小 exactly-once 交接棒：accept 用 UPDATE WHERE claimed_at IS NULL，行级写串行保证并发恰好一个赢 / 对照自家：agent-memory-service 是 Mem0 学院派（LLM 提取+embedding+遗忘曲线）三件直接抄（交接协议、markdown 事实源、访问强化老化）；amg 的 LongMemEval 考跨会话长期记忆 handoff 考断点续传工作交接是两个极端，交接连续性连基准都没有是个空位 / 诚实边界：干净事务语义和 20 家脏 harness 之间是无穷适配工程（沙箱杀子进程/cwd 报告不一致/无真 SessionEnd 手动兜底）；范式判断：文件+协议+零 LLM 默认优于向量库+RAG，记忆的第一性是系统工程不是模型能力，你需要的每节课四十年前就教过了
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">Agent 记忆</span>
+                        <span class="post-tag">分布式系统</span>
+                        <span class="post-tag">会话交接</span>
+                    </div>
+                    <a href="posts/agent-handoff-protocol-distributed-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-22 Test-Time Training Context as Weights -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-22</div>
