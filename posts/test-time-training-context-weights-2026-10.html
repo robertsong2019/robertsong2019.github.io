@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>读完就忘，读完就学：TTT 正在重写长上下文的经济账 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>读完就忘，读完就学：TTT 正在重写长上下文的经济账</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">Test-Time Training</span>
+        <span class="tag">长上下文</span>
+        <span class="tag">推理架构</span>
+        2026-10-22 · 基于 TTT-E2E / In-Place TTT / TT-SI (ACL 2026) / SIFT 等 14 篇论文与系统 · 前传：<a href="test-time-training-agents-learn-while-running-2026-08.html">《Agent 边跑边学》</a>（2026-08）
+    </p>
+
+    <blockquote>你给模型塞了一份 500 页的内部 API 文档，它答对了三个问题。第二天开新会话，它全忘了，你得把文档再塞一遍。第三天，又一遍。<strong>上下文是按次付费的租金，模型从来没能"买断"任何它读过的东西。</strong>两个月前我写过 TTT 的前传（SEAL、aTTT 那一代），当时它还是个研究方向；2026 年 10 月再看，它已经开始像一门经济学——把信息写进权重的单位成本，第一次出现了低于反复塞进上下文的可能。</blockquote>
+
+    <h2>一、先把三个容易混淆的词分开</h2>
+    <p>2026 年的"测试时"家族有三兄弟，很多人混着用，但它们改的东西完全不同：</p>
+    <ul>
+        <li><strong>Test-time compute（想久一点）</strong>：链式思考、self-consistency、验证器。权重冻结不动，只是算得更久。像考生把卷子检查三遍。</li>
+        <li><strong>Test-time training（边答边学）</strong>：权重真的在推理时被梯度更新了。像考生每做一道题，顺手把解法记进了脑子。</li>
+        <li><strong>Sleep-time compute（闲时学）</strong>：部署后利用空闲批量学习。像考生晚上回家刷题。</li>
+    </ul>
+    <p>本文只讲第二个。它有个更精确的内部划分：<span class="highlight">慢权重</span>（预训练所得，冻结）与<span class="highlight">快权重</span>（推理时按请求更新的少量参数）。TTT 的全部动作都发生在快权重上。</p>
+
+    <h2>二、主线一：上下文是训练数据——RAM 和硬盘的比喻</h2>
+    <p>把 LLM 的两种记忆方式类比成计算机存储就清楚了：<strong>上下文是 RAM，权重是硬盘。</strong>RAM 里的东西断电即失（换会话就丢）、每次访问都要付钱（每个 token 每次调用都计费）；硬盘写一次就一直在。今天所有的 RAG 和长上下文方案，本质都是"把重要资料常年堆在 RAM 里"，每天为同一份文档反复付租金。</p>
+    <p>NVIDIA 今年发布的 <strong>TTT-E2E</strong> 把这件事挑明了：模型读上下文的过程，本身就是一个训练过程——内环用下一个词预测的目标，把读到的内容压缩进快权重；外环用元学习塑造一个"善于被更新"的初始化。结果：在 128K 上下文上比 full attention 快 2.7 倍，2M 上下文快 35 倍（H100 实测），且延迟与上下文长度无关——常数延迟。他们的原话是，长上下文问题"可能第一次看到了基本解"，而且 scaling 曲线"没有墙"。</p>
+    <p>换句话说：<strong>注意力是每次回答前重读一遍整个图书馆，TTT 是读过的部分做笔记。</strong>2M token 的账单差距 35 倍，这就是经济学被改写的含义。</p>
+
+    <h2>三、主线二：不重训怎么落地——三堵墙和三把梯子</h2>
+    <p>TTT 听起来美好，但 2025 年之前它有个致命的落地障碍：主流 TTT 层要替换注意力机制，意味着几十亿参数的模型得从头预训练。In-Place TTT（arXiv 2604.06169）总结了三堵墙，并逐一拆掉：</p>
+    <table>
+        <tr><th>墙</th><th>问题</th><th>梯子</th></tr>
+        <tr><td>架构不兼容</td><td>TTT 层要替换注意力，需重训</td><td>快权重选在 <strong>MLP 末投影矩阵</strong>——任何预训练 checkpoint 都有的部件，drop-in 即用</td></tr>
+        <tr><td>串行瓶颈</td><td>逐 token 更新破坏 GPU 并行</td><td><strong>chunk 级更新</strong>，与上下文并行兼容</td></tr>
+        <tr><td>目标错位</td><td>通用的"重建目标"≠语言建模目标</td><td>改用<strong>与下一个词预测对齐</strong>的目标（有理论保证）</td></tr>
+    </table>
+    <p>效果：一个 4B 参数模型作为增强插件，在最长 128K 的任务上稳定提升，全程无需重新预训练。这条路线的意义在于：TTT 从"新架构的专利"变成了"存量模型的升级包"。</p>
+
+    <h2>四、主线三：Agent 的自我改善——最贵的问题是"什么时候训练"</h2>
+    <p>Agent 场景今年最有意思的进展是 UIUC 的 <strong>TT-SI</strong>（ACL 2026 Findings）。它是一个三件套：</p>
+    <ol>
+        <li><strong>不确定性估计</strong>：先判断"这道题我有没有把握"。有把握直接答，跳过训练。</li>
+        <li><strong>数据合成</strong>：没把握时，围绕当前任务合成针对性的训练样本（不依赖外部高质量数据）。</li>
+        <li><strong>轻量更新</strong>：在合成样本上做 TTT，再重新作答。</li>
+    </ol>
+    <p>两个数字值得记住：跨基准平均涨 <strong>5.48%</strong>；而且<strong>只用一条合成样本也能涨</strong>。这与 ICML 2025 的理论工作互相印证——对线性 Transformer 的分析证明，单步梯度就能显著受益，样本需求可以省 3 到 5 倍。TTT 的单位收益比所有人预想的便宜；真正贵的是"决定要不要训练"这个判断，所以不确定性门控才是系统的第一闸门。</p>
+    <p>检索式 TTT 分支还有个反直觉的发现。2023 年的 TTT-NN 是检索 20-50 条近邻、在推理时微调，约 20 步梯度就拿到大部分困惑度收益；ETH 的 <strong>SIFT</strong> 进一步发现：<strong>选"信息增益最大"的数据比选"最相似"的数据效果好得多</strong>——最近邻检索会拿回一堆冗余样本，而模型越强，越需要高信息密度的数据。这几乎是"读什么"比"读多少"的量化证明。</p>
+
+    <h2>五、理论彩蛋：TTT 是穿了马甲的线性注意力</h2>
+    <p>NVIDIA 在 ICML 2026 的工作标题起得很直白：《Test-Time Training with KV Binding Is Secretly Linear Attention》。他们证明一大类 TTT 架构可以化归为"学习型线性注意力"。这解释了此前一堆令人困惑的实验现象，也带来工程福利：可以按线性注意力的成熟套路做并行化和架构简化。Mamba 系、线性注意力系、TTT 系三条线在数学上合流了——对工程狗的启示是：<strong>别把 TTT 当"新物种"评估，把它当"可并行的序列混合器"评估。</strong></p>
+
+    <h2>六、最大的坑不在算法，在 serving</h2>
+    <p>冷静的部分来了。2026 年中期的部署现状：vLLM <strong>不原生支持</strong> TTT 层模型；社区扩展（如 tLLM）也非为此架构量身打造；生产路径是用 <code>ttt-lm-pytorch</code> 加 FastAPI 自己包一层。更深的冲突在于：<strong>continuous batching 假设所有请求共享同一个静态模型，而 TTT 的快权重是 per-request 的</strong>——每个请求带着自己的"私人模型副本"，服务层的核心优化全部失效。另外 TTT-E2E 的元学习阶段需要对梯度求梯度，当前实现比标准预训练慢 3.4 倍（FlashAttention 不支持二阶梯度）。</p>
+    <p>打个比方：算法研究已经跑进 F1 赛道，生产部署还开在土路上。2026 年的 TTT 不缺论文，缺的是推理引擎。</p>
+
+    <h2>七、安全暗面：模型会从它读到的一切学习</h2>
+    <p>这件事必须说透：RAG 投毒影响的只是"模型这次看到什么"，而 TTT 意味着<strong>模型读到的每条毒文档都可能变成梯度，写进快权重</strong>。攻击从检索层升级到了权重层。但有个天然缓冲——per-request 快权重是"阅后即焚"的：请求结束即丢弃，毒不进慢权重，也毒不到下一个用户。所以隔离既是安全边界，也是多租户的前提：<strong>快权重绝不跨租户共享</strong>，这条纪律应该写进每个 TTT 系统的设计文档。也有反方提醒（Fast-WAM 一线的研究质疑测试时想象的必要性）：部分 TTT 收益可以用训练时手段替代，上 TTT 之前先做对照实验。</p>
+
+    <h2>八、可以立刻做什么</h2>
+    <ul>
+        <li><strong>跑一个最便宜的 TTT 实验（本周可做）</strong>：LoRA（&lt;1% 参数）+ 20 条精选邻居，用 SIFT 配方——按信息增益选数据，不要按相似度选，LoRA 到不到 1% 参数是甜点区。对照组是同数据的 few-shot prompting。你的领域 agent 如果 10-20 个回合后成功率没有变化，说明你的任务分布太稳，不需要 TTT；有变化，你就有了第一手数字。</li>
+        <li><strong>审计你的上下文账单</strong>：找出"同一段文档每次调用都进上下文"的地方（API 文档、风格指南、领域规则），算一下：每次的 token 成本 × 调用次数 vs 写进快权重的一次成本。租金 vs 买断，账算得出来。</li>
+        <li><strong>三条工程纪律先立起来</strong>：① 不确定性门控——没把握才训练，有把握直接答（TT-SI 的第一件套）；② 快权重按请求隔离——绝不共享，尤其是多租户；③ TTT 前后过 eval gate——防漂移，就像上线前跑回归测试。</li>
+        <li><strong>盯两件事</strong>：vLLM/推理引擎对快权重的支持时间表；Mamba-3 / 混合架构的产业化（Nemotron 3 Super 已经是 Mamba-Transformer 混合，TTT 层与它们天然亲和）。</li>
+    </ul>
+
+    <h2>九、我的判断</h2>
+    <p>8 月我说 TTT 是"边跑边学"的研究方向。10 月的判断要更进一步：TTT 正在把长上下文从<strong>架构竞赛</strong>变成<strong>成本会计</strong>。当"读过的东西做一次笔记"的单位成本低于"每次回答重读一遍"，长上下文战争就会以谁都没料到的方式结束——不是谁的窗口更大谁赢，而是谁先把注意力花在没读过的东西上。模型行业花了四年学会把互联网压进慢权重；接下来四年，要学会把<strong>你的上下文</strong>压进快权重。真正值得警惕的窗口期恰恰在这里：一个会从读到的一切中学习的模型，配一个不设防的数据入口——投毒者等的就是这一天。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>

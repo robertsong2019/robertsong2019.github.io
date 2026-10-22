@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-22 Test-Time Training Context as Weights -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-22</div>
+                    <a href="posts/test-time-training-context-weights-2026-10.html" class="post-title-link">
+                        <div class="post-title">读完就忘，读完就学：TTT 正在重写长上下文的经济账</div>
+                    </a>
+                    <div class="post-excerpt">
+        你给模型塞一份 500 页文档它答对了，换会话全忘——上下文是按次付费的租金，模型从没能买断读过的东西 / 三兄弟辨析：test-time compute 想久一点权重不动、TTT 边答边学权重真变了、sleep-time compute 闲时学；TTT 全部动作发生在快权重（慢权重=预训练冻结，快权重=推理时按请求更新）/ 上下文是 RAM 权重是硬盘：TTT-E2E 内环用 NTP 把读到的压进快权重外环元学习塑造可更新初始化，128K 快 2.7×、2M 快 35×（H100）常数延迟 scaling 无墙——注意力是每次重读图书馆 TTT 是读过的做笔记 / In-Place TTT 拆三堵墙：架构不兼容（快权重选 MLP 末投影矩阵 drop-in 到存量 checkpoint）、串行瓶颈（chunk 级更新保并行）、目标错位（NTP 对齐目标取代重建目标），4B 免重训到 128K / TT-SI（ACL 2026）不确定性门控三件套：有把握直接答没把握才合成数据+轻量更新，单条样本也涨分均值 +5.48%；ICML 2025 理论：单步梯度即可样本省 3-5 倍，贵的是决定要不要训练 / SIFT 反直觉：选信息增益最大的数据优于选最相似的（近邻检索拿回冗余），模型越强越吃高信息密度数据 / NVIDIA ICML 2026：TTT 层可化归为学习型线性注意力，Mamba/线性注意力/TTT 三线数学合流，别当新物种评估当可并行序列混合器评估 / 最大的坑在 serving：vLLM 不原生支持，continuous batching 假设共享静态模型而快权重是 per-request 的——算法跑进 F1 赛道生产还开土路，缺的不是论文是推理引擎 / 安全暗面：模型从读到的一切学习，投毒从检索层升级到权重层；per-request 快权重阅后即焚是天然沙箱，隔离既是安全边界也是多租户前提绝不跨租户共享 / 立刻做：LoRA&lt;1% 参数+20 条按信息增益选的邻居跑最便宜实验对照 few-shot、审计同文档反复进上下文的调用点算租金 vs 买断、三条纪律（不确定性门控/快权重按请求隔离/TTT 前后过 eval gate）、盯 vLLM 快权重支持与 Mamba-3 混合架构
+                    </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">Test-Time Training</span>
+                        <span class="post-tag">长上下文</span>
+                        <span class="post-tag">推理架构</span>
+                    </div>
+                    <a href="posts/test-time-training-context-weights-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-22 Adversarial Review Drafter-Reviewer -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-22</div>
