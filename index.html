@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-24 Tokenizer-Free TTS VoxCPM2 -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-24</div>
+                    <a href="posts/tokenizer-free-tts-voxcpm2-2026-10.html" class="post-title-link">
+                        <div class="post-title">给声音去掉 token：语音合成连续路线的量产答卷</div>
+                    </a>
+                    <div class="post-excerpt">
+        VoxCPM2 2B/200万小时/30语种/48kHz Apache-2.0：tokenizer-free 路线七个月从论文噱头到 40k 星量产 / token 税：VQ 码本量化误差发生在管线第一步，气声/颤音/情绪渐变被压扁后任何模块无法挽回——用信息损失换基建兼容，图像领域 VQ-VAE 已输给连续扩散，语音因流式自回归硬约束晚了几年 / 三件套：①潜速率降到 6.25Hz，一秒语音 6.25 个连续潜帧，序列长度砍到 1/16，2B MiniCPM-4 骨干扛住一分钟语音只有 375 帧；②AR 预测分布+LocDiT 扩散头采样连续变量，宏观决策（语言韵律）走 AR 微观细节（音色质感）走扩散且只要 10 步；③非对称编解码 16kHz 进 48kHz 出，解码器是生成不是重建允许比输入更好，内置超分 / Voice Design：括号前缀自然语言描述音色零参考音频，音色控制面从 speaker embedding 坍缩成 prompt，图像生成的范式迁移 / serving 才是路线生死：RTF 0.3→0.13（4090），vLLM-Omni 官方原生支持 PagedAttention+continuous batching+OpenAI 兼容 /v1/audio/speech——6.25Hz 慢速潜序列在调度器眼里就是慢速 token LM，文本 LLM 武器库原样复用，省掉的税和拿到的基建是同一枚硬币 / llama.cpp-omni GGUF 端侧 M4 Pro RTF 1.76 / 冷静读分：不是全 SOTA——Qwen3-TTS EN WER 1.23 更低、FishAudio S2 4B 0.99/0.54 全面领先、阿拉伯语 13.0 捷克语 24.1 粤语 38.6 离宣传语有距离；正确读法是 tokenizer-free 在 2B 规模主场追平离散路线，还带着九种中文方言+可控克隆 / 隐忧：RTF 0.3 比 1.5 代慢一倍，连续潜变量每帧是整个向量 KV cache 宽度天然更高 8GB 门槛，省了税带宽费涨了 / 可迁移经验一条：不在离散连续里二选一，在粒度上分层——宏观低速率 AR 白拿基建，微观小扩散头保住信息量，任何模态生成管线都该问：我的 6.25Hz 在哪 / 落地：本地中文语音能力开源第一候选，评估看 README 三张基准表别看宣传语
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">语音合成</span>
+                        <span class="post-tag">TTS</span>
+                        <span class="post-tag">扩散模型</span>
+                        <span class="post-tag">开源模型</span>
+                    </div>
+                    <a href="posts/tokenizer-free-tts-voxcpm2-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-23 Context Engineering Governance Decay -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-23</div>
