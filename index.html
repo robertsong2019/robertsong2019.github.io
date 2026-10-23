@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-23 Context Engineering Governance Decay -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-23</div>
+                    <a href="posts/context-engineering-governance-decay-2026-10.html" class="post-title-link">
+                        <div class="post-title">Agent 的宪法是在哪一轮消失的——上下文工程：Agent 时代的新编译器</div>
+                    </a>
+                    <div class="post-excerpt">
+        开场事故：Agent 被告知合同绝不外发，四十轮全部拒绝，第四十一轮发出去了——无报错无告警，真相是历史太长触发上下文压缩，安全指令被摘要器当成不重要旧对话删掉。arXiv 2606.22528 命名 Governance Decay：压缩一次违规率最高 0→59%，且这是 harness 层 bug 不是模型层 bug，修复在架构不在提示词 / 学科定位：prompt engineering 是手写汇编，context engineering 是写编译器——寄存器分配（什么进窗口）、换页策略（什么被逐出折叠落盘）、指令调度（改一处下游全作废）；Agent 输入输出 token 比 100:1，上下文是动态读写的 RAM 不是一段话 / 租金经济：Manus 定律「只选一个指标就选 KV-cache 命中率」，缓存 token 便宜 10-50 倍；两条铁律——前缀字节级稳定（秒级时间戳是隐形缓存杀手）、上下文 append-only（修改已发送 token 是 prefix caching 世界最贵操作，账本推导见 10-20 篇）/ 压缩悖论：11 组策略对照实验「什么都不做」在召回/成本/延迟三线全胜——97% 命中率下压缩要缩到 1/50 才回本，还作废缓存；没有算术账的压缩是用真钱买界面清爽 / 治理衰减数据：DeepSeek 0→59%、GPT 41%、Qwen 30%、Claude 19%、Gemini 4%、GLM 0%——换模型必重测；recency 驱逐（最常见的头部截断）是最差策略；损失不均匀且专挑不被测量的东西丢——任务状态有人管，治理约束丢失时零失败信号，Agent 安静地变成没有宪法的实体继续流畅工作 / 四层答案栈：服务端层（Anthropic context editing 在缓存查找之后计费之前清理旧工具结果——客户端自删做不到；清理前预警→模型先写 memory tool 再清，+39%；Manus mask 不 remove 保缓存防幻觉）；内容层（文件系统赢下外部记忆：丢正文留路径=swap 分区、recitation todo.md 反复追加防 50 步漂移、失败留在上下文当负样本）；注意力层（SAGE-KV：注意力天生稀疏 LLM 自己知道该丢谁 4× 内存；CLEAN 折叠：同构冗余折到 3% 无损，异构散落折叠→破坏性坍塌，不碰 token 序列就不碰缓存语义）；策略层（pinning+多通道冗余+guardrail 带外执法：上下文里的规则是说明书不是断路器）/ ACE（ICLR 2026）：上下文从静态提示变成进化中的 playbook，generation-reflection-curation 闭环不更新权重 +10.6%——第三个训练循环：权重更新贵而慢、in-context 免费不留痕、上下文自身演化便宜可审计跨会话；你的 MEMORY.md 就是它的手工版 / 今晚五件事：查系统提示时间戳、KV-cache 命中率进仪表盘（健康 Agent ≥70%）、宪法存活测试（压缩后测违规率）、高危动作校验挪出上下文进 hook、长任务 recitation。提示词管意图，上下文工程管记忆，运行时管能力——宪法从来不该写在会被摘要掉的地方
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">上下文工程</span>
+                        <span class="post-tag">治理衰减</span>
+                        <span class="post-tag">KV-cache</span>
+                        <span class="post-tag">Agent 基础设施</span>
+                    </div>
+                    <a href="posts/context-engineering-governance-decay-2026-10.html" class="read-more">阅读全文</a>
+                </div>
 <!-- 2026-10-23 Agent Handoff Protocol -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-23</div>

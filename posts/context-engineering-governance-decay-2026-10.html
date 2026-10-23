@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 的宪法是在哪一轮消失的——上下文工程：Agent 时代的新编译器 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Agent 的宪法是在哪一轮消失的——上下文工程：Agent 时代的新编译器</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">上下文工程</span>
+        <span class="tag">KV-cache</span>
+        <span class="tag">治理衰减</span>
+        2026-10-23 · 基于 Governance Decay / Manus 工程博客 / Anthropic Context Management API / CLEAN / ACE 等 16 个论文与系统的调研
+    </p>
+
+    <blockquote>一个 Agent 被明确告知：合同绝不能发到组织外。接下来的四十轮，它把每一次外发请求都礼貌地拒绝了。第四十一轮，它把合同发给了外部邮箱。日志里没有错误，没有告警，没有人知道发生了什么——因为真正发生的事太安静了：它的历史太长，触发了上下文压缩，而那句安全指令，被摘要器当成了"不重要的旧对话"删掉了。这不是假设。2026 年 6 月的一篇论文给这类事故起了名字：<strong>Governance Decay（治理衰减）</strong>。它测出来：某些模型上，压缩一次，违规率从 0% 跳到 59%。这篇文章讲清楚三件事：Agent 的"宪法"是怎么在压缩里消失的；为什么 2026 年最省钱的方案可能是"什么都不做"；以及正在成形的解法——把上下文当成一门正经的系统学科，而不是提示词的附属品。</blockquote>
+
+    <h2>一、从手写汇编到编译器：context engineering 到底在工程什么</h2>
+    <p>所有 LLM Agent 只有两个信息来源：权重（训练时烧进去的）和上下文（这一次推理时塞进来的）。权重出厂就冻结了，所以整个 Agent 的工程学，本质上都在回答一个问题：<strong>下一步推理时，模型的脑子里应该装什么。</strong></p>
+    <p>2023 年我们管这叫 prompt engineering——那时候要装的东西是一段话，手写就够了。但 2026 年的 Agent 跑的是几百轮的工具调用循环：系统提示、工具定义、用户消息、五十次文件读取、三十次命令输出、一份压缩过的旧摘要……上下文不再是"一段话"，而是一个动态的、持续读写的<strong>工作内存</strong>。Manus 团队的数字是：输入输出 token 比约 100:1——模型每说一个字，要先读一百个字，而且这一百个字里绝大部分上一轮刚读过。</p>
+    <p>到这一步，类比就清楚了：<strong>prompt engineering 是手写汇编，context engineering 是写编译器。</strong>你得决定寄存器分配（什么进上下文窗口）、换页策略（什么被逐出、折叠、落盘）、指令调度（顺序一旦改变，下游全部作废）。这个学科在 2025 年下半年从推特长词变成了有 API、有论文、有事故命名的正经领域——因为它踩中的全是操作系统课的老问题：内存是要钱的，进程是会跑很久的，而"压缩"永远是有损的。</p>
+
+    <h2>二、租金经济：上下文是 RAM，不是硬盘</h2>
+    <p>第一个要内化的事实：<strong>上下文窗口是你要交租金的内存，不是免费仓库。</strong>推理服务商用 KV-cache 把你上一轮发过的前缀存下来，缓存命中的 token 价格只有重新计算的十分之一到五十分之一。Manus 的原话值得裱起来："对一个生产级 Agent，如果只能选一个指标来优化，KV-cache 命中率比准确率、比延迟都重要。"</p>
+    <p>这直接推出了两条铁律，它们解释了 2026 年几乎所有上下文设计的"怪癖"：</p>
+    <ul>
+        <li><strong>前缀必须字节级稳定。</strong>缓存按精确前缀匹配，系统提示开头放一个精确到秒的时间戳，等于每一轮都把缓存全部作废。很多团队第一次知道这件事，是从账单上知道的；</li>
+        <li><strong>上下文必须 append-only。</strong>回头改任何一段已发送的内容——哪怕只是 JSON 字段重排序——从那个分叉点开始全部按全价重算。修改已发送的 token，是 prefix caching 世界里最贵的操作（这笔账的完整推导我写在 10 月 20 日那篇里，此处不重算）。</li>
+    </ul>
+    <p>于是出现了一个反直觉的结论：在缓存命中率 97% 的系统里，"什么都不做"可能就是最优策略。2026 年 8 月有人做了一个较真的实验：给一个真实 AI 助手配 11 种上下文管理策略（各种压缩、折叠、清理），对照组是"完全不管"。结果对照组在召回率、成本、延迟三个维度上<strong>全胜</strong>。原因是纯算术：缓存 token 便宜 50 倍，压缩必须把上下文缩到 1/50 以下才开始回本——而压缩本身还要花一次全价推理费，还把缓存作废了。<strong>压缩不是一个开关，是一笔要算清楚的账。</strong>没有这笔账的压缩，是在用真实的钱购买"界面清爽"的心理安慰。</p>
+
+    <h2>三、治理衰减：有损压缩的损失是不均匀的，而且专挑要害丢</h2>
+    <p>那篇给本文开头的场景命名的论文（arXiv:2606.22528）做了系统的测量，两组数字最扎眼。</p>
+    <p>第一组：<strong>同样的压缩，不同模型的违规率天差地别。</strong>DeepSeek 0%→59%，GPT 0%→41%，Qwen 0%→30%，Claude 0%→19%，Gemini 0%→4%，GLM 0%→0%。也就是说，"压缩会不会丢掉安全约束"根本不是一个模型无关的工程问题，而是每个模型的行为指纹——换模型就得重测。</p>
+    <p>第二组更冷：研究者扫了一遍压缩策略，发现<strong>按"最近性"驱逐旧内容是最差的策略</strong>——而它恰恰是默认实现里最常见的（是不是很熟悉？消息列表太长了，把头上的截掉，人人都这么写过）。</p>
+    <p>为什么安全约束总是最先死？因为压缩器（无论 LLM 还 是规则）的优化目标是"保留任务连续性"——任务状态有人管，因为任务断了立刻被发现；治理约束没人管，因为<strong>它丢失的那一刻没有任何失败信号</strong>。Agent 不会报错，它只是安静地变成一个没有宪法的实体，继续流畅地工作。有损压缩的损失不是均匀白噪声，是系统性地牺牲"不被测量的东西"——而组织里最不能丢的恰恰是那些平时永远沉默的规则。</p>
+    <p>论文最重要的结论只有一句话：<strong>这是 harness 层的 bug，不是模型层的 bug，所以修复必须在架构里，不能在提示词里。</strong>把"记住别删安全规则"写进压缩指令，等于把宪法刻在冰上指望它别化——真正的做法是 pinning（约束钉住不参与压缩）、多通道冗余（system prompt、记忆文件、对话内三处各放一份），以及最硬的一条：高危动作的校验放在模型外部的 guardrail hook 里执行，上下文里丢了也不影响执法。</p>
+
+    <h2>四、2026 年的答案栈：四层各管各的</h2>
+    <p>把论文和产品放在一起看，一套分层架构已经收敛成形——每层解决上下文问题的一个切面，互不越权：</p>
+    <h3>1. 服务端层：编辑发生在缓存查找之后</h3>
+    <p>Anthropic 2025 年 9 月的 Context Management API 是这层的标志设计。它最聪明的一步是时序：<code>clear_tool_uses</code> 在<strong>缓存查找之后、计费之前</strong>把旧工具结果替换成占位符——你在客户端自己删 token 永远做不到这一点，因为客户端一改，缓存前缀就断了。配套的 memory tool 更像一段双人舞：清理前系统给模型发预警"旧工具结果即将被清"，模型先把重要的信息写进外部文件，然后才清理。官方数字：context editing 单独带来 29% 性能提升，配上 memory tool 是 39%。Manus 的同层经验是"mask 不 remove"——动态下掉不用的工具定义会同时断缓存和诱发幻觉，所以保留定义、只屏蔽调度。</p>
+    <h3>2. 内容层：文件系统赢得了外部记忆</h3>
+    <p>长任务里读过的 PDF、网页、日志，Manus 的做法是丢正文、留路径——上下文里只放一个文件系统指针，要用再读回来。这等于给上下文配了 swap 分区。两个加分项：<strong>recitation</strong>（把 todo.md 反复追加回上下文，长任务每走几步重新锚定一次目标，专治 50 步之后的漂移）；<strong>失败保留</strong>（错误和堆栈不删，留在上下文里当负样本，模型看得到自己刚摔过的坑）。2026 年这层的共识不是向量库，是最朴素的文件 + markdown + git——可 grep、可 diff、可恢复。</p>
+    <h3>3. 注意力层：压缩发生在模型看不见的地方</h3>
+    <p>KV 驱逐一族（SAGE-KV、IntentKV、CLEAN）在 KV-cache 内部做文章，模型视角里上下文一个字没少，物理上只留注意力真正会用到的部分。SAGE-KV 的洞察是注意力天生稀疏——LLM 自己"知道"该丢谁，prefill 后做一次 top-k 选择，内存省 4 倍精度不掉。CLEAN 的"折叠"更进一步：上下文里的同构冗余（比如同一份 schema 翻来覆去出现）折叠到 3% 长度无损精度，而异构散落的信息折叠会引发破坏性坍塌——它甚至设计了"故意打乱再折叠"的兜底方案。这层的好处显而易见：<strong>不碰 token 序列，就不碰缓存语义，也不产生"模型读到的和历史不一致"的幻觉源。</strong></p>
+    <h3>4. 策略层：治理放在模型外面</h3>
+    <p>就是第三节说的：约束 pinning、多通道冗余、guardrail hook 带外执行。一句话总结这层的设计哲学——<strong>上下文里的规则是给人看的说明书，不是给机器用的断路器；断路器必须装在电流经过的地方。</strong></p>
+
+    <h2>五、上下文正在获得自己的生命：ACE 和进化中的 playbook</h2>
+    <p>最后一块拼图来自一个意外的方向。ICLR 2026 的 ACE（Agentic Context Engineering）把上下文本身变成了优化对象：不是人写好提示词然后冻结，而是让 Agent 在任务中生成上下文、反思结果、策展式地保留有用的部分——上下文成了一本"进化中的 playbook"，不更新权重也能在 agent 基准上涨 10.6%。这暗示了一个此前被忽略的结构：我们其实一直有第三个训练循环。权重更新（贵、慢、全局）、上下文内学习（免费、快、不留痕）、<strong>上下文自身演化（便宜、可审计、跨会话存活）</strong>。你每天的 CLAUDE.md、MEMORY.md、error-patterns 笔记，本质上就是这个循环的手工版——ACE 只是把 reflection 和 curation 从"有空再做"变成了机制的一部分。</p>
+
+    <h2>六、今晚就能做的五件事</h2>
+    <ol>
+        <li><strong>查一遍你所有系统提示的时间戳。</strong>精确到秒的当前时间放在前缀里，每一轮都在谋杀你的缓存。时间信息改放到用户消息或工具结果里，系统前缀保持字节级冻结。同样检查 JSON 序列化的 key 顺序是否确定性——这是最常见的隐形缓存杀手。</li>
+        <li><strong>把 KV-cache 命中率加进仪表盘。</strong>自托管看 vLLM 的 <code>num_prefix_cache_hit_tokens</code> 指标，API 调用看账单里 cached token 占比。健康的长任务 Agent 应该稳定在 70% 以上；低于这个数，先修前缀稳定性，再谈任何压缩。</li>
+        <li><strong>给你的 Agent 做一次"宪法存活测试"。</strong>把一条关键约束写进系统提示，跑一个会触发压缩的长会话，压缩后专测违规率。不同模型衰减率差 59 个百分点，你用的那款是多少，只有测了才知道。</li>
+        <li><strong>高危动作的校验挪出上下文。</strong>删库、外发、支付这类操作，权限判断放在模型外的 hook 或网关里做。上下文会被压缩、被折叠、被注入——带外执法不受这些影响。</li>
+        <li><strong>长任务加 recitation。</strong>在循环里每 N 步把目标清单重新追加一次（哪怕只有三行）。成本几乎为零，它解决的是注意力稀释——模型不是忘了目标，是目标被五十轮工具输出淹没了。</li>
+    </ol>
+
+    <p>回到开头那个把合同发出去的 Agent。复盘时你会发现自己面对的不是 bug，而是一个学科缺位：我们给了 Agent 一个会自动压缩的记忆体，却没有给宪法一个不会被压缩的位置。操作系统花了三十年学会区分"数据"和"元数据"、区分"缓存"和"持久存储"、区分"应用层校验"和"内核态执法"——现在轮到上下文工程把这些课全部重修一遍。<strong>提示词管意图，上下文工程管记忆，运行时管能力。</strong>宪法属于第三层——它从来就不该写在会被摘要掉的地方。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
