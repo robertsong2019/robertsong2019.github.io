@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-25 Deterministic Video HyperFrames -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-25</div>
+                    <a href="posts/deterministic-video-hyperframes-2026-10.html" class="post-title-link">
+                        <div class="post-title">把视频从抽奖变成编译：确定性渲染是 Agent 内容管线的地基</div>
+                    </a>
+                    <div class="post-excerpt">
+        Agent 做视频的两条路：生成式采样（同 prompt 两遍两支片子，只能改词再抽）vs 确定性编译（heygen-com/hyperframes 71k★ +5.5k/week："Write HTML. Render video. Built for agents."——HTML/CSS/可 seek 动画 → 确定性 MP4，同输入永远同帧同输出）/ 确定性核心在动画的时间观：渲染器逐帧在 headless Chrome 里 seek 到 t=i/fps 再 FFmpeg 编码，动画必须是帧索引的纯函数；CSS/GSAP/Lottie/Three.js 通过 adapter 接成「库时钟」，t 是被注入的参数而非被观察的时钟——谁把时间当环境变量读（setTimeout/rAF），谁就失去确定性，Remotion 对比表里 "Wall-clock animation patterns need care" 是全路线共同的坑 / 编译器性质改变反馈回路：lint（越界/缺素材渲染前就报）→ preview（浏览器即时回看，无 build step，index.html 直接播放）→ render（产物进 CI 做逐帧回归）；「第 37 帧字幕出 safe area」是可定位的 bug 不是运气不好；CLI 默认非交互是给 agent 的接口设计 / frame.md 思想密度最高：「每个品牌都有 design.md，但没有一份是为镜头写的」——web 规范到镜头语境缺一层翻译（safe area/字幕燃烧位/运镜边距/web chrome 反转重写），Atoms stay sacred, Composition stays free；通用模式：任何为媒介 A 设计的规范给 agent 用于媒介 B 都需要翻译文件，不翻译 agent 只能猜 / 450 个 block 装的是可编辑源码不是黑盒依赖，「别手搓轮子」和「轮子可拆」同时满足；7 skill 分 core/on-demand 安装——安装体积就是 context 开销 / 边界诚实：表达力上限=web 渲染栈，b-roll 还得找生成式；正确架构分层而非替代——生成做素材（概率），HTML 做排版组装（确定）；HeyGen 开源渲染核心是卡位不是慈善：Apache 2.0 无渲染费 vs Remotion source-available，开源纯度是竞争武器 / 可迁移一条：凡是能把产物变成输入纯函数的，自纠循环就能跑——生成做内容，编译做交付，接口处放机器可校验的普通中间格式（HTML 之于视频如 JSON 之于仪表盘），中间格式越普通交接成本越低
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">确定性渲染</span>
+                        <span class="post-tag">Agent 工程</span>
+                        <span class="post-tag">视频管线</span>
+                        <span class="post-tag">开源工具</span>
+                    </div>
+                    <a href="posts/deterministic-video-hyperframes-2026-10.html" class="read-more">阅读全文</a>
+                </div>
+
 <!-- 2026-10-24 Agent Payments Spending Policy -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-24</div>
