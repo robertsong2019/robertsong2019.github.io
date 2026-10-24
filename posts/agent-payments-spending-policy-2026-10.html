@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每笔支付都验证通过，预算还是没了：Agent 支付的协议混战与策略真空 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>每笔支付都验证通过，预算还是没了：Agent 支付的协议混战与策略真空</h1>
+    <p class="meta">
+        <span class="tag">Agent 支付</span>
+        <span class="tag">Agentic Commerce</span>
+        <span class="tag">身份认证</span>
+        <span class="tag">协议设计</span>
+        2026-10-24 · 基于 x402 / AP2 / UCP / ACP 官方规范与 IETF 草案、Visa/Artemis 洗量报告（2026-07）、Palo Alto Networks 身份报告（2026-10-09）等核实
+    </p>
+
+    <blockquote>你给 Agent 接上了支付。它开始买研究报告、订 SaaS、调付费 API——每一笔交易在协议层全部验证通过，签名有效、token 合法、商户收到了可以信任的钱。然后预算没了。<strong>没有任何一笔是欺诈，但每一笔都是问题。</strong>这篇文章讲的是：过去十八个月，业界把「Agent 能不能可靠付钱」解决得相当漂亮，然后把「这笔钱该不该花」原封不动留给了你。</blockquote>
+
+    <h2>一、十八个月，十四个协议</h2>
+    <p>先看时间线，因为斜率本身就是故事：</p>
+    <ul>
+        <li><strong>2025 年 5 月</strong>：Coinbase 发布 x402——把 HTTP 那个从未用过的 <code>402 Payment Required</code> 状态码激活成稳定币支付标准，Agent 按 HTTP 语义直接付费</li>
+        <li><strong>2025 年 9 月</strong>：Google 带着 60 多家组织发布 AP2；OpenAI+Stripe 发布 ACP，ChatGPT 里可以直接买 Etsy 商品</li>
+        <li><strong>2025 年 10 月</strong>：Visa TAP 上线，给 Agent 发「身份证书」；Mastercard Agent Pay 跟进</li>
+        <li><strong>2026 年 1–4 月</strong>：Google UCP 覆盖全购物旅程；Stripe+Tempo 发 MPP；AP2 移交 FIDO 联盟；蚂蚁 AMP 接入 10 个 Alipay+ 钱包；AWS AgentCore Payments GA</li>
+        <li><strong>2026 年 7–10 月</strong>：x402 进 Linux 基金会（40 家成员）；EMVCo 发布卡网络阵营的 agentic 支付草案；Google Universal Cart 在美国上线</li>
+    </ul>
+    <p>麦肯锡的估计是：到 2030 年，agentic commerce 可能编排美国零售营收最高 <strong>1 万亿美元</strong>、全球 3–5 万亿。协议层的进展是真实的：Agent 可以发现商户、组装购物车、携带签名授权、完成结算，全程没有人敲卡号。</p>
+    <p>但读这条时间线要带着一个过滤器。Visa 资助 Artemis 做的链上分析（2026 年 7 月）剔除了 x402 <strong>89% 的美元交易量</strong>——洗量、测试、内部转账。某个 30 天窗口里，对外宣称的 2400 万美元实际约 160 万。过滤算法不公开，资助方有自己的立场，所以两个方向的数字都该存疑。在 Agent 支付这个领域，「采用率」目前没有任何可信的第三方口径。</p>
+
+    <h2>二、别看成一场混战，看成四层楼的分工</h2>
+    <p>十四个协议看起来在打架，实际上在往四个不同的楼层里搬家具：</p>
+    <table>
+        <tr><th>楼层</th><th>回答的问题</th><th>代表</th></tr>
+        <tr><td>发现层</td><td>货在哪、怎么比价下单</td><td>UCP（目录/购物车/订单）、ACP</td></tr>
+        <tr><td>结算层</td><td>钱怎么动</td><td>x402（稳定币）、MPP、AMP、ACP（卡）</td></tr>
+        <tr><td>授权层</td><td>谁批准了买什么</td><td>AP2 mandate、Mastercard Verifiable Intent</td></tr>
+        <tr><td>身份层</td><td>到底谁在调用</td><td>Visa TAP、WIMSE/SPIFFE、ACK-ID</td></tr>
+    </table>
+    <p>最重要的一句架构事实写在 AP2 文档里：<strong>「AP2 扩展 x402 而非取代它——一个证明钱是被授权的，另一个把钱移动。」</strong>授权和结算是两件事，绑定在一起是设计错误。AP2 的 mandate 是 SD-JWT 形式的可验证凭证，分「开放」（携带用户约束）和「封闭」（授权一次最终结账）两种形态，结算无关——卡、银行、稳定币都能走。互操作性上大家也在搭桥而非拆台：Visa 的 CLI 把 MPP 和 x402 桥起来，Mastercard 的 Verifiable Intent 显式声明与 AP2/ACP 互通。</p>
+    <p>卡组织阵营和稳定币阵营也不是替代赛，是并行双轨。卡阵营的武器是<strong>责任划分</strong>——Visa 规则写得明明白白：agentic 支付提供商视为持卡人，其行为由持卡人负责，chargeback 权利照旧继承。稳定币阵营的优势在<strong>低于卡经济学的机对机微支付</strong>：一分钱的研究报告调用，卡网络做不了。还有个容易忽略的设计选择：x402 <em>故意</em>不做签名审批，用速度换掉了审批——「快」的代价是把消费控制整个甩给了使用者。</p>
+
+    <h2>三、身份层：Agent 的身份证不需要发明，需要正确组合</h2>
+    <p>在钱能动之前，先得回答「谁在调用、代表谁、被授权干什么」。这一层的现状出人意料地理性：IETF 的 <code>draft-klrc-aiagent-auth</code> 草案立场鲜明——<strong>Agent 不需要任何新协议，只需要正确使用现有 OAuth 机器</strong>：</p>
+    <ul>
+        <li>OAuth 2.1 + PKCE 管同意；</li>
+        <li>RFC 8693 Token Exchange 把宽凭证换成窄凭证——用户登录拿到全量 token，立刻换一个权限收窄、audience 绑死某个 MCP 服务器的分钟级短 token，<strong>只把这个交给 Agent</strong>；</li>
+        <li>CIBA 管带外审批：Agent 干到一半需要人批一笔高危操作，手机上弹一个确认；</li>
+        <li>DPoP 管持有证明，SSF/CAEP 管实时撤销。</li>
+    </ul>
+    <p>真正难的在别处。Palo Alto Networks 十月的报告点破了要害：<strong>Agent 的身份不是一个东西，是六个东西同时成立</strong>——执行中的代码、底层模型、运行时实例、出示的凭证、它代表的人、它当前任务的意图。行业还没有收敛出把这些绑定成一个可验证整体的办法。这就是为什么「Agent 拿着完全有效的 token，做着没有任何人授权的事」是常态而不是例外。</p>
+    <p>一个容易被忽视的对照：2026 年 4 月 OX Security 披露的 MCP 架构缺陷波及约 20 万个实例、一条 1.5 亿次包下载的供应链。连接层（MCP）和支付层绝不合并——Mercury 的 MCP 服务器只读设计值得抄：动钱的操作走独立 API、独立凭证，MCP 只做查询。</p>
+
+    <h2>四、策略真空：协议只回答「能否验证」，不回答「该不该花」</h2>
+    <p>回到开头的事故。事后追责时你会发现，协议层把每个问题都答得很干净：</p>
+    <blockquote>谁授权的？——mandate 签名在此。资金范围？——token 权限收窄过。商户可信？——收到了可验证的钱。</blockquote>
+    <p>然后真正的问题才开始：新供应商是谁批准的？订阅制承诺在 Agent 的权限范围内吗？那份 940 美元的报告，是任务真需要，还是某个网页<strong>让</strong> Agent 买的（提示注入的财务版）？链上已经结算的稳定币支付，怎么发起争议？下单的是哪个 Agent 版本、哪条提示词、哪个工具链？哪个成本中心付这笔账？发票呢？订阅怎么在不废掉整个 Agent 的情况下解绑？</p>
+    <p><strong>这九个问题，十四个协议一个都没答。</strong>这不是它们的失职——支付协议的职责就是让支付可验证。但当下所有「agentic payments」的营销都在暗示「接入即安全」，而策略层——预算、目的、供应商信任、承诺规则、证据留存——几乎每个团队都没建。就像把 ATM 机的防盗工程做到了极致，却没有一行代码规定日取现限额。</p>
+    <p>这和上周聊的上下文工程治理衰减是同一个道理：<strong>写在 prompt 里的预算不是预算，是愿望。</strong>治理约束放在会被摘要掉的地方就会消失；同理，消费策略放在上下文里就会被打折。它必须是协议之外、带外执法的一层。</p>
+
+    <h2>五、给 Agent 发钱包之前，先建这五样东西</h2>
+    <ol>
+        <li><strong>预算三档</strong>：按任务、按天、按月，任何一档触顶即冻结，不是「提醒」；</li>
+        <li><strong>目的绑定</strong>：每笔支付必须携带 task id，审计时能回答「这笔钱服务于哪个任务」；</li>
+        <li><strong>供应商白名单</strong>：首次出现的供应商需要人批，Agent 无权自己开拓新收款方；</li>
+        <li><strong>承诺分类</strong>：单次购买和订阅是两种不同的授权，绝不能共用一种 token；</li>
+        <li><strong>证据留存</strong>：下单时的 Agent 版本、提示词、工具链全程留痕——将来争议时，这是你唯一的辩护材料。</li>
+    </ol>
+    <p>开发者侧的动作更具体：接入任何 MCP 工具时照抄 AWS 的范式——登录后立刻 token exchange，只把 downscoped、audience 绑定、分钟级 TTL 的 token 给 Agent；静态长命 API key 是这个领域最高危的配置（GitGuardian 的数据：2022 年泄漏的密钥，64% 在 2026 年仍然有效）。</p>
+    <p>接下来值得盯三个信号：<strong>EMVCo 草案定稿</strong>（卡阵营完成收编的标志）、<strong>FIDO 出品的 AP2 v1</strong>（授权层从 v0.2 的 open issues 走向稳定）、以及 <strong>Visa/Artemis 的过滤器是否开源</strong>——那是交易量数据可信度的分水岭。还有一个现在就能下的判断：协议层的 dispute 机制普遍缺失或原始（TAP 没有争议机制、x402 的 wire format 标注着 not stable），<strong>争议解决会是 2027 年的战场</strong>。以及记住一条协议层的铁律：Ant 的 AgentSafePay 担保是商业承诺不是协议规则——商业层随时可以收回，规则层才会陪你走远。</p>
+
+    <h2>六、结语：铁轨建好了，信号灯在你手里</h2>
+    <p>十八个月建出十四个协议、多条并行轨道、若干座互通桥——Agent 支付的基建速度超出几乎所有人预期，而且方向是对的：分层、组合、收敛到中立治理机构，而不是再造一个封闭王国。协议解决的是「这笔支付能否被验证」，这个问题他们答得很好。</p>
+    <p>但「这个 Agent、这个任务、此刻是否该花这笔钱」——这个问题的答案不在任何 RFC 里。它在你给 Agent 发钱包之前写下的那五行配置里。<strong>铁轨已经铺到你门口了，信号灯得自己装。</strong></p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
