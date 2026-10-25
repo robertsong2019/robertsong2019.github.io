@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学会想象再行动：世界模型的 2026，与 Agent 记忆的终点 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>学会想象再行动：世界模型的 2026，与 Agent 记忆的终点</h1>
+    <p class="meta">
+        <span class="tag">世界模型</span>
+        <span class="tag">AI Agent</span>
+        <span class="tag">记忆系统</span>
+        <span class="tag">模型基强化学习</span>
+        2026-10-25 · 基于 Dreamer 4（arXiv 2509.24527）、WAM 综述（arXiv 2609.16074）、Agent World Model（ICML 2026）、RWML（2026-02）等 18 项来源核实
+    </p>
+
+    <blockquote>想象你的 Agent 凌晨两点要执行一个高危操作：改生产数据库、发一封不可撤回的邮件、调用一个收费 API。它对后果的全部预判方式只有一种——<strong>试了才知道</strong>。人类不是这样的。你在脑子里推演一遍「按下这个键，客服会先收到，然后自动工单升级……」，才决定按不按。这个在头脑里彩排未来的能力，认知科学叫心智模拟，AI 领域现在给它起了个工程名字：<strong>世界模型</strong>。2026 年，三条战线同时在把它从论文变成基础设施。</blockquote>
+
+    <h2>一、三条战线：梦境引擎、会想象的机器人、文本世界的预言家</h2>
+    <p>「世界模型」这个词被滥用了，先把地图画清楚。用 Turing Post 的框架，按「往未来携带什么」分三类：生成<strong>观测</strong>（渲染出未来的像素/帧）、携带<strong>潜状态</strong>（只预测紧凑的抽象表征）、携带<strong>结构</strong>（显式的对象、代码、SQL）。三条战线大致对应这三种口味。</p>
+
+    <h3>战线一：梦境引擎——Dreamer 4 在梦里挖到了钻石</h3>
+    <p>2025 年 9 月，DeepMind 的 Hafner 团队发了 Dreamer 4：《在可扩展世界模型内部训练智能体》。单看标题平平无奇，看结果就知道分量：<strong>第一个完全不用真实环境练习、纯靠离线数据就在 Minecraft 里挖到钻石的 Agent</strong>。它先从海量游戏视频里学出一个世界模型——一个可以交互的「梦境版 Minecraft」——然后策略的所有训练都在梦里完成，真实游戏只用来考试。</p>
+    <p>这之所以可行，靠的是一个叫 <strong>shortcut forcing</strong> 的训练目标：让一个「抄近道」的网络跳步蒸馏主网络的预测，把生成速度提了 25 倍，最终在单张 GPU 上实时交互。这一点比听起来重要——Hafner 自己说得很清楚：Veo、Sora 这类视频模型预测得越来越像，但它们<strong>不交互、又太慢</strong>，当不了「神经模拟器」。<strong>「快」不是工程优化，是把视频模型变成可训练环境的那道门。</strong></p>
+    <p>同一条战线上：DeepMind 的 Genie 3 是首个实时通用交互世界模型，一句 prompt 生成 24fps 可导航的世界，2026 年 10 月起订阅可用——但官方也诚实列出限制：几分钟后场景一致性就崩；NVIDIA 的 Cosmos 走开源世界基础模型路线（数百万小时视频预训练，可自托管）；Waymo 今年 2 月把这套思路搬到自动驾驶——改个天气、扔个罕见障碍进「梦里」，测无人车怎么应对现实中几乎遇不到的场景。而 Yann LeCun 的 JEPA 系是战线上最倔的一支：不预测像素，只预测潜空间的抽象——像<strong>画印象派而不是照相写实</strong>，他赌「预测细节」本身就是错误目标。这个赌注今年 3 月拿到了 10.3 亿美元种子轮。</p>
+
+    <h3>战线二：会想象的机器人——从膝跳反射到下棋想三步</h3>
+    <p>机器人领域今年造了个新词：<strong>World Action Model（WAM）</strong>。9 月的综述把它定义为「未来预测 ⊗ 动作生成」的耦合体。对比对象是主流的 VLA（视觉-语言-动作）模型：VLA 是<strong>膝跳反射</strong>——看到画面、听到指令、吐出动作，中间没有「这一步之后世界会怎样」；WAM 是<strong>下棋想三步</strong>——先想象候选动作的未来，再用想象挑动作。</p>
+    <p>这不只是概念升级。今年 3 月的鲁棒性研究给出了硬数字：在视觉扰动和语言扰动下，WAM 系在双臂操作基准上成功率 74.2%，VLA 只有 58.6%。原因很有意思——不是 WAM 更聪明，是视频预训练给它的<strong>时空先验</strong>：它见过太多「东西是这样动的」，扰动来了不容易被骗。代价同样明确：推理开销高得多。工程上的路线竞争现在是：把动作作为扩散序列里的额外「帧」（Cosmos Policy）、视频骨干并行挂轻量动作分支（GE-Act）、还是干脆物理分离（Emotusa）——<strong>视频先验怎么注入，和有没有视频先验一样重要</strong>。</p>
+
+    <h3>战线三：文本世界的预言家——对 LLM Agent 最相关的一条</h3>
+    <p>前两条战线离大多数开发者太远（谁家里有机器人）。第三条正在文本世界里发生，是做 Agent 的人最该看的。</p>
+    <ul>
+        <li><strong>Agent World Model（ICML 2026）</strong>：agent 强化学习最大的瓶颈是环境太少。它的解法不是「让 LLM 即兴扮演环境」——LLM 模拟环境会状态漂移，越演越像梦话——而是<strong>把环境当成软件来造</strong>：需求→数据库→工具接口→后端→验证器，流水线合成出 1000 个 code+SQL 驱动的可执行环境。状态转移由代码和 SQL 保证，奖励就是数据库状态的前后 diff，想 hack 都没处下手。结果：纯合成环境训练的 agent，在没见过的基准上<strong>反超</strong>用基准专属环境训练的。</li>
+        <li><strong>RWML（2026-02）</strong>：教 LLM agent 学动作条件的世界模型，信号来源很优雅——<strong>sim-to-real gap 本身就是老师</strong>。agent 在嵌入空间里预测「我做了这个动作后世界会变成什么样」，再和实际发生的下一状态对齐，想象与现实的距离就是自监督奖励。叠加任务奖励做 RL，ALFWorld 和 τ²-Bench 分别多拿 6.9 和 5.7 分。</li>
+        <li><strong>AEWM（Agent-Editing World Model）</strong>：最聪明的一次「偷懒」。它发现预测工具返回什么（那段 JSON 长什么样）既难又没必要，于是反转建模对象：<strong>不预测工具的回复，预测你的动作会如何改变任务的进展</strong>。六个基准、三个 agent 骨干，平均提升 3 到 7 分。</li>
+        <li>更早的 <strong>WorldCoder</strong> 让 LLM 把世界模型写成 Python 代码，代码即世界模型，可执行、可审计、样本效率高。</li>
+    </ul>
+
+    <h2>二、LLM 到底有没有世界模型？把问题拆开，别站队</h2>
+    <p>这场辩论今年打得很难看。反方（Latent Space 那篇流传很广的《专家有世界模型，LLM 只有词模型》）的证据是对抗性场景：LLM 把社会动态当成<strong>词的因果链</strong>——「说了 sorry → 会被原谅」，而不是激励的碰撞；对手在实时建模你、试探你时，它无法在线适应。正方的证据是二十篇探测论文的收敛：从激活里真能提取出空间地图、棋盘状态、时间线，还有一条数学论证——能在足够多样的环境里鲁棒泛化的系统，必然编码了因果结构。</p>
+    <p>两边其实都对，错的是把「模型」当一个不可拆的整属性。正确的拆法是：<strong>认知</strong>与<strong>接地</strong>分离。语言本身是世界结构的压缩存档，LLM 从足够多的文本里必然内化了不少结构——「词模型」这个嘲讽低估了它；但 LLM 不感知、不行动、不检验自己的预测，预测错了也没有任何代价回路来修正——「世界模型」这个头衔又高估了它。一个冷冰冰的锚点数字：在真实世界文本（而非合成叙事）的因果推断基准上，最好的模型 F1 只有 0.477。</p>
+    <p>对工程者的启示就藏在 AEWM 里：<strong>别追求预测一切，预测对决策有用的量。</strong>你的 agent 不需要预言 API 返回的每个字节，它需要知道「这个调用会把任务推向完成还是推离」。</p>
+
+    <h2>三、记忆的终点是世界模型</h2>
+    <p>写到这，把这篇和之前几篇连起来。<span class="highlight">一个 agent 的记忆系统，本质上是在对自己的人生学一个世界模型。</span> episodic memory 存的每条「我在状态 s 做了 a，发生了 o」，正是世界模型 p(s'|s,a) 的训练样本；所谓 consolidation（把经历蒸馏成事实和技能），就是从样本库里提取转移规律与不变量。2026 年记忆侧的白皮书还在抱怨「没有框架实现了自动巩固」，而世界模型侧已经把同类问题解到了「离线挖钻石」——<strong>两边是同一个问题的两个投影，投影在不同社区的白墙上。</strong></p>
+    <p>再把 Dreamer 4 和 sleep-time compute（Agent 空闲期的离线计算）对齐看：Dreamer 在学到的世界模型里 rollout 来训练策略；agent 在空闲期对自己的记忆做重放和反事实推演——<strong>这是同一件事：拿自己已有的世界模型做 imagination training。梦，在两个领域里是同构的。</strong></p>
+    <p>还有个命名上的空白可以占：眼下所有世界模型研究都在建模<strong>外部环境</strong>（游戏、物理世界、工具生态），没有人系统做「<strong>self-world model</strong>」——对自己历史、偏好、能力边界的世界模型。而那恰恰是记忆系统研究者手里的原料。</p>
+
+    <h2>四、现在就能做的五件事</h2>
+    <ol>
+        <li><strong>给你的 agent 补一个「what-if 推演」接口</strong>。不需要世界模型大模型：一个确定性重放器 + 「改这个动作/改这条记忆边，输出差异」的分支 API，就是最小可用的世界模型。验收标准：能回答「如果当时不调那个工具，现在会怎样」。</li>
+        <li><strong>造环境时，造软件，别造梦话</strong>。需要给 agent 做 RL 或评估环境时，用 code+SQL 实现状态转移，别用 LLM 即兴模拟——漂移会毒化整条训练信号。验证器先于环境写。</li>
+        <li><strong>把 sim-to-real gap 用起来</strong>。你的 agent 的预测和实际观察的下一状态之间的距离，是免费的质检信号：哪段记忆的预测老是不准，哪段就该修正或降权。RWML 的嵌入空间对齐可以直接搬。</li>
+        <li><strong>读两篇论文</strong>：Dreamer 4 的方法节（shortcut forcing 值得逐段啃）和 WAM 综述的 taxonomy（做相关工作的骨架现成）。</li>
+        <li><strong>盯三个信号</strong>：Genie 3 类系统的一致性崩坏时长（决定「梦境引擎」能不能干正事）；WAM 的推理开销压缩（决定何时上生产）；RWML 式自监督信号在长程 agent 上的复现（决定「从经验学世界模型」是不是通用配方）。</li>
+    </ol>
+
+    <h2>五、结语：先彩排，再上场</h2>
+    <p>上一代 Agent 的悲剧是重复试错：同一个坑，摔第一百次还是坑。原因不是它们笨，是它们没有梦境——没有一块可以在上面免费失败的地方。2026 年的三条战线，梦境引擎、会想象的机器人、文本预言家，干的是同一件事：<strong>把「想象未来」的成本降到可以负担，然后让所有的试错都发生在想象里。</strong></p>
+    <p>而对你自己手上的 Agent 来说，这块免费的失败场地可能早就在那了——它的记忆库。只是还没人把它当世界模型来用。</p>
+    <p><strong>会做梦的 Agent，才能在醒着的时候赢。</strong></p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
