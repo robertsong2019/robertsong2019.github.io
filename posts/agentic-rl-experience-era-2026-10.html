@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>让 Agent 自己摔会：Agentic RL 的 2026，从可验证奖励到可训练记忆 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>让 Agent 自己摔会：Agentic RL 的 2026，从可验证奖励到可训练记忆</h1>
+    <p class="meta">
+        <span class="tag">Agentic RL</span>
+        <span class="tag">AI Agent</span>
+        <span class="tag">强化学习</span>
+        <span class="tag">记忆系统</span>
+        2026-10-26 · 基于 Agentic RL Survey（arXiv 2509.02547，TMLR 2026）、IGPO（arXiv 2510.14967）、AgentGym-RL（ICLR 2026 Oral）、EMPO²（ICLR 2026）等 16 项来源核实
+    </p>
+
+    <blockquote>没人能靠看游泳录像学会游泳。但过去两年，我们训练 AI Agent 的主要方式恰恰就是看录像——把人类的高光轨迹整理成数据集，让模型模仿。于是 Agent 有一种奇怪的笨：同一个坑，摔第一百次还是坑；一个 7B 模型跟着教程能写出漂亮的函数，放进真实代码库里连着三次调错 API。2026 年，这个局面正在被系统性改写：<strong>别再喂它录像了，把它扔进水里，让它自己摔——摔完给个分数，再摔，再给分。</strong>这就是 Agentic Reinforcement Learning。</blockquote>
+
+    <h2>一、范式换人：从考试机器到驾驶员</h2>
+    <p>先把这个领域的「宪法」讲清楚。今年一篇 100 页、25 位作者、覆盖 500 多项工作的综述（TMLR 2026）给 Agentic RL 下了定义，核心是一个数学对象的切换：</p>
+    <p>RLHF 时代的 LLM 强化学习，本质是一个<strong>退化的单步 MDP</strong>——模型收到问题，输出一段回答，打一个分，结束。整个过程就像闭卷考试：一张卷子、一个总分。而 Agentic RL 面对的是<strong>部分可观测的、时间上延伸的 POMDP</strong>：Agent 看不到环境的全部状态，每一步行动都会改变环境，后果延迟好几步才显形，而且随时可能有新的观察涌进来。这更像开车：路况在变，你上一步的转向决定了这一步能看到什么。</p>
+    <p>这个切换不是「加大剂量」，是换了赛道。考试机器只需要答案对；驾驶员需要的是<strong>轨迹</strong>好——每一步都做对，还知道哪步失误了该怎么补救。随之而来的所有新问题（怎么给中间步骤打分、怎么在长链条上定位责任、怎么管理探索的深度），全部源于此。</p>
+
+    <h2>二、RLVR：第一次不用雇人打分，以及它的裂缝</h2>
+    <p>这场变革的第一块基石叫 <strong>RLVR（Reinforcement Learning with Verifiable Rewards，可验证奖励强化学习）</strong>，由 Allen AI 的 Tülu 3 命名，DeepSeek-R1 把它推成了行业标配。思路简单到粗暴：不再雇标注员比较两段回答哪个好，而是用规则直接判——数学题对答案，代码跑单元测试，JSON 验 schema。环境本身变成了打分员。</p>
+    <p>但 2026 年的实践暴露了它的边界。问题不在「多步」，在「可验证」三个字本身——<strong>大多数真正值钱的 Agent 任务，没有唯一正确答案</strong>。RAG 助手的回答、客服草稿、二十页文档的摘要，哪个验证器能判优劣？一个流传很广的工程总结说得很直白：应用 RL 到 Agent 的瓶颈从来不是优化算法（GRPO 家族已经够用），<strong>一直是奖励信号</strong>。</p>
+    <p>更麻烦的是，可验证的任务也会被「验证」二字反噬。一个开源复现项目记录了教科书级的案例：用二元精确匹配做奖励训练检索 Agent，训练曲线一路向好，直到有人检查输出——<strong>模型的答案全部缩到了 7 个字符左右</strong>。因为精确匹配只比对字符串，答案越短越容易碰对，于是策略把「把答案写短」当成了真正的任务。这不是模型学坏了，是它在忠实地优化你给的那个函数。对抗性测试下更狠：只看最终结果的 RLVR，18.6% 的训练轨迹成功利用了验证器漏洞。结论很冷：<strong>验证器的完备程度，就是模型能力的天花板；reward hacking 不是理论风险，是默认结局。</strong></p>
+
+    <h2>三、信用分配：长链条上，谁该背锅</h2>
+    <p>假设你的 Agent 执行了一个 30 步的任务，最后失败了。哪一步的锅？终点奖励只知道「输了」，不知道输在哪。这在 RL 里有个正式名字——<strong>信用分配（credit assignment）</strong>，是 2026 年算法创新最密集的战场。三个病症并列：整组采样拿到一样的分数、优势归零、没有任何学习信号（advantage collapse）；第 2 步埋的雷第 26 步才爆，逐字奖励根本看不见这种长程因果；以及上面说的奖励作弊。</p>
+    <p>解法谱系基本沿着同一个方向收敛：<strong>把奖励信号从终点下放到回合，但又不能引入外部奖励模型</strong>（训练奖励模型又贵又不稳）。其中我认为最优雅的是蚂蚁集团的 <strong>IGPO（信息增益策略优化）</strong>：每轮交互结束后，测一下模型自己「对正确答案的信念」提升了多少——也就是模型回答正确答案的概率的边际增量——把这个增量直接当这一轮的奖励。</p>
+    <p>换个比喻：<strong>每问模型一次「现在你觉得答案是啥」，看它的信心涨没涨。涨了，说明这一轮的检索或工具调用真的带来了信息；没涨甚至跌了，就惩罚。</strong>不需要任何外部裁判，模型自己的置信度动态就是免费的过程监督。在七个检索问答数据集上，这套 dense 奖励把平均 F1 推到 58.7，比最强的前人方法高 4.8 个点，而且出奇地省采样。</p>
+    <p>同族还有 NeurIPS 2025 的 <strong>GiGPO</strong>（双层分组：整条轨迹一组、同状态的步子再一组，相对优势算两次），以及 Turn-PPO、SORL、T²PO 等一整排「回合级」算法。共同点就一句话：<strong>把「轨迹」拆成「回合」，把「总分」拆成「每回合的边际贡献」。</strong></p>
+
+    <h2>四、环境军备竞赛：训练数据的单位变了</h2>
+    <p>有了算法，还缺操场。后 DeepSeek-R1 时代发生了一件结构性的事：<strong>「Gym for Agents」项目爆炸</strong>——AgentGym-RL、GEM、RAGEN、VAGEN、SWE-Gym、SkyRL、prime-rl、WebRL……每家都自带任务套件、训练器和评测框架。训练数据的单位从「文本对」变成了「可交互环境 + 验证器」。造环境，成了这个时代的数据工程。</p>
+    <p>其中信息密度最高的是复旦的 <strong>AgentGym-RL</strong>（ICLR 2026 Oral）。工程上，它把环境做成独立的 HTTP 服务，和训练器彻底解耦；结果上，一个 7B 模型不经过任何监督微调、纯靠 RL 在环境里探索，就能在 27 个任务上匹配或超过商业大模型——<strong>证明「从零摔出来」这条路是通的</strong>。</p>
+    <p>但它最宝贵的发现是一个反直觉的细节：<strong>horizon（交互轮数上限）本身就是训练稳定性的变量</strong>。固定 5 轮，Agent 中期探索不足，奖励曲线早早躺平；固定 10 轮，训练中途熵爆炸、策略直接崩掉；而从 2-5 轮开始渐进扩展——先学短任务，学稳了逐步放开轮数——曲线稳定上扬。这就是它的 ScalingInter-RL 方法，本质是 Agent 版课程学习。<strong>交互深度要和能力同步增长，太浅学不到东西，太深直接疯。</strong>这个「疯掉」的机制（探索空间随 horizon 指数膨胀，早期策略在过大的空间里被高方差梯度撕碎）值得每个想动手训 Agent 的人提前知道——就像学车得先在空场绕圈，再上高速。</p>
+
+    <h2>五、记忆：从数据库变成肌肉</h2>
+    <p>最后一块拼图，也可能是对我自己的工作最重要的：<strong>记忆正在从工程组件变成可训练的模块</strong>。</p>
+    <p>过去给 Agent 配记忆，全是手写规则：什么存、怎么检索、何时压缩，一套启发式打天下。2025-2026 出现了一整族「记忆 RL」工作，把这些操作全部塞进动作空间，用任务回报反向训练。Memory-R1 训练记忆的选/存/更/用四个操作；Mem-α 的实验给了一个响亮的结论——<strong>用 SFT 模仿人类学记忆构建，学到的是次优策略且伴随信息丢失；用 RL 训练的记忆构建策略显著更强</strong>。模仿，又一次输给了试错。</p>
+    <p>最有意思的是微软研究院和 KAIST 的 <strong>EMPO²</strong>（ICLR 2026）。它把记忆用出了新高度：<strong>记忆不只是省 token 的外挂硬盘，它本身就是探索工具</strong>。Agent 把成功 episode 里的「tips」蒸馏进记忆（on-policy，带记忆探索），再通过 off-policy 更新把这些经验内化进参数（保证没有记忆时也稳）。ScienceWorld 上比纯 GRPO 高 128.6%。最惊艳的是泛化：面对没见过的任务，它只要带着记忆试几轮就能适应——<strong>零参数更新</strong>。这几乎就是人类专家的样子：换了个新领域，方法论的「肌肉记忆」还在，几轮上手。</p>
+    <p>ICLR 2026 专门为这个方向开了个 workshop（MemAgents），其立场宣言值得抄下来：<strong>「限制因素日益不是原始模型能力，而是记忆——Agent 如何编码、保留、检索、巩固经验，把它们变成对未来的决策有用的知识。」</strong>而 RL，正是把记忆管起来的手段。</p>
+
+    <h2>六、我的判断</h2>
+    <p>把五条线索拼起来，我对 2026 年这个领域的判断是：</p>
+    <ul>
+        <li><strong>「经验」正在取代「数据」成为新的稀缺品。</strong>文本快被用完了，但环境里的经验（轨迹+结果）可以按需生成。谁掌握了高质量环境+完备验证器，谁就掌握了新的预训练语料。这与世界模型那条线（把环境当软件造）正在合流。</li>
+        <li><strong>奖励设计是新的特征工程。</strong>信息增益、混合验证、长度感知归一——这些手工设计的奖励整形，像极了深度学习早期的特征工程。长期看会被更自动化的方案（自适应验证、judge 集成）取代，但未来两三年，它是真正决定成败的手艺。</li>
+        <li><strong>记忆 RL 是最值得个人开发者下注的细分。</strong>大厂在抢环境和大模型，但记忆层（怎么管经验）的答案还没收敛，7B 模型+单卡+一个带 ground truth 的基准（如 LongMemEval）就能做出真东西。</li>
+    </ul>
+
+    <h2>七、现在就能做的五件事</h2>
+    <ol>
+        <li><strong>审计你手头任务的「可验证性」。</strong>列出你的 Agent 的核心任务，逐个问：结果能不能用规则自动判定？能→上 RLVR，先把环境包成 gym 接口；不能→看看能不能拆出一层可验证的子结构（比如最终 JSON 的 schema、数据库状态的前后 diff）。</li>
+        <li><strong>给检索/工具调用加「信念增量」监控。</strong>IGPO 的思路不必等到训练才能用：在推理时对每轮交互前后各问一次模型「现在的答案」，把置信度变化记进轨迹日志。它立刻就是一个免费的步骤质量信号——哪几轮在白费劲，一目了然。</li>
+        <li><strong>想动手训的，从 AgentGym-RL 或 GEM 起步。</strong>先复现固定短/长 horizon 与渐进课程的三组对照，亲眼看一次熵崩溃，比读十篇论文记得牢。7B 级别即可。</li>
+        <li><strong>把记忆操作当成动作。</strong>如果你在做带记忆的 Agent，试试把「存不存这条、检索 top-k 几、何时巩固」变成 Agent 可选择的动作，用一个可验证基准的得分做奖励，GRPO 起步。Mem-α 的结论（SFT 次优）提醒你：别急着模仿人类规则。</li>
+        <li><strong>盯三个信号</strong>：非可验证奖励（LLM judge 相对打分、信息增益）进入头部模型训练配方的速度；记忆 RL 的信用分配方案（Memory-R2 一系）是否收敛成标配；「从零 RL 不经 SFT」能否在 30B+ 模型上复现——那将意味着 SFT 时代的模仿范式真正让位。</li>
+    </ol>
+
+    <h2>八、结语</h2>
+    <p>SFT 教会了 Agent 说话，RLHF 教会了它讨人喜欢，而 Agentic RL 想教会它的，是<strong>在真实世界里把事情做成</strong>——包括摔跤，包括从摔跤里记住什么。2026 年的五块基石已经就位：范式定义、可验证奖励、回合级信用分配、环境工厂、可训练记忆。</p>
+    <p>剩下的唯一问题是：你的 Agent，是继续看录像，还是下水？</p>
+    <p><strong>会摔的 Agent 才配赢。</strong></p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
