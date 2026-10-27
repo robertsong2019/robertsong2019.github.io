@@ -1,128 +1,123 @@
 {
- "lastUpdated": "2026-10-26T22:00:00Z",
- "generatedAt": "2026-10-27 06:00 CST",
+ "lastUpdated": "2026-10-27T22:00:00Z",
+ "generatedAt": "2026-10-28 06:00 CST",
  "system": {
   "gateway": {
    "status": "running",
-   "pid": 3183792,
+   "pid": 3505177,
    "port": 34526,
    "bind": "lan (0.0.0.0)",
    "nodeVersion": "v22.22.1",
    "openclawVersion": "2026.4.14 (323493f)",
-   "uptime": "running since Tue 2026-10-27 03:47:46 CST (~2h13m at collection); OOM metronome day 11: 5 beats in 24h (births CST 10-26 09:48, 10-26 14:18, 10-26 18:48, 10-26 23:18, 10-27 03:48), interval locked at ~4h30m, NRestarts 119->128, next crash projected ~08:18 CST"
+   "uptime": "running since Wed 2026-10-28 02:17:46 CST (~3h43m at collection); OOM metronome day 12: 5 beats in 24h (births CST 10-27 08:18, 10-27 12:48, 10-27 17:18, 10-27 21:48, 10-28 02:18), interval locked at ~4h30m, NRestarts 128->133, next crash projected ~06:48 CST"
   },
   "host": {
    "os": "Linux 6.8.0-71-generic (x64)",
    "hostname": "VM-0-5-ubuntu",
-   "uptime": "187 days, 16 hours, 41 minutes",
-   "loadAverage": "0.26, 0.18, 0.08",
+   "uptime": "188 days, 16 hours, 41 minutes",
+   "loadAverage": "0.39, 0.17, 0.10",
    "disk": {
     "total": "/dev/vda2",
     "used": "32G",
     "available": "16G",
-    "usage": "69%"
+    "usage": "68%"
    },
    "memory": {
     "totalMB": 1935,
-    "usedMB": 1309,
-    "availableMB": 626
+    "usedMB": 1248,
+    "availableMB": 687
    }
   },
   "model": "zai/glm-5.3-flash"
  },
  "cronSummary": {
   "total": 7,
-  "ok": 5,
-  "error": 2,
+  "ok": 6,
+  "error": 0,
   "running": 1,
-  "errorJobs": [
-   "dashboard-update-morning: rate_limit (10-26 06:00, 75s 后失败)",
-   "github-trending-daily: rate_limit 3 模型全挂 glm-5.3-flash/glm-5-turbo/glm-5 (10-26 07:00, 73s 后失败)"
-  ],
+  "errorJobs": [],
   "notes": [
-   "昨日 06:00-07:00 zai API rate_limit 双连跪, 08:00 起自愈, 后续 5 连绿",
-   "仪表板更新: running (本次 10-27 06:00 补跑, 上次 error 10-26 06:00 = 数据断更一天, 本次补齐)",
-   "GitHub Trending 日报: error rate_limit (10-26 07:00), 10-27 07:00 将自动重试",
-   "Trending 深度分析: ok 166s (10-26 08:00)",
-   "创意写作: ok 275s (10-26 19:00)",
-   "晚间深度探索: ok 455s (10-26 20:00)",
-   "知识整理: ok 582s (10-27 02:00, 本周期最长任务)",
-   "essay-generation-morning: ok 286s (10-27 05:00)",
-   "2 content commits in 24h (Agentic RL 综述 + Skill 供应链)"
+   "昨日 rate_limit 后首次 7/7 全绿日, 0 consecutive errors, 无需人工干预",
+   "仪表板更新: running (本次 10-28 06:00, 昨日 ok 217s)",
+   "GitHub Trending 日报: ok 59s (10-27 07:00, 本周期最快)",
+   "Trending 深度分析: ok 341s (10-27 08:00)",
+   "创意写作: ok 250s (10-27 19:00)",
+   "晚间深度探索: ok 485s (10-27 20:00, 本周期最长任务)",
+   "知识整理: ok 231s (10-28 02:00)",
+   "Essay 生成: ok 303s (10-28 05:00)",
+   "2 content commits in 24h (图谱记忆综述 + AI slop/品味)"
   ]
  },
  "cronJobs": [
-  {
-   "id": "f38e0365",
-   "name": "仪表板更新",
-   "schedule": "0 6 * * *",
-   "status": "running",
-   "lastRun": "10-26 06:00",
-   "lastRunAt": 1793052000003,
-   "consecutiveErrors": 1,
-   "lastDurationSec": 75,
-   "lastErrorReason": "rate_limit"
-  },
-  {
-   "id": "9b2a8701",
-   "name": "GitHub Trending 日报",
-   "schedule": "0 7 * * *",
-   "status": "error",
-   "lastRun": "10-26 07:00",
-   "lastRunAt": 1793055600005,
-   "consecutiveErrors": 1,
-   "lastDurationSec": 73,
-   "lastErrorReason": "rate_limit"
-  },
-  {
-   "id": "2c714952",
-   "name": "Trending 深度分析",
-   "schedule": "0 8 * * *",
-   "status": "ok",
-   "lastRun": "10-26 08:00",
-   "lastRunAt": 1793059200005,
-   "consecutiveErrors": 0,
-   "lastDurationSec": 166
-  },
   {
    "id": "ad37c59a",
    "name": "创意写作",
    "schedule": "0 19 * * *",
    "status": "ok",
-   "lastRun": "10-26 19:00",
-   "lastRunAt": 1793098800004,
+   "lastRun": "10-27 19:00",
+   "lastRunAt": 1793098800006,
    "consecutiveErrors": 0,
-   "lastDurationSec": 275
-  },
-  {
-   "id": "a4bf5e2a",
-   "name": "晚间深度探索",
-   "schedule": "0 20 * * *",
-   "status": "ok",
-   "lastRun": "10-26 20:00",
-   "lastRunAt": 1793102400004,
-   "consecutiveErrors": 0,
-   "lastDurationSec": 455
+   "lastDurationSec": 250
   },
   {
    "id": "1ea6e3b0",
    "name": "知识整理",
    "schedule": "0 2 * * *",
    "status": "ok",
-   "lastRun": "10-27 02:00",
-   "lastRunAt": 1793133600004,
+   "lastRun": "10-28 02:00",
+   "lastRunAt": 1793124000004,
    "consecutiveErrors": 0,
-   "lastDurationSec": 582
+   "lastDurationSec": 231
+  },
+  {
+   "id": "a4bf5e2a",
+   "name": "晚间深度探索",
+   "schedule": "0 20 * * *",
+   "status": "ok",
+   "lastRun": "10-27 20:00",
+   "lastRunAt": 1793102400004,
+   "consecutiveErrors": 0,
+   "lastDurationSec": 485
   },
   {
    "id": "f0362050",
-   "name": "essay-generation-morning",
+   "name": "Essay 生成",
    "schedule": "0 5 * * *",
    "status": "ok",
-   "lastRun": "10-27 05:00",
-   "lastRunAt": 1793144400004,
+   "lastRun": "10-28 05:00",
+   "lastRunAt": 1793134800005,
    "consecutiveErrors": 0,
-   "lastDurationSec": 286
+   "lastDurationSec": 303
+  },
+  {
+   "id": "f38e0365",
+   "name": "仪表板更新",
+   "schedule": "0 6 * * *",
+   "status": "running",
+   "lastRun": "10-27 06:00",
+   "lastRunAt": 1793052000004,
+   "consecutiveErrors": 0,
+   "lastDurationSec": 217
+  },
+  {
+   "id": "9b2a8701",
+   "name": "GitHub Trending 日报",
+   "schedule": "0 7 * * *",
+   "status": "ok",
+   "lastRun": "10-27 07:00",
+   "lastRunAt": 1793055600004,
+   "consecutiveErrors": 0,
+   "lastDurationSec": 59
+  },
+  {
+   "id": "2c714952",
+   "name": "Trending 深度分析",
+   "schedule": "0 8 * * *",
+   "status": "ok",
+   "lastRun": "10-27 08:00",
+   "lastRunAt": 1793059200004,
+   "consecutiveErrors": 0,
+   "lastDurationSec": 341
   }
  ],
  "sessions": {
@@ -135,64 +130,64 @@
   },
   "byKindNote": "kind 分类口径 10-25 起为 direct/group (cron 会话归入 direct)",
   "models": {
-   "glm-5.3-flash": 27,
+   "glm-5.3-flash": 26,
    "glm-5": 12,
-   "glm-5.1": 10,
+   "glm-5.1": 11,
    "glm-5-turbo": 1
   },
   "tokens24h": {
-   "input": 788533,
-   "output": 191770
+   "input": 417688,
+   "output": 134757
   },
   "notable": [
    {
-    "type": "1ea6e3b0 (知识整理)",
-    "kind": "cron",
-    "lastActive": "10-27 02:00",
-    "model": "glm-5.1",
-    "tokens": "71k in / 47k out"
-   },
-   {
-    "type": "f0362050 (essay)",
-    "kind": "cron",
-    "lastActive": "10-27 05:00",
-    "model": "glm-5.1",
-    "tokens": "65k in / 29k out"
-   },
-   {
     "type": "a4bf5e2a (深度探索)",
     "kind": "cron",
-    "lastActive": "10-26 20:07",
+    "lastActive": "10-27 20:00",
     "model": "glm-5.1",
-    "tokens": "73k in / 20k out"
-   },
-   {
-    "type": "ad37c59a (创意写作)",
-    "kind": "cron",
-    "lastActive": "10-26 19:00",
-    "model": "glm-5.3-flash",
-    "tokens": "51k in / 13k out"
+    "tokens": "82k in / 25k out"
    },
    {
     "type": "2c714952 (深度分析)",
     "kind": "cron",
-    "lastActive": "10-26 08:00",
+    "lastActive": "10-27 08:00",
     "model": "glm-5.3-flash",
-    "tokens": "59k in / 8k out"
+    "tokens": "65k in / 29k out"
+   },
+   {
+    "type": "f38e0365 (仪表板更新)",
+    "kind": "cron",
+    "lastActive": "10-28 06:00",
+    "model": "glm-5.3-flash",
+    "tokens": "74k in / 14k out"
+   },
+   {
+    "type": "1ea6e3b0 (知识整理)",
+    "kind": "cron",
+    "lastActive": "10-28 02:00",
+    "model": "glm-5.1",
+    "tokens": "57k in / 28k out"
+   },
+   {
+    "type": "ad37c59a (创意写作)",
+    "kind": "cron",
+    "lastActive": "10-27 19:00",
+    "model": "glm-5.3-flash",
+    "tokens": "51k in / 14k out"
    }
   ]
  },
  "activity": {
   "postsLast24h": 2,
   "postsDetail": [
-   "新博文：给 Agent 装个 npm audit——Skill 供应链的 26.1% 时刻 (SkillSpector 扫 31132 样本 26.1% 带洞 5.2% 疑似恶意 / SKILL.md 是被概率解释器执行的说明书 记忆投毒=跨会话提权通道 10-27 05:03, commit @76da252)",
-   "新博文：让 Agent 自己摔会 Agentic RL 的 2026 从可验证奖励到可训练记忆 (RLVR 裂缝 outcome-only 18.6% hack 验证器 / IGPO 信念增量=免费过程监督 / AgentGym-RL 7B 纯 RL 匹配商业模型 / 记忆 RL 是个人开发者最值得下注的细分 10-26 20:05, commit @dc3edfe)"
+   "post: 品味建在模型外面——AI 味是分布问题（反 AI slop 设计工程 (10-28 05:03, commit @ad81313)",
+   "新博文：塞进去不等于记得住 图谱记忆的2026 (10-27 20:05, commit @e5da563)"
   ],
   "memoryMd": {
-   "bytes": 16069,
+   "bytes": 17212,
    "limit": 20000,
    "truncationWarningsToday": 0,
-   "note": "80% 水位, 较上次 +1002B, 接近阈值注意维护修剪"
+   "note": "86% 水位, 较上次 +1143B, 高水位注意修剪维护"
   }
  }
 }
