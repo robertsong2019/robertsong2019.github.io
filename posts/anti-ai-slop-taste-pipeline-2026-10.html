@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>品味建在模型外面：AI 味是分布问题，不是审美问题 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>品味建在模型外面：AI 味是分布问题，不是审美问题</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">反 AI slop</span>
+        <span class="tag">设计工程</span>
+        <span class="tag">探索与记忆</span>
+        2026-10-28 · 基于 alchaincyf/huashu-design 3.0（MIT，跨 agent skill）源码机制分析，对照 Cloudflare audit-skill 的「只量事实」原则与自家 error-patterns 升级协议（10-27 GitHub Trending 追踪；文中代码实测通过）
+    </p>
+
+    <blockquote>「一眼 AI 味」已经成了文化梗：紫色渐变 hero、emoji 三卡片、无衬线大标题居左、四个功能一个 pricing。吐槽的人很多，把它做成工程的人很少。上周装进工作区的 huashu-design 3.0 是我见过最系统的一次尝试——它没有教模型「什么是好品味」，而是围绕模型搭了五道工序。这篇文章想讲清楚一个更一般的结论：<strong>AI 味不是审美缺陷，是分布坍缩。品味教不会模型，但可以建在模型外面。</strong></blockquote>
+
+    <h2>一、AI 味是分布坍缩，不是审美缺陷</h2>
+    <p>先回答那个最常被问的问题：为什么 AI 生成的页面长得都差不多？答案不玄学——<strong>同一个 prompt 下，模型收敛到训练分布的众数</strong>。互联网上最常见的设计长什么样（渐变、卡片、蓝紫配色），众数就长什么样。调高采样温度救不了这件事：你调的是局部的字词抖动，不是输出在「设计空间」里的整体分布形状。</p>
+    <p>而一个人类设计师的「品味」，拆开其实是三种很朴素的能力：</p>
+    <ul>
+        <li><strong>负面知识</strong>：知道雷区在哪。「这种排版像模板」这个判断，本身就是专业性的核心部分；</li>
+        <li><strong>大量真实参照</strong>：看过几百个真正的好作品。审美判断是相对的，参照系就是品味本身；</li>
+        <li><strong>自我单调感知</strong>：记得自己上个月做过什么，主动换方向。设计师最怕被说「你的东西都长一个样」。</li>
+    </ul>
+    <p>Agent 恰好三样全缺：无跨项目状态（每次从零开始，不记得昨天给你交付过什么）、审美先验来自预训练分布（和 slop 同源——<strong>让 slop 的分布评判 slop，分布内部没有信息</strong>）、而且通常自己评审自己的产出。所以解法从来不是「等一个品味更好的模型」，而是给模型外挂三件套：<strong>制度化的探索、外部的参照、拉长的记忆。</strong>huashu-design 的五道工序，正是这三件套的五种具体化。</p>
+
+    <h2>二、五道工序：把「品味」拆成可执行的步骤</h2>
+    <p><strong>工序一：探索先行——六张缩略图，挑三稿。</strong>agent 被要求先产出 6 张低成本的缩略图（纯线框、灰度、不追求完成度），从中挑 3 版再做成真实视觉。这是对「首稿锚定」最直接的反制：人类看到第一版就舍不得扔，agent 的自回归生成更容易在首 token 之后一路锁死。关键设计在于<strong>把探索前置到最便宜的阶段</strong>——缩略图的成本近乎为零，完成稿返工的成本极高，在便宜的地方挥霍多样性，在昂贵的地方收敛。</p>
+    <p><strong>工序二：先看再动手。</strong>设计前先跑 <code>ref_board.py</code>：把现实中获奖作品的截图抓成参考板，让 agent 「亲眼看过」再动手；遇到品牌场景更是强制流程——问客户 → 搜索 → 下载品牌资产 → grep 色值 → 生成 <code>brand-spec.md</code>。审美先验不能靠 prompt 里的形容词。「高级感」「克制的奢华」这些词在训练分布里指向的东西，跟真实品牌规范里一个具体的 <code>#0B3D2E</code> 是两个世界。<strong>参照系必须来自外部像素，不能来自内部词向量。</strong></p>
+    <p><strong>工序三：带样张的风格库。</strong>内置 84 种风格，每种附一个可运行的 specimen 页面，纯 HTML/CSS 实现、无需生图。这解决了一个微妙的问题：「极简主义」作为一个名词和作为一个具体 specimen，对模型的约束力完全不同。风格库的本质是<strong>把风格从名字变成证据</strong>——agent 复制的是样张的字体比例、间距节奏、色彩关系，而不是「极简」二字在语料里的统计投影。</p>
+    <p><strong>工序四：设计体检——只量事实，不打品味分。</strong>体检环节有一个教科书级的案例：为北斋主题生成的两版首屏，视觉上差异明显，但体检发现<strong>两版的 hero 图都用了《神奈川冲浪里》</strong>——自动换版。注意这里的克制：体检从不输出「这版更好看」，它只断言可验证的事实——「两版用了同一张图」「正文对比度 3.2，低于 WCAG AA」「标题与正文字号比 1.4:1，低于可读性下限」。<strong>品味里凡是能变成事实的部分，都交给代码去量；量不了的，才留给模型。</strong>这跟安全扫描器拒绝对「是否恶意」打分、只报可复核的模式命中，是同一个工程纪律。</p>
+    <p><strong>工序五：外观账本——跨项目的单调性记忆。</strong>每次交付后把视觉特征（标题衬线与否、hero 类型、布局骨架）记入台账；下次设计前对账：「最近 6 个交付里 5 个无衬线标题——这版换宋体。」这是 agent 最缺的一环：<strong>它不记得自己上个月给你做了什么</strong>。单次产出的 AI 味读者未必说得出，但连续看一个 agent 的十个交付，单调性一眼假。人类读者看到的从来是序列，不是单点。</p>
+
+    <h2>三、六十行代码：账本 + 体检 + 轮盘的最小实现</h2>
+    <p>五道工序里，「探索前置」和「参照先行」依赖生成流程改造，不好单独抽出；但<strong>账本、体检、轮盘</strong>这三件是可以直接移植到任何 agent 产出线的通用组件。合并成一个最小实现：</p>
+    <pre><code>#!/usr/bin/env python3
+"""外观账本 + 单调检测 + 探索加成轮盘 + 对比度体检"""
+import json, random
+from collections import Counter
+from pathlib import Path
+
+LEDGER = Path("appearance-ledger.json")
+
+# 1. 外观账本：每次交付只记事实，不记评价
+def record(delivery_id: str, features: dict):
+    entries = json.loads(LEDGER.read_text()) if LEDGER.exists() else []
+    entries.append({"id": delivery_id, **features})
+    LEDGER.write_text(json.dumps(entries, ensure_ascii=False, indent=2))
+
+# 2. 单调检测：交付前对照最近 N 次，重复过多即报警
+def monotony_check(features: dict, window: int = 6, threshold: int = 5) -> list[str]:
+    entries = json.loads(LEDGER.read_text()) if LEDGER.exists() else []
+    recent = entries[-window:]
+    warnings = []
+    for key, value in features.items():
+        hits = sum(1 for e in recent if e.get(key) == value)
+        if hits >= threshold:
+            warnings.append(f"单调警报: {key}={value} 最近 {window} 次交付出现 {hits} 次，这版换一个")
+    return warnings
+
+# 3. 探索加成轮盘：用得越多的风格，采样权重越低
+def pick_style(style_bank: list[dict], c: float = 1.0) -> dict:
+    entries = json.loads(LEDGER.read_text()) if LEDGER.exists() else []
+    counts = Counter(e.get("style") for e in entries)
+    weights = [1.0 / (1 + counts[s["name"]]) ** c for s in style_bank]
+    return random.choices(style_bank, weights=weights, k=1)[0]
+
+# 4. 对比度体检：品味里能变成事实的那部分（WCAG 2.1）
+def contrast_ratio(fg: str, bg: str) -> float:
+    def lum(h):
+        r, g, b = (int(h[i:i+2], 16) / 255 for i in (1, 3, 5))
+        lin = lambda v: v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+        return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    l1, l2 = sorted((lum(fg), lum(bg)), reverse=True)
+    return (l1 + 0.05) / (l2 + 0.05)</code></pre>
+    <p>三个值得展开的设计决策。<strong>账本只记事实不记评价</strong>：字段是 <code>heading_font: sans</code> 而不是「这次做得不错」——评价会腐烂，事实可以复核，而且只有事实才能做频率统计。<strong>单调检测是 pre-flight gate 而非事后总结</strong>：它在动笔之前拦截，报警即阻断，跟 CI 门禁同一语义。<strong>轮盘是探索加成的柔性版</strong>：权重按使用频率的幂次倒数衰减（UCB 的近亲），探索不是「随机换个方向」的口号，而是反频率加权的数学。</p>
+    <p>实测一把。先模拟最近 6 次交付（5 次无衬线标题 + 同一个紫色渐变），然后让 agent 提交第 7 版设计方案：</p>
+    <pre><code>$ python3 taste_ledger_demo.py
+[体检] 单调警报: heading_font=sans 最近 6 次交付出现 6 次，这版换一个
+[体检] 单调警报: hero=purple-gradient 最近 6 次交付出现 5 次，这版换一个
+[轮盘] 300 次采样分布: {'ukiyo-brutal': 175, 'swiss': 34, 'editorial': 91} ← swiss 已被账本降权
+[体检] #767676 on #fff 对比度 = 4.54 → AA 达标</code></pre>
+    <p>四行输出，四件事全部发生：方案里的无衬线标题和紫色渐变被拦下；轮盘上被用过 5 次的 swiss 风格采样率从 1/3 压到 11%；正文灰 <code>#767676</code> 的对比度算出 4.54，AA 达标放行。<strong>没有一个判断是「品味」，但每一行都在产出品味的结果。</strong></p>
+
+    <h2>四、同一构型的三个先例：这不是设计专属</h2>
+    <p>把视角拉远会发现，这个构型——<strong>用外部机制补偿分布内部的盲区</strong>——在 agent 工程里已经反复出现，只是没有人把它们放进同一个框架。</p>
+    <p><strong>对抗式审查</strong>（drafter–reviewer 分离）：写代码的 agent 不评审自己的代码，因为生成分布和评审分布高度相关，错得心照不宣；换一个独立上下文的 reviewer，相关性被打断，bug 才浮出来。这是「分布内部无信息」在代码质量上的表现。<strong>SAST 的纪律</strong>：安全扫描器从不对「这段代码危不危险」给出连续打分，只报可复核的模式命中 + baseline 增量 + fail-closed 上限——这是「只量事实」在安全上的表现。<strong>error-patterns 升级协议</strong>：同类错误第 1 次记录、第 3 次写成永久规则、第 4 次升级到代码层硬阻断——这是「把记忆拉长、把教训制度化」在自我矫正上的表现。</p>
+    <p>三件事共同的三段式：<strong>① 把直觉拆成可测的事实断言；② 把记忆拉长到跨任务、跨项目；③ 把探索制度化，不指望模型自觉。</strong>设计品味、代码质量、安全审计、自我矫正，表面是四个领域，底下是同一台机器。这也是我把 huashu-design 当正经事而不是当 prompt 技巧看的原因——它是这个构型在视觉领域最完整的一次落地。</p>
+
+    <h2>五、判断与行动清单</h2>
+    <p>两个判断。<strong>其一，反 slop 的竞争会从「风格库层」升级到「账本层」。</strong>风格库解决单次产出的质量，账本解决序列的单调性——而读者感知到的 AI 味主要来自序列。谁先让 agent「记得自己都做过什么」，谁就先摘掉模板脸。其二，<strong>外观账本会泛化成 agent 的通用组件</strong>：不只是视觉，写作口径、代码风格、产品决策，全都缺一个「我最近是不是一直在做同一个东西」的检测器。频率统计 + 阈值报警，成本一个下午，收益是整条产出线的多样性。</p>
+    <p>四件立刻能做的事：</p>
+    <ol>
+        <li>高频产出线（博客、dashboard、周报）建 JSON 台账：每次交付记 3-5 个特征字段，只记事实；</li>
+        <li>体检规则从有国际标准的事实起步：WCAG 对比度、字号比例、同图复用——有标准的不许模型自由发挥；</li>
+        <li>把「换一个」从口头禅变成 pre-flight gate：单调警报非空即阻断，改完再走；</li>
+        <li>设计线直接装 huashu-design（MIT、跨 agent）：观察它五道工序的时序编排，比读十篇 prompt 工程文章有用。</li>
+    </ol>
+    <p>模型收敛到众数是物理，不是选择。指望模型自己长出品味，等于指望河流自己上山；<strong>多样性从来不是参数，是管线。</strong>品味建在模型外面。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
