@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>塞进去不等于记得住：图谱记忆的 2026 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>塞进去不等于记得住：图谱记忆的 2026</h1>
+    <div class="meta">
+        2026-10-27 · <span class="tag">AI Agent</span> <span class="tag">记忆系统</span> <span class="tag">知识图谱</span> <span class="tag">RAG</span>
+    </div>
+
+    <p>假设你刚换了一个上下文窗口 400K token 的新模型，豪气地把用户三个月的聊天记录全部塞进 prompt，然后问它："这位用户现在在哪家公司工作？"它自信地回答了用户<strong>两个月前离职的那家</strong>。</p>
+    <p>信息明明就在窗口里——"入职新公司"那句话离问题只有 8000 token 的距离。它没漏看，只是在它眼里，旧公司出现了 47 次，新公司只出现 2 次。<strong>更频繁的那个记忆压倒了更新的那个。</strong></p>
+    <p>这不是模型笨，这是把"记忆"误当成"容量"问题的必然后果。2026 年这一年的记忆系统研究，几乎全在回答同一个问题：当塞进去已经不稀缺，<strong>找得到、分得清新旧、组织得好</strong>该怎么做？而答案出奇一致：需要结构，尤其是图结构和时间结构。</p>
+
+    <h2>先破除幻觉：长上下文没有杀死记忆系统</h2>
+    <p>"上下窗口够大就不需要 RAG/记忆了"——这个论断每年都要死几次，2026 年死得尤其彻底。三个独立基准给出了三记重锤：</p>
+    <ul>
+        <li><strong>NoLiMa</strong>（Adobe，ICML 2025）：13 个标称支持 128K+ 的模型，把字面词匹配线索去掉、只留联想关联后，在 32K 长度时 <span class="highlight">10 个模型准确率跌破短文本基线的一半</span>。GPT-4o 从 99.3% 掉到 69.7%。</li>
+        <li><strong>RULER</strong>（NVIDIA）：定义"有效上下文长度"为精度跌破阈值的点——几乎<strong>所有模型的有效长度都小于标称长度</strong>。</li>
+        <li><strong>LaRA</strong>：语料超过 128K 后，RAG 反超全量塞入的方案，且长上下文幻觉更多。</li>
+    </ul>
+    <p>这些数字指向同一个结论：<strong>塞进去 ≠ 找得到 ≠ 用得上。</strong>注意力机制在没有字面锚点的长文本里做联想检索，能力崩得比想象快。Databricks 的实测和 Google 的 Self-Route 研究给出的判断更成熟：长上下文和检索/记忆是<strong>协同</strong>关系——更长的窗口让每次检索能装进更多、更完整的上下文，但"决定装什么"的那一层永远需要结构。</p>
+    <blockquote>上下文是工作台，记忆是图书馆。工作台再大，也不能把图书馆搬上桌。</blockquote>
+
+    <h2>图结构记忆的三种哲学：谁来整理记忆？</h2>
+    <p>把 2026 年最有代表性的三套图谱记忆系统放在一起看，会发现它们其实在回答同一个设计问题的三种答案——<strong>记忆由谁来整理？</strong></p>
+
+    <h3>1. 让算法整理：HippoRAG 2，把海马体写进代码</h3>
+    <p>人脑的海马体有个反直觉的设计：<strong>它不存储记忆内容，只存储记忆的索引</strong>。真正的记忆散落在新皮层，海马体负责的是"线索来了，沿突触扩散激活相关记忆"——你闻到一股味道，突然想起十年前的某个下午，就是激活扩散在工作。</p>
+    <p>俄亥俄州立团队的 HippoRAG（NeurIPS 2024）把这个理论直接工程化：用 LLM 把文档抽成实体-关系三元组，建成知识图谱；查询时从问题实体出发，在图上跑 <strong>Personalized PageRank</strong>——像投石入水，让"相关性"像涟漪一样沿边扩散，涟漪重叠最高的节点就是答案需要串联的记忆。多跳问题（"A 的导师的导师研究什么？"）从"循环检索好几轮"变成"图上一次扩散"，比迭代检索便宜 10-20 倍、快 6-13 倍，多跳 QA 精度最高提升 20%。</p>
+    <p>2025 年的 HippoRAG 2（论文标题就叫 "From RAG to Memory"）补上了关键一环：把原文段落也作为节点织进图里（三元组节点 ↔ 段落节点互连），检索时再用一个 LLM 在线过滤无关三元组。联想任务上比纯 embedding 检索高约 7 个 F1。更有意思的是工程信号：它已经出了 MCP server，Claude Code、Cursor 可以直接挂——<strong>学术记忆系统第一次以基础设施的形态进入了开发者的日常工具链</strong>。</p>
+
+    <h3>2. 让时间整理：Zep/Graphiti，事实会过期而不是消失</h3>
+    <p>回到开头的场景。用户"换了工作"，本质是<strong>一条事实的有效性发生了变化</strong>。向量库处理这种情况的方式很糟糕：新旧两段话都变成 embedding，检索时谁语义相近谁赢——出现次数多的旧事实几乎总是赢。</p>
+    <p>Zep 的 Graphiti 引擎把时间做成了数据模型本身：知识图谱上的每条边带<span class="highlight">四个时间戳</span>——这个事实何时开始为真、何时失效、系统何时学到它、何时得知它失效。旧事实不会被删除，而是被标记 <code>invalid</code>。"用户现在在哪家公司"这类问题，答案的判定从"哪个更相关"变成"<strong>哪个还有效</strong>"——这是数据库语义的胜利，不是模型能力的胜利。</p>
+    <p>效果直接体现在最难的那几类题上：LongMemEval 基准上，全量上下文方案在 temporal-reasoning（时间推理）类目只有 45.1%，Zep 做到 62.4%；整体精度 +18.5% 的同时延迟降了 90%。这就叫 bi-temporal（双时间轴）：真实世界的时间和系统认知的时间分开记，人也是这么记事的——"他三月离职"和"我五月才知道"是两件事。</p>
+
+    <h3>3. 让 Agent 自己整理：A-Mem，卢曼卡片盒复活</h3>
+    <p>社会学家卢曼一生写了 9 万张卡片笔记，秘诀不是记，而是<strong>链接</strong>：每张新卡片进来时，他都会回头翻旧卡片，找到相关的几张，互相建立引用，有时候还顺手修订旧卡片的描述。卡片盒因此是一个活的、不断重组的知识网络。</p>
+    <p>NeurIPS 2025 的 A-Mem 把这套方法给了 Agent：每条新经验被写成结构化"笔记"（内容、语境描述、关键词、标签、embedding），然后 Agent 分析历史记忆库，<strong>自主决定和哪些旧记忆建立链接，并触发旧记忆的更新</strong>——记忆的组织本身成了 Agent 的决策行为，而不是写死的流水线。在六个数据集上显著超越了传统的存储-检索式记忆。</p>
+    <p>三套哲学可以叠加：图谱是骨架（HippoRAG 的扩散检索）、时间是血液（Zep 的失效机制）、Agent 的自主重组是代谢（A-Mem 的演化）。2026 年最好的记忆系统，正在把三者焊在一起。</p>
+
+    <h2>诚实的账单：GraphRAG 什么时候真的值得？</h2>
+    <p>讲了这么多图的好处，必须泼冷水。图结构记忆这三年最大的教训恰恰是：<strong>它经常不划算，而且经常输。</strong></p>
+    <ul>
+        <li>微软原版 GraphRAG（社区检测 + 层级摘要）的索引成本是向量方案的 <span class="highlight">100-1000 倍</span>，一次企业语料建索引 $20-500，而且社区摘要<strong>无法增量更新</strong>——文档一变就得重算。</li>
+        <li>ICLR 2026 的 GraphRAG-Bench 直言：GraphRAG 在很多真实任务上<strong>经常输给普通 RAG</strong>。图擅长的是关系密集的领域（供应链、法务条款、金融工具），不是通用升级。</li>
+        <li>一组对照实测（245K 篇文章语料）：单跳事实查询上，向量检索 P@5 是 0.94，GraphRAG 反而只有 0.89，延迟 73ms vs 1400ms；只有在多跳查询上，图以 91% vs 63% 大胜。<strong>花 35 倍的钱，买一个在简单题上倒退、在难题上碾压的系统。</strong></li>
+    </ul>
+    <p>2025 年中的 LazyGraphRAG 改变了成本结构：索引阶段只做轻量建图（成本压到全量 GraphRAG 的 0.1%，和向量打平），把昂贵的摘要生成推迟到查询时按需做。微软的 BenchmarkQED 评测里，它在所有查询类目上胜出——包括拥有 100 万 token 窗口的向量 RAG——global 查询便宜 700 倍。这本质上是把"一次性买断"改成了"按需付费"。</p>
+    <p>所以 2026 年成熟的选型答案不是站队，是<strong>按查询类型路由</strong>：</p>
+    <ul>
+        <li>单跳事实查询 → 向量 RAG（快、便宜、够用）</li>
+        <li>多跳推理、稳定语料 → HippoRAG 2 / PathRAG（预建图，图质量接近 GraphRAG、延迟接近向量）</li>
+        <li>全局综合类问题（"这批文档的主要主题是什么"）→ LazyGraphRAG</li>
+        <li>动态数据、Agent 记忆（事实会变）→ bi-temporal 图（Graphiti/Mem0）</li>
+        <li>语料小于 10 万 token → 什么都别装，直接塞 prompt</li>
+    </ul>
+
+    <h2>基准战争的教训：总分在吵架，单项有共识</h2>
+    <p>这个领域 2026 年最荒诞的一幕是两家头部记忆公司的基准战争：Mem0 和 Zep 在 LoCoMo/LongMemEval 上各自发布的数字相差 <span class="highlight">40 多分</span>——Mem0 自称 93.4，第三方独立复测只有 49.0；Zep 发布的 84% 被对手"修正"到 58%，再反诉回 75%。两边都写博客互相质疑方法论，至今没有独立第三方把这事了结。</p>
+    <p>但把吵架的数字拆开看类目，会发现一个稳定得多的信号：<strong>在 temporal-reasoning、multi-session、knowledge-update、multi-hop 这四个单项上，无论谁测、用什么总分口径，图结构方案的方向性优势全部一致。</strong>总分打架，单项共识。</p>
+    <p>这给选型者的启示是：<strong>不要用厂商的 leaderboard 总分做决策</strong>。拿你自己业务的真实查询，按上面四类抽样做个百题自测集——记忆市场已经大到 $60 亿量级、预测 2030 年 $280 亿，营销预算会越来越厚，而你的用户只关心他自己的问题被答对没有。</p>
+
+    <h2>记忆是动词：存、取、更、压、忘</h2>
+    <p>2025 年 12 月那篇 47 位作者的综述（<em>Memory in the Age of AI Agents</em>，配套 paper list 两千多星）做了件朴素但重要的事：把"记忆系统"拆成五个操作——<strong>存储、检索、更新、压缩、遗忘</strong>。</p>
+    <p>绝大多数团队只建了前两个。后果是结构性的：存储是 append-only 的，旧事实和新事实永远共存，Agent 每次都在掷硬币；没有压缩，检索质量随仓库增长静默劣化；而<strong>遗忘是最被低估的操作</strong>——错误、过时、从未被引用的条目安静积累，污染每一次未来检索。今年分水岭式的进展，几乎都发生在后三个操作上：Zep 的失效机制是"更新"，A-Mem 的演化是"压缩+更新"，而 Mem-α/EMPO² 那条 RL 线（见上一篇）干脆把五个操作全部变成可训练的动作。</p>
+    <p>还有一句必须提的暗面：记忆可写 = Agent 可被跨会话重编程。已有安全研究测得 <strong>90% 以上的测试 Agent 可被记忆投毒，且用对话纠错的修复方式 100% 复发</strong>。昨天聊的 skill 供应链和今天的记忆投毒，是同一扇门的两个入口——门就是"宿主自动加载外部内容并信任执行"。</p>
+
+    <h2>可以立刻做的五件事</h2>
+    <ol>
+        <li><strong>给你的记忆加上时间戳。</strong>哪怕不上图谱，给每条记忆加 <code>valid_at</code>/<code>invalid_at</code> 两列，读路径按"有效优先"仲裁——bi-temporal 的最小实现，一个下午能写完，直接消灭开篇那个"答旧公司"的 bug。</li>
+        <li><strong>审计五操作覆盖度。</strong>列一遍你的记忆系统：有 store/retrieve 不稀奇，update/compress/forget 有没有？append-only 是默认的坑，不是中性的选择。</li>
+        <li><strong>按查询类型路由，别按信仰站队。</strong>统计你用户问题的分布：单跳占大头就老实向量；多跳/跨会话多，再考虑图——并优先试 LazyGraphRAG 或 HippoRAG 2 这种低成本变体。</li>
+        <li><strong>建百题自测集，不看厂商总分。</strong>从 LongMemEval 抽 temporal-reasoning 和 knowledge-update 各 20 题，加上自己业务 60 题，任何记忆方案先跑它再决策。</li>
+        <li><strong>盯三个信号：</strong>Mem0/Zep 是否接受独立复测；LazyGraphRAG 何时产品化开源；LangGraph/CrewAI 把记忆层从可选插件变成默认配置的时间点——最后一个发生时，说明记忆基建之争收敛，进入集成红利期。</li>
+    </ol>
+
+    <p>模型窗口还会继续涨，但"记得住"这件事从来不是容量问题。你的上下文是工作台，工作台上堆得越多，越需要图书馆、索引员和过期杂志回收制度。2026 年的记忆系统研究，就是在给 Agent 造这三样东西——而图结构，是那个图书馆的书架。</p>
+
+    <p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+        参考：HippoRAG 2 (arXiv 2502.14802) · A-Mem (NeurIPS 2025, arXiv 2502.12110) · Zep (arXiv 2501.13956) · Mem0 (ECAI 2025) · NoLiMa (ICML 2025) · LazyGraphRAG (Microsoft Research) · GraphRAG-Bench (ICLR 2026) · Memory in the Age of AI Agents: A Survey (arXiv 2512.13564)
+    </p>
+</body>
+</html>
