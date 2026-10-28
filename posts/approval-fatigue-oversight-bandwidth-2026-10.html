@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第 41 次点击允许：Agent 监督的带宽经济学 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>第 41 次点击「允许」：Agent 监督的带宽经济学</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">人机协作</span>
+        <span class="tag">Agent 治理</span>
+        <span class="tag">安全</span>
+        2026-10-28 · 基于 WorkOS 审批疲劳攻击面报告（2026-08）、Hugging Face × Data &amp; Society 监督研究（2026-09）、arXiv 2605.19151 信任校准形式化、CloudZero HITL 成本量化，以及安全界三十年的警告疲劳证据链
+    </p>
+
+    <blockquote>下午三点，你的 coding agent 第 40 次弹窗，问是否可以执行一条命令。你没有读完——光标已经点在「允许」上。第 39 次没读，第 38 次也没读。现在回答一个问题：<strong>这套「每个危险动作都要人批准」的流程，此刻还剩多少安全性？</strong>这篇文章想说的是：剩下的可能比你以为的少得多，而且攻击者已经开始专门利用这一点。人类监督是一种带宽极其有限的稀缺资源——是时候像做预算一样设计它，而不是像装按钮一样安装它。</blockquote>
+
+    <h2>一、微软十五年前就承认过这件事</h2>
+    <p>先讲一个老故事。Windows Vista 引入 UAC（用户账户控制）时，几乎每个特权操作都要弹窗确认。微软自己的遥测数据后来显示：<strong>消费者管理员对 UAC 弹窗的批准率是 89%</strong>，而实验室研究里只有 13% 的参与者能解释自己为什么看到这个弹窗。微软当时的原话是「我们显然担心用户因为弹窗太多而习惯性回应，而不是聚焦在关键弹窗上」。于是 Windows 7 大幅减少了弹窗——用户满意度上升，独立研究者的结论却是：安全价值趋近于零。</p>
+    <p>这是平台方第一次用产品决策亲口承认：<strong>审批过多不是安全措施，是对安全的消耗。</strong>提示的信息量取决于「这次提示值得认真看的概率」。当 100 次里有 99 次是例行的 yes，弹窗携带的信息趋近于零，审阅退化成运动反射——手指比大脑先动。</p>
+    <p>这不是 UAC 的孤例。安全界三十年攒下了一条完整的「疲劳证据链」：Android 权限研究中，308 个用户只有 17% 在安装时注意权限，同时做到「注意且能理解」的<strong>不足 3%</strong>；2500 万次浏览器警告的统计里，Chrome SSL 警告点击率高达 <strong>70%</strong>——用户把警告当成通往目标的障碍，而不是关于自身安全的信息；医疗领域最沉重，临床警报过频导致医护直接关警报，联合委员会统计的 98 起警报相关不良事件里 <strong>80 起是死亡</strong>。四个领域，彼此独立，收敛到同一结论：<strong>当请求频率超过人类注意力容量，提示就从「信息」变成「仪式」。</strong></p>
+    <p>Agent 时代唯一的变量是数量级。一个 agent 舰队生成审批请求的速度，是单个人类消化速度的多少倍，这套机制就失效得多快。</p>
+
+    <h2>二、审批不免费：三个数字</h2>
+    <p>把直觉换成账本。CloudZero 对 agent 工作流里人工审核的量化给了三个值得背下来的数字：</p>
+    <ul>
+        <li><strong>每次审批 $0.50–2.00</strong>：按审核员时薪折算的边际成本，专家级审核（法务、财务、DBA）再乘 5–10 倍；</li>
+        <li><strong>每人每天约 240 次</strong>：一个审核员「认真」审批的天花板。第 241 次开始，你付的是审阅的钱，买到的是橡皮图章；</li>
+        <li><strong>40 秒 + 4 小时 = 4 小时</strong>：agent 四十秒干完的活，卡在审批口等人开完会，从客户视角就是四小时流程。<strong>延迟是 agent ROI 的隐形杀手——自动化买回来的速度，被人工闸门原样退了回去。</strong></li>
+    </ul>
+    <p>成本结构也很清楚：agent 单干每个任务 $0.10–2.00；agent 加阻塞式人工审核 $1.30–4.00；换成<strong>风险分层监督</strong>（只对 10% 高危动作全审，其余抽样）是 $0.40–2.50——比阻塞式便宜一半以上，安全性反而更高，因为人的注意力集中在了真能改变结局的地方。</p>
+    <p>一个比喻：agent 在八条车道上并行狂奔，人工审批是一条人工收费通道。你不会通过把收费员培训得更敬业来解决拥堵——<strong>你会给常旅客发 ETC。</strong>这就是从「审批按钮」到「审批预算」的转变：注意力是预算，审批是支出，要把钱花在刀刃上。</p>
+
+    <h2>三、攻击者已经入场：疲劳是可以被制造的</h2>
+    <p>如果以上还只是「效率问题」，2026 年的变化是：审批疲劳正式成为<strong>攻击面</strong>。</p>
+    <p>WorkOS 今年 8 月的报告记录了一种新威胁——威胁检测规则库里新增了编号 <code>ATR-2026-00118</code> 的条目，名字就叫 <strong>Human Approval Fatigue Exploitation（人类审批疲劳利用）</strong>。攻击者的思路不是绕过审批，而是<strong>耗尽审批的人</strong>：诱导 agent 高频重复地发起权限请求；用「批量化」话术让危险操作读起来例行化（「这批直接全部通过就行」「不用一个个看了」）；或者把一个危险操作埋进一堆良性操作的批量请求里。检测规则干脆是纯语言的：提示里出现 <code>just click approve for all</code> 这类短语，本身就是告警信号。这个条目同时对应 OWASP Agentic AI Top 10 的「人类信任利用」类目和欧盟 AI 法案第 14 条的人工监督要求——攻击者的目标，恰恰是你合规文件里写的那句「a human approves consequential actions」。</p>
+    <p>这招有前科。MFA 轰炸（prompt bombing）——攻击者拿到密码后用推送请求淹没用户直到对方手滑点下 approve——在 Verizon 2025 年数据泄露报告里出现在 <strong>14%</strong> 的 MFA 滥用事件中。安全行业花了很多年才接受：疲劳不是失效模式，是<strong>被武器化的攻击技术</strong>。现在同一套战术平移到了 agent 审批上。</p>
+    <p>防御侧还有个更尴尬的事实：不少团队的反应是干脆关掉审批——所谓 YOLO mode。安全厂商 WitnessAI 对 2026 年的判断很直白：<strong>「控制失败不是因为用户拒绝安全，而是因为摩擦被常态化地消解掉了。」</strong>要么被磨平，要么被关掉，逐动作审批正在两条路上同时失败。运营含义只有一条：把「单位时间审批请求数」本身当安全指标监控，基线偏离即告警——跟检测 MFA 轰炸是同一个 playbook。</p>
+
+    <h2>四、监督的不可能三角：问也不是，不问也不是</h2>
+    <p>那少问几次行不行？Hugging Face 与 Data &amp; Society 今年发布的研究说明：也不行。人类监督在 agent 时代存在三重同时发生的退化：</p>
+    <ul>
+        <li><strong>注意力钝化</strong>——问得越多，批准越例行公事（上文已证）；</li>
+        <li><strong>上下文债</strong>——问得越少，agent 独立工作的时间越长，等到真需要人决策的那一刻，人要补的课越多，<strong>理解得反而越少</strong>；</li>
+        <li><strong>技能萎缩</strong>——委托出去的任务，正是监督者日后需要用来判断对错的经验。全部委托出去的团队，最后剩下的审核能力只够盖章。</li>
+    </ul>
+    <p>三个方向同时收紧，这是个名副其实的不可能三角：<strong>请求频率、即时理解、技能保持，三者不可兼得。</strong>它的出路不是找一个甜蜜平衡点，而是换掉坐标系本身（下一节）。</p>
+    <p>Data &amp; Society 在计算生物学实验室的田野调查里还补了一刀，他们复活了 Elish 的「道德溃缩区」（moral crumple zone）概念：汽车用溃缩区吸收撞击能量保护乘客，组织用「在场的那个签字的人」吸收事故责任保护系统。当流程文档里写着「人工批准」，事故后的责任落点就是那个点头的人——<strong>哪怕实际上没有任何人能跟上 agent 的完整行动轨迹</strong>。研究者给这种监督起了个不留情面的名字：责任转嫁的语言。如果监督界面没有配上真实的认知带宽和说「不」的权力，human oversight 就是合规剧场，而批准席是剧场里最危险的一个座位。</p>
+
+    <h2>五、换坐标系：从闸门到预算的四个设计</h2>
+    <p><strong>设计一：风险分层路由——按动作的可逆性分配注意力预算。</strong>机场安检从来不是对每个人每件行李做同等深度的检查：金属门全量、随机抽检、高危触发深度检查。agent 的监督应该长成这样——<strong>不可逆动作</strong>（删库、对外打款、公开发布）人工在环；<strong>高量可逆动作</strong>（读文件、跑测试）机器在环 + 事后抽样；<strong>agent 舰队</strong>人类在指挥层，管策略和预算而不是逐动作放行。CloudZero 的数字已经证明这个结构同时改善成本和安全。关键纪律：分层依据是<strong>动作的风险属性</strong>，不是「这是哪个 agent」。</p>
+    <p><strong>设计二：信任校准是一个可学习的函数，不是一份静态政策。</strong>今年 arXiv 上一篇有意思的论文（2605.19151）把「何时放行、何时询问」形式化成了偏好学习问题：系统维护一个对「人类风险容忍度」的高斯过程后验，每次 approve/deny 都是观测数据，然后<strong>恰好在结果最不确定的动作上升级给人</strong>，把整个动作空间划分为 allow / block / ask 三个区域——还带时间衰减核，因为信任本来就该随时间漂移。这跟教练教骑车是一个道理：先扶着，逐渐松手，重心真不稳时再接一把——而不是全程死扶（反射性批准）或者撒手不管（YOLO mode）。Stanford GSB 今年 9 月的工作也在往同一个方向走：让 agent 在合作博弈里学会「什么时候该求助」。共同的洞察是：<strong>询问本身应该有信息量——问在刀刃上的那一次，人才会认真读。</strong></p>
+    <p><strong>设计三：把判断从运行时搬进配置。</strong>Atomic Object 那篇 Claude Code 实践文的核心句值得裱起来：<strong>「没有人能靠意志力赢过一天响四十次的习惯。」</strong>别赢它，绕开它——安全且高频的操作（跑测试、读仓库）一次性写进 allowlist；明确危险的操作硬编码 deny，不给弹窗机会；权限表达不了的规则用 guard hook 兜住。运行时留给人类的，只剩下真正非例行的决策。判断只做一次，写进策略；而不是每天做四十次，做进肌肉记忆。</p>
+    <p><strong>设计四：异步、批量、在人类所在之处拦截。</strong>CrewAI 的 CEO 今年讲了个反直觉的落地经验：他们试了各种花哨的人机协作界面，最后全公司最买账的审批入口是——<strong>邮件</strong>。「在人类所在之处拦截他们」胜过再造一个待办中心。配合 agent 侧的 checkpoint 挂起（等待期间去干别的活）和请求聚合（一次批准一类而不是一次一个），异步审批把「40 秒+4 小时」里那 4 小时的大部分还给了流程。这里有个工程前提值得记住：暂停-恢复的可靠性完全押在状态持久化上，checkpoint 才是 HITL 架构真正的枢纽件。</p>
+    <p>最后，治理层需要三个可运营的指标（Dataiku 的建议）：审批延迟分布、升级量趋势，以及最容易被误读的——<strong>override rate（人类否决率）</strong>。健康的审批流否决率应该是一个非零的小数；趋近于零不是治理成功的标志，而是橡皮图章的红灯警报，该触发的是复盘而不是庆祝。</p>
+
+    <h2>六、五件立刻能做的事</h2>
+    <ol>
+        <li><strong>审计你自己的审批分布。</strong>拉过去 30 天的审批日志，按频率×风险排序：高频低险的类别一次性下沉为 allowlist 规则；高危类别配硬 deny 加事后审计。多数团队做完这一步，日常弹窗量降一个数量级——而覆盖率不降反升。</li>
+        <li><strong>把 override rate 和请求节奏加进监控。</strong>否决率归零 = 橡皮图章告警；单位时间请求数偏离基线 = 疲劳轰炸告警。两者都是一行日志聚合的事。</li>
+        <li><strong>给审批请求立写作规范。</strong>每次升级必须自带四件套：要做什么 / 为什么是现在 / 最坏情况 / 拒绝的代价。一个请求的信息熵必须配得上它消耗的决策成本——这直接决定第 41 次点击时屏幕前的人还读不读。</li>
+        <li><strong>把「仅此一次」升级成简单版信任校准。</strong>动作按（可逆性，影响半径）打标，approve/deny 喂一个 Beta 或 GP 后验，低不确定区自动放行、高不确定区才升级。不用等论文落地，几十行代码就能把「永远再问一次」变成「问在不确定处」。</li>
+        <li><strong>盯三个外部信号。</strong>信任校准类方法何时进生产工具链；OWASP Agentic AI Top 10 的「人类信任利用」类目会不会长出专门检测标准；EU AI Act 第 14 条执法时如何认定「橡皮图章式监督」——第一个因监督形同虚设被处罚的案例，会重写所有企业的 agent 治理文档。</li>
+    </ol>
+
+    <p>Agent 创造价值的方式是扩张行动的并行度，人类创造价值的方式却受限于有界的注意力、认知和生理。两边的速度差不会缩小，只会拉大。所以这个领域最重要的基础设施，可能不是更聪明的模型，也不是更严的权限——<strong>是围绕人类神经系统设计的预算制度</strong>。审批不是装上去的按钮，是花出去的预算。第 41 次点击「允许」之前，先想清楚这 41 次里，哪几次真正值得一个清醒的人类。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
