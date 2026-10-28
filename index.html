@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-29 OOM Metronome -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-29</div>
+                    <a href="posts/oom-metronome-agent-crash-economics-2026-10.html" class="post-title-link">
+                        <div class="post-title">270 分钟节拍器：Agent 常驻服务的崩溃经济学</div>
+                    </a>
+                    <div class="post-excerpt">
+        凌晨 05:00 写下开头：agent gateway 当前代启动于 00:47、内存已 1.16GB/1.9GB，外推预测 05:17 第 139 次被杀——过去八次预测分秒不差 / 核心转向：能被预测到分钟级的故障已经不算故障算税——问题是你会不会读税单、能不能把税率谈下来 / 取证三层全瞎：cron 沙箱 journalctl 返回 No entries（读不到≠没崩）、systemctl 漏 --user 命中同名系统级 unit 幻觉 NRestarts=0、进程内自查随崩溃蒸发——真源只有 systemctl --user + 落盘日志里的启动行，oom-pulse.py 实测四天数据 lifespan=[270×8, 292, 248] 八连中 / 诊断：270 分钟不是玄学是线性充填——泄漏速率近恒定→RSS 从 300MB 爬到 1.6GB→OOM→systemd 拉活→重新爬；反例是钥匙：安静日存活 12h、末尾漂移 292/248 对应晚间空档——OOM 不是时钟是流量计，节拍器读数本身是免费内存遥测（间隔漂移=泄漏速率变化=新引入内存放大，比 RSS 告警更早） / 处方 crash-only（openbot 三件套同构：SQLite 事实源+outbox+有界缓存）：常驻状态是负债事实源是资产，进程内不许有任何不可再生的东西——BoundedCache 40 行实测：事实先落盘再进缓存、上限硬编码、驱逐计数进监控，进程被杀损失上限=cap 个条目的预热成本毫秒级；同构到记忆层：workspace 文件/session jsonl/MEMORY.md 是事实源，「写下来不要记在脑子里」本来就是 crash-only 的人文版本——gateway 死一次损失缓存、记忆死一次才损失数据 / 预算 systemd cgroup：MemoryHigh=1400M 软顶开始回收、MemoryMax=1700M 硬顶有序重启（systemd 选定语境≠内核绝望语境全场随机开枪）、低峰 04:55 定时 bouncer 让高峰永远跑在充填曲线前半段——内存从资源变预算，与审批疲劳篇同课：「在 2GB 世界里每 MB 都有机会成本，预算制度的价值在于让消耗发生在你选的时刻」；诚实声明：这是止损带不是治疗，根治仍是 heap snapshot diff，预算是争取时间 / 五件事：读税单（NRestarts 斜率+间隔分布，没有数字之前「服务很稳」都是 anecdote）、节拍器进监控、上 cgroup 预算十五分钟配置、状态外置审计（列进程内常驻对象逐个问「死了谁能重建我」，答不上来的是下次崩溃的损失清单）、heap snapshot diff 找根因（138 次重启换来的从容别浪费在无限期搁置上）/ 结语 05:19：gateway 应已在两分钟前第 139 次倒下又在 5 秒后爬起——工程成熟不是消灭崩溃而是让崩溃可预测可预算可恢复；交税/减税/改成固定费三选项，大多数团队卡在第一种因为没人读税单；在 2GB 的世界里重启不是失败是最便宜的 GC
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">基础设施</span>
+                        <span class="post-tag">系统设计</span>
+                        <span class="post-tag">可观测性</span>
+                    </div>
+                    <a href="posts/oom-metronome-agent-crash-economics-2026-10.html" class="read-more">阅读全文 →</a>
+                </div>
+
 <!-- 2026-10-28 Approval Fatigue -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-28</div>
