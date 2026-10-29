@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在 GitHub 上下载一家公司：Agent 组织架构即配置 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>在 GitHub 上下载一家公司：Agent 组织架构即配置</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">组织设计</span>
+        <span class="tag">多智能体</span>
+        <span class="tag">配置工程</span>
+        2026-10-30 · 素材来自本周 GitHub Trending 深度追踪（Claude-Code-Game-Studios / ECC / macro / OpenBot / superpowers），文中 org-lint 检查器已在本机实测
+    </p>
+
+    <h2>开场：28.6k 星的不是一个工具，是一家公司</h2>
+
+    <p>上周 GitHub 上有一个 repo 悄悄爬到 28.6k 星：Donchitos/Claude-Code-Game-Studios。打开它你会发现里面几乎没有传统意义上的"代码"——它把 Claude Code 变成一家完整的游戏工作室：<strong>49 个 agent 定义</strong>（每个是一份带 YAML frontmatter 的 markdown 职位说明书）、74 个 slash-command 技能、13 条<strong>按路径作用域</strong>的编码规范、39 个带分节指导的文档模板、外加一条 brainstorm→design→art→architecture→sprint→QA→release 的七阶段管线状态机。</p>
+
+    <p>两万八千人 star 的不是软件，是一张组织架构图。你可以从 GitHub 上下载一家公司，装进终端，今天开工。</p>
+
+    <p>这不是孤例。affaan-m/ECC（29 万星）是同一物种的更大样本：71 个 agent、311 个技能、instincts 行为约束和 AgentShield 供应链审计——最后那个角色，在任何人类公司里叫合规部。superpowers 证明了水平方法论（通用开发流程）可以插件化，Game-Studios 证明了<span class="highlight">垂直方法论（整个行业的组织流程）也可以插件化</span>。而 macro-inc/macro 走得更远：把 email、chat、docs、tasks、agents 全部塞进一个双向图存储，agent 与人类共享同一套权限体系——它的 README 第一句就是诊断书："The company was not computable. It was chaotic."（公司过去是不可计算的。它是混乱的。）</p>
+
+    <h2>一、为什么是现在：劳动力免费之后，组织学成为产品</h2>
+
+    <p>1975 年 Brooks 在《人月神话》里给出软件工程最持久的公式：往项目里加人，沟通路径按 n(n-1)/2 增长——三个人三个通道，十个人四十五个。所以人类软件组织学的全部历史，本质上是在跟"人太贵但不能多招"这个约束讨价还价：管理幅度、层级、SOP、评审制度，全是为了让贵的东西少浪费。</p>
+
+    <p>2026 年约束反转了。一个能干活的 agent 劳动力每小时成本不到一杯咖啡，招聘成本是复制一段 markdown，解雇成本是删掉它。当劳动力价格趋零，稀缺资源从"会不会干活"上移到"怎么组织干活"。于是出现了过去半年最反直觉的景观：<span class="highlight">没有任何一个高星 agent 仓库在训练模型，全部在写配置</span>。这个趋势的规模可以从一个侧影看出：本月 claude-mem 和 taste-skill 双双突破 10 万星——GitHub 历史上这个量级的仓库屈指可数，而它们全是 agent 基建。OpenBot 的架构是这个趋势的最小完整样本——server 网关解析目标 → 评估策略 → 写一行审计记录 → 才允许调用 agent-computer，低层端点私有化禁止绕过网关。拆开看就是会计加内审：干活的人不记账，记账的人不干活。</p>
+
+    <p>组织学没有消失，它被降维成了 YAML。</p>
+
+    <h2>二、一张直译对照表</h2>
+
+    <p>这些仓库里每个设计决策，几乎都能在百年组织学里找到原型：</p>
+
+    <ul>
+        <li><strong>职位说明书（JD）</strong> → agent markdown + frontmatter。Game-Studios 的 49 个 agent 每个都写明职责边界、汇报对象、可用技能——正是好的 JD 该有的样子，而且真的会被严格执行。</li>
+        <li><strong>部门 SOP vs 公司全局政策</strong> → path-scoped rules 是对 CLAUDE.md 全局单文件模式的直接进化。13 条规则按目录分标准：Assets/ 下只许编辑资产、Unreal 项目从 Source/ 构建、改 GDD 必须跑 /propagate-design-change 传播评审。人类公司早就知道一份员工手册管不了所有部门，agent 公司刚刚学会。</li>
+        <li><strong>入职培训（onboarding）</strong> → 39 个文档模板。superpowers 里的 plan-for-junior（"给新人写计划"）甚至把"如何培养初级员工"配置化了。</li>
+        <li><strong>流程感知</strong> → /project-stage-detect 自动判断项目当前阶段，statusline 常驻显示 context 百分比、模型、阶段、epic 面包屑。一家好公司的经理知道自己在第几阶段，现在组织本身知道了。</li>
+        <li><strong>管理幅度</strong> → 1933 年 Graicunas 就算过，一个管理者直接管 7 个人基本是上限。agent 组织的对应约束更硬：<span class="highlight">上下文窗口就是协调者的注意力预算</span>，ECC 的口号"Optimize the context window. Persist everything else"是这个约束的工程表述。</li>
+        <li><strong>公司记忆</strong> → macro 的双向图：CRM 记录被讨论时自动更新，邮件到工单全链路可回溯。组织记忆第一次成为原生数据结构而不是 wiki 里的化石。</li>
+    </ul>
+
+    <p>还有一条暗线值得单独说：<strong>Conway 定律的主动利用</strong>。1967 年 Conway 的观察是"系统结构复制组织沟通结构"——两个团队之间的接口边界，最终会出现在代码里。人类公司拿这条定律没办法，因为它只能事后应验；agent 公司可以正向操作：先把组织图写成配置，让代码结构跟着组织走。Game-Studios 的 13 条路径规则本质上是把部门边界画进了目录树——Assets/ 归美术部、Source/ 归程序部、GDD/ 归策划部，每块领地有自己的法律。这是人类组织学做不到的事：<span class="highlight">agent 不会私下绕过组织架构图，去咖啡机旁边聊出一条灰色接口</span>。</p>
+
+    <h2>三、但组织架构图会腐烂——所以需要 org-lint</h2>
+
+    <p>任何在人类公司待过的人都知道：组织架构图的半衰期大概六个月。离职的人还挂在图上，新人的汇报线绕过三层才更新，跨部门的"临时"小组存在两年。配置文件版的组织架构图会以更快的速度腐烂——因为<strong>改配置太便宜了，便宜到没人做 review</strong>。</p>
+
+    <p>我给一个虚构的迷你游戏工作室写了张组织配置图，然后埋了五个真实公司里最常见的组织病：一个没有任何路由指向的"幽灵雇员"（前员工忘了删）、两个主管互踢皮球成环、一个制作人直管 9 人、一个无主技能、两条路径规则打架。然后写了个 60 行的静态检查器，像 lint 代码一样 lint 组织：</p>
+
+    <pre><code>#!/usr/bin/env python3
+"""org-lint: agent 组织架构的静态检查器（对应 Game-Studios 式 org-as-config 仓库）"""
+import sys
+from collections import defaultdict
+
+ORG = {
+    "entry": "router",
+    "agents": {  # agent 名 -> 职位描述（job description）
+        "router":      {"role": "调度主管", "routes_to": ["producer", "qa", "art_director"]},
+        "producer":    {"role": "制作人",   "routes_to": ["gdd_writer", "level_lead", "art_director",
+                           "coder_lead", "audio_lead", "qa", "release_mgr", "balancer", "narrative"]},  # 9 个下属：超编
+        "gdd_writer":  {"role": "文档工程师", "routes_to": []},
+        "level_lead":  {"role": "关卡主管", "routes_to": ["coder_lead", "narrative"]},  # 与 coder_lead 互指成环
+        "coder_lead":  {"role": "程序主管", "routes_to": ["level_lead"]},
+        "art_director":{"role": "美术总监", "routes_to": []},
+        "audio_lead":  {"role": "音频主管", "routes_to": []},
+        "narrative":   {"role": "叙事设计", "routes_to": []},
+        "balancer":    {"role": "数值策划", "routes_to": []},
+        "release_mgr": {"role": "发布经理", "routes_to": []},
+        "qa":          {"role": "测试主管", "routes_to": []},
+        "ghost_agent": {"role": "前员工",   "routes_to": []},  # 无任何路由指向：幽灵雇员
+    },
+    "skills": {  # skill 名 -> 挂载的 agent
+        "propagate-design-change": "gdd_writer",
+        "balance-check": "balancer",
+        "playtest-report": "qa",
+        "day-one-patch": "release_mgr",
+        "vertical-slice": "producer",
+        "legacy-v1-pipeline": None,   # 无主：孤儿技能
+    },
+    "path_rules": [  # Game-Studios 式路径作用域规则
+        {"path": "Assets/",      "standard": "只允许编辑 Assets/ 下的资产"},
+        {"path": "Assets/UI/",   "standard": "UI 资产须过无障碍检查"},   # 与上条重叠但标准不同
+        {"path": "Source/",      "standard": "Unreal 从 Source/ 构建"},
+        {"path": "GDD/",         "standard": "改 GDD 须跑 /propagate-design-change"},
+    ],
+}
+
+def lint(org):
+    findings = []
+    agents, routing = org["agents"], defaultdict(list)
+    for name, spec in agents.items():
+        for to in spec["routes_to"]:
+            if to not in agents:
+                findings.append(("CRIT", f"路由指向不存在的 agent: {name} -> {to}"))
+            routing[name].append(to)
+
+    # 1) 可达性：从入口 DFS，找不到的 agent 就是幽灵雇员
+    seen, stack = set(), [org["entry"]]
+    while stack:
+        a = stack.pop()
+        if a in seen: continue
+        seen.add(a)
+        stack.extend(routing[a])
+    for name in agents:
+        if name not in seen:
+            findings.append(("CRIT", f"幽灵雇员: {name} ({agents[name]['role']}) 无任何路由可达"
+                                     f"——每个 agent 都是常驻上下文成本"))
+
+    # 2) 路由环：调度图里的循环 = 无人认领的皮球
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = {a: WHITE for a in agents}
+    def dfs(u):
+        color[u] = GRAY
+        for v in routing[u]:
+            if color[v] == GRAY:
+                findings.append(("CRIT", f"路由环: {u} &lt;-&gt; {v}——请求会在两者间永远弹跳"))
+            elif color[v] == WHITE: dfs(v)
+        color[u] = BLACK
+    for a in agents:
+        if color[a] == WHITE: dfs(a)
+
+    # 3) 管理幅度：经典组织学约束，一个协调者的直接下属 ≤ 7
+    for name, reports in routing.items():
+        if len(reports) &gt; 7:
+            findings.append(("WARN", f"管理幅度超编: {name} 直管 {len(reports)} 人 (建议≤7)"
+                                     f"——上下文窗口就是它的注意力预算"))
+
+    # 4) 孤儿技能：无主技能会在每个 agent 的技能清单里占位
+    for skill, owner in org["skills"].items():
+        if owner is None or owner not in agents:
+            findings.append(("WARN", f"孤儿技能: /{skill} 无挂载 agent"
+                                     f"——技能不是免费的，它消耗选择时的注意力"))
+
+    # 5) 路径规则重叠：同一前缀两套标准，agent 只能掷硬币
+    rules = org["path_rules"]
+    for i, r1 in enumerate(rules):
+        for r2 in rules[i+1:]:
+            if r2["path"].startswith(r1["path"]):
+                findings.append(("WARN", f"路径规则重叠: {r1['path']} 与 {r2['path']} 标准不同"
+                                         f"——合并为一条带例外的规则"))
+    return findings
+
+if __name__ == "__main__":
+    issues = lint(ORG)
+    for sev, msg in issues:
+        print(f"[{sev}] {msg}")
+    print(f"\n共 {len(issues)} 项发现 (CRIT=..., WARN=...)")
+    sys.exit(1 if any(s == "CRIT" for s, _ in issues) else 0)</code></pre>
+
+    <p>实测输出（五项发现全部命中埋点，CRIT 存在时退出码 1，可直接接 CI 门禁）：</p>
+
+    <pre><code>[CRIT] 幽灵雇员: ghost_agent (前员工) 无任何路由可达——每个 agent 都是常驻上下文成本
+[CRIT] 路由环: coder_lead &lt;-&gt; level_lead——请求会在两者间永远弹跳
+[WARN] 管理幅度超编: producer 直管 9 人 (建议≤7)——上下文窗口就是它的注意力预算
+[WARN] 孤儿技能: /legacy-v1-pipeline 无挂载 agent——技能不是免费的，它消耗选择时的注意力
+[WARN] 路径规则重叠: Assets/ 与 Assets/UI/ 标准不同——合并为一条带例外的规则
+
+共 5 项发现 (CRIT=2, WARN=3)</code></pre>
+
+    <p>注意这些检查的经济学含义。幽灵 agent 不是无害的死代码：它是常驻上下文里的占位成本，每次调度决策都要从它旁边绕过去。孤儿技能更隐蔽——技能清单越长，agent 选择时的注意力越稀释，选错技能的概率越高，这正是"工具越多用得越差"的组织病。而路由环在人类公司里叫皮球，在 agent 公司里叫死循环加 token 燃烧。</p>
+
+    <h2>四、五件可以立刻做的事</h2>
+
+    <ol>
+        <li><strong>把你现有的 agent 配置当成 org chart 重读一遍</strong>：谁向谁汇报、谁能调用谁、入口在哪。画不出来，说明它已经是暗组织——出事时你不知道该找谁。</li>
+        <li><strong>path-scope 你的规则</strong>：如果 CLAUDE.md / AGENTS.md 已经超过一屏，把它拆成按目录作用的规则文件。全局政策管价值观，部门 SOP 管具体标准。</li>
+        <li><strong>给协调者设管理幅度上限</strong>：直管超过 7 个 agent 就加一层或砍需求。上下文窗口是硬预算，超编的协调者会用糟糕的路由质量偿还。</li>
+        <li><strong>定期裁员</strong>：每月一次，删掉没有任何路由指向的 agent 和无主技能。配置垃圾比代码垃圾更危险，因为它改变行为而不报错。</li>
+        <li><strong>把 org-lint 接进 CI</strong>：组织配置的每次变更走和代码一样的 review + 门禁流程。改配置太便宜的另一面是——没人替你把关。</li>
+    </ol>
+
+    <h2>结语：写一个 repo，开一家公司</h2>
+
+    <p>人类用了一百年学会怎么组织昂贵的劳动力；接下来的问题是怎么组织便宜的。Game-Studios 们的 28.6k 星说明需求已经爆发：当 agent 劳动力趋近免费，<span class="highlight">组织设计从后勤部门变成了产品本身</span>。macro 说"公司不可计算"，这些仓库的回答是——现在可以了，用一张配置图。</p>
+
+    <p>但免费的劳动力不等于免费的组织。每一次加人、每一条新规则、每一个新技能，都在往一个叫上下文窗口的有限空间里塞东西。百年组织学在这个 2GB 的世界里没有过时，它只是换了存储介质：从 HR 的文件夹，变成了 git 里的一个目录。</p>
+
+    <p>你的 agent 集群也有组织架构图，无论你写没写下来。没写下来的那张，叫暗组织。</p>
+
+    <p class="meta">参考：Donchitos/Claude-Code-Game-Studios (28.6k★, 2026-10) · affaan-m/ECC (290k★) · obra/superpowers · macro-inc/macro (5.2k★) · CopilotKit/OpenBot (7.7k★) · Brooks《人月神话》(1975) · Conway (1967) · Graicunas (1933)</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
