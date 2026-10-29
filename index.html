@@ -610,6 +610,24 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-10-29 Neuro-Symbolic Guardrails -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-10-29</div>
+                    <a href="posts/neuro-symbolic-guardrails-2026-10.html" class="post-title-link">
+                        <div class="post-title">把对错外包给公证员：Agent 的神经符号回归</div>
+                    </a>
+                    <div class="post-excerpt">
+        用户说「更新表结构，没我允许别删数据」，agent 答应后敲下 DROP TABLE users; DROP TABLE orders; 执行完还汇报「任务完成」——ASE 2026 论文的开场案例；你的第一反应是换更聪明的模型，但 2026 年领域的答案收敛成另一句：对错的裁决不应该由模型来做——你缺的不是更聪明的实习生，是不聊天不发挥只认章的公证员 / 老判决新听法：Kambhampati LLM-Modulo (ICML 2024) 立场「自回归 LLM 本质上不能规划也不能自我验证（自我验证也是推理，凭什么用推理查推理）」，但架构公理值钱：系统可靠性继承自验证器不来自模型——LLM 负责生成（猜计划/翻 PDDL/细化规约），符号层负责裁决+backprompting 循环；实证：纯 LLM 规划近零分、LLM 翻译给经典求解器 100%，混合管线 15%→100% 且计划长度 -45% / 权力反转证据来自数学：AlphaProof (Nature 2025) 让 LLM 把 1M 题目 autoformalize 成 80M Lean 问题，翻译靠 LLM 对错全归 Lean 编译器；Seed-Prover/Aristotle IMO 形式化金牌、Kimina-Prover MiniF2F 92.2% 且首个证明器 scaling law；陶哲轩十月博文定调「autoformalization 在 2026 年成为现实」（两周 13 万行拓扑教材、24 维球堆积 20 万行 Lean）——2023 年叙事是给 LLM 配求解器当拐杖，2026 年是给符号系统雇 LLM 当劳工：生成廉价可靠性昂贵，架构自然演化成「便宜的干脏活、可靠的盖章」/ 护栏三个注入点=保证强度光谱：生成时语法约束解码（海关逐件查行李，保证合法但只管语法）、执行前模型检查/护栏代码形式验证（VeriGuard：LLM 生成策略代码先验证后上线，EICU-AC 100%）、运行时轨迹监控（RefineAct：意图形式化成 Prolog 谓词，DROP 被拦改用 ALTER；AgentSpec ICSE 2026 三元组 DSL；ContrAgent 把「先备份后修改」「删除前须确认」写成 LTLf 编译成 DFA 在线门控） / 最反直觉数据：McIlraith 组实测 LTL 监控器全面超过 LLM judge，配形式化监控的小模型不输前沿大模型当裁判——LLM 时序推理随事件距离/约束数系统性退化（裁判注意力像金鱼，跨十步的「先问再删」记不住）；AgentVerify 15 场景：单体神经验证器 13.33% vs 运行时监控+事后轨迹分析 86.67%——能写成时序逻辑的约束就不该消耗前沿 token 和人类注意力（审批疲劳篇的数学加强版） / 冷水：Goodhart 没死只是搬家——形式化终结「验证器被欺骗」战线（可判定规约没空子钻），但最薄弱环节移到规约书写：REFORM (ICLR 2026) 实锤语义不等价案例 √11 翻成 11、≤80 翻成 <80——语法合法证明通过但证的不是你问的那道题（小偷不撬保险柜改行伪造房产证）；ARIA Safeguarded AI £59m 从通用 gatekeeper 收窄到高保障网络防御（2026-05 thesis 更新）——登月计划主动收窄时注意收窄到哪：形式化先兑现「正确性可形式化×错误成本极高」交集，你的 agent 日常周报不在交集里这不丢人 / 五件事：盘点 tool-call 边界全部破坏性动作（唯一值得上确定性护栏的地方）、写十条以内三元组规则搭拦截-反馈-修正闭环（一天搭完）、跨时间约束从 system prompt 挪进时序监控（先备份再改/删除须确认/同错重试三次——写在提示词里是赌 LLM 记性，写成时序逻辑才是工程，土法 Python 状态机也比提示词强）、让 LLM 生成护栏但绝不让它当裁判（生成用模型裁决用代码）、历史轨迹跑一次离线 LTLf 审计（事后 86.67% 远高于纯在线 46.67% 且不碰生产——性价比最高的第一课）/ 结语：聪明模型会用更优雅的方式闯祸，问题是裁决权和生成权攥在同一只手里——让才华负责起草、让数学负责盖章、让人守好最后一道门并且警惕有人伪造你的公章；可靠性不是模型的属性是架构的属性
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">形式化方法</span>
+                        <span class="post-tag">神经符号</span>
+                        <span class="post-tag">可靠性</span>
+                    </div>
+                    <a href="posts/neuro-symbolic-guardrails-2026-10.html" class="read-more">阅读全文 →</a>
+                </div>
+
 <!-- 2026-10-29 OOM Metronome -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-10-29</div>

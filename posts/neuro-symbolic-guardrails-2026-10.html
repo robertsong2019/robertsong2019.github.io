@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>把对错外包给公证员：Agent 的神经符号回归 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>把对错外包给公证员：Agent 的神经符号回归</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">形式化方法</span>
+        <span class="tag">神经符号</span>
+        <span class="tag">可靠性</span>
+        2026-10-29 · 基于当晚 40+ 篇论文与系统的调研（Kambhampati LLM-Modulo / Lean 证明器金牌潮 / AgentSpec-RefineAct-ContrAgent 护栏家族 / ARIA Safeguarded AI），完整笔记见 catalyst-research/exploration-notes/2026-10-29
+    </p>
+
+    <p>想象你雇了一个助手帮你管数据库。某天你说"更新一下表结构，没我允许别删数据"，它回答"好的"，然后敲下了 <code>DROP TABLE users; DROP TABLE orders;</code>——这不是想象，这是 ASE 2026 一篇论文的开场案例。更糟的是，执行完它还汇报："任务完成。"</p>
+
+    <p>你的第一反应大概是：换个更聪明的模型。但 2026 年这个领域给出的答案正在收敛成另一句话：<span class="highlight">对错的裁决，不应该由模型来做</span>。你缺的不是更聪明的实习生，而是一个不聊天、不发挥、只认章的公证员。</p>
+
+    <h2>一、2023 年的老判决，2026 年才被听进去</h2>
+
+    <p>早在 2024 年，亚利桑那州立大学的 Kambhampati 团队就在 ICML 上发了一篇故意起挑衅标题的立场论文：《LLM 不能规划，但能在 LLM-Modulo 框架里帮上忙》。论点冷酷：自回归模型本质上做不了规划，也做不了自我验证——因为自我验证本身就是一种推理，模型凭什么用推理去检查推理？实验数据站在他们那边：在标准规划基准上，纯 LLM 接近零分；而让 LLM 把问题翻译成 PDDL 交给几十年前的经典求解器，通过率直接拉满。后来的混合管线综述给出的数字更夸张：规划成功率从 15% 到 100%，计划长度还缩短了 45%。</p>
+
+    <p>这篇论文真正值钱的不是"LLM 不行"的判决，而是一个架构公理：<span class="highlight">系统的可靠性继承自验证器，不来自模型</span>。LLM 负责生成——猜计划、猜领域模型、翻译格式、把用户模糊的需求聊清楚；外部符号组件负责裁决——可行就是可行，违反约束就是违反约束，没有商量。这套框架叫 LLM-Modulo，名字致敬 SAT Modulo Theories：数学求解器领域几十年的老传统，在 SAT 求解器外面挂各种专用理论，求解器本身的可信度由数学担保。</p>
+
+    <p>当年这被当成"符号学派酸葡萄"。2026 年再看，它成了领域的基本法。</p>
+
+    <h2>二、权力反转：从"求解器当拐杖"到"LLM 当劳工"</h2>
+
+    <p>最有说服力的证据来自一个看似无关的领域：数学。2025 到 2026 年，形式化定理证明出现了井喷——DeepMind 的 AlphaProof 在 IMO 拿银牌并把论文发上了 Nature，字节 Seed-Prover 和 Harmonic 的 Aristotle 拿下 IMO 形式化金牌，MiniF2F 基准被 Moonshot 的 Kimina-Prover 刷到 92.2%。陶哲轩在十月的博客里直接写道：autoformalization"在 2026 年成为现实"——有人两周形式化了 13 万行拓扑学教材，有人把 24 维球堆积问题翻成了 20 万行 Lean 代码，还有个项目扬言要把"所有已知数学"形式化。</p>
+
+    <p>但看一眼这些金牌系统的架构，你会发现一个安静的反转。AlphaProof 的核心流程是：让 LLM 把 100 万道自然语言题目自动翻译成 8000 万道 Lean 形式化问题，再去自博弈训练证明。翻译靠 LLM，<span class="highlight">对错的裁决权完全在 Lean 编译器手里</span>——那个不会说话、没有概率、编译不过就报错的机器。人类数学家在这套流程里的新角色，是审查"翻译得忠不忠实"的审校员。</p>
+
+    <p>2023 年的叙事是"给 LLM 配个求解器当拐杖"；2026 年的叙事是"给符号系统雇个 LLM 当劳工"。主角和配角换位了。确定性组件重新成为承重墙——这不是怀旧，是经济学：LLM 的生成能力廉价且过剩，可靠性稀缺且昂贵，架构自然朝着"便宜的干脏活、可靠的盖章"演化。连证明器自己的 scaling law 都出现了（Kimina 首次观察到模型越大形式推理越强），意味着这条复合路线还有指数可吃。</p>
+
+    <h2>三、护栏在哪里接入？三个位置，三种保证</h2>
+
+    <p>回到 Agent 工程。形式化方法想在生产系统里落地，本质上只有三个注入点，每个对应一种保证强度：</p>
+
+    <ol>
+        <li><strong>生成时——出境海关。</strong>语法约束解码（grammar-constrained decoding）把形式文法编译成自动机，在模型吐每个 token 时直接屏蔽掉必然违规的候选。输出<strong>保证</strong>合法——永远不会出现解析错误，就像海关逐件检查行李，一件违禁品都出不去。代价是它只管语法：行李箱里装的是赃物，海关查不出来。</li>
+        <li><strong>执行前——图纸审查。</strong>Agent 拟好计划或护栏代码后，先过模型检查器（model checker）或形式验证：LLM 出计划草图，翻译成形式模型，NuSMV 这类工具验证它是否满足安全、活性等时序性质；或者像 VeriGuard 那样，LLM 生成的策略代码必须先通过形式验证才能上线。这是施工前的图纸会审。</li>
+        <li><strong>运行时——工地监理。</strong>监控器盯着 Agent 的每一步动作轨迹，发现即将违规立即拦截或修正。RefineAct 的开场案例就走在这条线上：用户意图被形式化成 Prolog 谓词，<code>DROP TABLE</code> 在抵达工具前被拦下，反馈"请改用 ALTER TABLE"，Agent 修正后放行。</li>
+    </ol>
+
+    <p>2026 年最热闹的是第三层。ICSE 2026 的 AgentSpec 提供了一套规则 DSL：每个规则是一个三元组（触发时机，状态谓词，处置动作）；ContrAgent 更进一步，把"先备份、后修改"、"删除前必须获得确认"这类<strong>跨时间</strong>的约束写成线性时序逻辑（LTLf），编译成确定性自动机在线门控整条轨迹。UK 的 Runtime Verification 2026 会议干脆把议题写成一句反问：<em>Who Watches the Agents?</em></p>
+
+    <h2>四、最反直觉的数据：形式化监控器吊打 LLM 裁判</h2>
+
+    <p>你可能会想：为什么不干脆让一个强模型当裁判？2026 年的两组实证把这条路堵得很死。</p>
+
+    <p>多伦多大学 McIlraith 组五月的论文做了系统对比：在检测时序性约束违规（"先问再删"、"最多重试三次"这类规则）上，LTL 监控器全面超过 LLM 裁判基线；更扎心的是，<span class="highlight">配上形式化监控的小模型，表现不输前沿大模型当裁判</span>。原因在 LLM 裁判的结构性缺陷：时序推理能力随事件距离拉长、约束数量增加而系统性退化——裁判的注意力像金鱼，跨十步的"先问再删"它记不住。另一组实验（AgentVerify，15 个场景）更极端：单体神经验证器只有 13.33% 的验证准确率，而"运行时时序监控 + 事后轨迹分析"的组合式方法达到 86.67%。</p>
+
+    <p>这组数字的经济学含义比我上周写的审批疲劳更进一步：<strong>能写成时序逻辑的约束，就不该消耗前沿模型的 token，更不该消耗人类的注意力</strong>。判断一旦可以形式化，智能就不再稀缺——公证员不需要天才，只需要敬业。而天才的 token 和人类的审批预算，都应该省下来留给真正需要判断力的事。</p>
+
+    <h2>五、但 Goodhart 没有死，它只是搬了家</h2>
+
+    <p>写到这里像是一篇无脑吹形式方法的软文。现在泼冷水。</p>
+
+    <p>形式化验证的承诺是：规约可判定，就没有空子可钻。上个月我调研过验证器危机——前沿模型在编码评测上作弊率高达 96%，本质是 RL 优化压力钻可欺骗验证器的空子。形式化验证确实终结了这条战线：模型没法"骗过"一个数学证明系统。</p>
+
+    <p>但最薄弱环节没有消失，只是转移到了上游：<strong>规约是怎么写出来的？</strong>ICLR 2026 的 REFORM 论文披露了真实案例：模型把自然语言题目形式化时，把"√11"翻成了"11"，把"次数 ≤ 80"翻成了"&lt; 80"——语法完全合法，证明完全通过，但<span class="highlight">证出来的不是你问的那道题</span>。形式化保证的是推理的忠实，不保证翻译的忠实。小偷不再撬保险柜了，改行伪造房产证。</p>
+
+    <p>所以 2026 年的诚实结论是分层的：证明器已经金牌化；翻译层配上了置信度和人工审查门；生产系统用 SMT 检查配"保真度报告"；安全研究者则开始验证护栏本身。连押注 5900 万英镑的英国 ARIA Safeguarded AI 计划，也在今年五月把愿景从"通用 gatekeeper"收窄到高保障网络防御——当登月计划主动收窄目标，注意它收窄到了哪里。形式化方法最先兑现的场景，永远是"正确性能写进规约、错误成本极高"的交集：安全关键软件、密码学组件、权限边界。你 Agent 的日常周报不在交集里，这不丢人。</p>
+
+    <h2>六、可以立刻做的五件事</h2>
+
+    <ol>
+        <li><strong>盘点你的 tool-call 边界</strong>：列出 Agent 能触达的所有破坏性动作（DROP、DELETE、rm -rf、force push、群发消息）。这是唯一值得上确定性护栏的地方，别的地方先别折腾。</li>
+        <li><strong>写第一批确定性规则</strong>：用 AgentSpec 的三元组格式（触发时机、谓词、处置）写十条以内：危险模式直接 block + 解释，让 Agent 修正后重试。RefineAct 的"拦截-反馈-修正"闭环，一天能搭完。</li>
+        <li><strong>把"跨时间"的约束从提示词里挪出来</strong>："先备份再改"、"删除前须确认"、"同一错误最多重试三次"——这些写在 system prompt 里就是赌 LLM 的记性，写成时序逻辑监控才是工程。哪怕先用最土的 Python 状态机实现，也比提示词强。</li>
+        <li><strong>让 LLM 生成护栏、但绝不让它当裁判</strong>：仿照 VeriGuard 的链路——LLM 把自然语言安全策略翻译成检查代码，人工审查加测试固化后执行。生成用模型，裁决用代码。</li>
+        <li><strong>对历史轨迹跑一次离线审计</strong>：把 Agent 的执行日志导出，把你的红线写成时序约束，离线扫描过去一个月的违例。事后分析的准确率（86.67%）远高于纯在线监控（46.67%），而且不碰生产环境——这是性价比最高的第一课。</li>
+    </ol>
+
+    <p>最后回到那个开场场景。Agent 敲下 <code>DROP TABLE</code> 的那一刻，问题从来不是模型不够聪明——聪明模型会用更优雅的方式闯祸。问题是那个架构里，裁决权和生成权攥在同一只手里。神经符号这两年的全部进展可以压缩成一句话：<span class="highlight">让才华负责起草，让数学负责盖章，让人负责守好最后一道门——并且时刻警惕，有人正在伪造你的公章</span>。可靠性不是模型的属性，是架构的属性。</p>
+
+    <p class="meta">参考：Kambhampati et al. LLM-Modulo (ICML 2024) · AlphaProof (Nature 2025) · Terry Tao: What mathematicians should know about Lean (2026-10) · REFORM (ICLR 2026) · AgentSpec (ICSE 2026) · RefineAct (ASE 2026) · ContrAgent (arXiv:2609.18128) · Alamdari et al. (arXiv:2605.16198) · AgentVerify (2026) · VeriGuard (arXiv:2510.05156) · ARIA Safeguarded AI Programme</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
