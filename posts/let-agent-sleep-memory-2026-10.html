@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>让 Agent 睡个觉：2026 年 AI 记忆系统的三个共识 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>让 Agent 睡个觉：2026 年 AI 记忆系统的三个共识</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">记忆系统</span>
+        <span class="tag">图算法</span>
+        <span class="tag">LLM</span>
+        2026-10-30 · 素材来自 MemGPT/Letta、Zep、HippoRAG、Mem0、MemPalace、Hindsight 十三个论文与系统的系统调研，文中基准数字均注明出处与审计情况
+    </p>
+
+    <h2>开场：一场输了 70 倍的军备竞赛</h2>
+
+    <p>先看一组不太礼貌的数字。LongMemEval 是目前最硬的长期记忆基准：把一段 11.5 万 token 的完整对话塞进 GPT-4o 的上下文窗口，让它回答"用户半年前说过什么"，得分 60.2%。而 Zep 用知识图把这三年对话整理成约 1600 token 的结构化记忆，同一个模型，得分 71.2%，延迟还降了九成。</p>
+
+    <p>多花 70 倍的 token，换来更低的准确率。这不是个例，是这个领域 2026 年最密集的一课：<span class="highlight">把所有东西都塞进去，恰恰是遗忘的最快方式</span>——重要的东西被淹没在上下文中段，而模型对上下文中段的注意力天然最弱（"Lost in the Middle"效应在长对话里依然成立）。</p>
+
+    <p>过去一年，AI 记忆系统从一个学术边角料变成了军备竞赛：Mem0 融了 2400 万美元、MemPalace（是的，那位演员 Milla Jovovich 参与写的）半年涨到四万多星、Vectorize 的 Hindsight 在千万 token 尺度上把次优方案甩开 58%。竞赛很吵，但拨开 benchmark 互相打架的噪音，三个共识已经悄悄收敛。</p>
+
+    <h2>共识一：存什么不重要，怎么取才重要</h2>
+
+    <p>记忆系统最古老的站队问题是：对话进来时，是<strong>原封不动全存</strong>（逐字派），还是<strong>让 LLM 提炼成要点再存</strong>（提取派）？</p>
+
+    <p>逐字派的理论根基其实很硬：提取是一种有损压缩，而你在压缩的时候并不知道未来的问题是什么。用户今天随口说"我对花生过敏"，提取器可能判定为闲聊丢掉；半年后用户进了医院，那条信息价值千金。MemPalace 把这个哲学推到极致——存一切、永不摘要、写入零 LLM 成本、全部跑在本地——然后晒出 96.6% 的召回率。</p>
+
+    <p>但故事有个笑中带泪的转折：今年四月的独立审计确认了这个分数可复现，同时指出它主要归功于 ChromaDB 默认的 embedding 模型，而不是"记忆宫殿"那个空间隐喻本身——把宫殿特性全打开，准确率反而掉到 89.4%。更妙的是，他们的"无损压缩"实测有损，掉了 12.4 个百分点。</p>
+
+    <p>提取派这边的剧情是逆袭。Mem0 早期算法在 LongMemEval 上只有 49%，被逐字派按在地上摩擦；今年四月换了新算法——单遍分层抽取加多信号检索——直接跳到 94.4%，每查询只花约 6800 token，比全文方案省 16 倍。差距填平了，但靠的不是把提取做得更精细，<span class="highlight">而是把检索从单一向量相似度升级成语义、关键词、实体多路信号的融合排序</span>。</p>
+
+    <p>把这层窗户纸捅破的是一份横评：Hindsight 赢下千万 token 级的 BEAM 基准，不是因为数据库多花哨，而是因为四路检索策略做 RRF 融合；HippoRAG 赢多跳推理，不是因为图多复杂，而是用一步 Personalized PageRank 替掉了三次 LLM 调用。所有横评里有一个共同规律：<strong>只靠向量相似度检索的系统一致落败</strong>。</p>
+
+    <p>所以"存什么"的战争不是分出了胜负，是被溶解了——因为瓶颈从来就不在写入端。这就像图书馆：决定你能不能找到书的从来不是馆藏量，是目录系统和图书管理员。而 HippoRAG 2 的教训给这一共识补了个脚注：图检索本身已经不是短板，<strong>建图时的实体抽取才是</strong>—— indexing 是新的瓶颈。</p>
+
+    <h2>共识二：什么时候想，比想多少重要——让 Agent 做梦</h2>
+
+    <p>第二个共识有个生物学的名字：睡眠。</p>
+
+    <p>Letta 团队（MemGPT 的商业化续作）今年把 agent 的计算拆成了两个角色：一个<strong>在线的 primary agent</strong>，用便宜快速的模型处理对话；一个<strong>离线的 sleep-time agent</strong>，在没人说话的空闲时段醒来，用更强的模型独占改写前者的记忆——把当天的原始对话整理成简洁的事实、合并重复、预判用户接下来可能问什么并预先算好。等你早上来提问，一半的综合工作昨夜已经做完。</p>
+
+    <p>实测结果近乎白捡：测试期计算砍到五分之一，准确率反而最高提升 18%，多查询场景成本再省 2.5 倍。<span class="highlight">离线用强模型、在线用便宜模型，成本和准确率同时改善</span>——工程上这种帕累托改进是稀有动物。</p>
+
+    <p>为什么可行？因为在线路径上的每一毫秒都是用户在等，你舍不得让强模型慢慢整理记忆；而空闲时段的计算是免费的，可以挥霍。这跟人脑是同构的：白天快速反应，夜里慢波睡眠重放整理白天的经验，把海马体的临时缓存固化进新皮层。白天干活不整理、晚上整理不下班的，是人；在线应答、离线整固的，是 agent。</p>
+
+    <p>它有适用条件，值得诚实记下：上下文要相对稳定、问题要统计可预测。如果你的 agent 服务的场景每天都在剧烈漂移，昨夜预判的问题今天就作废，睡眠计算的投资就打了水漂。反过来说，<strong>个人助理、代码库维护、客户档案——恰恰是最稳定的场景，也恰恰是最需要记忆的场景</strong>。这不是巧合：稳定才积累，积累才需要整理。</p>
+
+    <h2>共识三：遗忘不是删除，是打时间戳</h2>
+
+    <p>第三个共识最反直觉：生产级记忆系统里，几乎没有人真的"删"东西。</p>
+
+    <p>Zep 的做法是给每条事实打两个时间戳：<code>valid_at</code>（何时为真）和 <code>invalid_at</code>（何时失效）。用户一月说"我住柏林"，三月说"我搬去里斯本了"——旧事实不被删除，只是盖上三月的失效章。这时你问"用户二月份住在哪"，系统答柏林；问"现在住哪"，答里斯本。矛盾没有消失，矛盾变成了带时间维度的历史。</p>
+
+    <p>这对应数据库领域几十年的老智慧——双时态数据建模——只是 agent 们刚刚付学费学到：把"搬家"处理成覆盖写入的系统，会丢失"曾经住过柏林"这个事实；而时序问题恰恰是 LongMemEval 里最难的题型之一。</p>
+
+    <p>沿着这条线看，遗忘的完整工程学正在成形，而且每一环都是调度问题而非擦除问题：<strong>何时降权</strong>（按访问频率衰减，久不提及的记忆在检索排序中让位）、<strong>何时归档</strong>（从常驻区移到冷库，需要时再取）、<strong>何时失效</strong>（新事实打戳，旧事实保留）。Nir Diamant 那套三十个记忆 notebook 已经把"遗忘与衰减"做成了可复制的教学模式——遗忘从 bug 变成了 feature，而且是必须刻意设计的 feature。</p>
+
+    <p>图算法在这里有个优雅的落点：HippoRAG 把知识图当作新皮层（慢速、存全部），把 Personalized PageRank 当作海马体（快速、稀疏索引）——检索时从问题实体出发在图上扩散激活，像记忆的联想过程。一步图扩散，追平了迭代式 LLM 检索，在线成本低一个数量级。这是"图算法×记忆"目前最漂亮的一次握手。</p>
+
+    <h2>新的病是组织病：白板没人擦，夜班没交接</h2>
+
+    <p>三个共识之外，生产实践还暴露了一类全新的病，而且是熟悉的病。</p>
+
+    <p><strong>白板膨胀</strong>：agent 的常驻记忆区（Letta 的 core memory blocks，永远在上下文里的那块白板）如果只进不出，很快就写满撑爆。解法是老规矩：写满之前先接一个摘要器，晋升要过审。</p>
+
+    <p><strong>静默漂移</strong>：夜班的 sleep-time agent 整理重排了白板，早班的 primary agent 对此一无所知——它以为自己记得的东西已经变了样子。解法也是老规矩：记忆块要版本化，改动要有 diff，交接要留痕。</p>
+
+    <p>看出问题了吗？这些不是算法问题，是<strong>组织问题</strong>：谁有权写白板、写了要不要通知、容量谁来治理。前一篇我们聊过 agent 组织架构需要 lint——记忆系统是同一课的另一个面：任何会随时间腐烂的东西，都需要版本控制和体检。<span class="highlight">能腐烂的东西都需要 lint，记忆也不例外</span>。</p>
+
+    <h2>五件现在就能做的事</h2>
+
+    <ol>
+        <li><strong>审计你的检索，而不是你的存储。</strong>如果你的记忆/RAG 系统还在用纯向量相似度，这是 2026 年最大的免费午餐：加一路 BM25 关键词、加一路实体匹配，做 RRF 融合，横评数据说这比换 embedding 模型的收益大得多。</li>
+        <li><strong>把记忆写入移出在线路径。</strong>对话进行中只追加原始记录；整理、去重、摘要、预判放到空闲时段的定时任务里做。在线路径上每一毫秒都是用户在等。</li>
+        <li><strong>给事实打双时间戳，别覆盖。</strong>用户改口不是异常，是常态。数据模型里加 <code>valid_at</code>/<code>invalid_at</code>，今天的你会觉得多余，半年后回答"上季度用哪个版本"的你会感谢自己。</li>
+        <li><strong>给常驻记忆设容量门禁。</strong>白板只进不出必爆。写之前先问：这条够格常驻吗？晋升规则、定期瘦身、超限触发摘要——把组织学的退休制度装进记忆系统。</li>
+        <li><strong>把记忆改动做成可审计的 diff。</strong>谁改的、依据什么改的、改了哪几行——离线整固尤其需要，否则静默漂移会让你永远说不清"agent 为什么记错了"。</li>
+    </ol>
+
+    <h2>结语：记忆不是仓库，是新陈代谢</h2>
+
+    <p>回看这场军备竞赛，真正输掉的是一个隐含假设：记忆=存储。仿佛给 agent 接一个数据库、把对话全倒进去，它就"记得"了。2026 年的共识画的是另一幅图：记忆是写入、整理、取回、遗忘四个环节的新陈代谢，<strong>任何一环停摆，整个系统都会以更慢、更贵、更笨的方式退化</strong>。塞满不等于记住，正如囤积不等于学问。</p>
+
+    <p>而新陈代谢里最容易被忽略的一环，是睡眠。人类花掉生命三分之一的时间不干活，专门整理白天的经验——这演化上如此"浪费"的设计被保留下来，因为它解决的不是"记不住"，是"取不出"。现在 agent 学会了同一招：在线的时候反应快一点，离线的时候想清楚一点。</p>
+
+    <p>让 Agent 干活，也让 Agent 睡觉。梦里它在做的事，白天没人舍得让它做。</p>
+
+    <p class="back-link"><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
