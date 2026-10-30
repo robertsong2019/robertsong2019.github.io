@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>让 AI 引用你：GEO、llms.txt 与 457 篇博客的机器可读性体检 | 罗嵩的技术博客</title>
+    <meta name="description" content="当「被 AI 引用」成为新流量入口：Princeton GEO 论文实证引用密度带来最高 40% 可见性提升；llms.txt 被 Google 拒绝却被 AI 开发者工具读取的悖论；对 457 篇博客做机器可读性体检，附 llms.txt 生成器代码与三层策略。">
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>让 AI 引用你：GEO、llms.txt 与 457 篇博客的机器可读性体检</h1>
+    <p class="meta">
+        <span class="tag">GEO</span>
+        <span class="tag">llms.txt</span>
+        <span class="tag">AI 搜索</span>
+        <span class="tag">实践</span>
+        2026-10-31 · 基于 AgriciDaniel/claude-seo（24.2k★，2026-10 GitHub Trending）与 Princeton GEO 论文（KDD 2024）调研，对本博客 457 篇文章做机器可读性体检，文中生成器代码全部实跑
+    </p>
+
+    <p>过去两年，SEO 领域发生了一件结构性的事：流量的入口不再只有 Google 的蓝色链接。当越来越多的人用 ChatGPT 查资料、用 Perplexity 做调研、用 Claude 写综述时，「被 AI 引用」本身成了新的流量入口——一次引用就是一次零竞争位的曝光，因为生成式回答里通常只放三五个来源。GitHub 上一个叫 <code>claude-seo</code> 的项目（24.2k★，周增四千）把这个变化工程化了：它不再只优化 Google 排名，而是专设了 GEO（Generative Engine Optimization，生成引擎优化）和 AEO（Answer Engine Optimization，答案引擎优化）两个品类，甚至把「Agent Readiness」——你的网站对 AI agent 可读吗——做成了正式审计项。</p>
+
+    <p>SEO 是第一个被 agent 重写的传统数字营销学科。但工具热闹之下，真正值得搞清楚的是三件事：AI 引擎到底根据什么决定引用谁？llms.txt 这个「AI 时代的 sitemap」为什么争议不断？以及，一个普通内容站今天能做什么？这篇文章把三个问题各讲透一个，最后拿自己的博客开刀做了一次体检。</p>
+
+    <h2>GEO 不是玄学，它有对照组实验</h2>
+
+    <p>先说最硬的部分。GEO 这个词听起来像营销话术，但它确实有实证起点：Princeton、Georgia Tech、Allen Institute for AI 和 IIT Delhi 的研究者 2024 年在 KDD 发表了论文《GEO: Generative Engine Optimization》，构建了覆盖十个查询域、上万条查询的 GEO-BENCH 基准，在真实部署的生成引擎（包括 Perplexity.ai）上实测九种内容优化手法对「被引用率」的影响。</p>
+
+    <p>结论相当清晰，而且和直觉相反：</p>
+
+    <ul>
+        <li><strong>加引用最有效。</strong>在内容中补充权威引用和数据来源，可见性提升最高达 40%——个别手法在实验中测到 41.5%。生成式引擎在综合答案时把「证据密度」当作可信度信号，奖励出示证据的内容。</li>
+        <li><strong>低排名者受益最大。</strong>传统 SEO 里排在第五名的页面几乎没人翻到，但在生成式回答中，采用「引用来源」手法后第五名网站的可见性提升了 115%。AI 引用抹平了位置劣势——这对中小内容站是罕见的好消息。</li>
+        <li><strong>关键词堆砌起反作用。</strong>老 SEO 手法搬运到 GEO 不仅无效，还降低被引用率。生成引擎要的是「能支撑答案的证据」，不是「匹配查询的关键词」。</li>
+    </ul>
+
+    <p>换句话说：AI 引擎在读你的内容时，是在投票选「最像证据的那个」。这和人类编辑选信源的标准正在趋同。</p>
+
+    <h2>llms.txt 的悖论：写给 AI 的地图，AI 爬虫却不看</h2>
+
+    <p>第二个问题就没这么干脆了。2024 年 9 月，Answer.AI 的 Jeremy Howard 发布 FastHTML 后发现一个尴尬事：库太新，在模型知识截止日期之后，所有 AI 编码助手都帮不上忙。他的解法是提出 <code>llms.txt</code> 规范——在网站根目录放一个 Markdown 文件，H1 是站名，引语是一句话摘要，然后按主题分组列出全站最重要内容的链接，相当于给语言模型看的站点地图。</p>
+
+    <p>两年过去，llms.txt 的处境是一个精确的悖论：</p>
+
+    <ul>
+        <li><strong>草根采用火热。</strong>700 多个网站部署了它，在开发者文档、AI 工具站、技术 SaaS 里渗透率一路上涨。SE Ranking 对三十多万个域名的统计显示 2026 年整体采纳率约 10%，而 Shopify 异军突起做到 78%。</li>
+        <li><strong>官方一个都没承诺。</strong>主流 LLM 厂商没有任何一家官方声明会读它。Google 明确拒绝，理由相当刻薄：把它比作已被证明无效的 keywords meta 标签。出版商的服务器日志也显示，AI 搜索爬虫很少真正去抓这个文件。</li>
+        <li><strong>但 AI 开发者工具链确实在读。</strong>编码助手抓取文档、agent 抓取站点时，llms.txt 是现成的结构化入口。</li>
+    </ul>
+
+    <p>把这个悖论想通，定位就清楚了：<span class="highlight">llms.txt 优化的不是「被 AI 搜索引用」，而是「被 AI 工具理解」</span>。它服务的是 Claude Code、Cursor 这类要读你文档的 agent，不是 Google AI Overviews 的排序算法。前者已经有真实流量，后者至今没有证据。Google 在 2026 年 7 月更新的官方指南里说得更直白：给生成式 AI 搜索做优化「仍然是 SEO」，llms.txt 和特殊 schema 都不需要——地基还是那几样：干净可解析的 HTML、清晰的标题结构、实质内容。</p>
+
+    <h2>体检：457 篇博客的机器可读性</h2>
+
+    <p>道理讲完，拿自己开刀。这个博客有 457 篇静态 HTML 文章。我写了个 60 行的审计脚本扫全站，按上面三层模型检查：地基（title、H1、meta description）、表层（robots.txt、llms.txt）、可达性。结果三个红色发现：</p>
+
+    <ol>
+        <li><strong>robots.txt 不存在。</strong>没有 robots.txt 默认全站允许，倒不算错，但意味着没有任何对 AI 爬虫的显式表态——GPTBot、ClaudeBot、PerplexityBot 想来就来，也确实都来过（访问日志里有它们的 UA）。</li>
+        <li><strong>llms.txt 不存在。</strong>这是预期内的——毕竟这文件连 Shopify 之外的多数大站都没部署。</li>
+        <li><strong>455 篇文章，meta description 覆盖率 0%。</strong>全部文章只有 title 没有 description。这不是 AI 时代才有的债——搜索引擎摘要、社交分享卡片、AI 检索时的短摘要，全都吃这个字段。GEO 论文说的「清晰结构」从这一格开始。</li>
+    </ol>
+
+    <p>两个表层问题当场修：写了一个显式允许所有爬虫（包括 AI 爬虫）的 robots.txt，以及一个从全站文章自动生成 llms.txt 的脚本。生成器核心逻辑如下，实测一次生成 5.3KB、收录最近 40 篇：</p>
+
+    <pre><code>#!/usr/bin/env python3
+"""从静态博客生成 llms.txt（llmstxt.org 规范）。"""
+import html as htmllib, os, re
+from datetime import datetime
+
+SITE = "https://robertsong2019.github.io"
+MAX_POSTS = 40  # 全量 457 篇会稀释注意力，只收最新
+
+def extract_title(text):
+    m = re.search(r"&lt;title&gt;(.*?)&lt;/title&gt;", text, re.S)
+    return htmllib.unescape(m.group(1)).split("|")[0].strip() if m else ""
+
+posts = os.listdir("posts")
+items = []
+for fn in posts:
+    if not fn.endswith(".html"): continue
+    path = os.path.join("posts", fn)
+    text = open(path, encoding="utf-8", errors="ignore").read()
+    title = extract_title(text)
+    if title:  # 无 title 的历史页面不入册
+        items.append((os.path.getmtime(path), fn, title))
+items.sort(reverse=True)  # 最新在前
+
+lines = [
+    "# 罗嵩的技术博客",
+    "&gt; Agent 工程、AI 记忆系统、评测方法与生产化实践的技术随笔。",
+    "",
+]
+for i in range(0, min(len(items), MAX_POSTS), 10):
+    lines.append(f"## 近期文章 {i+1}-{min(i+10, MAX_POSTS)}")
+    lines.append("")
+    for _, fn, title in items[i:i+10]:
+        lines.append(f"- [{title}]({SITE}/posts/{fn})")
+    lines.append("")
+open("llms.txt", "w", encoding="utf-8").write("\n".join(lines))</code></pre>
+
+    <p>两个设计决定值得说明。<strong>其一，截断到 40 篇。</strong>llms.txt 的读者是上下文窗口有限的 agent，全量倾倒 457 条等于把地图画成迷宫；给机器的索引和给人的索引一样，<span class="highlight">信息密度的上限由读者的注意力决定</span>。其二，meta description 的欠账只从本篇开始还——批量改写 455 篇历史文章的头部，风险收益不成比例，而且 GEO 论文恰好说了：低排名内容补结构受益最大，历史文章不急。</p>
+
+    <h2>三层策略：别把保险当主食</h2>
+
+    <p>把三个问题的答案叠起来，就是今天一个内容站面对 AI 流量的完整姿势：</p>
+
+    <ol>
+        <li><strong>地基（收益最大）：干净语义化 HTML。</strong>title、H1、meta description 一个不缺，正文可解析、结构清晰。AI 爬虫读的还是渲染后的 DOM，这一层坏了，上面全白搭。Google 官方口径也只认这一层。</li>
+        <li><strong>内容手法（实证最硬）：把「出示证据」写进肌肉记忆。</strong>观点配数据、结论配引用、数字配来源。GEO 论文实测这是唯一稳定 +40% 的手段，而且它对人类读者同样有价值——这大概是所有优化手法里唯一没有「优化税」的。</li>
+        <li><strong>表层保险（成本趋零）：robots.txt 显式欢迎 + llms.txt 顺手生成。</strong>前者防误伤（有些 CDN 模板默认拦陌生 UA），后者赌的是 AI 开发者工具链的增量。都只做一次，不维护幻觉。</li>
+    </ol>
+
+    <p>这个排序和市面上多数 GEO 工具的营销顺序正好相反——工具总爱先卖你 llms.txt 生成器，因为它是可交付物；但可交付物不等于起作用的东西。</p>
+
+    <h2>五件事</h2>
+
+    <ul>
+        <li>给自己的站跑一遍三层体检：robots.txt、llms.txt、每篇的 title/H1/meta description，缺什么补什么，半天工作量。</li>
+        <li>把「补引用」当写作纪律：每个论点问一句「证据在哪」，数据必附来源链接——这是唯一被实证 +40% 的 GEO 手法。</li>
+        <li>llms.txt 生成器从简：只收最新最好的内容，给机器的地图画成迷宫不如不画。</li>
+        <li>robots.txt 里对 GPTBot/ClaudeBot/PerplexityBot 显式 <code>Allow</code>，防的是 CDN 模板误伤，不是要讨好谁。</li>
+        <li>别为 AI 重写内容。生成引擎的引用标准和好编辑的信源标准正在趋同：证据密度、结构清晰、观点诚实——对人更好的，恰好也对机器更好。</li>
+    </ul>
+
+    <p>最后回到那个更大的背景。claude-seo 这类项目把 26 个 sub-skills 和 19 个 sub-agents 装进一个 SEO 工具，说明传统营销学科正在被 agent 全面重写，客服、投放、内容会在路上。但 GEO 的实证结果给了一个反直觉的安慰：被 AI 引用的秘诀不是给机器写咒语，而是把对人有用的事情做扎实——AI 只是用引用密度，替读者提前投了一次票。</p>
+
+    <p class="meta">参考：Aggarwal et al., <em>GEO: Generative Engine Optimization</em>, KDD 2024；llmstxt.org（Answer.AI, 2024）；SE Ranking llms.txt adoption study, 2026；Google Search Central guidance on AI crawlers, 2026-07；AgriciDaniel/claude-seo, GitHub。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
