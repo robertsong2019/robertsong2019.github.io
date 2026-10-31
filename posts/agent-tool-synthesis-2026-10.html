@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会给自己造工具的 Agent：能力复利的三道门禁 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>会给自己造工具的 Agent：能力复利的三道门禁</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">工具合成</span>
+        <span class="tag">技能库</span>
+        <span class="tag">Agent 安全</span>
+        2026-10-31 · 基于 Voyager（arXiv 2305.16291）、SMITH（arXiv 2608.24571, NeurIPS 2026）、ToolMaker（ACL 2025）、Tool-Making in Low-Latency Systems（arXiv 2607.08010）等 14 项来源核实
+    </p>
+
+    <blockquote>深夜，你的 coding agent 正在处理第 41 个 GitHub issue。它已经把同一套动作重复了 40 遍：读 issue → 拉相关代码 → 跑测试 → 归纳原因 → 贴一条评论。每遍 12 个工具调用、5 分钟、几万 token。如果是个人类工程师，第二遍就会写个脚本；第五遍就会把脚本存进工具箱。<strong>你的 agent 干了 40 遍，一遍都没存。</strong>它不是不会写代码——它给你的用户写了一下午代码——只是从没人告诉它：也可以给自己写。</blockquote>
+
+    <h2>一、三年三级跳：从挖钻石到 NeurIPS</h2>
+    <p>「Agent 给自己造工具」这件事，2023 年就有人做通了，但直到 2026 年才被当成正经学科。中间的故事值得完整讲一遍。</p>
+
+    <h3>2023：Voyager 和它的技能库</h3>
+    <p>NVIDIA 的 Voyager 是第一个吃螃蟹的：在 Minecraft 里，一个 GPT-4 驱动的 agent 无限期地探索、学技能、做发现，全程无人工干预。它能挖到钻石——之前所有 agent 都做不到。但真正的创新不是「LLM 会写代码」（那年已经不新鲜了），而是它存代码的方式：<span class="highlight">只有自验证执行通过的代码才入库</span>，入库时连同描述一起做 embedding 索引，下次遇到类似任务直接检索、直接组合调用。</p>
+    <p>这是个被严重低估的纪律。LLM 生成的代码，十份里总有两三份是坏的；把没验证过的代码存进技能库，坏代码会被反复检索、反复执行——<strong>没有验证门槛的技能库是负债，有验证门槛的技能库是复利。</strong>Voyager 的技能库还能给别的 agent 用（论文里顺手增强了 AutoGPT），第一次暗示：能力可以沉淀在工具里，而不是权重里。</p>
+
+    <h3>2023-2025：学术圈把「造工具」拆成了一门学问</h3>
+    <p>接下来的两年，这个方向被系统性地拆解：</p>
+    <ul>
+        <li><strong>CREATOR</strong>（ICLR 2024）发现关键在于<strong>解耦</strong>：把「我需要一个什么工具」（抽象）和「拿到工具怎么用」（具体）分成两步，数学和表格基准比链式思考高出一截（最高 13 分）。这暗示工具合成失败往往不是代码烂，而是工具的「设计」就没想清楚。</li>
+        <li><strong>LATM / Large Action Models</strong>（ICLR 2024）提出了一个后来被反复验证的分工：<strong>大模型造工具，小模型用工具</strong>。工具一旦造好、测好，就是个廉价可复用的资产——贵的智能只需要出现在制造环节。</li>
+        <li><strong>ToolMaker</strong>（ACL 2025）把原料升级了：不再从零造，而是把科学论文附带的代码仓库自动改造成 LLM 能调用的工具——agent 开始「读论文、装轮子」。</li>
+    </ul>
+
+    <h3>2026：SMITH 把造和用焊进同一个训练回路</h3>
+    <p>今年 Appier 发在 NeurIPS 的 SMITH 是我认为的阶段性终点。它的出发点一句话戳穿了此前所有方案的软肋：</p>
+    <blockquote>「Tool-augmented language models are bounded by the APIs humans bothered to write.」<br>工具增强的语言模型，受限于人类恰好愿意写的那些 API。</blockquote>
+    <p>此前的造工具系统都是<strong>提示一个冻结的 LLM</strong>：写工具的模型和用工具的模型互相看不见。<strong>写 schema 的人从不用自己的 schema</strong>——接口写得再烂也不会有反馈传回来。SMITH 的做法是把两件事放进同一个 RL policy：一部分 rollout 是「build」（写一个 Python 函数加 JSON schema），一部分是「use」（只看 schema、不看代码，去调用它解题）。三路独立奖励分别抓 schema 错、代码错、结果错——每种失败模式有自己的梯度。结果有两个数字值得记住：一个 <strong>4B 小模型经过联训，造出的工具在没见过的任务上赢了 30B 模型即兴造的工具</strong>；而这些工具不仅自己用得好，还能让一个 350M 的小模型、以及更大的模型同时受益。</p>
+    <p><span class="highlight">工具是模型无关的资本。</span>这句话的工程含义比听起来激进：能力可以不锁在权重里，而以「经过验证的接口资产」形式存在，跨模型流通。强模型做策展和验证，小模型做高频构建，工具库成为整个系统的公共层——一种新的分工出现了。</p>
+
+    <h2>二、正确的理解框架：这不是创造力，是编译器</h2>
+    <p>把「agent 造工具」讲成「AI 的创造力」是讲错了方向。今年一篇讲生产系统里工具制造的文章（arXiv 2607.08010）给了正确的框架：<strong>摊销</strong>。一个被重复执行的过程，第一次出现时花成本把它构建出来、测试通过，之后每次都廉价而一致地调用——这就是编译。<span class="highlight">Agent 写代码调用工具，是在跑解释器；agent 给自己造工具，是在跑编译器。</span></p>
+    <p>用这个框架回看，很多设计决策突然清晰：</p>
+    <ul>
+        <li>工具要<strong>参数化</strong>：不同部署点只差几个阈值？把阈值放进运行时参数存储，一份工具服务多个站点——这就是把「函数」和「配置」分开的最基本软件工程。</li>
+        <li>工具要<strong>打日志</strong>：产出的日志让上游数据的不一致第一次可见——编译出的函数天然是免费的观测点。</li>
+        <li>工具要有<strong>准入测试</strong>：Voyager 的「验证后入库」就是 CI 门禁。</li>
+    </ul>
+    <p>人类组织早就走过这条路：新员工照 SOP 手工执行，老师傅把 SOP 做成治具（jig），车间里那面挂满治具的墙就是组织的「技能库」。Agent 现在做的，无非是在自己的世界里重新发明这面墙——<strong>把重复劳动编译成自己的软件</strong>。</p>
+    <p>顺着这条线还能看清工业侧的动静。Anthropic 2025 年 10 月推出 Agent Skills（SKILL.md 规范，文件系统级的技能包），12 月把 MCP 捐给基金会——标准化的技能分发层正在成形，2026 年社区技能的安装量已经超过官方技能。生态起得很快，快到没人来得及给它装刹车。</p>
+
+    <h2>三、复利的另一面：技能库就是供应链</h2>
+    <p>然后是坏消息。今年 9 月的一份审计给技能生态泼了盆冷水：<strong>36% 的受测社区技能含有 prompt injection 向量</strong>。同一年，Clinejection 事件演示了完整攻击链——攻击者提交一个精心构造的 GitHub issue 标题，Cline 的自动 issue 分诊 agent 被注入，从 CI 环境里偷出 npm 发布 token，把后门版本直接发上了 npm。一条 issue，零人工干预，供应链投毒完成。</p>
+    <p>这不是偶然，是结构性的：<span class="highlight">能力复利和攻击复利是同一枚硬币的两面。</span>技能库让好代码被检索、组合、放大，也让坏代码被检索、组合、放大。OWASP 2026 年版的 Agentic AI 安全报告里，威胁清单已经从「可能的想象」变成了带 CVE 编号的真实案例。</p>
+    <p>所以造工具系统的第三道纪律不是「能不能」，而是「准不准进」：<strong>每一条新入库的技能，都应该像一条 PR 一样被 review。</strong>沙箱冒烟测试、来源追踪、版本化、可撤销——CI/CD 用二十年建起来的门禁，技能库一个都不能少。</p>
+
+    <h2>四、现在就能做的五件事</h2>
+    <ol>
+        <li><strong>挖你自己的会话日志</strong>。扫描 agent 的工具调用序列，找出重复出现 3 次以上的组合——这些就是「未编译的热路径」，最好的技能候选。验收标准很硬：编译成单函数后，单次任务成本下降 50% 以上才算合格。</li>
+        <li><strong>先写 schema，再写实现</strong>。让 agent 造工具时，先输出 JSON schema 并自问「我拿到这个接口会不会用」，再动手写代码。这是 SMITH 联训纪律的零成本平民版——把「造用必须同回路」翻译成一条 prompt。</li>
+        <li><strong>给技能库装 CI</strong>。任何自造技能入库前过三关：沙箱冒烟测试、注入扫描（它读不读不可信输入？）、diff review。技能即 PR，不过门禁不生效。</li>
+        <li><strong>读两篇论文</strong>：SMITH（arXiv 2608.24571，重点看三路奖励怎么分离 schema 失败和代码失败）和 arXiv 2607.08010（生产系统的参数化工具与日志实践，全是可抄的细节）。</li>
+        <li><strong>盯两个信号</strong>：SkillFlow / SkillGenBench 这类新基准何时开源（量化你家 agent 的「技能发现/修补/迁移」基线）；技能市场的安全审计覆盖率何时过半（决定技能生态是 npm 还是野集）。</li>
+    </ol>
+
+    <h2>五、结语：把扳手递回去</h2>
+    <p>过去三年，所有人都在忙着给 agent 发工具：function calling、MCP、插件市场。我们假设了一个分工——人类负责造，agent 负责用。2026 年的研究把这个假设拆了：造工具这件事本身，agent 不但能干，而且小模型就能干好，造出来的工具还比大模型即兴发挥的更耐用。</p>
+    <p>真正的分水岭从来不是「会不会生成代码」，而是三道门禁：<strong>验证后才入库、造和用同回路、入库如 PR。</strong>做到这三条，技能库是复利账户；缺任何一条，它是负债表——只是负债不会马上显示在账上，直到某天 36% 的技能带着注入向量、或者第 41 个 issue 在深夜重复第 41 遍。</p>
+    <p>人类文明的本事，一大半是「给工具造工具」。现在轮到 agent 学这件事了——而你要做的，只是允许它把扳手递给自己。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
