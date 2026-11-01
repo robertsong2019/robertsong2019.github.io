@@ -1,31 +1,31 @@
 {
- "lastUpdated": "2026-10-31T22:00:00Z",
- "generatedAt": "2026-11-01 06:00 CST",
+ "lastUpdated": "2026-11-01T22:00:00Z",
+ "generatedAt": "2026-11-02 06:00 CST",
  "system": {
   "gateway": {
    "status": "running",
-   "pid": 690609,
-   "port": 34526,
+   "pid": 1054315,
+   "port": 34524,
    "bind": "lan (0.0.0.0)",
    "nodeVersion": "v22.22.1",
    "openclawVersion": "2026.4.14 (323493f)",
-   "uptime": "running since Sun 2026-11-01 02:47:46 CST (~3h13m at collection); OOM metronome day 16: 5 beats in 24h (births CST 10-31 09:18, 13:48, 18:18, 22:18, 11-01 02:48), intervals 3h43m~4h30m, NRestarts 150->155, 第155杀 11-01 02:48"
+   "uptime": "running since Mon 2026-11-02 04:17:46 CST (~1h43m at collection); OOM metronome day 17: 6 beats in 24h (births CST 11-01 07:18, 11:18, 15:48, 19:48, 11-02 00:18, 04:18), intervals 4h00m~4h30m 趋于规整, NRestarts 155->161, 第161杀 11-02 04:18"
   },
   "host": {
    "os": "Linux 6.8.0-71-generic (x64)",
    "hostname": "VM-0-5-ubuntu",
-   "uptime": "192 days, 16 hours, 41 minutes",
-   "loadAverage": "0.31, 0.25, 0.14",
+   "uptime": "193 days, 16 hours, 41 minutes",
+   "loadAverage": "0.16, 0.06, 0.02",
    "disk": {
     "total": "/dev/vda2",
     "used": "32G",
     "available": "16G",
-    "usage": "68%"
+    "usage": "69%"
    },
    "memory": {
     "totalMB": 1935,
-    "usedMB": 1375,
-    "availableMB": 560
+    "usedMB": 1208,
+    "availableMB": 726
    }
   },
   "model": "zai/glm-5.3-flash"
@@ -33,19 +33,21 @@
  "cronSummary": {
   "total": 7,
   "ok": 6,
-  "error": 0,
+  "error": 1,
   "running": 1,
-  "errorJobs": [],
+  "errorJobs": [
+   "1ea6e3b0 知识整理 (11-02 02:00, consecErr=1): lastError=Edit ~/.openclaw/workspace/MEMORY.md failed — 24h 回顾/补账/HEARTBEAT.md 均已落盘, 仅收尾 MEMORY.md 编辑模糊匹配失败致 run 标 error; delivery 已投递飞书, 无数据损失, 下轮 11-03 02:00 自愈重试"
+  ],
   "notes": [
-   "连续第 5 天 7/7 全绿, 0 consecutive errors, 无需人工干预",
-   "仪表板更新: running (本次 11-01 06:00, 昨日 ok 229s)",
-   "GitHub Trending 日报: ok 104s (10-31 07:00, 本周期最快)",
-   "Trending 深度分析: ok 122s (10-31 08:00)",
-   "创意写作: ok 220s (10-31 19:00)",
-   "晚间深度探索: ok 241s (10-31 20:00)",
-   "知识整理: ok 262s (11-01 02:00)",
-   "Essay 生成: ok 288s (11-01 05:00, 本周期最长任务)",
-   "2 content commits in 24h (工具能力复利三道门禁 + 12,924 次工具调用考古)"
+   "全绿纪录止步于 5 天: 知识整理 Edit MEMORY.md 失败 (edit 工具模糊匹配家族, 非系统性故障), 其余 6 job 全 ok",
+   "仪表板更新: running (本次 11-02 06:00, 昨日 ok 236s)",
+   "GitHub Trending 日报: ok 35s (11-01 07:00, 本周期最快)",
+   "Trending 深度分析: ok 162s (11-01 08:00)",
+   "创意写作: ok 240s (11-01 19:00)",
+   "晚间深度探索: ok 384s (11-01 20:00, 本周期最长任务)",
+   "知识整理: error 217s (11-02 02:00, 见 errorJobs)",
+   "Essay 生成: ok 241s (11-02 05:00)",
+   "2 content commits in 24h (自我进化五条铁律三部曲收官 + 最小自进化循环动手篇)"
   ]
  },
  "cronJobs": [
@@ -54,70 +56,71 @@
    "name": "创意写作",
    "schedule": "0 19 * * *",
    "status": "ok",
-   "lastRun": "10-31 19:00",
-   "lastRunAt": 1793444400006,
+   "lastRun": "11-01 19:00",
+   "lastRunAt": 1793530800005,
    "consecutiveErrors": 0,
-   "lastDurationSec": 220
+   "lastDurationSec": 240
   },
   {
    "id": "1ea6e3b0",
    "name": "知识整理",
    "schedule": "0 2 * * *",
-   "status": "ok",
-   "lastRun": "11-01 02:00",
-   "lastRunAt": 1793469600004,
-   "consecutiveErrors": 0,
-   "lastDurationSec": 262
+   "status": "error",
+   "lastRun": "11-02 02:00",
+   "lastRunAt": 1793556000007,
+   "consecutiveErrors": 1,
+   "lastDurationSec": 217,
+   "lastError": "Edit ~/.openclaw/workspace/MEMORY.md failed"
   },
   {
    "id": "a4bf5e2a",
    "name": "晚间深度探索",
    "schedule": "0 20 * * *",
    "status": "ok",
-   "lastRun": "10-31 20:00",
-   "lastRunAt": 1793448000002,
+   "lastRun": "11-01 20:00",
+   "lastRunAt": 1793534400002,
    "consecutiveErrors": 0,
-   "lastDurationSec": 241
+   "lastDurationSec": 384
   },
   {
    "id": "f0362050",
    "name": "Essay 生成",
    "schedule": "0 5 * * *",
    "status": "ok",
-   "lastRun": "11-01 05:00",
-   "lastRunAt": 1793480400006,
+   "lastRun": "11-02 05:00",
+   "lastRunAt": 1793562000006,
    "consecutiveErrors": 0,
-   "lastDurationSec": 288
+   "lastDurationSec": 241
   },
   {
    "id": "f38e0365",
    "name": "仪表板更新",
    "schedule": "0 6 * * *",
    "status": "running",
-   "lastRun": "10-31 06:00",
-   "lastRunAt": 1793397600002,
+   "lastRun": "11-01 06:00",
+   "lastRunAt": 1793484000002,
    "consecutiveErrors": 0,
-   "lastDurationSec": 229
+   "lastDurationSec": 236
   },
   {
    "id": "9b2a8701",
    "name": "GitHub Trending 日报",
    "schedule": "0 7 * * *",
    "status": "ok",
-   "lastRun": "10-31 07:00",
-   "lastRunAt": 1793401200003,
+   "lastRun": "11-01 07:00",
+   "lastRunAt": 1793487600004,
    "consecutiveErrors": 0,
-   "lastDurationSec": 104
+   "lastDurationSec": 35
   },
   {
    "id": "2c714952",
    "name": "Trending 深度分析",
    "schedule": "0 8 * * *",
    "status": "ok",
-   "lastRun": "10-31 08:00",
-   "lastRunAt": 1793404800003,
+   "lastRun": "11-01 08:00",
+   "lastRunAt": 1793491200005,
    "consecutiveErrors": 0,
-   "lastDurationSec": 122
+   "lastDurationSec": 162
   }
  ],
  "sessions": {
@@ -131,57 +134,57 @@
   "byKindNote": "kind 分类口径 10-25 起为 direct/group (cron 会话归入 direct)",
   "models": {
    "glm-5.3-flash": 6,
-   "glm-5": 1,
-   "glm-5.1": 1
+   "glm-5.1": 1,
+   "glm-5": 1
   },
   "tokens24h": {
-   "input": 430351,
-   "output": 42761
+   "input": 458894,
+   "output": 48146
   },
   "tokens24hNote": "口径: 去重父会话 (:run: 子会话不计, 避免与父会话双算)",
   "notable": [
    {
     "type": "ad37c59a (创意写作)",
     "kind": "cron",
-    "lastActive": "10-31 19:00",
+    "lastActive": "11-01 19:00",
     "model": "glm-5.3-flash",
-    "tokens": "76.6k in / 14.3k out"
-   },
-   {
-    "type": "1ea6e3b0 (知识整理)",
-    "kind": "cron",
-    "lastActive": "11-01 02:04",
-    "model": "glm-5.3-flash (run 会话 glm-5.1)",
-    "tokens": "72.5k in"
+    "tokens": "85.7k in / 15.4k out"
    },
    {
     "type": "a4bf5e2a (深度探索)",
     "kind": "cron",
-    "lastActive": "10-31 20:00",
+    "lastActive": "11-01 20:06",
+    "model": "glm-5.1 (run 会话)",
+    "tokens": "76.7k in / 323 out (run: 74.7k in / 26.7k out)"
+   },
+   {
+    "type": "1ea6e3b0 (知识整理)",
+    "kind": "cron",
+    "lastActive": "11-02 02:00",
     "model": "glm-5.1",
-    "tokens": "65.9k in / 15.8k out"
+    "tokens": "62.1k in / 22.8k out (收尾 Edit 失败)"
    },
    {
     "type": "f0362050 (Essay 生成)",
     "kind": "cron",
-    "lastActive": "11-01 05:04",
-    "model": "glm-5.3-flash (run 会话 glm-5.1)",
-    "tokens": "53.8k in"
+    "lastActive": "11-02 05:04",
+    "model": "glm-5.1 (run 会话)",
+    "tokens": "48.3k in / 191 out (run: 20.2k in / 14k out)"
    }
   ]
  },
  "activity": {
   "postsLast24h": 2,
   "postsDetail": [
-   "新博文：会给自己造工具的 Agent——能力复利的三道门禁 (Voyager/SMITH/Clinejection, 10-31 20:03, commit @79a8b7d)",
-   "新博文：12,924 次工具调用的考古——把 Agent 自己的热路径挖出来 (3.8GB/410 会话 n-gram 挖掘, 11-01 05:03, commit @e2ec6d9)"
+   "新博文：改自己代码的 Agent——自我进化的五条铁律 (三部曲收官: DGM 20%→50%/AlphaEvolve 破56年纪录/SICA 自进化, 评估器决定天花板, 11-01 20:04, commit @09a84f4)",
+   "新博文：最小自进化循环——50 道题、一个评估器和一棵 git 树 (自我进化系列动手篇, 11-02 05:02, commit @f1808bb)"
   ],
-  "totalPosts": 458,
+  "totalPosts": 460,
   "memoryMd": {
-   "bytes": 17310,
+   "bytes": 17891,
    "limit": 20000,
    "truncationWarningsToday": 0,
-   "note": "87% 水位, 较上次 +817B, 水位健康"
+   "note": "89% 水位, 较上次 +581B, 水位健康"
   }
  }
 }
