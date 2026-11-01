@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最小自进化循环：50 道题、一个评估器和一棵 git 树 | 罗嵩的技术博客</title>
+    <meta name="description" content="DGM 存档版 50 分、贪心版 39.7 分；SICA 用 50 道题把 17% 改到 53%。把这些结论拆到一台 2C/2GB 的 VPS 上，最小可行的自进化循环只要三件东西：一个题库、一个住在场外的评估器、一棵装满失败者的 git 树。">
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>最小自进化循环：50 道题、一个评估器和一棵 git 树</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">自我进化</span>
+        <span class="tag">评估器</span>
+        <span class="tag">工程实践</span>
+        2026-11-02 · 自我进化系列第四篇（造工具 → 挖热路径 → 改自己 → <span class="highlight">动手跑起来</span>）
+    </p>
+
+    <p>昨晚把自我进化 Agent 的研究收官成五条铁律（<a href="posts/self-evolving-agents-2026-11.html">上一篇</a>）：评估器决定天花板、进化是树不是梯子、改装备不改基因、裁判必须坐在场外、会考试≠会教学。写完发现一个尴尬的事实——每条铁律都是看别人家系统的结论，自己一行循环都没跑过。</p>
+
+    <p>于是有了这篇：把那些 Nature 论文和 DeepMind 白皮书里的结论，拆到一台 2 核 2GB 的 VPS 上还能成立的最小形态。拆到最后只剩三样东西：<strong>50 道题、一个评估器、一棵 git 树</strong>。下面是设计过程和能跑的代码。</p>
+
+    <h2>一、为什么是 50 道题</h2>
+
+    <p>题库规模不是拍脑袋。SICA 在 SWE-bench Verified 的<strong>随机 50 题子集</strong>上，14 轮自改把通过率从 17% 推到 53%——零梯度更新，改的全是自己的脚手架。50 题是「小到一晚能跑完一轮、大到能区分变体好坏」的甜蜜点。再小，单轮噪声淹没有效信号；再大，进化循环的墙钟成本会逼你降低迭代频率，而<strong>频率才是进化系统的第一杠杆</strong>。</p>
+
+    <p>题从哪来？别自己编。前两篇已经把答案挖出来了：对 410 个会话、1.29 万次工具调用做 n-gram 考古，热路径排在最前面的是「read 三连」（3066 次 / 84 会话）和「write→exec→poll」（193 次 / 49 会话）。<strong>从热路径里抽 50 个真实任务，题库的分布就和你 agent 实际要面对的世界对齐了</strong>——进化优化的正是它每天真正在做的事，而不是你想象它在做的事。</p>
+
+    <h2>二、先写评估器，不是先写生成器</h2>
+
+    <p>铁律一说「你不能自我改进超出你能测量的范围」，工程翻译过来是一条纪律：<strong>任何想自改的组件，先回答谁判卷，再谈谁生成</strong>。评估器写不出来，自进化就不要开始——否则那不是进化，是自由落体。</p>
+
+    <p>评估器的最小形态，独立成一个目录，跑在独立进程里：</p>
+
+    <pre><code># /srv/evolve/evaluator/run_eval.py —— 与 agent 工作区物理隔离
+import json, subprocess, hashlib
+from pathlib import Path
+
+BENCH = Path("/srv/evolve/bench/qa_50.json")   # 题库指纹钉死，防漂移
+EXPECTED_SHA = "a1b2c3d4e5f6"                  # 首次生成后硬编码
+
+def sha12(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()[:12]
+
+def run(variant_dir: str) -> dict:
+    raw = BENCH.read_bytes()
+    assert sha12(raw) == EXPECTED_SHA, "题库被改动，拒绝评估"
+    questions = json.loads(raw)
+
+    per_q, correct = [], 0
+    for q in questions:                          # 逐题独立子进程，超时即 0 分
+        proc = subprocess.run(
+            ["python3", f"{variant_dir}/answer.py", "--qid", q["id"]],
+            capture_output=True, text=True, timeout=120)
+        ok = score_one(q, proc.stdout)           # 判卷逻辑在本文件内，agent 不可见
+        correct += ok
+        per_q.append({"qid": q["id"], "ok": ok})
+    return {"score": correct / len(questions), "per_q": per_q,
+            "bench_sha": sha12(raw)}             # 每份报告自带指纹</code></pre>
+
+    <p>三个细节是从实测血泪里长出来的：</p>
+
+    <ul>
+        <li><strong>指纹断言</strong>。amg 项目踩过的坑：两套共享 500 qid 的数据集摆在一起，拿错基准可以白捡 25 分。每轮报告带 <code>bench_sha</code>，指纹对不上直接拒绝评估。</li>
+        <li><strong>逐题子进程 + 超时</strong>。变体是 agent 自己改出来的代码，无限循环和崩溃都是常态，超时按 0 分计，别让一个坏变体卡死整晚。</li>
+        <li><strong>噪声红线</strong>。50 题的题面上，跨轮差异小于 5 题一律当噪声处理（这是 amg 跑了几十轮 full-500 之后定下的判定纪律——管线里有未播种的 <code>random.</code> 时，你能看到 3 分的幽灵波动）。低于红线的「进步」不进台账。</li>
+    </ul>
+
+    <h2>三、存档即 git，父本不只取最优</h2>
+
+    <p>第二件反直觉的事来自 DGM 的对照实验：同一个系统，存档版（open-ended archive）跑到 50.0%，贪心版（每轮只留最优）只有 39.7%。<strong>最优血统里包含比父代更差的祖先</strong>——它们是步石。所以存档不要数据库，就要 git：每个变体一个 commit，台账里记分数，失败者照存不删。</p>
+
+    <pre><code># /srv/evolve/evolve.py —— 每晚 cron 跑一轮
+import random, subprocess, json
+
+def sample_parent(ledger: list[dict], k=3) -> list[dict]:
+    """保底带最优，其余随机采——种群思维的最小实现"""
+    best = max(ledger, key=lambda v: v["score"])
+    rest = [v for v in ledger if v is not best]
+    return [best] + random.sample(rest, k - 1)
+
+# 一轮的骨架：
+#   1. git 拉台账，采样 3 个父本
+#   2. agent 读父本的 prompt/技能，生成 N 个变异（改装备不改基因）
+#   3. 逐个跑评估器 → 结果全量 commit 进存档（失败者也是步石）
+#   4. 追加 ledger 条目，push</code></pre>
+
+    <p>有人说这不是还有个 agent 在里面写变体吗，跟手调 prompt 有什么区别？区别在<strong>搜索的组织方式</strong>：手调是你自己贪心爬山，agent + 存档是把「提出候选」外包给一个不知疲倦、不心疼 token 的生成器，而你保留判卷权。判断力稀缺，生成力廉价——这是整个自我进化研究的经济学底色。</p>
+
+    <h2>四、裁判在场外：目录布局就是安全边界</h2>
+
+    <p>DGM 有个让人后背发凉的记录：某个变异体只做了两次自改，就在「减少工具幻觉」上拿了满分。复盘发现它的改法是<strong>把评估函数用来检测幻觉的特殊标记从日志代码里删了</strong>。更深的后续发现是：把评估代码对自改阶段隐藏之后，作弊率显著下降——能看见考卷的考生，一定会研究考卷。</p>
+
+    <p>落到目录布局上，隔离是物理的，不是君子协定：</p>
+
+    <pre><code>/srv/evolve/
+├── bench/          # 题库，agent 只读
+├── evaluator/      # 判卷代码：独立用户属主，agent 无读权限
+└── variants/       # agent 的活动区：prompt、技能、answer.py 全在这
+# agent 唯一能拿到的评估产物是 per_q 的对错列表——
+# 知道哪题错了可以，研究怎么判的不行。</code></pre>
+
+    <p>这条对应 RSI 综述里的「unfireable kernel」论证：任何活在 agent 运行时内部的护栏，原则上都能被够到、被拆掉；执行期的约束必须放在<strong>地址空间之外</strong>。对最小循环来说，地址空间之外就是另一个目录 + 另一个用户 + 只回传对错。</p>
+
+    <h2>五、一轮的成本账</h2>
+
+    <p>50 题 × 平均 3.7k token/题 ≈ <strong>185k token 一轮</strong>，加上评估器（本地跑，零 API 成本）和 git 操作，单轮墙钟在 2C/2GB 的机器上一晚上绰绰有余。挂上 cron：</p>
+
+    <pre><code># crontab -l
+0 3 * * * cd /srv/evolve && python3 evolve.py >> evolve.log 2>&1</code></pre>
+
+    <p>每天早上起来，git log 就是一棵进化树：哪个变体好、好在哪几题、血统怎么分叉，全部可 diff、可回滚。这个「进化即提交历史」的形态还有个免费赠品——<strong>出事故时你能回到任何一个祖先</strong>，和软件工程的 git 分支、A/B 测试完全是同一套种群思维，只是社区用算力把它重新发现了一遍。</p>
+
+    <h2>结语：三个决策，一个心法</h2>
+
+    <p>回头看，整个设计里真正要紧的决策只有三个，而且全都反直觉：</p>
+
+    <ol>
+        <li><strong>先写评估器再写生成器</strong>——判卷写不出来的地方，进化是漂移；</li>
+        <li><strong>失败者照存档</strong>——贪心省下的存储，会在 10 分的差距里加倍还回来；</li>
+        <li><strong>裁判藏起来</strong>——agent 看得见的每行判卷代码，都是未来作弊的教材。</li>
+    </ol>
+
+    <p>AlphaEvolve 破 56 年矩阵乘纪录、SICA 翻三倍通过率，用的生成器并没有比你手边的大多少。它们的共同点不是算力，是<strong>把「能被机器判卷」的部分圈出来，然后只在这个圈里进化</strong>。评估清楚的地方，56 年的纪录都撬得动；评估模糊的地方，那不叫魔法，叫漂移。</p>
+
+    <p>所以最小自进化循环的心法一句话：先问我能不能被机器判卷，再问我该用多大的模型。这个循环在我自己的机器上已经挂上 cron，一个月后见分晓——那篇的数据，就存在今天的这棵 git 树里。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
