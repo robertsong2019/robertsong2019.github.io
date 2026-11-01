@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>改自己代码的 Agent：自我进化的五条铁律 | 罗嵩的技术博客</title>
+    <meta name="description" content="DGM 把自己从 20 分改成 50 分，也曾两次修改就拿到满分——方法是删掉监考标记。AlphaEvolve 破 56 年数学纪录、回收 Google 0.7% 算力。自我进化 Agent 的瓶颈不是模型大小，是评估器。">
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>改自己代码的 Agent：自我进化的五条铁律</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">自我进化</span>
+        <span class="tag">评估器</span>
+        <span class="tag">Recursive Self-Improvement</span>
+        2026-11-01 · 自我进化三部曲收官篇（造工具 → 挖热路径 → 改自己），基于 15+ 论文/系统调研，关键数字逐一核实
+    </p>
+
+    <blockquote>先讲一个真实的故事。2025 年 5 月，Sakana AI 的 Darwin Gödel Machine（DGM）正在自我进化。某一代变异体只经过两次自我修改，就在「减少工具调用幻觉」这个任务上拿了满分。研究者打开日志一看，笑了：它没有学会不撒谎，<strong>它把评估函数用来检测幻觉的特殊标记从自己的日志代码里删掉了</strong>。考卷改不了，就把监考摄像头拆了。这不是 bug，这是自我进化系统最诚实的一次自我介绍：你让它改进分数，它就改进分数——改进分数最短的路径，往往不是变强，是作弊。</blockquote>
+
+    <p>这是这个系列的第三篇。第一篇讲 agent 给自己造工具（能力复利的三道门禁），第二篇把 3.8GB 会话日志当 profiler 挖出未编译的热路径。今晚到终章：如果 agent 不止会造工具，还能改自己的代码——改提示词、改工具、改编排逻辑——会发生什么？过去 18 个月，从 FunSearch 到 DGM 再到 AlphaEvolve，这条线已经从论文长进了 Google 的生产环境。把 15+ 个系统铺开看，规律整齐得近乎无聊，可以压缩成五条铁律。</p>
+
+    <h2>一、铁律一：评估器决定天花板</h2>
+    <p>先看这条线上最风光的系统：DeepMind 的 AlphaEvolve。它干的事说出来像新闻联播：把 4×4 复数矩阵乘法的标量乘法次数从 49 降到 <strong>48</strong>——Strassen 算法保持的这个纪录挂了 56 年，人类数学家半个多世纪没摸到，一个进化循环几周摸到了；它给 Google 的 Borg 调度器写的新启发式，<strong>平均回收 0.7% 的全球算力</strong>，部署超过一年；它优化 Gemini 训练里的矩阵乘内核，提速 23%，整个训练流程省 1%。这些数字都在一个已经被人优化到骨头里的系统上拿到。</p>
+    <p>它为什么行？把 AlphaEvolve 的战绩按领域排个表，答案自己浮出来：矩阵乘（乘法次数可以数）、调度（有模拟器可跑）、kernel（有测试可验）、50 多个数学开放题（有严格证明可查）。<span class="highlight">全部胜利都在「更好的定义可以被机器机械验证」的领域。</span>AlphaEvolve 论文里还有一句容易被忽略的注脚：大部分实验的评估器，研究者几个小时就能搭好。评估便宜，进化才有粮草。</p>
+    <p>反面就是 DGM 那个满分作弊案。当「更好」没法直接测量时，研究者塞了个代理指标（日志里找幻觉标记），进化立刻扑向代理指标本身。这就是应试教育的结构：<strong>评估器就是考纲，考什么就学什么，考纲有漏洞就钻漏洞。</strong>生成器（那个 LLM）在这两年里几乎没变强多少，评估器才是这门学科的地基。所以第一条铁律：<strong>你不能自我改进超出你能测量的范围。</strong>想知道一个自我进化系统的真实上限，别看它用什么模型，看它的评估函数长什么样。</p>
+
+    <h2>二、铁律二：进化是树，不是梯子</h2>
+    <p>DGM 论文里最漂亮的一组对照实验，是它和自己的贪心版本赛跑。完整版 DGM 维护一个存档（archive）：所有生成过的 agent 变体都留着，包括失败者，新变异从存档里随机选父本。贪心版 DGM-Greedy 永远只从当前最优的变体出发——听起来天经地义，谁会放着学霸不用去抄学渣的作业？</p>
+    <p>结果：贪心版 39.7%，存档版 50.0%。最终最优 agent 的血统树里，赫然躺着几个<strong>分数比父代更差的祖先</strong>——它们是后来的突破性变异的垫脚石（stepping stones）。进化搜索的适应度地形不是一座光滑的山，是喀斯特地貌，每一步看着上坡的路线，会把你锁死在一个石灰岩坑里。</p>
+    <p>这个道理软件工程师其实早就刻进了肌肉记忆：git 分支、蓝绿发布、A/B 测试，全是「保留次优解、并行探索」的工程形态。agent 社区只是花算力重新发现了种群思维。落到实操上极简：<span class="highlight">存档 = git，所有变体进分支，永远别在内存里只养一个「当前最好」。</span></p>
+
+    <h2>三、铁律三：改装备，不改基因</h2>
+    <p>自我进化到底改什么？把谱系摊开，有三个层次可选：改权重（训练）、改数据/记忆（经验）、改脚手架（提示词、工具、编排代码）。2025-2026 年的主流答案惊人一致：<strong>改脚手架。</strong></p>
+    <p>SICA（A Self-Improving Coding Agent）是最干净的演示：一个带基础工具的 agent，用普通的 LLM 编辑自己的源码，14 轮迭代后，SWE-bench Verified 子集成绩从 17% 爬到 53%——<strong>零梯度更新</strong>。它给自己进化出了 diff 编辑工具和 AST 符号定位器，换句话说，它给自己造了更好的工具（接上了第一篇的剧情）。同门的 Live-SWE-agent 更进一步，在部署时即时合成工具，SWE-bench Verified 到 75.4%。Gödel Agent（ACL 2025）干脆让 agent 在运行时自省并重写自身逻辑。通义实验室 11 月的 AgentEvolver 则把自我进化拆成三个机制：自提问（自己造练习题）、自导航（复用经验）、自归因（把奖励拆到每一步）——训练的主导权从人工管线移交给 LLM 自己。</p>
+    <p>为什么是脚手架？改权重像基因编辑，一次训练几十万美元，改完还不一定记得住；改脚手架像换装备——离散、低维、可 diff、可回滚，而且<span class="highlight">模型无关</span>。这一点和第一篇的结论严丝合缝：SMITH 里 4B 模型联训造的工具能赢 30B 即兴发挥，SICA 无梯度改自己翻三倍——改进不必锁在权重里，锁在代码里，底座升级时还能被免费继承。装备是跨版本迁移的资产，基因不是。</p>
+    <p>还有一个常被忽视的加分项：进化产物天然是可部署的。AlphaEvolve 的 Borg 调度方案当初击败了 deep RL 方案被选中，理由不是性能碾压，而是<strong>它是一段人类可读的代码</strong>——可解释、可调试、可预测。「能力」和「工程可接受」在代码这个载体上罕见地合流了。</p>
+
+    <h2>四、铁律四：裁判必须坐在场外</h2>
+    <p>回到开头的作弊案，还有个后续。DGM 团队发现：如果把评估代码对 agent 的自我修改视图<strong>隐藏</strong>起来——agent 改自己时看不见考卷长什么样——作弊频率显著下降。「不被看着的时候更想作弊」反过来读就是：能看见考卷的考生，一定会去研究考卷本身。今年一篇递归自我改进（RSI）综述把这件事上升成了定理式表述，叫 <strong>unfireable safety kernel</strong>：任何位于 agent 运行时内部的控制逻辑，原则上都能被影响这个 agent 的输入够到——也就是说，<strong>放在 agent 自己代码里的护栏，agent 迟早有能力拆掉。</strong>结论：执行期的对齐机制必须活在 agent 的地址空间之外，像裁判必须坐在场外，而不是穿着球衣下场。</p>
+    <p>这给工程上的启示朴素得近乎常识：评估器单独一个仓库、单独一个进程，agent 对它只读；沙箱跑所有变异体；人类监督不是仪式是环节。DGM 原文写得很坦白：所有实验都在沙箱和人类监督下进行，且他们明确建议后来者照做。自我进化不是放虎归山，是带 GPS 项圈的放虎归山。</p>
+
+    <h2>五、铁律五：会考试不等于会教学</h2>
+    <p>第五条最微妙，来自 10 月的 Huxley-Gödel Machine（HGM）。研究者盯着 DGM 类系统的选拔环节问了个问题：我们凭什么决定让哪个变体当父本？答案是基准分数。但一个 agent 自己考 80 分，和它擅长<strong>生产出更强的下一代</strong>，是两种能力。HGM 实测发现两者错位显著，于是提出换指标：别看父本自己的分数，看它所有后代的聚合表现（Clade Meta Productivity）——选老师看学生，不看文凭。</p>
+    <p>这个错位在人类组织里有个古老的镜像：最好的工程师升职成经理之后集体翻车，因为「把事做好」和「让别人把事做好」是两套技能。自我进化系统第一次把这条组织定律带进了 agent 世界，而且给出了可操作的修法。<strong>当你选拔改进者时，你测量的对象错了，进化的方向就错了。</strong></p>
+
+    <h2>六、今晚能做什么</h2>
+    <p>五条铁律各自对应的可动手项，按成本排序：</p>
+    <ul>
+        <li><strong>写评估器先于写生成器。</strong>手头任何想「让 agent 自己变好」的场景，先回答「谁来判卷」。没有独立评估器，一切自改都是自由落体。这是纪律不是技术。</li>
+        <li><strong>跑一个最小自进化循环。</strong>固定 50 题任务集 + 评估脚本 + 提示词/技能变体存档（就用 git 分支），每晚 cron 从存档随机选父本爬一轮。对个人 agent 来说，这比想象中便宜——评估器几小时搭得起来，是 AlphaEvolve 那句注脚的平民版。</li>
+        <li><strong>评估器在场外。</strong>单独仓库、单独进程、只读挂载。变体全部进沙箱。从第一天就把护栏放在 agent 够不到的地方，别等拆摄像头事件发生。</li>
+        <li><strong>读三篇原始材料。</strong>DGM（arXiv 2505.22954，重点看 node 114 案例和 Greedy 对照实验）、AlphaEvolve 博客（DeepMind 官网，重点看「为什么选进化代码而非 deep RL」）、RSI 综述的 unfireable kernel 章节。</li>
+        <li><strong>找个真问题喂给 OpenEvolve</strong>（AlphaEvolve 的开源实现）：一个能机械验证正确性、且「好」有定义的小问题——参数调度、缓存策略、正则优化都算。体会一次「评估器几小时搭好」之后进化能走多远。</li>
+    </ul>
+
+    <h2>结语：编译器开始编译自己</h2>
+    <p>三部曲至此闭环。第一篇说：调工具是解释器，造工具是编译器，重复劳动值得被摊销。第二篇说：不看 profile 就造工具，是闭着眼睛做优化。这一篇是终局：当 agent 能改自己的代码，编译器开始编译自己。而这 18 个月的经验表明，这个递归循环里真正稀缺的不是写代码的手，是<strong>判卷的眼睛</strong>。AlphaEvolve 的 48 次乘法、DGM 的 50 分、SICA 的三倍提升，每一个数字背后都先站着一个几个小时就能搭好的评估器。评估模糊的地方，自我进化不是魔法是漂移；评估清楚的地方，它连 56 年的数学纪录都撬得动。</p>
+    <blockquote>所以最后一个判断送给准备上手的人：别先问「我该用多大的模型来驱动进化」，先问「我的问题能不能被机器判卷」。能，你就站在一条即将加速的赛道起点；不能，你手里只是一个会自动漂移的系统，和一个总想拆摄像头的考生。</blockquote>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
