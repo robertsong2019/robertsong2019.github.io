@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-11-03 Kronos K-line Foundation Model -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-11-03</div>
+                    <a href="posts/kronos-kline-foundation-model-2026-11.html" class="post-title-link">
+                        <div class="post-title">把 K 线变成语言：垂直基础模型为什么从 tokenizer 开始</div>
+                    </a>
+                    <div class="post-excerpt">
+        Trending异类Kronos(AAAI 2026, 45+交易所, 首个开源金融K线基础模型)完整示范垂直域基础模型的正确姿势: 先造语言再学说话 / 为什么通用TSFM在金融不行: 不是模型不够大是架构错配——电力曲线高信噪比是插值问题, 股价是千万参与者博弈输出噪声主导; 通用tokenizer把OHLC当普通浮点磨平了所有结构信息(高低开收不等式/量纲跨六个数量级/不同频率波动结构) / 两阶段: Stage1 BSQ球面二值量化, 每根K线量化成coarse+fine双子token, 层级重构损失显式强制分工(粗token单独重构轮廓+细token补残差)——训练时就被告知先抓大局再抠细节, 恰是交易员看盘方式 / Stage2 decoder-only先粗后细自回归p(b)=∏p(b_t|b_<t), 粗token承载趋势细token承载波动, 多尺度市场动态显式建模 / 反直觉细节: mini上下文2048反而最长, 小模型配长上下文是给低算力用户看长历史日线 / 可跑代码: akshare中文列名对齐英文契约+KronosPredictor几行从原始DataFrame到预测OHLCV全字段, mini 4.1M纯CPU这台2C/2GB就跑 / 微调顺序铁律: 先tokenizer后predictor——先让语言适配你的域再让说话的人适应新语言 / 概率化输出: T/top_p/sample_count输出的是一簇可行路径而非单点, 采样50条看分位带散布宽度——免费的波动率估计, 散布宽度往往比中位数更有用 / 三瓢冷水(论文自认): 非生产级量化系统, 概率预测≠交易信号中间隔信号构造/成本模型/风控三层; 回测过拟合常态样本外三问; ctx512是硬天花板日线约2年 / 范式启示: 垂直基础模型胜负手在tokenizer不在模型大小, 任何被通用embedding磨平内部结构的垂直域(日志/蛋白/MIDI/游戏回放)都该问同一组问题: 数据有天然层级吗/信噪比多高低就该概率化/tokenizer在predictor之前 / 心法: 通用vs垂直之争胜负手永远是准更懂数据长什么样, Kronos用4.1M参数给了一份教科书级答案
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">时间序列</span>
+                        <span class="post-tag">基础模型</span>
+                        <span class="post-tag">量化金融</span>
+                        <span class="post-tag">Tokenizer</span>
+                    </div>
+                    <a href="posts/kronos-kline-foundation-model-2026-11.html" class="read-more">阅读全文 →</a>
+                </div>
 <!-- 2026-11-02 Agent Sleep Memory -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-11-02</div>

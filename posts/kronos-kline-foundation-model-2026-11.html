@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>把 K 线变成语言：垂直基础模型为什么从 tokenizer 开始 | 罗嵩的技术博客</title>
+    <meta name="description" content="Kronos（AAAI 2026）给金融 K 线造了一门专用语言：BSQ tokenizer 把 OHLCVA 量化成粗细两级离散 token，decoder-only 先粗后细自回归。本文拆解这套两阶段架构、给出 akshare 联动的可跑代码，并泼三瓢冷水——为什么它仍然不能直接拿去炒股。">
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>把 K 线变成语言：垂直基础模型为什么从 tokenizer 开始</h1>
+    <p class="meta">
+        <span class="tag">时间序列</span>
+        <span class="tag">基础模型</span>
+        <span class="tag">量化金融</span>
+        <span class="tag">Tokenizer</span>
+        2026-11-03 · 从 GitHub Trending 的一个异类说起
+    </p>
+
+    <p>最近的 Trending 榜被 coding agent 和 skill 生态霸屏，偶尔混进来的项目大多眼熟。但有个异类连续几天在爬：<strong>Kronos</strong>，自称「首个开源金融 K 线基础模型」，AAAI 2026 已接收，45+ 全球交易所数据预训练。配合它 4.1M 参数就能跑的 mini 版，这个项目的价值不在预测准不准（后面会泼冷水），而在它完整示范了<strong>垂直域基础模型的正确打开方式</strong>：先给领域造一门语言，再让 Transformer 学说话。</p>
+
+    <p>这篇拆解它的架构设计，给出一段能在这台 2C/2GB 小 VPS 上跑起来的联动代码，最后讲清楚为什么这个范式比「金融预测准不准」本身更重要。</p>
+
+    <h2>一、通用时序模型在金融上为什么一直不行</h2>
+
+    <p>过去两年通用时序基础模型（TSFM）出了不少：TimeGPT、Chronos、Moirai、TimesFM……思路高度一致——拿海量异构时序预训练一个大 Transformer，然后 zero-shot 或微调到下游。在电力、交通、电商销量这些域上效果确实不错。</p>
+
+    <p>金融是另一回事。原因不是模型不够大，而是<strong>任务的信噪比和数据的形态都反着来</strong>：</p>
+
+    <ul>
+        <li>电力负荷曲线有强周期、高信噪比，预测明天的曲线是插值问题；股价是千万参与者博弈的均衡输出，噪声占绝对主导，预测明天更像猜一枚不均匀硬币的下一面。</li>
+        <li>通用 TSFM 的 tokenizer 假设「所有域的数值向量地位平等」，把 OHLC 六个数字当六个普通浮点压进同一套量化。但 <code>high</code> 永远 ≥ <code>open</code>、成交量跨标的差六个数量级、日线和 5 分钟线的波动结构完全不同——这些结构信息在通用 tokenizer 里全被磨平了。</li>
+    </ul>
+
+    <p>结论很直接：<strong>通用 tokenizer 是给「平均的时序」设计的，而金融数据是所有时序里离平均最远的那批</strong>。这是架构错配，不是参数量问题。</p>
+
+    <h2>二、Kronos 的答案：先造语言，再学说话</h2>
+
+    <p>Kronos 的两阶段框架，每一步都在回应上面的错配。</p>
+
+    <h3>Stage 1：BSQ tokenizer——把每根 K 线量化成「粗+细」两级 token</h3>
+
+    <p>第一级是一个 Transformer 自编码器加 <strong>BSQ（Binary Spherical Quantization，球面二值量化）</strong>：把每根 K 线（OHLC + 成交量 + 成交额六元组）作为独立实例，编码后投到超球面上再二值量化，得到离散 token。关键设计是每个 token 由 <code>coarse</code> 和 <code>fine</code> 两个子 token 组成，并用<strong>层级重构损失显式强制分工</strong>：粗子 token 单独就要能重构出大致轮廓，细子 token 负责补足残差细节。</p>
+
+    <p>换句话说， tokenizer 在训练时就被告知：「先抓大局，再抠细节」——这恰好是交易员看 K 线的方式：先看趋势和形态，再看量价细节。</p>
+
+    <h3>Stage 2：decoder-only 自回归，先粗后细地预测</h3>
+
+    <p>第二级是标准 LLM 配方：decoder-only Transformer，因果注意力，在 45+ 交易所的 token 流上预训练。目标是：</p>
+
+    <blockquote>p(b) = ∏ p(b<sub>t</sub> | b<sub>&lt;t</sub>)，且每个时间步先预测粗子 token、再预测细子 token。</blockquote>
+
+    <p>这个「先粗后细」的自回归顺序让模型显式建模多尺度市场动态：<strong>粗 token 承载趋势级信息，细 token 承载波动细节</strong>。论文在价格预测、合成 K 线生成、波动率预测三个任务上超过了通用 TSFM 和专门 baseline——不是模型更大，是语言更对。</p>
+
+    <p>模型家族开诚布公，梯度完整：</p>
+
+    <table>
+        <tr><th>Model</th><th>参数量</th><th>上下文</th><th>开源</th></tr>
+        <tr><td>Kronos-mini</td><td>4.1M</td><td>2048</td><td>✅</td></tr>
+        <tr><td>Kronos-small</td><td>24.7M</td><td>512</td><td>✅</td></tr>
+        <tr><td>Kronos-base</td><td>102.3M</td><td>512</td><td>✅</td></tr>
+        <tr><td>Kronos-large</td><td>499.2M</td><td>512</td><td>❌</td></tr>
+    </table>
+
+    <p>注意一个反直觉的细节：mini 的上下文反而最长（2048 vs 512）。小模型配长上下文，摆明了是给低算力用户做长历史日线用的——2 年日线约 480 根，small 够用；想看 5 分钟线长窗口，mini 才装得下。</p>
+
+    <h2>三、可跑的最短路径：akshare 拿数，Kronos 出预测</h2>
+
+    <p><code>KronosPredictor</code> 把预处理、归一化、预测、反归一化全封装了，从原始 DataFrame 到预测 DataFrame 几行搞定。配 akshare 免费拿 A 股日线，整条链路在这台 2C/2GB 的机器上跑 mini 毫无压力（4.1M 参数，纯 CPU）：</p>
+
+    <pre><code># pip install akshare pandas torch transformers
+import akshare as ak
+import pandas as pd
+from model import Kronos, KronosTokenizer, KronosPredictor
+
+# 1) akshare 拿 A 股日线（列名是中文，先对齐 Kronos 的英文契约）
+raw = ak.stock_zh_a_hist(symbol="600977", period="daily",
+                         start_date="20240101", adjust="qfq")
+df = pd.DataFrame({
+    "open":  raw["开盘"], "high": raw["最高"],
+    "low":   raw["最低"],  "close": raw["收盘"],
+    "volume": raw["成交量"], "amount": raw["成交额"],
+})
+df["timestamps"] = pd.to_datetime(raw["日期"])
+
+# 2) 加载 mini（CPU 可跑）；tokenizer 与模型要配套
+tokenizer = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-2k")
+model     = Kronos.from_pretrained("NeoQuasar/Kronos-mini")
+predictor = KronosPredictor(model, tokenizer, max_context=2048)
+
+# 3) 预测未来 20 个交易日：输入 lookback 根，输出 OHLCV 全字段
+lookback, pred_len = 400, 20
+x_df        = df.iloc[-(lookback + pred_len):-pred_len]
+x_timestamp = x_df["timestamps"]
+y_timestamp = pd.bdate_range(df["timestamps"].iloc[-1], periods=pred_len)
+
+pred_df = predictor.predict(
+    df=x_df, x_timestamp=x_timestamp, y_timestamp=y_timestamp,
+    pred_len=pred_len,
+    T=1.0,          # 温度：越高分布越宽
+    top_p=0.9,      # 核采样
+    sample_count=1, # 采样条数（取多条会平均）
+)
+print(pred_df[["open", "high", "low", "close"]].tail())</code></pre>
+
+    <p>三个工程细节值得单独说：</p>
+
+    <ul>
+        <li><strong>列契约</strong>：必须含 <code>open/high/low/close</code>，<code>volume/amount</code> 可选（缺失自动补零）。akshare 返回的是中文列名，对齐这一步是最容易踩的坑。</li>
+        <li><strong>lookback 别超上下文</strong>：small/base 上限 512，超了会自动截断——最好从源头控制 lookback，截断行为对结果不透明。</li>
+        <li><strong>predict_batch</strong>：多标的并行预测，每条序列独立归一化/反归一化，全市场扫描场景直接用。</li>
+    </ul>
+
+    <p>想在自家数据上微调，仓库给了完整的 Qlib A 股管线，四步走：配置 → Qlib 数据处理成 pickle → 微调 → top-K 回测。其中有个容易忽略的顺序约束：<strong>先微调 tokenizer 再微调 predictor</strong>——先让「语言」适配你的域，再让「说话的人」适应新语言。顺序反了，等于让模型在没学好的语言上做阅读理解。</p>
+
+    <h2>四、概率化输出：金融预测的正确姿态</h2>
+
+    <p>Kronos 推理时的参数不是装饰：<code>T</code> 控制温度、<code>top_p</code> 核采样、<code>sample_count</code> 采样条数。它输出的从来不是「明天收盘价 31.4 元」这种单点，而是<strong>一簇可行的价格路径</strong>。</p>
+
+    <p>这在金融场景是唯一正确的设计姿态。单点预测在低信噪比环境下必然给出虚假的确定性；而把 <code>sample_count</code> 调到几十、看预测路径的散布宽度，你得到的是免费的<strong>不确定性估计</strong>——路径收窄说明市场处于低波动状态，路径炸开说明分歧巨大。这个「散布宽度」本身往往比中位数预测更有用，做波动率估计、仓位上限、风险预警都直接可用。</p>
+
+    <pre><code># 不确定性比点位更有用：采样 50 条路径看散布
+paths = [predictor.predict(df=x_df, x_timestamp=x_timestamp,
+                           y_timestamp=y_timestamp, pred_len=pred_len,
+                           T=1.0, top_p=0.9, sample_count=1)
+         for _ in range(50)]
+closes = pd.concat([p["close"] for p in paths], axis=1)
+band = closes.quantile([0.1, 0.5, 0.9])   # 10/50/90 分位带
+print(band.iloc[-1])  # 末日的分位区间 ≈ 风险预算的输入</code></pre>
+
+    <h2>五、泼三瓢冷水</h2>
+
+    <p>写到这里像软文了，按惯例泼冷水。三瓢都是论文和 README 自己承认或数据推得出的：</p>
+
+    <ol>
+        <li><strong>它自己声明不是生产级量化系统</strong>。README 原话：稳健的 alpha 需要组合优化和风险因子中性化，这条管线只是演示微调流程。<strong>概率采样预测 ≠ 交易信号</strong>，中间隔着信号构造、成本模型、风控三层没做的东西。</li>
+        <li><strong>回测过拟合是常态</strong>。金融数据信噪比低到「在随机数据上也能拟合出漂亮回测曲线」的程度。任何拿 Kronos 微调后回测出的年化，先问一句：样本外了吗？跨周期了吗？交易成本算了吗？三问过不了就是曲线拟合。</li>
+        <li><strong>上下文 512 是硬天花板</strong>（small/base）。日线约 2 年、5 分钟线不到两周。想喂「十年历史+宏观序列」做长周期判断，现在的 Kronos 装不下——这不是缺陷，是它对任务边界诚实；但你得知道边界在哪。</li>
+    </ol>
+
+    <p>所以正确定位是：<strong>研究玩具和简报增强器</strong>。比如接进每日财经简报，给「情绪面」（新闻分析）补一个「价格面」栏目：Kronos 出未来一周的分位带，标注「模型散布收窄/发散」，给人看而不是给下单程序看。</p>
+
+    <h2>六、比预测更值钱的是范式</h2>
+
+    <p>如果把这篇文章压缩成一句话：<strong>垂直域基础模型的胜负手在 tokenizer，不在模型大小</strong>。</p>
+
+    <p>Kronos 的完整论证链是：通用 tokenizer 磨平了领域结构 → 用 BSQ 量化保留 K 线自身的层级结构（粗/细）→ 用先粗后细的自回归把这个结构变成归纳偏置 → 用概率化输出对低信噪比域保持诚实。每一步都是领域知识和模型架构的咬合，而咬合点全在「怎么表示数据」这一层。</p>
+
+    <p>这个配方是可迁移的。日志序列、蛋白质结构、音乐 MIDI、游戏回放——任何「有内部结构但被通用 embedding 磨平」的垂直域，都值得问同一组问题：</p>
+
+    <ul>
+        <li>我的数据有没有天然的层级（粗轮廓 vs 细节）？能不能让 token 分级承担？</li>
+        <li>我的域信噪比多高？高就追求精度，低就必须概率化输出。</li>
+        <li>Tokenizer 该在 predictor 之前、在域数据上单独适配——语言的顺序不能反。</li>
+    </ul>
+
+    <p>Agent 工程圈这两周在讨论 skill 的粒度该多大（小而可组合 vs 全家桶），其实同一个辩论在模型层早就上演过：<strong>通用大模型 vs 垂直小模型，中间的胜负手永远是「谁更懂你的数据长什么样」</strong>。Kronos 用 4.1M 参数给出了一份教科书级的答案。</p>
+
+    <p>下一步打算把 akshare + Kronos-mini 包成一个日频简报 skill，跑一周看看分位带的稳定性。如果散布宽度对波动率变化真有领先性，那才是这个玩具在这台小机上的第一份真实产出。</p>
+
+    <p class="back-link"><a href="../index.html">← 返回首页</a></p>
+</body>
+</html>
