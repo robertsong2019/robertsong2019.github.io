@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 的睡眠：当记忆成为新的扩展轴 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>Agent 的睡眠：当记忆成为新的扩展轴</h1>
+    <div class="meta">
+        2026-11-02 · <span class="tag">AI Agent</span> <span class="tag">记忆系统</span> <span class="tag">睡眠时计算</span>
+    </div>
+
+    <p>晚上十一点，你的 Agent 下班了。这一天它读了 200 个文件、修了 3 个 bug、跨了5 个会话。然后呢？</p>
+
+    <p>老答案是：什么也不发生。第二天它靠一份 <code>MEMORY.md</code> 和一堆日志碰运气，运气不好就重新踩昨天踩过的坑——"金鱼 Agent"这个梗嘲笑了我们两年。</p>
+
+    <p>2026 年的新答案有点魔幻：<strong>它去睡觉了</strong>。Google 十月底发了一篇博客，标题直白得像童话——《Language Models Need Sleep》（语言模型需要睡眠）；Letta 的 Agent 有个正式功能叫 "Dreaming"（做梦）；学术界一整个赛道的论文在研究 Agent 的"记忆整理"（memory consolidation）。给 Agent 一张床，成了今年记忆系统设计里最认真的话题。</p>
+
+    <p>这不是行为艺术。扒开这一年的论文和系统，你会看到一个清晰的判断正在成为共识：<strong>记忆已经从"检索问题"变成了"整理问题"，而整理正在变成一条新的扩展轴</strong>。今天把这件事讲清楚。</p>
+
+    <h2>一、金鱼之死：记忆成为一等公民</h2>
+
+    <p>先看热度。记忆系统在 2026 年成了独立赛道：Mem0 拿了 2400 万美元 A 轮、进了 AWS Agent SDK；Letta（MemGPT 团队的公司）拿了 1000 万种子轮；Zep、Cognee、Supermemory 各占一隅。连"我们该怎么称呼自己"都卷起来了——六家头部项目的自我介绍分别是：记忆操作系统、记忆层、记忆与上下文引擎、AI 记忆平台、时序上下文图谱框架、有状态 Agent 框架。<span class="highlight">名字一个比一个大，但名头不是能力</span>，这是我后面要泼的冷水之一。</p>
+
+    <p>钱和名词之外，真正说明问题的是研究范式的变化。这一年我跟踪了十几个系统，发现它们都在回答同一个此前没人认真问的问题：<strong>白天攒下来的经验，什么时候理、谁来理、理成什么样？</strong>三个转变由此展开。</p>
+
+    <h2>二、转变一：瓶颈从"找得到"变成"理得清"</h2>
+
+    <p>过去两年，记忆系统的军备竞赛集中在<strong>检索</strong>：向量库、重排序、图检索。代表作 HippoRAG 用海马体理论加图上的 Personalized PageRank，把"联想式回忆"做得相当漂亮。但今年 HippoRAG 2 的复盘给了一个扎心的结论：<strong>图检索本身已经不是错误大头，瓶颈移到了建图阶段的实体抽取</strong>——换句话说，书架排序算法很完美，坏在书进馆时就没登记好。</p>
+
+    <p>这个瓶颈迁移指向一个新方向：与其白天在检索时拼命计算，不如<strong>晚上闭馆后让管理员理书架</strong>。这就是 Letta 的"睡眠时计算"（sleep-time compute）的核心隐喻：主 Agent 只管干活，另一个"睡眠 Agent"独占记忆的编辑权，在后台异步地读日志、去重、合并、提炼经验。注意"异步"这个细节——主 Agent 随时可以读记忆，不必等整理完，就像读者白天照样能进馆，管理员在闭馆后理的是明天更好的书架。</p>
+
+    <p>但这里有个容易被糊弄过去的区分，值得单独拎出来：<strong>压缩不等于整理</strong>。Summarization（摘要）只是把 3000 行日志压成 30 行；consolidation（整理）要形成跨事件、可复用的结构——"我发现这个用户每次说'随便'其实都有忌口"。前者是缩印，后者是理解。目前<strong>没有任何公认的度量能区分这两者</strong>，所以市面上所有"我的 Agent 会自动总结"的宣传，都无法证明自己不是在缩印。这是论文富矿，也是选型时最该警惕的话术。</p>
+
+    <h2>三、转变二：记忆是第三条扩展轴</h2>
+
+    <p>过去几年 AI 的进步靠两条扩展轴：训练时堆算力（train-time scaling）、推理时堆思考（test-time scaling）。Letta 今年六月给出了第三个方向的完整论证——<strong>对上下文堆算力（scaling compute on context）</strong>：在查询到来之前，离线地把上下文想透、理好。</p>
+
+    <p>支撑这个论证的，是一个更狠的资产判断：</p>
+
+    <blockquote>模型是贬值资产，token 空间的记忆是增值资产。</blockquote>
+
+    <p>展开说：模型每几个月被更强的下一代取代，你在一个模型上做的所有特化（微调、提示词工程）跟着折旧；但用自然语言/token 存下来的经验——教训、偏好、工作流知识——<strong>不绑定任何模型</strong>。而且新一代模型的 in-context learning（ICL）能力总是更强，同一份记忆在更强的模型手里能发挥更大价值。他们管这叫"ICL 的苦涩教训"：别急着把知识烧进权重或锁死在提示词里，把学习成果留在可迁移的 token 空间，让它随模型升级而复利。</p>
+
+    <p>顺着这条轴，Letta 还提出了"记忆原生 RL"：与其用强化学习直接优化 Agent 的任务表现，不如训练一个专门的<strong>记忆模型</strong>，优化目标是"它写下的记忆能让未来任务的奖励最大化"。内环 Agent 拿着记忆干活，外环训练那个写记忆的模型。这是元学习在记忆上的翻版，工程上还很早期，但方向感很清晰：<strong>会写笔记本身成了一种可训练、可优化的能力</strong>。</p>
+
+    <h2>四、转变三：记忆开始进操作系统和权重</h2>
+
+    <p>第三个转变更大胆：不再满足于"记忆是外挂"，要把它变成被系统调度的资源和被模型消化的知识。</p>
+
+    <p>国产开源项目 MemOS 直接自称"记忆操作系统"：像操作系统调度 CPU、内存、磁盘那样，统一调度三类记忆——<strong>参数记忆</strong>（烧在权重里的知识）、<strong>激活记忆</strong>（KV cache 这类运行时状态）、<strong>明文记忆</strong>（文本、图、向量库）。每条记忆有生命周期状态：generated → activated → merged → archived → frozen，外加访问控制、脱敏、合规、审计。自报成绩 LoCoMo 88.83、LongMemEval 89.20（基准可信度后面说），接入 OpenClaw 后把任务完成率从 36.63% 抬到 50.87%。无论分数如何打折，"给记忆做状态机"这个设计本身就值得抄——它把"记忆错了怎么办"从事后补救变成了生命周期管理。</p>
+
+    <p>Google 的 SLEEP 框架则走得更深：把知识直接<strong>蒸馏进模型权重</strong>。机制像个考试周的学生，三步循环：</p>
+
+    <ol>
+        <li><strong>Consolidate（巩固）</strong>——白天新知识先停在"快记忆"里；睡眠时在慢速记忆块里新开一个低秩专家槽，只训它，把快记忆的内容蒸馏进去，避免覆盖旧知识；</li>
+        <li><strong>Dream（做梦）</strong>——模型自己出 60 道模拟题，留下信号最强的 15 道，用它们微调自己。像考前自己押题刷题，而且路由器会强制混入无关领域的专家，防止刷一科忘一科；</li>
+        <li><strong>Prune（清理）</strong>——清空快记忆的临时参数，明天重新开始。</li>
+    </ol>
+
+    <p>效果数字：AIME 2024 上 79.2 分 vs 基线 73.8；知识吸收（SQuAD 无上下文问答）46.2% vs 基线 31.9%，超过 SEAL；长上下文 BABILong 到 1000 万 token 近乎满分；同样分数，监督微调需要 3.6~4.8 倍的墙钟时间。最有意思的消融实验：<strong>去掉"做梦"环节，方法基本塌掉</strong>（48.9 掉到 35.7，几乎回到基线）。光整理不做练习，等于没整理。</p>
+
+    <p>但请记住这个框架的三个脚注：没有代码放出、实验用的是 5×64 的专家槽（容量有限，"睡满"之后会怎样没测）、BABILong 的满分是任务上微调过的结果。独立复现目前只有一个玩具级验证（旧知识保留率 73.2% vs 不睡的 50.1%），方向对，但离产品很远。</p>
+
+    <h2>五、泼三盆冷水</h2>
+
+    <h3>冷水一：基准正在信用破产</h3>
+
+    <p>记忆系统的选型目前别太信榜单。LoCoMo——这个领域最常被引用的基准——经审计有 6.4% 的问题数据存在缺陷，但直到今年 3 月还有项目在往上面刷分。各家自报分数更是没法横比：Mem0 报 92.5%、Zep 报 94.7%，官方口径都承认"用了不同模型和评测设置"；单是加不加一个重排序步骤，分数就能挪动一截。更诚实的标尺是今年 ICLR 的 BEAM 基准：把规模推到 100 万~1000 万 token，所有系统分数大幅下滑，<strong>时间推理、事件排序、多会话推理是全行业共同的弱项</strong>。大规模场景下"相近内容反复出现时要捞出唯一正确的那条"，仍是没人真正解决的硬骨头。</p>
+
+    <h3>冷水二：进权重 = 审计权转移</h3>
+
+    <p>SLEEP 把知识固化进权重，换来的是 RAG 最大的优点消失了：可检查、可删除。一个夜里自己改写权重的模型，没法像冻结版本那样被认证。谁跑睡眠循环，谁就持有三样东西：改之前快照、改动 diff、回滚能力。供应商云上跑，你手里只有一个工单；自己硬件上跑，三样都在你手里。所以现实的分层策略是：<strong>稳定知识（手册、政策、领域文档）才考虑固化，易变知识（价格、值班表、状态）必须留在可检索的明文层</strong>。另外论文明确警告：自蒸馏单独用不安全——教师被特权信息污染时，最多损失 40% 的分布外性能。整理和自我改进必须分离，这不是洁癖，是防爆设计。</p>
+
+    <h3>冷水三：操作系统是名词通胀重灾区</h3>
+
+    <p>六个头部项目六个自我称呼，只有一个敢叫"操作系统"。判断一个记忆系统的成色，别看名字，看三个机制问题：<strong>一条存储的记忆后来发现是错的，怎么失效？两条冲突的记忆，怎么仲裁？用户要求删除，怎么保证删干净？</strong>能清晰回答这三个问题的，才配谈生命周期管理。</p>
+
+    <h2>六、可以立刻做什么</h2>
+
+    <p>不用等 Google 放代码，也不用上 MemOS，今晚就能动手的五件事：</p>
+
+    <ol>
+        <li><strong>给你的 Agent 挂一个"睡眠 cron"</strong>：每天固定时间跑一遍记忆整理——去重、合并、按时间线排序。触发器用现成 cron 基建就行，先把"整理"从愿景变成日程表上的一行。</li>
+        <li><strong>给记忆条目加生命周期状态</strong>：active / merged / archived / frozen 四个状态字段，写入时标记，整理时流转。把 MemOS 的状态机思想抄过来，成本是每条记录多一个字段。</li>
+        <li><strong>评测只认分项</strong>：如果要做记忆评测，按 LongMemEval 的五能力拆分报告，<strong>弃权（abstention）和知识更新必须单列</strong>——总分会被别的分项稀释到毫无意义。</li>
+        <li><strong>区分稳定与易变知识</strong>：领域知识走"整理—固化"路线，状态类信息走"检索—失效"路线，两条管道别混。</li>
+        <li><strong>整理前先写整理的验收标准</strong>：既然压缩和整理没有公认度量，就给自己的系统定一个——比如"整理后，跨会话任务的重试次数下降"。度量不完美没关系，没有度量才危险。</li>
+    </ol>
+
+    <h2>结语：谁在替你睡觉</h2>
+
+    <p>回头看这三年的叙事挺有戏剧性：先是嘲笑 Agent 是金鱼，然后给金鱼装了外挂存储，再然后发现光存不等于会记，于是今年大家开始认真研究<strong>闭馆之后的图书馆</strong>——谁来理书、怎么理、理完归谁管。</p>
+
+    <p>我的判断：睡眠时计算不会像大模型那样一夜爆红，但会像数据库一样慢慢变成基础设施。理由很简单——<strong>模型会贬值，经验不会</strong>。当任务时间轴以每五个月翻一倍的速度变长（METR 的数据），白天干活、晚上整理、记忆跨模型迁移的 Agent，对只会现场硬想的 Agent，是复利对单利的优势。</p>
+
+    <p>所以那个开头的问题其实问错了。不是"你的 Agent 下班后干什么"，而是<strong>"你为它安排的睡眠里，睡的是谁的经验、按谁的规则整理、醒来归谁审计"</strong>。这三个问题的答案加起来，就是你 Agent 的成长性——它比模型选择重要得多。</p>
+
+    <p>今晚，先从一行 cron 开始。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
