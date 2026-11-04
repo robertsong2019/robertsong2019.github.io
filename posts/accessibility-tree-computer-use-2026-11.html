@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 的眼睛不该是摄像头：computer use 正在改读无障碍树 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>Agent 的眼睛不该是摄像头：computer use 正在改读无障碍树</h1>
+    <div class="meta">
+        2026-11-05 · <span class="tag">AI Agent</span> <span class="tag">Computer Use</span> <span class="tag">无障碍</span>
+    </div>
+
+    <p>想象你远程帮一位朋友操作电脑。方式一：他每小时给你发一张屏幕截图，你盯着像素猜「设置按钮大概在右上角偏左一点」，报出一个坐标让他去点。方式二：他直接把系统的可操作元素清单递给你——「窗口里有 59 个元素，第 8 号是名为 Documents 的树节点，支持点击」——你只要说「点第 8 号」。</p>
+
+    <p>方式一荒谬，但过去两年 computer use 赛道的主流产品几乎全是方式一：截图给视觉模型，模型输出坐标，模拟点击，再截图确认。2026 年 11 月初，这条赛道的热度榜首换了一种活法——Vercel Labs 的 <code>agent-desktop</code>（Rust，Apache-2.0，近 14k 星，单日 +3,791、连续第四天霸占 daily 增速第一）<strong>不截图、不比像素</strong>。它读操作系统的无障碍树（accessibility tree），把桌面应用变成一份结构化 JSON，每个可操作元素带一个 ref 地址。社区给它的定位一句话说尽：<strong>「Playwright for desktop」</strong>。</p>
+
+    <p>这不只是一个新工具的走红。这是 computer use 的路线分化时刻：概率视觉感知 vs 确定性结构化感知，后者第一次在热度上压过前者。而它借用的那棵树，本来是给盲人的。</p>
+
+    <h2>一、像素路线的三宗罪</h2>
+
+    <p>视觉 computer use 的问题不在模型不够强，而在<strong>表征选错了</strong>。把界面编码成像素，等于把一个结构化问题故意降维成图像理解问题：</p>
+
+    <ul>
+        <li><strong>坐标是概率猜测。</strong>视觉模型输出「点击 (847, 321)」，这是对像素内容的推断而非对界面事实的读取。按钮贴图换一张、窗口宽一个像素、深色模式切换，坐标就得重新猜。每次点击都是一次独立采样。</li>
+        <li><strong>状态不可比。</strong>判断「点了之后成功了吗」需要对比操作前后的两张截图。像素 diff 抗噪极弱——光标闪烁、动画帧、加载转圈都会污染对比；而语义信息（「按钮从可用变灰了」「弹窗出现了」）反而要从像素里反推。</li>
+        <li><strong>贵且慢。</strong>每一步都要截图、编码、过一遍 vision token。一次桌面操作循环几十步，成本和延迟按步数复利。</li>
+    </ul>
+
+    <p>这三宗罪指向同一个根因：截图丢掉了操作系统早就维护着的那份<strong>语义事实</strong>。macOS 的 AX API、Windows 的 UI Automation、Linux 的 AT-SPI——每个现代桌面系统为了屏幕阅读器，都实时维护着一棵完整的可交互元素树：每个窗口、按钮、输入框的角色（role）、名称（name）、状态（可用/选中/展开）和支持的动作。这份为无障碍准备的结构化数据，对 agent 来说就是现成的、确定性的、免费的「眼睛」。</p>
+
+    <h2>二、snapshot → ref → verify：被协议化的操作循环</h2>
+
+    <p>agent-desktop 的用法可以浓缩成三步（以下均为真实命令）：</p>
+
+    <pre><code class="language-bash">agent-desktop snapshot --app Finder -i   # 读无障碍树，每个可操作元素带一个 ref
+agent-desktop click @s8f3k2p9:e8        # 按 ref 点击，不猜坐标
+agent-desktop snapshot --app Finder -i   # 再观察一次，验证结果</code></pre>
+
+    <p>snapshot 返回的是 JSON，不是图片：</p>
+
+    <pre><code class="language-json">{
+  "data": {
+    "app": "Finder",
+    "snapshot_id": "s8f3k2p9",
+    "ref_count": 59,
+    "tree": {
+      "role": "window",
+      "name": "Downloads",
+      "children": [
+        { "role": "treeitem", "name": "Documents",
+          "ref_id": "@s8f3k2p9:e8", "available_actions": ["Click"] }
+      ]
+    }
+  }
+}</code></pre>
+
+    <p>注意 ref 的格式：<code>@s8f3k2p9:e8</code> = 快照 ID + 元素序号。ref 不携带快照 ID（只写 <code>@e8</code>）会直接报 <code>INVALID_ARGS</code>。这个设计埋着整个协议里最精彩的一步——</p>
+
+    <h3>STALE_REF 不是异常，是协议的一部分</h3>
+
+    <p>界面是活的。你刚 snapshot 完，弹窗刷新了，你手里的 ref 就指向了一个已经不存在的元素。像素路线下这表现为「点了没反应」，然后靠 prompt 里的「请仔细确认后再操作」祈祷模型自查。agent-desktop 把它变成了<strong>类型化的返回值</strong>：</p>
+
+    <ul>
+        <li>UI 变了 → action 返回 <code>STALE_REF</code>，强制重新 snapshot 拿新 ref；</li>
+        <li>匹配到多个元素 → <code>AMBIGUOUS_TARGET</code>，要求更精确地描述目标；</li>
+        <li>错误信封里带 <code>error.disposition.retry</code> 字段，<strong>只有标记为 <code>safe</code> 的失败才允许重试</strong>——重试安全性被类型化，而不是留给 agent 自己拍脑袋判断「再点一次应该没事吧」。</li>
+    </ul>
+
+    <p>「操作后验证」从 prompt 里的祈祷，变成了协议里的制度。我前一篇随笔写「生成交给模型，验收交给代码」；这里是同一原理在感知层的重演——<strong>看到了什么、改没改成功，从视觉模型的概率输出，变成可查询的结构化事实</strong>（observe 组还有 <code>find</code> / <code>get</code> / <code>is</code> 三个查询命令，分别回答「在不在」「是什么」「是不是」）。</p>
+
+    <h3>循环住在 agent 侧</h3>
+
+    <p>agent-desktop 内部没有任何模型。它是纯工具：56 个操作命令（观察、点击、键鼠、窗口、通知、剪贴板、会话），loop 逻辑完全由你的 agent 实现。一个最小但完整的 Python 循环长这样：</p>
+
+    <pre><code class="language-python">import json, subprocess
+
+def run(*args):
+    out = subprocess.run(["agent-desktop", *args],
+                         capture_output=True, text=True)
+    return json.loads(out.stdout)
+
+def click_named(app: str, target: str) -> bool:
+    snap = run("snapshot", "--app", app, "-i")
+    sid = snap["data"]["snapshot_id"]
+
+    # 在树里语义查找目标元素（非坐标猜测）
+    def walk(node):
+        if target.lower() in node.get("name", "").lower():
+            yield node
+        yield from (c for c in node.get("children", [])
+                    for c in walk(c))
+
+    hits = list(walk(snap["data"]["tree"]))
+    if len(hits) != 1:
+        return False                      # 0 个或多个：AMBIGUOUS 语义
+
+    result = run("click", hits[0]["ref_id"])
+    if not result.get("ok"):
+        # disposition.retry != "safe" 的失败绝不重试
+        return result["error"]["disposition"]["retry"] == "safe" \
+               and click_named(app, target)
+
+    # 操作后验证：重新观察，确认状态真的变了
+    after = run("snapshot", "--app", app, "-i")
+    return any(target.lower() in n.get("name", "").lower()
+               and "Checked" in n.get("state", [])
+               for n in walk(after["data"]["tree"]))</code></pre>
+
+    <p>这段循环里没有一个像素、没有一次视觉推断。「点没点对」的答案是树上一次结构化 diff。顺带一提，操作默认 headless——不移动指针、不抢焦点，你的鼠标不会突然被 agent 劫持（需要物理输入时才显式传 <code>--headed</code>）。</p>
+
+    <h2>三、文档随二进制走：一个 skills 生态的活标本</h2>
+
+    <p>一个容易被忽略的细节：agent-desktop 的用法文档不在官网上，而在<strong>二进制里</strong>。</p>
+
+    <pre><code class="language-bash">agent-desktop skills get desktop   # 循环、ref、验证与重试规则
+agent-desktop skills get platform  # 当前 OS 的差异与限制</code></pre>
+
+    <p>内置文档与工具<strong>同版本分发</strong>——工具升到 2.6，文档必然对应 2.6，不存在「教程是老版本 API」的经典事故。这正好是本周 skills 生态大讨论的一个具体样本：工具的「程序性记忆」（怎么用我）应该跟工具本体一起版本化流转，而不是散落在会漂移的网页里。一条 <code>agent-desktop mcp</code> 命令还能把全部 56 个命令直接暴露成 MCP 工具——CLI、C 库（<code>libagent_desktop_ffi</code>）、MCP 三种接入形态，同一套语义接口。</p>
+
+    <h2>四、浏览器里早有孪生兄弟</h2>
+
+    <p>「Playwright for desktop」这个称号之所以贴切，是因为 Playwright 从第一天就走语义路线：<code>page.getByRole("button", { name: "提交" })</code> 就是浏览器 DOM 无障碍树上的 ref 寻址。而 2024 年 11 月的 1.49 版起，Playwright 进一步提供了 <code>page.ariaSnapshot()</code>——把整棵可访问树打成 YAML：</p>
+
+    <pre><code class="language-javascript">const { chromium } = require("playwright");
+
+(async () => {
+  const page = await chromium.launch().then(b => b.newPage());
+  await page.goto("https://example.com");
+
+  // 语义快照：YAML 形式的无障碍树
+  const yaml = await page.ariaSnapshot();
+  console.log(yaml);
+  // - heading "Example Domain" [level=1]
+  // - link "More information..."
+
+  // 语义断言：不比像素，比树
+  const ok = await page.getByRole("link", { name: "More information..." })
+                       .isVisible();
+  console.log("结构断言:", ok);
+})();</code></pre>
+
+    <p>浏览器测试领域用 role/label 而不是截图 diff 断言页面，这条路已经走了十年。<code>ariaSnapshot()</code> 把「整棵树」也交出来了。agent-desktop 做的事，是把这套成熟模型从浏览器平移到整个桌面——<strong>而 E2E 测试的历史早就替我们验证过：语义选择器的测试活得更久、更稳、更便宜</strong>。</p>
+
+    <h2>五、三盆冷水</h2>
+
+    <ol>
+        <li><strong>树的质量取决于应用标注。</strong>无障碍树是应用开发者「施舍」的：一个没写 <code>aria-label</code> 的 Electron 应用、一个全自绘控件的老程序，在树里就是一片无名荒漠。语义路线把 computer use 的责任上移了一层——你不仅要 agent 会用树，还得目标应用认真种树。</li>
+        <li><strong>树外世界全盲。</strong>canvas、游戏画面、远程桌面里嵌套的另一个桌面、视频中的 UI——树里根本没有。这些场景像素路线仍不可替代，终局大概率是混合架构：语义优先，像素兜底，像自动驾驶的激光雷达加摄像头。</li>
+        <li><strong>接口越宽，泄露面越大。</strong>snapshot 会带出桌面全部内容（包括别的窗口），剪贴板命令直通系统剪贴板。README 自己用黑体警告：快照和剪贴板产物不要进公共日志。macOS 上还要先授予 Accessibility 权限——给 agent 开的每一扇门，都要想清楚谁能进。</li>
+    </ol>
+
+    <h2>尾声：无障碍树是给盲人的，也是给 agent 的</h2>
+
+    <p>回头看，这条路线有种朴素的正义感：过去三十年，无障碍树由一群为少数用户争取信息平等的人慢慢建成；如今它成了所有 agent 最锋利的眼睛。你应用里每补一个 <code>aria-label</code>，既是一个屏幕阅读器用户的路标，也是未来某个 agent 的路标——修无障碍就是修 agent 的路。</p>
+
+    <p>今晚五件事：</p>
+
+    <ol>
+        <li><code>npm install -g agent-desktop && agent-desktop status</code>，看看你的平台和权限状态（macOS 会引导 Accessibility 授权）；</li>
+        <li>挑一个你最烦的桌面重复操作，用「snapshot → ref → verify」三步真跑一遍，感受不猜坐标的操作；</li>
+        <li>写 Playwright 的：下一个测试改用 <code>ariaSnapshot()</code> 或 role selector，替掉一条脆弱的 CSS 选择器断言；</li>
+        <li>给自己的 web/Electron 应用补三个 <code>aria-label</code>——你是在给未来的 agent 修路；</li>
+        <li>盘一盘你的 agent 流程里还有多少「截图发给模型看」的环节，能换成结构化接口的列个清单。</li>
+    </ol>
+
+    <p>Agent 的眼睛不该是摄像头。操作系统早就把界面写成了一棵语义树——它等了几十年，终于等来了第二个读者。</p>
+
+    <div class="meta" style="margin-top: 3rem;">
+        2026-11-05 · 晨间随笔 · <a href="../index.html">← 返回首页</a>
+    </div>
+</body>
+</html>
