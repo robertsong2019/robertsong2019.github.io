@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记忆不是存出来的，是学出来的：Agent 写路径的 RL 革命 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>记忆不是存出来的，是学出来的：Agent 写路径的 RL 革命</h1>
+    <div class="meta">
+        2026-11-04 · <span class="tag">AI Agent</span> <span class="tag">记忆系统</span> <span class="tag">强化学习</span>
+    </div>
+
+    <p>想象一座图书馆：检索系统是搜索引擎级别的——毫秒响应、语义匹配、多跳关联。但上架区一片狼藉：没有图书管理员，只有一张贴在门口的便条，写着「有价值的书请分类上架」。新书随机堆放，旧版没人下架，同一本书三个版本同时在架。</p>
+
+    <p>这就是 2026 年大多数 Agent 记忆系统的真实样子。过去两年，行业把全部火力倾泻在「找书」上——向量检索、重排、GraphRAG、图游走。但当检索侧卷到边际收益只剩几分的时候，一批论文突然指向同一个被忽视的角落：<strong>书根本没上架对</strong>。Mem-α、Memory-r1、Memento 三条独立的研究线，在半年内不约而同地做了同一件事——把「写入记忆」这个决策，从手写规则变成<strong>用强化学习训出来的策略</strong>。</p>
+
+    <h2>一、写入侧：记忆系统最后的手工作坊</h2>
+
+    <p>拆开任何一个主流记忆系统——Mem0、Zep、Letta、HippoRAG——你会发现它们的「写入逻辑」惊人地原始：一段精心措辞的抽取 prompt。「提取对话中的实体和关系」「用户信息变化时更新记忆」「重要事实需要保留」。这些规则由 prompt 工程师手工维护，从未被系统性验证过。</p>
+
+    <p>Nemori 论文（后来改名为《What Deserves Memory》）把现状批评为两条原罪：<strong>任意粒度</strong>——记忆的基本单元是拍脑袋定的，chunk 也好三元组也好，没有原则性依据；<strong>被动规则</strong>——知识的更新演化不是「学习」，是字符串匹配级别的规则触发。而 2026 年 10 月的一篇综述（《The Problem After Retrieval》）补了第三刀：即便检索环节完美命中，Agent 也经常把检索到的记忆<strong>用错</strong>。读侧还没到终点，写侧更烂——瓶颈的位置变了。</p>
+
+    <h2>二、Mem-α：把上架手感训出来</h2>
+
+    <p>Mem-α（UCSD，arXiv 2509.25911）的方法直白得近乎暴力：把记忆构建建模成多轮交互序列，让 agent 自己决定对一套<strong>多组件记忆系统</strong>（核心记忆块、检索库、工具记录）做哪些操作，然后用 RL 训练这个策略——奖励只有一个：下游问答做对了没有。</p>
+
+    <p>最反直觉的数字是：用 Qwen3-4B 这个小基座，训练时上下文最长 30k token，推理时却能胜任 400k+ 的长交互——<strong>13 倍的长度泛化</strong>。这个数字说明「怎么写记忆」不是对特定任务死记硬背的 hack，而是一种<strong>可泛化的技能</strong>，就像图书管理员在新馆里依然有上架手感。这为「RL 进军记忆领域」提供了合法性证明：写入策略和推理能力一样，是可训练的。</p>
+
+    <p>同一条谱系上，Memory-r1 把记忆管理员的动作空间压缩成四个原语——<code>ADD / UPDATE / DELETE / NOOP</code>——然后分别训练「管理员」和「使用者」两个 agent。有个细节值得单独记下：<strong>NOOP 是显式操作</strong>。不写，也是一种写决策，而且往往是最难学的一种——大部分手写规则的系统恰恰在这条上最弱，什么都想存，什么都舍不得删。</p>
+
+    <h2>三、Memento：经验的梯度替代品</h2>
+
+    <p>如果说 Mem-α 训的是「管理员」，Memento（arXiv 2508.16153）走得更远：它把案例库直接并入马尔可夫决策过程（M-MDP），每条经验以 (状态， 动作， 结果) 三元组入库存档，用 soft Q-learning 训练「检索哪条案例」的策略——而 LLM 本体<strong>一个权重都不动</strong>。在 GAIA 基准上，这个零微调的系统打赢了训练型方法；更扎眼的是，分布外任务<strong>反而涨分</strong>。</p>
+
+    <p>这个 OOD 涨分值得停下来想清楚。梯度学习像练肌肉记忆：新技能覆写旧参数，换个场地就可能失灵，而且你永远说不清模型「学会了什么」。案例学习像办案手册：新旧案例显式共存，按相似度调用，可审计、可增删、可带走。<strong>经验以案例形式存储，比以梯度形式存储更可迁移</strong>——这给了「不微调的持续学习」一个新的机制选项，也给「fine-tuning 太贵、上下文太短」的两难困境开了第三扇门。</p>
+
+    <h2>四、两条反方向与一盆冷水</h2>
+
+    <p><strong>反方向一：把写入做轻，而不是做聪明。</strong>LightMem（ICLR 2026）和 Nemori 走的是极简路线：事件分割、知识蒸馏、固定管线，Nemori 靠认知科学里的「事件分割理论」替代任意粒度，token 用量砍掉 88%，准确率不降反升。注意，这不是和 Mem-α 竞争的另一派——<strong>可学习性和成本是两条独立的轴</strong>。就像数据库世界没有因为学习型索引出现就放弃了 B+ 树。</p>
+
+    <p><strong>反方向二：benchmark 战争让所有数字贬值。</strong>Mem0 官方在 LongMemEval 上报 94.4 分，第三方复测 49.0——同一个 benchmark，45 分的分差；换一家记忆厂商的 harness，又变成 73.8。Zep 甚至专门发文《Lies, Damn Lies, and Statistics》打擂台。记忆层是整个 Agent 栈里最不标准化的一层，任何单一数字都不构成选型依据。</p>
+
+    <p><strong>那盆冷水：归纳器自己会漂。</strong>《Can an LLM Induce a Graph?》（arXiv 2510.03611）实测了五个模型在图归纳任务上的表现——这正是记忆写入的核心操作（从对话流中归纳知识结构）。结论：LLM 在<strong>远短于宣传长度</strong>的上下文上就开始系统性漂移和遗忘。也就是说，无论是一代 prompt 规则还是三代 RL 策略，你都在借用一个本身会失真的归纳器。Mem-α 的 13 倍泛化是正面证据，但训练分布之外，这个问题仍然开放。</p>
+
+    <h2>五、我的判断：混合架构是终局</h2>
+
+    <p>把三代写路径排开看——一代手写规则、二代极简蒸馏、三代可学习策略——工业界的终局大概率不是三代赢者通吃，而是分层混编：</p>
+
+    <ul>
+        <li><strong>确定性代码管骨架</strong>：时间有效性、版本仲裁、格式校验——这些能写成代码的绝不用模型（Zep 的时间戳失效机制是对的，方向是继续代码化）；</li>
+        <li><strong>轻量管线管常规写入</strong>：高频、低风险的日常知识入库走 LightMem 式蒸馏，成本压到最低；</li>
+        <li><strong>学习策略管取舍边界</strong>：存什么、删什么、NOOP 还是 UPDATE——这些没有规则可写的灰色决策，交给训出来的策略模型。</li>
+    </ul>
+
+    <p>这其实是「生成交给模型，验收交给代码」在记忆领域的重演：格式给确定性，取舍给概率性，两者中间隔一道可测试的接口。写入策略被学出来的前提，是它先被<strong>当成一个独立的、可评测的对象</strong>——而这正是过去两年整个行业欠记忆系统的东西。</p>
+
+    <h2>今晚五件事</h2>
+
+    <ol>
+        <li>把你 Agent 记忆的写入 prompt 翻出来，把「存什么 / 怎么组织 / 何时更新」三条规则显式化——每条单独问一句：这条规则被测试过吗？</li>
+        <li>给写入侧建一个最便宜的评测：抽 20 条三周前的旧对话事实，测记忆库命中率和新旧值仲裁正确率，今晚就能跑完；</li>
+        <li>把「何时更新、何时 NOOP」从 prompt 挪进代码函数——哪怕先不引入 RL，让写入决策先变成可单测的输入输出；</li>
+        <li>在用 Mem0 / Zep / Letta 的，找一份第三方 harness 复测数字对照官方宣称——45 分的分差值得你花半小时；</li>
+        <li>读 MemoryAgentBench（arXiv 2507.05257）对记忆能力的五分类定义——它是设计自家记忆评测的现成骨架，比任何 leaderboard 都有用。</li>
+    </ol>
+
+    <p>记忆系统的下一个身位差，不在谁检索得更准，而在谁先承认：<strong>写记忆这件事本身，是一个需要被学习、被评测、被验收的技能</strong>。</p>
+
+    <div class="meta" style="margin-top: 3rem;">
+        2026-11-04 · 晚间随笔 · <a href="../index.html">← 返回首页</a>
+    </div>
+</body>
+</html>
