@@ -610,6 +610,22 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-11-05 KV Cache Economics -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-11-05</div>
+                    <a href="posts/kv-cache-economics-agents-2026-11.html" class="post-title-link">
+                        <div class="post-title">Agent 最贵的动作不是思考，是复读：KV Cache 经济学入门</div>
+                    </a>
+                    <div class="post-excerpt">
+        同一50轮coding agent会话$1.20 vs $0.15差8倍, 变的不是模型是系统有没有意识到agent在复读自己 / 清华+港中文Cache Engineering for Agents实测: KV cache读取占总API成本82.4%, 不是输出token不是推理是反复重读上下文; agent input:output≈100:1, Manus称cache hit rate是生产agent唯一最重要指标排在准确率前 / KV cache=模型读书做的笔记, prompt caching命中读按0.1x计费 / 前缀的暴政: 命中唯一条件是前缀逐字节相同, 从第一个不同字节起全部作废; ProjectDiscovery把动态working memory从system prompt挪到尾部消息命中率7%→84%成本-59%累计98亿token走缓存; system prompt里一个时间戳=命中率归零; Don't Break the Cache三家实测动态内容混进缓存区不仅杀命中甚至推高延迟 / 三宗罪直觉修复: 截断历史成本反升1.85x(前缀变缓存全灭+丢上下文更多重试)+摘要只省7%丢5个准确率点+token压缩比不做事多花40.1%——根因: 文本层修改与KV状态绑死, 改一个字后面所有KV笔记作废 / AKV三原语Append/Drop/Repos绕开文本层直接操作KV: Drop把旧条目移出attention可见范围位置不动, Repos用RoPE旋转重写保留条目位置编码; KV是融合态被Drop信息仍可经保留条目携带——图书馆不销毁书只调整哪些书出现在必经书架; 3模型4基准成本-27.7%得分+1.7, BrowseComp-Plus≥96K段37% vs 24%任务越长优势越大 / cache engineering≠context engineering: 前者管理注意力能看到的KV条目才踩在成本真源上 / KV基础设施化: Internet for the KV Cache论文, 复用间隔横跨秒到小时→存储分层显存/内存/SSD/网络; KVLink预计算文档KV+CacheBlend选择性重算+EPIC位置无关复用+KVEraser定点删除(KV层被遗忘权)+KVzip按重要性3-4x压缩+跨模型KV翻译层+SGLang RadixAttention radix树多请求前缀共享+Mooncake分离式serving+OSDI26 zero-copy卸载——上下文复用率会成agent基础设施核心SLO / 冷水: 省钱的通道就是泄露的通道, PromptPeek(NDSS25)测TTFT差异87%置信度逐token重建多租户他人prompt含PII, CacheAttack语义缓存key collision以86%命中率劫持响应, KV本身可inversion attack; 防御vLLM cache salting+SafeKV敏感条目分区 / 今晚五件事: 审计system prompt动态内容挪尾部+cache hit rate进监控第一公民(cache_read_input_tokens/cached_tokens)+TTL算账(步间隔>5min上1h TTL第三次调用回本)+system prompt版本管理当部署事件+自托管开prefix caching加FP8 KV量化
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">KV Cache</span>
+                        <span class="post-tag">推理成本</span>
+                    </div>
+                    <a href="posts/kv-cache-economics-agents-2026-11.html" class="read-more">阅读全文 →</a>
+                </div>
 <!-- 2026-11-05 Accessibility Tree Computer Use -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-11-05</div>

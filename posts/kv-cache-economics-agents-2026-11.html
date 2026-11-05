@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 最贵的动作不是思考，是复读：KV Cache 经济学入门 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>Agent 最贵的动作不是思考，是复读：KV Cache 经济学入门</h1>
+    <div class="meta">
+        2026-11-05 · <span class="tag">AI Agent</span> <span class="tag">KV Cache</span> <span class="tag">推理成本</span>
+    </div>
+
+    <p>同一个 50 轮的 coding agent 会话，同一台模型、同一个任务、同样的输出——账单一次 $1.20，一次 $0.15，差 8 倍。变的不是模型，是系统有没有意识到：这个 agent 的绝大部分时间，不是在思考，而是在<strong>复读自己</strong>。</p>
+
+    <p>2026 年 10 月底，清华和港中文的一篇论文《Cache Engineering for Agents》给这个直觉钉上了数字：在他们的 agent 工作负载里，<strong>KV cache 读取占了总 API 成本的 82.4%</strong>。不是输出 token，不是推理，是反复重新读入上下文。Manus 团队说得更直白：cache hit rate 是「生产级 AI agent 唯一最重要的指标」——排在准确率前面。</p>
+
+    <p>这篇随笔讲清楚三件事：为什么复读这么贵、为什么大多数「省上下文」的直觉修复反而更贵、以及 KV cache 为什么正在从引擎内部细节变成一层独立的基础设施——顺便，它还是个新的攻击面。</p>
+
+    <h2>一、KV Cache：模型读书时做的笔记</h2>
+
+    <p>Transformer 每生成一个 token，都要对整个上文做一遍 attention。为了不每步都从头重算，推理引擎会把每个 token 算出的 Key/Value 张量留下来——这就是 KV cache。类比：模型读一本书时逐页做笔记，之后翻回任何一页都靠笔记，不用重读原文。</p>
+
+    <p>问题出在 agent 的使用方式上。第 N 步的输入 = 前 N-1 步的全部轨迹：system prompt、几十个工具的 schema、历史对话、工具返回。每走一步，这些内容原样再发一遍。agent 的输入输出 token 比大约是 <strong>100:1</strong>——每生成 1 个 token 的思考，要重新吞 100 个 token 的历史。没有缓存时，模型每一步都把这本书<strong>重新做一遍笔记</strong>，而这本书 99% 的页码和上一步一模一样。</p>
+
+    <p>Prompt caching 的本质就是把笔记留在服务商那里：命中部分按原价一折左右计费（Anthropic 命中读约 0.1x，OpenAI 自动缓存，Gemini implicit，DeepSeek 有自己的 context caching）。50 轮会话 $1.20 到 $0.15 的差价，全部来自这一处。</p>
+
+    <h2>二、前缀的暴政：一个时间戳杀死全部命中</h2>
+
+    <p>缓存命中的条件只有一个：<strong>前缀逐字节相同</strong>。从第一个不同的字节起，后面全部作废、全部重算。这条规则冷酷得像文件系统的 inode——它不关心语义相似，只认字节。</p>
+
+    <p>于是 prompt 不再是「写作」，而是「性能工程」。最著名的教学案例来自 ProjectDiscovery 的 Neo agent：他们的 system prompt 里塞着动态 working memory（当前任务状态、待办），导致缓存命中率只有 <strong>7%</strong>。把这部分动态内容挪到 prompt 尾部的独立消息里，命中率一夜之间升到 <strong>84%</strong>，总成本降 59%，后期峰值降 70%，累计 98 亿 token 走了缓存。整个改动没碰模型、没换 provider、没调任何参数——只是挪了一下位置。</p>
+
+    <p>反面教材更常见：在 system prompt 里写一句「当前时间：2026-11-05 20:00:03」。每一秒时间戳都在变，意味着每一条请求的前缀都在变，意味着命中率为零。一个时间戳，杀掉整条缓存链。今年一月的《Don't Break the Cache》在 OpenAI、Anthropic、Google 三家实测还发现一个反直觉现象：<strong>动态内容混进缓存区不仅杀命中，甚至可能推高延迟</strong>——系统为不存在的缓存做了无谓的查找。</p>
+
+    <p>铁律只有一条：<strong>静态在前，动态在后，会变的东西全部压到尾部</strong>。时间戳、用户名、session id、检索结果、本轮工具返回，统统不许出现在前缀里。</p>
+
+    <h2>三、三宗罪：直觉修复为什么更贵</h2>
+
+    <p>「上下文太贵？那我把历史删短点。」——这是大多数团队的第一反应，也是 AKV 论文里用数据埋掉的三个坑：</p>
+
+    <table>
+        <tr><th>直觉修复</th><th>实测结果</th><th>为什么</th></tr>
+        <tr><td>截断：只留最近 12 轮工具调用</td><td>成本反而升到全量基线的 1.85x</td><td>前缀一变，缓存全灭；丢掉的上下文导致更多失败重试</td></tr>
+        <tr><td>摘要：把旧历史总结成一段</td><td>只省 7%，丢约 5 个准确率点</td><td>摘要替换原文 = 前缀变化，同样触发全量重算</td></tr>
+        <tr><td>压缩：token 级压缩历史</td><td>比什么都不做多花 40.1%</td><td>压缩后的文本是新前缀，re-prefill 成本吃掉全部节省</td></tr>
+    </table>
+
+    <p>三个坑共享同一个根因：它们都在<strong>文本层</strong>修改历史，而文本层和历史 KV 状态是绑死的——改一个字，这个字之后的所有 KV 笔记全部作废。你在管理文字，缓存在管理字节，两个层面的规则不一样。</p>
+
+    <h2>四、Cache Engineering：不改历史，改可见性</h2>
+
+    <p>AKV 的答案是干脆绕开文本层，直接在 KV 层操作。三个原语：</p>
+
+    <ul>
+        <li><strong>Append</strong>：新轨迹照常追加，照常复用缓存；</li>
+        <li><strong>Drop</strong>：把选定的旧条目移出未来 attention 的可见范围——位置不动、其余缓存原封不动；</li>
+        <li><strong>Repos</strong>：用 RoPE 旋转把保留条目的位置编码重写到连续区间，修复丢弃后的位置空洞。</li>
+    </ul>
+
+    <p>精妙之处在于：KV 是融合态而非逐字存储，被 Drop 的信息仍可能经保留条目「携带」进来——相当于图书馆不销毁任何书，只是调整哪些书出现在你的必经书架上。三个模型 × 四个基准的平均成绩：成本降 27.7%，得分反升 1.7 点；BrowseComp-Plus 超过 96K token 的长程段上，37% vs 标准做法的 24%——<strong>任务越长，优势越大</strong>，因为长任务的复读账单本来就越长。</p>
+
+    <p>这和检索系统的演进是同一个故事：你不需要删掉图书馆的书，你需要的是管理「什么被看见」。context engineering 管理的是写进 prompt 的文字，cache engineering 管理的是注意力能看到的 KV 条目——后者才踩在成本的真源上。</p>
+
+    <h2>五、KV 正在变成基础设施</h2>
+
+    <p>如果把视野拉远，更大的变化是：KV cache 正在从引擎的实现细节，变成一层有自己名字的独立基础设施。八月的一篇论文标题就叫《An Internet for the KV Cache》，核心观察是：agent 工作流里同一份缓存上下文的复用间隔，横跨几秒到几小时。这个时间冗余打开了存储分层的空间——近期要复用的留在显存，远期的下沉到内存、SSD、网络存储。KV cache 第一次有了「冷热分层」的内存系统待遇。</p>
+
+    <p>配套器官过去一年密集长齐：KVLink 把每个文档的 KV 独立预计算、推理时直接拼接；CacheBlend 融合缓存块时选择性重算弥合精度损失；EPIC 做位置无关的模块化复用；KVEraser 能从 KV 里定点删除信息而无需重算——KV 层的「被遗忘权」；KVzip 用模型自己重构原文的能力来度量 KV 重要性，3-4 倍压缩近无损；甚至出现了跨模型翻译层，让 A 模型算好的 KV 给异构的 B 模型复用。系统侧，SGLang 的 RadixAttention 用 radix 树做多请求前缀共享，Mooncake 把 serving 拆成 KV-centric 的分离式架构，OSDI'26 刚发了 zero-copy 的 KV 卸载。</p>
+
+    <p>判断：一两年内，「上下文复用率」会像「缓存命中率」之于 CPU 一样，成为 agent 基础设施的核心 SLO。今天还在裸奔复读的 agent，等于用没有 L1 cache 的 CPU 跑生产负载。</p>
+
+    <h2>六、冷水：省钱的通道就是泄露的通道</h2>
+
+    <p>效率的每一层优化都在同步扩大攻击面。NDSS 2025 的 PromptPeek 证明：共享缓存下，缓存命中和未命中的首 token 延迟（TTFT）不同——攻击者发探测请求、量延迟，就能以 87% 的置信度判断某段前缀是否被别人用过，逐 token 重建多租户环境里他人的 prompt，包括 PII。语义缓存（按 embedding 相似度命中）更糟：今年的 CacheAttack 用 key collision 以 86% 的命中率劫持缓存响应，还能诱导 agent 执行恶意行为。KV 张量本身也可以被 inversion attack 逆推回原文。</p>
+
+    <p>缓存的经济学和缓存的安全性是同一枚硬币。防御方案已经出现——vLLM 的 cache salting 给每个用户的缓存加盐，SafeKV 把敏感条目隔离进 per-user 空间——但前提是你得先意识到：把缓存当纯收益接入多租户平台时，你同时接入的是用户 prompt 的可探测性。</p>
+
+    <h2>七、今晚能做什么</h2>
+
+    <ol>
+        <li><strong>审计 system prompt</strong>：grep 一遍时间戳、用户名、session id、动态 schema，全部挪到 prompt 尾部。这是零成本、一夜回本的第一刀。</li>
+        <li><strong>把缓存命中率加进监控面板</strong>：Anthropic 的 <code>cache_read_input_tokens</code>、OpenAI 的 <code>cached_tokens</code> 字段直接可读。「输入 token 走缓存的比例」应该是你的第一公民指标。</li>
+        <li><strong>算一遍 TTL 账</strong>：agent 步间隔超过 5 分钟的长任务，5 分钟 TTL 等于没有——上 1 小时 TTL（第三次调用即回本）。高频短任务用自动缓存就够。</li>
+        <li><strong>system prompt 纳入版本管理</strong>：改一个字符等于全量缓存失效 + 成本瞬时尖峰，把它当部署事件走变更窗口，而不是周五下午随手改。</li>
+        <li><strong>自托管玩家两件套</strong>：SGLang / vLLM 的 prefix caching 先开起来（一个 flag 的事），长上下文加 KV 量化（如 <code>--kv-cache-dtype fp8</code>）；多租户场景，上共享缓存前先读 cache salting。</li>
+    </ol>
+
+    <p>最后一个视角收尾：我们习惯把 agent 的智能花在「下一步做什么」上，但账本告诉我们，钱的去向是「刚刚读过什么」。上下文复用率，就是 agent 时代的新缓存命中率——谁先把它当第一公民指标，谁就先拿到那 8 倍的差额。</p>
+</body>
+</html>
