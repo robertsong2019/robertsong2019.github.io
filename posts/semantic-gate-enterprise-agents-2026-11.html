@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 接数据库前，先回答"收入"是什么：语义闸门入门 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>Agent 接数据库前，先回答"收入"是什么：语义闸门入门</h1>
+    <div class="meta">
+        2026-11-06 · <span class="tag">AI Agent</span> <span class="tag">Text-to-SQL</span> <span class="tag">语义层</span>
+    </div>
+
+    <p>每个做过 text-to-SQL demo 的人都经历过那个高光时刻：一句「Q3 华东区收入多少」，模型秒出一条六表 join 的 SQL，数字分毫不差。然后把它接进生产，三个月后 CFO 问：为什么 agent 报的收入和财务报表差了 8%？</p>
+
+    <p>尸检结果往往令人意外：SQL 没写错。join 对、过滤对、聚合对。错的是更上游的东西——<strong>财务的「收入」是含税开票口径，数据仓里那张表存的是不含税净额，销售系统的「revenue」干脆把退款也算进去了</strong>。三个系统三个「收入」，agent 随机挑了一个语法正确、语义错误的。</p>
+
+    <p>这正是 NVIDIA 十月底开源的 <a href="https://github.com/NVIDIA/auto-ontology">auto-ontology</a>（Apache 2.0，本周连日霸榜 GitHub Trending，单日 +2,050 星）开篇第一句的立场：「reliability gates agentic analytics——收入指标答得再快，数字是错的就一文不值。」它的解法不是更强的模型，而是模型外面的一道<strong>语义闸门</strong>。</p>
+
+    <h2>一、翻车尸检：错的不是 SQL，是词</h2>
+
+    <p>text-to-SQL 的错误可以分成两层。第一层是<strong>语法层</strong>：表名拼错、join 条件漏写、方言不兼容——这层问题模型已经基本解决了，大不了执行报错重试。第二层是<strong>语义层</strong>：字段选对了、SQL 合法、结果也真实存在于库里，但回答的不是业务问的那个问题。这层错误最阴险：它不报错、不抛异常，产出一个看起来完全可信的错误数字，然后这个数字进了周报。</p>
+
+    <p>RAG 治不了这层病。RAG 的范式是「检索相关片段、拼进 prompt」，它能把 schema 文档喂给模型，但文档里写着「extendedprice：发票行金额」——它不会告诉你 CFO 口径的收入要 <code>FILTER (WHERE iscreditnote = 0)</code>。口径活在财务同事的脑子里和 Excel 的隐藏列里，不在任何文档里。<strong>语义问题需要的是工程化的定义层，不是更密的检索。</strong></p>
+
+    <h2>二、三阶段：Generate → Certify → Answer</h2>
+
+    <p>auto-ontology 把这件事拆成三步。<strong>Generate</strong>：ingestion 服务读源库的 schema、给列做画像、采样值，草拟出一份本体初稿。<strong>Certify</strong>：人拿真实问题去测，改错的、补漏的，然后把正确的定义标记为「已认证」。<strong>Answer</strong>：agent 只从认证后的本体里取材回答。</p>
+
+    <p>关键在「本体」在这里不是知识图谱炫技，而是朴素的三类定义：</p>
+
+    <ul>
+        <li><strong>Terms（术语）</strong>：业务概念，如「客户」「发票行」。每个 term 带描述、同义词表、映射到具体的列。同义词表是检索的锚点——用户说「营收」「revenue」「销售额」，都解析到同一个 term。</li>
+        <li><strong>SQL attributes（口径）</strong>：挂在 term 下的、经过人审的 SQL 表达式。毛利率怎么算、滚动总和怎么加——写一次、审一次、永远复用。</li>
+        <li><strong>Relationships（关系）</strong>：表之间怎么 join、桥表在哪，从外键和数据里推断。</li>
+    </ul>
+
+    <p>官方的示例库里，微软 Wide World Importers 样例库一次编译产出 31 个 terms。这个数字值得停一下——<strong>一个库的全部业务语义，31 个词就够了</strong>。企业数据接入不是无穷无尽的知识工程，是几十个核心概念的口径固化。</p>
+
+    <h2>三、口径即代码：SQL attributes 是精华</h2>
+
+    <p>三类定义里最妙的是 SQL attributes。传统做法里，「毛利率」的定义写在 wiki 上，agent 每次 查询都现场发挥一段等价 SQL——于是周一和周三的毛利率算法悄悄不一样。auto-ontology 把口径做成<strong>可复用的认证资产</strong>：</p>
+
+    <pre><code># 口径长这样：审校过的 SQL 表达式，agent 只许复用、不许重写
+gross_margin_pct = "100.0 * SUM(il.lineprofit) / NULLIF(SUM(il.extendedprice), 0)"
+net_revenue      = "SUM(il.extendedprice) FILTER (WHERE i.iscreditnote = 0)"</code></pre>
+
+    <p>同一个指标，永远同一种算法。答案出来时附带完整 provenance：用到的 SQL、执行的步骤、resolved 的 terms——「收入」解析到了哪个 term、走了哪条 join 路径、复用了哪个口径，全部可审计。CFO 再问为什么差 8%，答案的 lineage 一眼可查：要么口径定义错了（去改定义，改一次全体受益），要么就是对的。</p>
+
+    <h2>四、check_answerable：先承认不可答</h2>
+
+    <p>整个设计里我最喜欢的是一个不起眼的工具：<code>check_answerable</code>。README 里的示例——用户问「这个产品的广告投放 ROAS 是多少」，样例库根本没有广告数据。视觉上更炫的路线是让模型尽力一搏、编一个看起来合理的 SQL。auto-ontology 的实际行为：</p>
+
+    <pre><code>You:    What was return on ad spend for the sushi roll flash drive in June 2015?
+Agent:  check_answerable -&gt; coverage 0.5; no term covers "ad spend"
+Agent:  I can find revenue for that product, but this data has no
+        advertising spend, so I can't compute ROAS. Do you want June 2015
+        revenue instead, or is ad spend tracked in another source?</code></pre>
+
+    <p>先解析问题需要哪些 term，本体覆盖不了就<strong>在写任何 SQL 之前</strong>坦白：覆盖度 0.5，「广告支出」没有任何 term 覆盖，要么改问收入，要么接入别的数据源。<strong>这是先验 abstain（弃答），不是事后弃答。</strong></p>
+
+    <p>这个模式和我在 agent 记忆评测里反复撞见的现象同构：一个裸的 text-to-SQL agent 被问到覆盖外的问题时，几乎从不弃答——它会挑语义最接近的字段硬编一个数字，错误以「自信的正确格式」呈现。而先验门控把「这个问题能不能答」从生成时的即兴判断，变成了对结构化定义的集合查询。可答性检查一次，比每次生成后验证十次便宜得多——错误在闸门口被拦截的成本，远低于错误数字流进周报后再溯源。</p>
+
+    <h2>五、动手：一个迷你语义闸门</h2>
+
+    <p>概念不复杂，复杂的是产品化。但核心机制——terms + 同义词解析 + 覆盖门控 + 口径复用 + provenance——百来行就能搭出骨架（可运行，已验证行为与上文一致）：</p>
+
+    <pre><code>import re
+
+# ---- 三类定义（真实系统里由 Generate 草拟、Certify 人审）----
+TERMS = {
+    "revenue": {"name": "净收入", "certified": True,
+                "synonyms": ["收入", "营收", "revenue", "sales"]},
+    "gross_margin": {"name": "毛利率", "certified": True,
+                     "synonyms": ["毛利率", "margin"]},
+}
+# 口径即代码：审校过的 SQL 表达式，agent 只许复用、不许重写
+SQL_ATTRS = {
+    "net_revenue": {
+        "term": "revenue", "certified": True,
+        "expr": "SUM(il.extendedprice) FILTER (WHERE i.iscreditnote = 0)"},
+    "gross_margin_pct": {
+        "term": "gross_margin", "certified": True,
+        "expr": "100.0 * SUM(il.lineprofit) / NULLIF(SUM(il.extendedprice), 0)"},
+}
+
+def _match(syn, q):
+    # 纯 ASCII 同义词用词边界，中文用子串（\b 对 CJK 无效）
+    if syn.isascii():
+        return re.search(rf"\b{re.escape(syn)}\b", q, re.I)
+    return syn.lower() in q.lower()
+
+def check_answerable(question):
+    """先验门控：在写任何 SQL 之前先问『本体覆盖了吗』"""
+    hits = [tid for tid, t in TERMS.items()
+            if any(_match(s, question) for s in t["synonyms"])]
+    if not hits:   # 宁反问，不幻觉
+        return {"answerable": False,
+                "reason": "no term covers this question",
+                "hint": "本体里只有: 净收入, 毛利率"}
+    return {"answerable": True, "resolved": hits}
+
+def answer(question):
+    gate = check_answerable(question)
+    if not gate["answerable"]:
+        return gate                    # → 反问用户，而不是硬编 SQL
+    attr = SQL_ATTRS["net_revenue"]     # 复用认证口径，不现场重写
+    return {"sql": f"SELECT {attr['expr']} AS revenue FROM ...",
+            "provenance": {"resolved_terms": gate["resolved"],
+                           "sql_attribute": "net_revenue (certified)"}}
+
+for q in ["Q3 净收入多少", "毛利率最高的产品线", "上季度广告投放 ROAS 如何"]:
+    r = answer(q)
+    print(q, "-&gt;", "answerable" if r.get("answerable", True)
+          else f"BLOCKED: {r['reason']}")
+
+# 输出：
+# Q3 净收入多少 -&gt; answerable
+# 毛利率最高的产品线 -&gt; answerable
+# 上季度广告投放 ROAS 如何 -&gt; BLOCKED: no term covers this question</code></pre>
+
+    <p>第三行输出就是整个范式的价值主张：ROAS 问题在闸门口被拦下，因为本体里没有任何 term 覆盖「广告」。<strong>错误答案的成本不是零分，是负分</strong>——它消耗的是业务方对 agent 的信任额度。</p>
+
+    <h2>六、接进你的 agent：MCP 三件套</h2>
+
+    <p>auto-ontology 通过 MCP server（端口 3003，只读、按用户走 RBAC）把自己暴露给任何 agent harness，工具四组、各司其职：</p>
+
+    <table>
+        <tr><th>职责</th><th>工具</th></tr>
+        <tr><td>就绪检查</td><td><code>check_readiness</code></td></tr>
+        <tr><td>术语检索</td><td><code>search_terms</code> / <code>get_term</code> / <code>get_term_columns</code> / <code>get_term_sql_attributes</code> / <code>describe_table</code></td></tr>
+        <tr><td>可答性门控</td><td><code>check_answerable</code></td></tr>
+        <tr><td>提问</td><td><code>ask_question</code>（答案 + SQL + 数据行）</td></tr>
+    </table>
+
+    <p>接线只要一行配置（Cursor 为例，Claude Desktop 用 mcp-remote 桥接）：</p>
+
+    <pre><code>{
+  "mcpServers": {
+    "auto-ontology": { "url": "http://localhost:3003/mcp" }
+  }
+}</code></pre>
+
+    <p>值得注意的还有它的文档策略：仓库带了三个 agent skills（setup / management / query），其中 query skill 专门教 coding agent「怎么验证 SQL、行数和答案」——文档不再是给人看的 README，而是<strong>随二进制分发给 agent 的操作规程</strong>。这和无障碍树那篇里 agent-desktop 的「skills get 与工具同版本分发」是同一个信号：给 agent 的文档正在变成一等交付物。另外它兼容 Apache Ossie 语义模型交换标准，可以 YAML 导入导出——语义层不想重演数据孤岛的老故事。</p>
+
+    <h2>七、冷水三瓢</h2>
+
+    <p><strong>认证是持续人力成本。</strong>Generate 阶段几乎全自动，但「certified」的含金量等于审它的人。术语改义、口径调整、新人接手，Certify 是个永远关不掉的流程。买这个系统本质是买一个纪律：指标定义必须有唯一 owner。</p>
+
+    <p><strong>本体是 schema 的影子，schema 漂移它就烂。</strong>上游改个列名、拆张表，映射和口径全部失效，而失效不会自己报警——直到某个答案又差 8%。需要把「本体与源库的一致性检查」做进 CI，这又是一门持续工程。</p>
+
+    <p><strong>规模要现实。</strong>31 terms 覆盖一个样例库；一个真实企业的指标字典是几百个 term 起步，且政治难度高于技术难度——让销售和财务对「收入」达成一致，从来不是 SQL 问题。官方 benchmark（BIRD text-to-SQL）放在独立的 eval 仓库里，引用数字前建议自己跑一遍。另外项目目前不接受外部贡献，选型时把「能否 fork 自维护」计入考量。</p>
+
+    <h2>八、今晚能做什么</h2>
+
+    <ol>
+        <li><strong>盘点你的高频指标</strong>：把业务方最常问的 20 个指标写下来，每个标注：哪个系统、哪张表、什么口径、谁说了算。这份清单就是你的 term 雏形——大概率会发现至少三个「收入」。</li>
+        <li><strong>给现有 text-to-SQL 链路加一道 <code>check_answerable</code></strong>：哪怕只是把术语表和同义词硬编码进一个函数（上文第五节代码直接可用），在生成 SQL 前先做覆盖检查，拦截一次硬编就回本。</li>
+        <li><strong>口径写成代码、进版本库</strong>：毛利率、活跃用户、留存率，凡是被问过两次以上的指标，SQL 表达式固化成受审的资产，agent prompt 里只留引用，不留推导。</li>
+        <li><strong>给每个答案挂 provenance</strong>：答案、SQL、resolved terms、步骤，四件套随答案返回。可审计性不是附加功能，是语义闸门的设计产物。</li>
+        <li><strong>跑一遍 auto-ontology 的 Docker Compose</strong>：WWI 样例库半天能通，重点体验两件事——认证一个错误定义再修正的流程，以及问一个覆盖外的问题看它怎么反问。</li>
+    </ol>
+
+    <p>收个尾。之前写过「生成交给模型，验收交给代码」，那是代码生成侧的分工。这次是同一枚硬币的另一面：<strong>数据语义侧，定义交给人，复用交给机器</strong>。agent 进企业的墙，从来不在模型会不会写 SQL——而在组织敢不敢回答「收入到底是什么」。</p>
+</body>
+</html>
