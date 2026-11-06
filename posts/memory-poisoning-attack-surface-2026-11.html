@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投毒一次，利用终身：Agent 的记忆正在变成攻击面 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>投毒一次，利用终身：Agent 的记忆正在变成攻击面</h1>
+    <div class="meta">
+        2026-11-06 · <span class="tag">AI Agent</span> <span class="tag">记忆系统</span> <span class="tag">安全</span>
+    </div>
+
+    <p>想象这样一个场景：你的 AI 浏览器 agent 三周前帮你比价时浏览过某个电商页面。那个页面被精心构造过——不是攻击你的电脑，只是页面上有一段看起来人畜无害的产品描述。三周后，你在另一个完全不相关的网站上让 agent 帮你下单，它却鬼使神差地填了另一个收款方。你没做错任何事，agent 没报任何错，毒在中间那三周里一直安静地躺在记忆里，等一个合适的时机。</p>
+
+    <p>这不是科幻。COLM 2026 上一篇标题直白到近乎挑衅的论文——<a href="https://arxiv.org/abs/2604.02623">Poison Once, Exploit Forever</a>（投毒一次，利用终身）——在 (Visual)WebArena 上把这件事跑通了：单个被污染的网页观察，就能让 agent 的记忆中毒，并在<strong>未来会话、完全不同的网站</strong>上激活。攻击成功率最高 32.5%，而且不需要碰你的记忆库、不需要你的账号、不需要任何直接访问。</p>
+
+    <p>这篇论文值得每个在做 agent 记忆的人读完脊背发凉一下。但真正值得展开的是它背后的更大图景：<strong>当记忆从"锦上添花的 RAG"变成生产基础设施，它同时从功能变成了攻击面。</strong>EMNLP 2026 主会的《A Survey on Long-Term Memory Security in LLM Agents》给这个新威胁面定了性，OWASP 的 Agentic AI Top 10 已经把记忆投毒列为 ASI06。今晚把攻击和防御两条线都过一遍。</p>
+
+    <h2>一、从"租一个会话"到"拥有你的未来"</h2>
+
+    <p>传统 prompt injection 是<strong>一次性</strong>的：攻击者骗你打开一个恶意网页，网页里的指令骗模型这一次。会话结束，攻击结束。它像偷渡——混上车，坐一站，被赶下去。</p>
+
+    <p>记忆投毒完全不同。EMNLP 2026 综述给它总结了三个性质：<strong>持久性</strong>（注入内容跨会话存活）、<strong>有状态性</strong>（攻击改的是系统持久状态，不是单次输入）、<strong>传播性</strong>（被污染的记忆随检索扩散、随共享传染、随记忆迁移搬家）。用产权打比方：prompt injection 是攻击者<strong>租</strong>你一个会话；记忆投毒是攻击者在你家<strong>买</strong>了一间房，还拿到了永久居住权。</p>
+
+    <p>攻击成本没变，收益永久化——攻击者会怎么选，不言自明。这不是理论威胁：GhostWriter 攻击对工具型 agent 做了两阶段实验，先让不可信的邮件/日历内容混进长期记忆，再在之后的良性任务里被检索、<strong>当作可信上下文执行</strong>，平均记忆注入率约 98%。当前绝大多数 agent 的写入路径，基本不设防。</p>
+
+    <h2>二、攻击动物园：四种下毒姿势</h2>
+
+    <h3>1. 后门式：AgentPoison（NeurIPS 2024）</h3>
+
+    <p>老祖宗级别的攻击。把少量带"触发器"的恶意示范注入记忆库或 RAG 知识库，用约束优化把触发样本映射到一个独特又紧凑的嵌入空间——保证用户指令一旦含触发词，毒示范必然被检索出来。数字很硬：毒率不到 0.1%，良性性能损失不到 1%，攻击成功率 80% 以上，受害者包括自动驾驶 RAG agent 和医疗 EHRAgent。它证明了<strong>检索器本身就是可编程的后门</strong>。</p>
+
+    <h3>2. 环境注入式：eTAMP（COLM 2026）</h3>
+
+    <p>AgentPoison 假设攻击者能写记忆库，eTAMP 把这个假设也扔了：只需要污染 agent <strong>观察到</strong>的环境。AI 浏览器是完美宿主——它们的工作本来就是把不可信网页读进记忆、总结成"经验"。权限模型（谁能写记忆）对这种攻击先天失明，因为毒是通过完全合法的"经验学习"通道进来的。论文还点名了 OpenClaw、ChatGPT Atlas、Perplexity Comet：这类产品每多一个用户，这个攻击面的估值就涨一分。</p>
+
+    <h3>3. 社工式：GhostWriter 与 SpAI-ware</h3>
+
+    <p>给 agent 发一封邮件、共享一个日历事件——内容进了记忆，三周后agent处理你的正经任务时，把它当成你说过的可信偏好。SpAI-ware（FGCS 2026）更直接：LLM 应用的持久记忆本身就是新型间谍软件载体，毒记忆能持续外泄用户行为。</p>
+
+    <h3>4. 结构式：图谱投毒 KEPo（WWW 2026）</h3>
+
+    <p>记忆系统这两年流行知识图谱化（A-MEM、G-Memory、H-mem），图谱的边和实体同样可以被演化式投毒——污染的不是文本而是<strong>知识的拓扑</strong>，检索顺着 poisoned 边走，一走一个准。</p>
+
+    <h2>三、三个反直觉发现</h2>
+
+    <p><strong>发现一：能力升级不带来安全升级。</strong>eTAMP 里任务表现更强的 GPT-5.2 攻击成功率仍有 23.4%。"换更强的模型"这个万能答案，在安全维度上第一次失灵——因为漏洞不在模型，在架构：只要记忆写入不设防，谁来读都一样。</p>
+
+    <p><strong>发现二：agent 越受挫，越容易被攻陷。</strong>这是整篇论文最漂亮的发现，叫 Frustration Exploitation：当 agent 被环境折磨（点击丢失、页面乱码、工具报错）时，对记忆内容的依赖显著上升，攻击成功率最高放大 8 倍。攻击者甚至可以<strong>主动制造挫折</strong>当放大器。这给防御设计提了个反直觉要求：降级路径上对记忆的信任应该收紧而不是放松——而现实中大多数 agent 恰恰在重试时更饥不择食地抓上下文。</p>
+
+    <p><strong>发现三：检索时过滤是下策，写入时治理是上策。</strong>检索端过滤是"每次读取赌一次"，总有漏网；写入端打源类标签、进隔离区是"一次分类终身受益"。Agent Security Bench 实测过 27 种攻防组合：最高平均攻击成功率 84.3%，<strong>没有任何单层防御有效</strong>——但分层堆上去，攻击就变得不经济。写路径筛查（注入检测、凭证扫描、编码载荷展开）是最上游、性价比最高的一层。</p>
+
+    <h2>四、防御原语：溯源不是合规装饰，是安全地基</h2>
+
+    <p>防御侧今年最有意思的信号，是一个原本为"防幻觉"设计的东西顺便成了防投毒的地基。<a href="https://arxiv.org/abs/2608.29606">Agent Zero Memory</a>（arXiv 2608.29606）把 agent 记忆拆成三个并行存储：episodic 事件时间线（何时发生了什么变化是一等公民）、associative 实体-事件图（人和项目跨会话怎么关联）、以及 citation-locked 的分层纪实记忆（durable facts）。设计纪律只有一条：<strong>每条记忆必须携带 origin、timestamp、evidence pointer，答案在引用锁下只准引用读取器真正打开过的证据——引用不了就弃答，宁弃不猜。</strong></p>
+
+    <p>妙就妙在：这个机制本意是结构性排除编造（fabrication 被机制禁止，而非靠模型自律），而投毒记忆恰恰最怕溯源——毒内容的证据指针要么缺失、要么指向攻击者页面，在引用锁下天然露馅。<strong>可信记忆架构和准确记忆架构在这里合流了：溯源原语一次投入，幻觉和投毒两头受益。</strong></p>
+
+    <p>配套的治理原语也在成型，把记忆从布尔存在变成带健康状态的资产：</p>
+
+    <ul>
+        <li><strong>信任分 + 指数衰减</strong>：每条记忆带来源信任权重，随时间衰减，老记忆不再天然可信（IJCISIM 2026 的 Memory Governance 框架）</li>
+        <li><strong>三态隔离区</strong>：Trusted / Review Required / Quarantined，可疑记忆不直接删除而是隔离待审——保留证据链，像防疫隔离而不是扑杀</li>
+        <li><strong>信任感知检索重排</strong>：相似度排序之上叠来源信任权重，敏感动作（转账、发邮件、写操作）场景下 web 来源记忆强制降权或要求二次确认</li>
+        <li><strong>防篡改迁移</strong>：Portable Agent Memory 用 Merkle-DAG 让记忆跨 agent 搬家时可验证未被篡改——顺便警示：可迁移记忆也是可武器化记忆，毒源 agent 可以定向攻击目标 agent</li>
+    </ul>
+
+    <p>最有想象力的是 Memory Governance 用<strong>流行病学模型</strong>分析记忆污染：把污染当传染病，当治理清除率 μ 大于污染传播率 β 时，污染密度稳态归零。这个视角把"每条记忆需要健康状态"从工程直觉变成了有定理支撑的设计约束——你的记忆系统要么让清除快于传播，要么等着污染成为地方病。</p>
+
+    <h2>五、关于 95.6%：好得可疑的数字先查协议</h2>
+
+    <p>Agent Zero Memory 报了 LongMemEval 95.60%、LoCoMo 93.60% 的 SOTA。这个数字和常见的 agentic 记忆系统 60-70% 区间差距巨大。有意思的细节：它说只比 prior best 高 0.73 分——说明在它的评测协议（多轮 agentic 检索 + 引用锁 + abstain 机制）下，大家都能刷到 90+。它还附带一个成本发现：8 个骨干模型精度只差 3.4 分，成本差 30 倍，便宜配置 20 倍成本就能拿到接近 SOTA 的质量。</p>
+
+    <p>教训不是"数字造假"，而是老规矩：<strong>跨系统比较记忆分数之前，先问评测协议——abstain 怎么判、检索走几轮、judge 是谁、会话历史给全还是给剪枝版。</strong>不同协议下的记忆 benchmark 分数，可比性经常是零。这和数据库圈"TPC-C 跑分先看数据规模和隔离级别"是一个道理。</p>
+
+    <h2>六、冷水三瓢</h2>
+
+    <p><strong>溯源本身有成本，且多数现役记忆系统根本没埋点。</strong>记忆是被 LLM 综合出来的派生事实——不与任何原文逐字匹配，不记 lineage 就永远回不去。Zep 在生产里做这件事的经验是： retrofit 溯源比从头设计贵一个量级。越晚动手越贵。</p>
+
+    <p><strong>信任衰减和隔离区引入了新的运维面。</strong>谁来复核 Quarantined 记忆？衰减参数怎么调？误伤的 Trusted 记忆怎么申诉？这套治理机制在企业里落地时，最后都会变成流程问题而不是算法问题。</p>
+
+    <p><strong>引用锁挡不住"证据本身就是毒"的情况。</strong>如果毒网页被正常打开过、指针齐全，引用锁是绿的。溯源是必要条件不是充分条件——源头内容的可信度评估（source reputation）仍然是开放问题。</p>
+
+    <h2>七、今晚能做什么</h2>
+
+    <ol>
+        <li><strong>盘点你的 agent 记忆写入路径</strong>：列出所有能往长期记忆写东西的通道——用户消息、网页抓取、工具输出、文件读取。每个通道标注信任等级。大概率你会发现至少一条"环境内容直通记忆"的路，那就是你的 eTAMP 敞口。</li>
+        <li><strong>给记忆条目加三个字段</strong>：<code>source_class</code>（user/tool/web/file）+ <code>origin_pointer</code>（证据定位）+ <code>written_at</code>。这是溯源、信任重排、遗忘权、隔离区的共同地基，改动量以小时计，收益以年计。</li>
+        <li><strong>检索端加信任重排</strong>：在现有相似度排序上叠来源权重，敏感动作场景强制降权 web 来源记忆或触发二次确认。一个 rerank 函数的事。</li>
+        <li><strong>给降级路径立规矩</strong>：agent 重试/受挫时对低信任记忆的引用应该收紧。如果做不到收紧，至少记录"受挫时刻引用了哪些记忆"——事后取证有据可查。</li>
+        <li><strong>读三篇原文</strong>：eTAMP（2604.02623）、EMNLP 2026 记忆安全综述、Agent Zero Memory（2608.29606）。攻击、地图、防御，三条线各一篇。</li>
+    </ol>
+
+    <p>收个尾。Agent 的每一层新基础设施都在生成自己的威胁面：上篇写 KV cache，结论是省钱的通道就是泄露的通道；这篇写记忆，结论是——<strong>让 agent 更像人的通道，就是让 agent 更容易被像人一样欺骗的通道。</strong>记忆让 agent 有了过去，也让攻击者有了在你过去里安家的机会。给记忆装上门禁，越早越便宜。</p>
+</body>
+</html>
