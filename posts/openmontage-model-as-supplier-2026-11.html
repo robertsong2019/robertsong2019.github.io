@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模型是供应商，不是导演：$1.33 动画片背后的制片架构 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>模型是供应商，不是导演：$1.33 动画片背后的制片架构</h1>
+    <div class="meta">
+        2026-11-07 · <span class="tag">AI Agent</span> <span class="tag">Agentic 制片</span> <span class="tag">Agent Skills</span>
+    </div>
+
+    <p>60 秒皮克斯风格动画短片《THE LAST BANANA》：一只孤独的香蕉和一只猕猴桃交上朋友。6 段 Kling v3 生成的动态镜头（经 fal.ai）、Google Chirp3-HD 旁白、免版税钢琴配乐、TikTok 风格逐词字幕、Remotion 合成——总成本 <strong>1.33 美元</strong>。</p>
+
+    <p>产出它的不是某家的新一代视频大模型，而是本周冲上 GitHub Trending 的开源项目 <a href="https://github.com/calesthio/OpenMontage">OpenMontage</a>（AGPLv3，Repo of the Day，周增四千余星）——自述「第一个开源的 agentic 视频制片系统」。它把 Claude Code、Cursor、Codex 这类编码助手变成一间制片工作室：调研、脚本、资产生成、剪辑、成片全由 agent 驱动。</p>
+
+    <p>读完它的 README、AGENT_GUIDE 和 PROVIDERS 三份文档，我认为真正值得学的不是「AI 能拍片了」，而是一个架构判断：<strong>制片的智能放在三层文档里，模型只是管线里一个可插拔的供应商</strong>。</p>
+
+    <h2>一、先分清两条路线：「生成视频」与「制片视频」</h2>
+
+    <p>Sora/Veo 代表的生成模型路线，答案在权重里：prompt 进、像素出。OpenMontage 走的是编排路线，README 里有一段刻意加粗的区分：它也能做图生视频，但更能做「真正的 video video」——</p>
+
+    <blockquote>agent 从免费素材库和开放档案构建语料，检索真实动态片段，剪进时间线，渲染成片。「这不是把几张静图动一动就叫视频的老把戏。」</blockquote>
+
+    <p>两种路线的成本结构完全不同。$1.33 的成本里，生成模型只负责 6 个镜头；素材检索、旁白、字幕、合成都走免费或近免费通道。模型在管线里是一个 <code>PROVIDERS.md</code> 里可替换的选项——同一部片，Kling 换 Veo、甚至换成本地 GPU 上的 WAN/Hunyuan，制片流程不变。<strong>「怎么拍」与「谁生成」被彻底解耦。</strong></p>
+
+    <h2>二、智能的安放位置：不在即兴代码里，在三层文档里</h2>
+
+    <p>AGENT_GUIDE 开篇就是一条 Rule Zero：所有制片请求必须走管线系统，无例外。它的知识分三层：</p>
+
+    <ol>
+        <li><strong>管线清单</strong>（<code>pipeline_defs/*.yaml</code>）：阶段、工具、质量门；</li>
+        <li><strong>场记导演 skill</strong>（每个管线每阶段一个 <code>*-director.md</code>）：进入该阶段前必读；</li>
+        <li><strong>Layer 3 供应商 skill</strong>（<code>.agents/skills/</code>）：每个模型特有的提示词技巧、参数优化、质量手法。</li>
+    </ol>
+
+    <p>配套的是一份禁令清单：不许绕过管线直接调 API、不许写即兴 Python 脚本裸调工具、不许没读导演 skill 就生成资产。理由说得很直白：</p>
+
+    <blockquote>The intelligence is in the skills, not in improvised code.</blockquote>
+
+    <p>这句话值得钉在所有 agentic 系统的墙上。模型越强，「当场发挥」越顺手，也越不可复现——今天拍得好，明天换个模型就拍不出来。把方法论沉淀成受版本管理的文档，agent 每次都从同一套导演手册出发，产出才稳定。</p>
+
+    <h2>三、成本会计纪律：未定价 ≠ 免费</h2>
+
+    <p>PROVIDERS.md 是全场我最佩服的文档。几个细节：</p>
+
+    <ul>
+        <li><strong>未定价调用返回 <code>cost_usd: null</code> 加 <code>cost_status</code>，而不是 0</strong>。未知的钱和免费的钱，在账本上是两种东西；</li>
+        <li>异步生成超时后 <strong>resume 同一个 job</strong>，而不是重新提交一次付费请求；</li>
+        <li>显式指定的工具、宿主、模型约束<strong>永不静默降级</strong>——你要 Kling 就是 Kling，不会偷偷换成便宜货；</li>
+        <li>供应商配置是 15 级阶梯：Pexels + Pixabay 素材 $0 起步，本地 Piper TTS 完全离线，付费模型按需逐级加。</li>
+    </ul>
+
+    <p>这四条合起来是一套完整的「先报价、再花钱、可对账」的会计纪律。agent 系统最常见的翻车不是能力不够，而是没人说得清这一单到底花了多少钱、花在了哪。</p>
+
+    <h2>四、审批门要放在花钱之后、渲染之前</h2>
+
+    <p>OpenMontage 的 Backlot 面板把故事板变成了真实的审批门：资产生成会停在逐镜 contact sheet 上——每个镜头的 takes、prompt、单价、质量分全部摊开，<strong>你先批画面，再进渲染</strong>，而不是渲染完了才发现整段白拍。参考视频入口同理：贴一条你喜欢的 YouTube Short，agent 先分析节奏与结构，给出 2-3 个差异化概念、诚实的技术路径和成本预估，先看样片再开全量生产。</p>
+
+    <p>人在回路上的位置，被精心放在两个不可逆动作之间——钱已花、片未成，此刻纠偏的性价比最高。</p>
+
+    <h2>五、六十行代码：一个最小报价门</h2>
+
+    <p>把上面三、四节的纪律压成一个可运行的骨架（价格是示例占位）：</p>
+
+    <pre><code>import hashlib, json
+
+# 供应商注册表：单位价（美元）。None = 未定价，绝不静默当作 0
+PROVIDERS = {
+    "kling_v3@fal":  {"unit": "clip",     "usd": 0.20},
+    "veo@fal":       {"unit": "clip",     "usd": None},  # 未定价
+    "pexels":        {"unit": "clip",     "usd": 0.0},   # 检索真实素材
+    "chirp3_hd":     {"unit": "1k_chars", "usd": 0.0},   # 免费额度内
+}
+
+def quote(shots, budget_usd):
+    """花钱之前先出报价单：未定价项单独暴露，绝不当作 0。"""
+    known, unpriced = 0.0, []
+    for s in shots:
+        usd = PROVIDERS[s["provider"]]["usd"]
+        if usd is None:
+            unpriced.append(s["id"])
+        else:
+            known += usd * s["qty"]
+    reasons = []
+    if unpriced:
+        reasons.append(f"unpriced shots: {unpriced}")
+    if known > budget_usd:
+        reasons.append(f"over budget: ${known:.2f} &gt; ${budget_usd:.2f}")
+    return {"total_usd": round(known, 2),
+            "gate": "BLOCKED" if reasons else "APPROVE",
+            "reasons": reasons}
+
+# resume 语义：同一镜头指纹只提交一次；轮询超时后 resume，不重新付费
+_submitted = {}
+def submit(shot):
+    key = hashlib.sha256(json.dumps(shot, sort_keys=True).encode()).hexdigest()
+    if key in _submitted:
+        return {"action": "resume_job", "job": _submitted[key]}
+    _submitted[key] = {"shot": shot["id"], "status": "polling"}
+    return {"action": "new_job", "job": _submitted[key]}</code></pre>
+
+    <p>三种行为各验一遍：</p>
+
+    <pre><code>混入未定价镜头 → BLOCKED, reasons=['unpriced shots: [s2]']
+6 段 Kling + 免费素材旁白 → APPROVE, total_usd=1.2   # ≈ 官方 $1.33
+轮询超时重试同一镜头 → resume_job（不是第二次扣费）</code></pre>
+
+    <p><code>quote()</code> 做在 <code>submit()</code> 之前，就是「先报价再花钱」；未定价返回 null 而不是 0，就是「会计纪律」。这两条加起来不到 30 行，任何 agentic 管线都能直接搬。</p>
+
+    <h2>六、三层拼图</h2>
+
+    <p>放在本博客的连续脉络里看：十月写过「<a href="deterministic-video-hyperframes-2026-10.html">把视频从抽奖变成编译</a>」——确定性渲染是<strong>编译层</strong>；月初写过「<a href="agent-skills-ecosystem-2026-11.html">别让你的 Agent 长成 npm</a>」——skills 是程序性记忆，那是<strong>记忆层</strong>；OpenMontage 补上了中间的<strong>导演层</strong>：行业方法论被拆成数百个受版本管理的 skill，管线清单约束流程，审批门约束花钱。它甚至把 HyperFrames 用作其中一条管线的合成层——编排层与编译层天然相叠。</p>
+
+    <p>可迁移的三条，与拍片无关也成立：智能外置成文档，模型只当供应商；未定价与免费是两种钱；审批门放在两个不可逆动作之间。</p>
+
+    <p style="color:#8b949e;font-size:0.85rem;margin-top:2rem;">参考：<a href="https://github.com/calesthio/OpenMontage">calesthio/OpenMontage</a>（AGPLv3）· AGENT_GUIDE.md · docs/PROVIDERS.md，引文均核对自仓库原文，2026-11-06。</p>
+</body>
+</html>
