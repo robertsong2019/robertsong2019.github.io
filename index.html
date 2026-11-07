@@ -610,6 +610,22 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-11-07 Realtime Voice Agent Latency -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-11-07</div>
+                    <a href="posts/realtime-voice-agent-latency-2026-11.html" class="post-title-link">
+                        <div class="post-title">语音 Agent 难的不是开口，是接话：800 毫秒预算下的实时架构</div>
+                    </a>
+                    <div class="post-excerpt">
+        人类对话换轮间隔均值208ms且十种语言一致(Stivers PNAS 2009), 2026真实电话实测语音agent换轮1.27-3.76s差一个数量级; Templeton PNAS 2022: 只改接话快慢连接感就变——延迟不是性能指标是社交信号, 700ms+停顿被解读为犹豫 / 800ms预算表: endpointing等待200-400ms(纯等待占预算1/3-1/2)+STT定稿+LLM首token+TTS首音频+网络, 每段"还行"加起来=坏对话 / 最贵的毫秒是确认你说完了: 纯声学VAD在320ms阈值误打断率60%, "去……呃……纽约"句中停顿静音定时器永远分不清; 出路是把endpointing从检测改成预测——人类600ms规划一个词却200ms接话, 靠的是边听边预测边打草稿(Levinson), 机器对应物: VAP预测式+Deepgram Flux三事件(EagerEndOfTurn抢跑/TurnResumed撤销/EndOfTurn提交)实测p50 260ms / 抢跑一切: eager LLM prefill+句级TTS流式+STT藏进静音等待, 用便宜调用买感知延迟(LLM调用+50-70%换几百ms感知); 工程铁律: end-of-turn唯一裁判, 双decider=不可复现的早接晚接 / barge-in全栈五环: AEC防自听+回应词分类("嗯嗯"不是抢话筒)+取消TTS同时取消LLM生成+词边界断点续说+不可逆工具调用disallow_interruptions; 打断体验最少被测试 / Coval 2026-10实测泼冷水: S2S榜PolyAI 825ms/Gemini Live 861ms/GPT Realtime2 1576ms, 充分流式级联755ms反超——"级联已死"被营销夸大; S2S真实代价是可观测性(中间没有字查不了坏电话)和控制权(endpointing从参数变模型行为); DuplexCascade级联+微话轮优化逼近全双工: 全双工(架构)与全双轴(体验)正交 / 评估三口径: 从录音测用户听到的停顿而非provider事件(p50/p95/p99, 杀满意度的是p99卡顿)+四行为分开测; 厂商自报600ms vs 生产2.4-3.8s差4-6倍 / 起步配方: 级联+语义VAD+抢跑prefill+句级TTS+首token快的小LLM(快比聪明重要); 耳朵不接受转圈——agent有了嗓音就被拉回人类对话物理规则
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">语音交互</span>
+                        <span class="post-tag">系统架构</span>
+                    </div>
+                    <a href="posts/realtime-voice-agent-latency-2026-11.html" class="read-more">阅读全文 →</a>
+                </div>
 <!-- 2026-11-07 OpenMontage Model As Supplier -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-11-07</div>

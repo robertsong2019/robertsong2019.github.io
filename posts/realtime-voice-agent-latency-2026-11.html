@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音 Agent 难的不是开口，是接话：800 毫秒预算下的实时架构 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>语音 Agent 难的不是开口，是接话：800 毫秒预算下的实时架构</h1>
+    <div class="meta">
+        2026-11-07 · <span class="tag">AI Agent</span> <span class="tag">语音交互</span> <span class="tag">系统架构</span>
+    </div>
+
+    <p>先问一个问题：你和同事聊天，同事说完一句话，你平均多少毫秒后开口？</p>
+
+    <p>答案是两百毫秒左右。这是 <a href="https://www.pnas.org/doi/10.1073/pnas.0903616106">Stivers 等人 2009 年发在 PNAS 的跨语言研究</a>的结论：从日语到丹麦语，十种语言的问答换轮间隔都聚集在 0–200ms，均值 208ms。所有语言的人类都在同时做两件事：不留长沉默，也不抢着重叠。</p>
+
+    <p>而 2026 年真实电话线路上的语音 AI agent，实测换轮时间中位数是 1.27 到 3.76 秒——比人类慢一个数量级。更有意思的是 PNAS 2022 年的另一项研究：受控实验里，只改变接话快慢、内容完全相同，人们的"连接感"就会显著变化。<strong>接话速度本身就是社交信号，不是一个性能指标。</strong>超过大约 700ms 的停顿，人类会开始解读它的含义：它在犹豫？它没听懂？它心虚？</p>
+
+    <p>所以语音 agent 的战场很清楚：答案质量是及格线，那半秒钟的沉默才是决胜点。今晚把这条战线上十四个系统、论文和实测报告过了一遍，结论可以先用一句话说：语音 agent 难的不是"说什么"，是"什么时候开口"和"被打断之后怎么办"。</p>
+
+    <h2>一、800 毫秒，一张预算表</h2>
+
+    <p>行业现在有个粗共识：从用户说完到 agent 出声，全程大概有 800ms 预算，再往后用户就开始觉得"哪里不对"。这 800ms 里装着一段典型的级联流水线：</p>
+
+    <table>
+        <tr><th>环节</th><th>典型耗时</th><th>备注</th></tr>
+        <tr><td>确认用户说完了（endpointing）</td><td>200–400ms</td><td>纯等待，不是计算</td></tr>
+        <tr><td>语音转文字定稿</td><td>150–350ms</td><td>流式转写其实边说边出</td></tr>
+        <tr><td>LLM 首 token</td><td>200–450ms</td><td>云端模型 p50 常在 400ms+</td></tr>
+        <tr><td>TTS 首音频</td><td>150–300ms</td><td>最好的一档已到 185–214ms</td></tr>
+        <tr><td>网络与播放缓冲</td><td>几十到几百 ms</td><td>电话线路另算</td></tr>
+    </table>
+
+    <p>这张表最阴险的地方在于：<strong>每一段的数字单看都"还行"，加起来就是一个坏对话。</strong>三段各 300ms 的流水线已经是 900ms——超预算了。所以语音 agent 的架构工作不从选模型开始，从画这张预算表开始：每项定 p95 目标、埋点监控，和做数据库 SLO 一个纪律。</p>
+
+    <p>而这张表里最贵的一行，是第一行——"确认你说完了"的那几百毫秒。它贵在是纯等待：静音定时器要蹲够 200–400ms 才敢断定你结束了，这笔钱花在"保险"上，占了总预算的三分之一到一半，而且 LLM 还一个字没见着。</p>
+
+    <h2>二、最难的决定：用户说完了吗</h2>
+
+    <p>"用户说完了吗"这个问题，学术界叫 endpointing（话轮终结判定）。要先分清三个被混用的词：VAD 是帧级的（这一帧有没有人声），endpointing 是话轮级的（这个人是不是说完了），语义 endpointing 则进一步用词汇和句法来判断（这句话在语义上完整了吗）。</p>
+
+    <p>为什么静音定时器不够用？想象用户说："我想订一张去……呃……纽约的票。"中间那个"呃"制造的停顿，和句尾的停顿，在声学上可以一模一样。2026 年一项研究的数字很残酷：纯声学 VAD 基线在 320ms 阈值下，早期误打断率高到 60%——agent 动不动就把一个思考中的人拦腰打断，用户被迫改变说话习惯，像在跟卫星电话通话。</p>
+
+    <p>出路是把 endpointing 从"检测问题"改成"预测问题"。这其实是在抄人类的作业：心理语言学家 Levinson 指出过一个悖论——人类规划说出哪怕一个词都要 600ms 以上，却能 200ms 接话。唯一的解释是<strong>听者根本没在等对方说完，而是边听边预测对方话轮会在哪结束，并提前在心里打好了草稿</strong>。Skantze 组的 Voice Activity Projection 系列工作就是这个思路的机器版：不再检测"已经发生的静音"，而是直接预测"接下来谁会说话"。</p>
+
+    <p>生产侧的对应物是 Deepgram Flux 那套三事件设计：<code>EagerEndOfTurn</code>（中等置信：大概率说完了）就提前启动 LLM，<code>TurnResumed</code>（哦没说完）就撤销，<code>EndOfTurn</code> 才正式提交。实测端到端检测 p50 约 260ms，能从关键路径上砍掉一两百毫秒。</p>
+
+    <h2>三、抢跑一切：用便宜的调用买感知延迟</h2>
+
+    <p>把上面的思路推到底，就是语音 agent 的核心杠杆——<strong>投机执行</strong>（speculative execution）：</p>
+
+    <ul>
+        <li><strong>抢跑话轮</strong>：不等"确认说完"，中等置信就开始 LLM prefill。代价是 LLM 调用量增加 50–70%，赌错就扔掉。</li>
+        <li><strong>抢跑语音</strong>：LLM 才吐出第一句话，TTS 就开始合成播放，后面的内容边生成边说。用户根本不在乎完整回答多慢——他在乎第一个音节多快到。</li>
+        <li><strong>抢跑时机</strong>：流式转写让 STT 在用户说话时就出部分结果，把"转写定稿"的时间藏进"等静音"的等待里。</li>
+    </ul>
+
+    <p>这套打法的本质是：感知延迟用便宜的东西买（多几次小模型调用、多几分钱 token），这几乎总是划算的买卖。它和我之前写过的 KV cache 经济学同构——贵的从来不是计算，是等待和复读。</p>
+
+    <p>但有个工程前提必须先立规矩：<strong>end-of-turn 只能有一个裁判。</strong>真实系统里 STT 服务自带 endpointing、编排框架有 VAD、有的还有第三层语义判断——如果三个组件都能宣布"用户说完了"，同一套系统有的电话接得早有的接得晚，永远调不稳。收敛到唯一 decider，其余降级为信号源。</p>
+
+    <h2>四、被打断之后：barge-in 是全栈问题</h2>
+
+    <p>能抢跑的 agent 就必须能被推翻。用户中途插话（barge-in）之后的处理链条，比检测本身难得多：</p>
+
+    <ol>
+        <li><strong>别自己打断自己</strong>：免提电话里 agent 的声音会从话筒回灌，没有回声消除（AEC），agent 会把自己的声音当成用户插话，当场语无伦次。</li>
+        <li><strong>分辨插话和回应词</strong>："嗯嗯""对对"是鼓励你继续，不是抢话筒。把它们当打断处理，对话就碎成渣。</li>
+        <li><strong>全面取消</strong>：确认真打断后，要立刻停 TTS 播放、清空播放队列、<strong>同时取消 LLM 生成</strong>——别为一个没人听的句子继续烧 token。</li>
+        <li><strong>状态回滚与衔接</strong>：被打断的半句话怎么办？好的实现记录 TTS 的词边界，恢复时从断点续说；差的实现下一轮假装无事发生，用户已经糊涂了。</li>
+        <li><strong>不可逆操作豁免</strong>：如果 agent 正在执行扣款、写库这类不可逆工具调用，要显式禁止打断（LiveKit 的 <code>disallow_interruptions()</code> 就是干这个的）——用户一句"等等"不该取消一笔已经提交了一半的交易。</li>
+    </ol>
+
+    <p>Pipecat 社区今年还在打磨"优雅停顿"：打断时不做生硬的硬切，而是留 10–20ms 的淡出。<strong>打断体验是语音 agent 最容易翻车、也最少被系统测试的地方。</strong>大多数团队连一个打断场景的回归脚本都没有。</p>
+
+    <h2>五、级联 vs 端到端：谁更快？答案是都不快</h2>
+
+    <p>行业叙事是"speech-to-speech 端到端模型（音频进音频出）要革级联流水线（STT→LLM→TTS）的命"。Kyutai 的 Moshi 确实漂亮：用户流和系统流并行建模，不需要显式话轮机制，理论延迟 160ms，单卡实测 200ms——无限接近人类的 208ms。</p>
+
+    <p>但 2026 年 10 月 Coval 从真实通话录音测的榜单泼了冷水：PolyAI 825ms、Gemini Live 861ms、GPT Realtime 2 是 1,576ms；与此同时，一套充分流式化的级联（Deepgram + Qwen + ElevenLabs）测出 755ms——<strong>一套调教好的三段式，比大多数一体化大模型还快。</strong>"级联已死"是被营销夸大的。</p>
+
+    <p>真正要算的账是另外两笔。第一笔是<strong>可观测性</strong>：级联的每一段都有中间产物——转写文本、LLM trace、TTS 时间戳，出了坏电话可以逐段验尸；S2S 模型中间没有字，只有一个不透明的音频流，你连"它为什么在那儿停了三秒"都查不了。第二笔是<strong>控制权</strong>：级联的 endpointing 是你可以调的参数，S2S 把它变成了模型内部行为，你想让 agent 在 noisy 环境下多等 100ms？调不了。</p>
+
+    <p>还有一篇有趣的工作值得点名：DuplexCascade（arXiv 2603.09180）不换大模型，就用级联管线加"微话轮优化"，把暂停处理、回应词、换轮、打断四个行为分别调优，逼近全双工体验。它证明了一个概念区分：<strong>全双工（架构上同时能听能说）和"全双轴"（体验上像人一样对话）是正交的两个维度。</strong>你要的是后者，前者只是一种实现路径。</p>
+
+    <h2>六、测那个停顿：口径错了全白干</h2>
+
+    <p>最后是评估。厂商自报延迟和真实生产之间隔着 4–6 倍：某厂商文档写着"低至 600ms"，生产实测 270 通电话中位数 2.38–3.76 秒——电话网、扬声器回声、真实噪音、工具调用往返，全都在用户耳朵里叠加。</p>
+
+    <p>所以口径要钉死三条：</p>
+
+    <ul>
+        <li><strong>测用户听到的停顿</strong>：从通话录音测"用户说完 → agent 首个音频"，而不是读 provider 的事件时间戳——后者测的是管线健康度，不是用户体验。</li>
+        <li><strong>报 p50/p95/p99，别报均值</strong>：杀死满意度的是 p99 的那一次三秒卡顿，不是平均快慢。稳定性胜过漂亮平均值。</li>
+        <li><strong>行为分开测</strong>：换轮延迟、误打断率、回应词识别、打断恢复，是四件事四个指标，混成一个"对话自然度"分数等于没测。</li>
+    </ul>
+
+    <h2>七、今晚能做什么</h2>
+
+    <ol>
+        <li><strong>画预算表</strong>：如果你的项目沾语音，第一周就把 800ms 反推分配表画出来，每段定 p95 目标并埋点。没有预算表的语音项目等于没有 SLA 的数据库。</li>
+        <li><strong>审计 endpointing 裁判数</strong>：数一数你的栈里有几个组件能宣布"用户说完了"。多于一个，收敛它。</li>
+        <li><strong>写 12 场景打断回归脚本</strong>：免提回声、咳嗽、"嗯嗯"、句中"呃"、打断后追问、工具调用中打断……每天跑一遍。这比换模型对体验的提升大。</li>
+        <li><strong>换录音口径自测一轮</strong>：拿十通真实录音测停顿分布，和厂商数字对比，差距大说明问题在集成层——好消息是集成层的钱最好省。</li>
+        <li><strong>起步配方</strong>：级联 + 语义 VAD + 抢跑 prefill + 句级 TTS 流式 + 一个首 token 快的小 LLM（在语音里，快比聪明重要）。这是当下性价比最高的生产起点，S2S 等可观测性成熟了再上。</li>
+    </ol>
+
+    <p>收个尾。写文本 agent 的这一年，大家习惯了"延迟无所谓，反正用户会等"——输入框里多转三秒思考，没人觉得被冒犯。语音把这个豁免收回了：<strong>耳朵不接受转圈。</strong>一旦 agent 有了嗓音，它就被拉回人类对话的物理规则里——两百毫秒内接话，被插话时得体让位，停顿本身就是表态。这也许是语音 agent 给所有 agent 工程师上的一课：实时系统的优雅，从来不在算得多快，而在等得多聪明。</p>
+</body>
+</html>
