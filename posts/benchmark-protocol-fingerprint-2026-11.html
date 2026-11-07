@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>79.20% 和 48.4% 都是真的：同一个基准为什么养出两个世界 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>79.20% 和 48.4% 都是真的：同一个基准为什么养出两个世界</h1>
+    <div class="meta">
+        2026-11-08 · <span class="tag">AI Agent</span> <span class="tag">评测方法</span> <span class="tag">长期记忆</span>
+    </div>
+
+    <p>昨晚 GitHub trending 上出现一个仓库：<a href="https://github.com/ranxianglei/billion-context">billion-context</a>。MITM 代理坐在编码 agent 和模型 API 之间，改写 Anthropic/OpenAI 流量，往对话里注入四个上下文管理工具——compress、decompress、search_context、acp_status。亮点是压缩由模型自己决定何时做、压什么，而且是增量的、可逆的、前缀缓存友好的：健康会话保持 95–97% 的 prefix-cache 命中率，压缩本身开销不超过 2%。配套论文是 4.5 个月的生产级纵向研究：三台主机、174,327 次模型调用、187.6 亿累计输入 token，204.8k 窗口零违规。</p>
+
+    <p>仓库还挂了一份 1,500 题的跨基准评测：LongMemEval-S、ContextBench、MemoryAgentBench 各 500 题，五个实验臂（full 全量上下文 / bc 压缩 / bm25 / embedding / embedding-rerank）共享同一个底座模型（DeepSeek V4.1 Flash）、同一套 prompt、同一批评分器。头条成绩：<strong>LongMemEval-S 79.20%，比最强 RAG 臂高 16.6 个百分点，独立会话成本降 71.1%</strong>。</p>
+
+    <p>看到这里我打开了自家项目的评测台账。amg——一个跨会话记忆检索管线——在同一个 LongMemEval-S 上的官方成绩是 48.4%。</p>
+
+    <p>同一个基准，79.20% 对 48.4%，差三十多分。哪个数字有问题？</p>
+
+    <p><strong>都没问题。问题是这两个数字根本不在同一根轴上。</strong>这篇文章想拆清楚：当两个人说"我们在 LongMemEval-S 上测了"这句话时，中间隔着多少层协议——以及为什么每一层都足以吃掉一个 SOTA。</p>
+
+    <h2>一、同一个基准名，五层协议变量</h2>
+
+    <h3>第一层：判分器</h3>
+
+    <p>billion-context 的评测 README 写得很清楚：五臂共享"evaluation judges"。但我把 README 和论文翻遍，没有找到 LME 准确率的判分口径定义——exact match？归一化 match？LLM-as-judge？不知道。而这恰恰是最贵的一个变量。看一段可以跑的代码：</p>
+
+    <pre><code>"""同一批答案，三把尺子。"""
+import re, unicodedata
+
+CASES = [
+    ("What is the name of the user's sister?", "Lisa", "Lisa"),
+    ("When did the user start working at Google?", "March 2019",
+     "The user started at Google in March 2019."),
+    ("How many pets does the user have?", "two", "2"),
+    ("What is the user's brother's name?", "David", "I believe it's David."),
+    ("What model of car does the user drive?", "Toyota Camry", "A Camry"),
+    ("What is the user's sister's profession?", "nurse", "Lisa works as a nurse."),
+    # ...共 25 题，答案形态按真实输出分布混合
+]
+
+def _norm(s):
+    s = unicodedata.normalize("NFKC", s).lower()
+    return re.sub(r"[^a-z0-9\u4e00-\u9fff]", "", s)
+
+JUDGES = {
+    "exact":    lambda a, g: a.strip() == g.strip(),
+    "norm":     lambda a, g: _norm(a) == _norm(g),
+    "contains": lambda a, g: _norm(g) in _norm(a),
+}
+
+for name, fn in JUDGES.items():
+    acc = 100.0 * sum(fn(a, g) for _, g, a in CASES) / len(CASES)
+    print(f"judge={name:&lt;9} acc = {acc:5.1f}%")</code></pre>
+
+    <p>实测输出：</p>
+
+    <pre><code>judge=exact     acc =  44.0%
+judge=norm      acc =  56.0%
+judge=contains  acc =  88.0%</code></pre>
+
+    <p>同一批答案，什么都没改，只换判分器，44 分 vs 88 分。<strong>判分器选择制造的 44 分分差，是 billion-context 头条 SOTA gap（16.6 分）的 2.6 倍。</strong>换句话说：两篇论文各报一个 LME-S 数字，只要一家用 exact、一家用宽松判分，"SOTA"就可以凭空产生或凭空消失。amg 用最严的 exact（答案必须是裸实体，多一个逗号算错），48.4% 这个体面的数字在宽松口径下会立刻变成另一个世界。</p>
+
+    <h3>第二层：数据版本</h3>
+
+    <p>LongMemEval-S 官方 500 题。但磁盘上躺着两套共享这 500 个 qid 的文件：完整版每题平均 47.7 个会话、494 条消息；剪枝版（oracle）每题只有 1.9 个会话、22 条消息。同一份检索代码，跑前者 0.484，跑后者 0.526——<strong>+25% 的"提升"纯粹来自换了文件，题号一个都没变</strong>。amg 的官方纪律因此钉死：只认 s_cleaned 那一份，评测报告自带数据文件名和 SHA256 前 12 位。别人论文里的"LongMemEval-S"，你知道是哪一份吗？不知道就不可比。</p>
+
+    <h3>第三层：底座模型</h3>
+
+    <p>billion-context 全表用 DeepSeek V4.1 Flash。换一个模型，LME-S 上上下下二十分很正常——而记忆管线的成绩恰恰对底座模型的指令跟随极度敏感。跨论文比较时，你比较的是"管线 × 模型"的乘积，两个因子同时变，无法归因。</p>
+
+    <h3>第四层：随机性与 tie-break</h3>
+
+    <p>amg 踩过的真坑：同一代码跑两次，成绩差两三分。追查发现两层随机性——Python 的 hash 随机化改变 dict 迭代顺序，同分候选项的 tie-break 就跟着变；管线里还有一处没播种的 <code>random.</code> 调用。修复后才明白：<strong>跨 run 差异小于 5 题一律当噪声</strong>，可比性要求把 PYTHONHASHSEED 和所有 RNG 钉进报告指纹。多数论文的复现包里没有这一项。</p>
+
+    <h3>第五层：成本口径</h3>
+
+    <p>billion-context 这里做了件值得表扬的事：LME 上 full 臂的账单成本是 $0.42——因为顺序评测共享 haystack，prefix cache 命中率 98.1%。但它同时披露了独立会话口径的真实成本 $7.97，并注明 bc 是 $2.30（省 71.1%）。<strong>两个成本口径差 19 倍，它都写明了。</strong>这是"口径即代码"的正面教材：$0.42 是真话但不完整，$7.97 才是部署时你会付的钱。</p>
+
+    <h2>二、billion-context 其实是个好学生</h2>
+
+    <p>拆完五层，得公平地说回来：这个仓库的评测纪律在开源项目里属于前 5%。</p>
+
+    <p>第一，它没有藏 full 臂比它强的事实——LME 表格里 full 是 83.20%，bc 79.20%，<strong>头条的"+16.6%"是 vs RAG 臂，不是 vs 全量上下文</strong>。你只要读到第二张表就能看到真相，README 没有撒谎，只是头条选择了对自己最有利的比较轴。压缩的真实卖点是：保留 95.2% 的全量准确率，成本砍 71%——这本身就是个好故事。</p>
+
+    <p>第二，它诚实报告了失败边界：逐字 needle 检索（AR）从 full 的 69.0% 掉到 27.0%——有损语义压缩会把埋在 197k token 干草堆里的原句抹平。README 明说这划定了适用边界：演进状态的多轮 agent 用 bc，静态逐字查找用 RAG。</p>
+
+    <p>第三，MemoryAgentBench 的 TTL 场景里 full 臂 199/199 全崩（1.48M token 超窗），bc 压到 ~16k 稳态窗口 100% 存活——极限场景的对比是真实的、有说服力的。</p>
+
+    <p>以及一个真正漂亮的洞察：LME 的 Multi-Session Reasoning 子项上 bc 79.7% 对最强 RAG 45.1%。分层摘要保留了时间顺序和跨会话推理链，而切块 RAG 把推理链切碎了。这与 amg 的路线之争同源：会话内上下文管理（bc）和跨会话记忆检索（amg）本来就是 LongMemEval 考的两种能力，两条路线在同一张考卷的不同题型上各占优势。</p>
+
+    <h2>三、评测指纹：让两个数字能放上同一根轴</h2>
+
+    <p>所以 79.20% 和 48.4% 什么时候可比？当且仅当下面五个字段逐位相等：</p>
+
+    <pre><code>import hashlib, json
+
+def fingerprint(data_file, judge, model, seed, tiebreak):
+    return json.dumps({
+        "data_sha256_12": hashlib.sha256(open(data_file, "rb").read()
+                            if isinstance(data_file, str) else data_file)
+                            .hexdigest()[:12],
+        "judge": judge,        # exact | norm | contains | llm:&lt;name&gt;
+        "model": model,        # 底座模型与版本
+        "seed": seed,          # PYTHONHASHSEED + 所有 RNG 播种
+        "tiebreak": tiebreak,  # 同分候选项的排序规则
+    }, sort_keys=True)
+
+# amg 官方 run 的指纹
+print(fingerprint("longmemeval_s_cleaned.json",
+                  judge="exact", model="glm-5", seed=7, tiebreak="qid_asc"))</code></pre>
+
+    <p>amg 的评测报告已经把这串指纹焊进了产物配置。这不是洁癖，是被 +25 分 phantom 教育出来的：<strong>基准名字不是可比性的凭证，指纹才是。</strong>以后看到任何论文报 LongMemEval-S——包括我自己的数字——第一个动作应该是问这五个字段，问不全的数字一律降级为"参考信息"。</p>
+
+    <p>顺带一提，billion-context 缺的正是 judge 字段。五臂共享判分器，所以它内部对比成立（这是它评测设计真正扎实的部分）；但 79.20% 这个绝对数字，外人拿去和别人比，就是又一桩"同基准异世界"悬案。</p>
+
+    <h2>四、写在最后</h2>
+
+    <p>基准的本来用途是给系统照镜子，工业界的实际用法是给系统排名。前者要求口径自知，后者要求口径可比——而可比性从来不是基准名给的，是协议栈给的：判分器、数据版本、底座模型、随机种子、成本口径，五层缺一层，数字就开始说谎。</p>
+
+    <p>billion-context 值得认真读：模型自驱动的可逆压缩、缓存友好的分层摘要，对任何做长会话 agent 的人都有直接借鉴价值。但读它的正确姿势和读所有评测报告一样——先翻到表格第二行，看看谁被头条省略了；先找判分器定义，找不到就把 headline 打七折再说。</p>
+
+    <p>79.20% 和 48.4% 都是真的。假的是"它们能直接比较"这个直觉。</p>
+</body>
+</html>
