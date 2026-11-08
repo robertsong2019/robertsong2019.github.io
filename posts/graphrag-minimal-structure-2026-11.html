@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图不是数据库，是脚手架——GraphRAG 的第二次进化 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>图不是数据库，是脚手架——GraphRAG 的第二次进化</h1>
+    <div class="meta">
+        2026-11-08 · <span class="tag">GraphRAG</span> <span class="tag">知识图谱</span> <span class="tag">Agent 记忆</span>
+    </div>
+
+    <p>2024 年，一个团队给 500 页企业文档建知识图谱花了 200 美元和 45 分钟，换来的是"全局性问题准确率 86%，基线 RAG 只有 32%"。他们很满意，直到三个月后文档改了 30%，他们发现要重建整张图。而隔壁团队用 BM25 加向量混合检索加一个 reranker，把 recall 从 0.72 做到 0.9 以上，成本不到他们的零头。</p>
+
+    <p>2026 年，故事反转了：不是隔壁团队赢了，是两边都输了，赢的是第三种做法——<strong>建一张很小的图，然后把所有聪明的活儿都推迟到查询那一刻再做</strong>。这篇想讲清楚这个反转是怎么发生的，以及它对做 Agent 记忆的人意味着什么。</p>
+
+    <h2>一、第一次进化：建大图时代</h2>
+
+    <p>微软 GraphRAG（2024）定义了第一代范式：用 LLM 从语料抽取实体和关系，跑 Leiden 社区检测，把图切成层级社区，每个社区生成摘要，回答"这批文档的主要主题是什么"这类全局问题时做 map-reduce。它在企业基准上确实碾压向量 RAG——86% 对 32%。</p>
+
+    <p>但账单很诚实：索引成本是向量 RAG 的 10 到 40 倍，58% 的 token 花在实体抽取上；语料一变就要重建；LLM 抽取引入的噪声还会污染图本身。这个时期大家默认的隐喻是：<strong>图是一个知识资产</strong>，你花大钱把知识"物化"成图，查询时享受快。</p>
+
+    <p>这个隐喻错了。正确的是建筑工程里的那个词：<strong>脚手架</strong>。</p>
+
+    <h2>二、成本崩塌：三个数量级</h2>
+
+    <p>2024 到 2026 两年间，索引成本掉了三个数量级，走的是三条不同的路：</p>
+
+    <ul>
+        <li><strong>LazyGraphRAG</strong>（微软）：只建一个轻量的概念共现索引，成本是全量 GraphRAG 的 0.1%，和纯向量 RAG 相当。所有 LLM 推理推迟到查询时，用迭代深化边走边决定看哪。</li>
+        <li><strong>LightRAG</strong>（HKU，EMNLP 2025）：砍掉社区检测，平面图加双层检索，支持<strong>增量更新</strong>——新文档进来不用重建。同样 500 页语料 3 分钟 0.5 美元，用百分之一的成本拿到 GraphRAG 七到九成的质量。</li>
+        <li><strong>LinearRAG</strong>（ICLR 2026）：干脆不做关系抽取，构建成本随语料线性增长。</li>
+    </ul>
+
+    <p>实践圈的总结很冷静：<em>成本不再是拒绝 GraphRAG 的理由，但也不是默认使用它的理由。</em>真正的问题从"建不建图"变成了"<strong>建多小的图、把多少活儿留给查询时刻</strong>"。</p>
+
+    <h2>三、最小可行图：结构有边界</h2>
+
+    <p>这个问题的最好答案来自 VLDB 2026 一个 Agent+Graph workshop 上的实证研究（IBM 团队）。他们系统比较了从"无图"到"带事件、schema、属性标注的富结构图"整个谱系，结论是：<strong>存在一个最小可行图结构</strong>。平面/无图撑不住难的多跳组合查询；但 entity-centric 的骨架图——只有实体和关系、没有花哨属性——配合检索时的图搜索，打出的质量-成本 Pareto 点<strong>强于</strong>明显更复杂的构建方案。</p>
+
+    <p>翻译成人话：给图加结构，收益不是线性的，是先升后平甚至下降的。AAAI 2026 甚至有一篇题为"You Don't Need Pre-built Graphs for RAG"的论文，证明连预建图都可以省掉，查询时自适应搭建推理结构就够了。PathRAG（AAAI 2026）从另一个方向补刀：图-RAG 的病不是缺结构而是<strong>冗余</strong>——用流式路径剪枝砍掉 44% 的上下文，精度不降。</p>
+
+    <p>用一个考试类比：第一代 GraphRAG 是把整本书背下来再进考场；2026 年的做法是带一本只有索引的百科全书进考场，<strong>比拼的是翻页和组合的能力</strong>。预计算的部分在缩水，查询时干的活在加重——这是一根跷跷板，而且还在往查询端倾斜。</p>
+
+    <h2>四、更深的转向：记忆是重构出来的，不是取回来的</h2>
+
+    <p>如果只是省钱，这个故事不值得写。真正的转向发生在 Agent 记忆这条线上。</p>
+
+    <p><strong>HippoRAG 2</strong>（ICML 2025，被引 569+）的标题直接叫"From RAG to Memory"：把 KG-RAG 定义为非参数持续学习。它修掉了上一代"上了图反而伤简单事实问答"的退化——离线图保持静态，在线由 LLM 过滤候选三元组、给 Personalized PageRank 做种子，过滤结果为空就回退向量检索。联想记忆任务超 SOTA embedding 七个点。它还给了评测一个新框架：记忆要分三模态打分——<strong>事实性、联想性、理解性</strong>，单一 accuracy 根本描述不了这三者之间的权衡。</p>
+
+    <p>顺带一提，HippoRAG 这个名字不是装饰。它的设计直接抄自神经科学的海马体索引理论：人脑的海马体不存储记忆内容本身，只存储一张"索引"——新皮层各处的碎片表征通过海马体互相连接，回忆时一个线索激活索引，索引再把相关碎片一次性拼回来，这个过程叫 pattern completion。Personalized PageRank 在图上扩散概率，恰好就是这个"一点激活、多点唤醒"机制的算法对应物。第一代 HippoRAG 靠它把多跳检索做得比迭代式便宜 10 到 30 倍——不是模型变聪明了，是结构对了。</p>
+<p>更激进的是 <strong>MRAgent</strong>（ICLR 2026 MemAgents workshop），标题就是论点："Memory is reconstructed, not retrieved"。记忆不再是一条"查询→取回→拼接"的静态流水线，而是 agent 边推理边在关联图上<strong>探索、剪枝、重构</strong>的主动过程——检索路径由推理过程中积累的证据动态决定。在 LoCoMo 和 LongMemEval 上最高提升 23%，token 和延迟同时下降。</p>
+
+    <p>而 <strong>AgeMem</strong>（ACL 2026）把这条路走到逻辑终点：把 store/retrieve/update/summarize/discard 这些记忆操作直接变成 agent 策略里的工具调用，用三阶段强化学习训练，记忆管理不再是外挂的启发式规则，而是<strong>被学出来的策略</strong>。</p>
+
+    <p>三条线汇聚成一个判断：<strong>用什么结构存记忆是次要的，何时访问、走什么路径访问正在被学习</strong>。图在这里的角色彻底变了——它不是知识的容器，是推理过程用来借力的把手。</p>
+
+    <h2>五、时间和遗忘：Agent 记忆的分水岭</h2>
+
+    <p>文档 RAG 和 Agent 记忆正在分道扬镳，分水岭是<strong>时间</strong>。文档语料可以静态，用户的事实不行：他上个月还在东京，这周搬去了大阪。</p>
+
+    <p>Zep（arXiv 2501.13956）的答案是 bi-temporal 图——每条边带两个时间戳：<em>事实在世界上有效的时间</em>和<em>系统获知它的时间</em>。事实变化时不删旧边，只作废，保留"当时系统知道什么"的完整审计轨迹。配合增量更新，这让记忆图可以活着而不是每次重建。另一篇 2026 年的工作给图记忆加了显式遗忘模块：按新近度、频率、结构重要性选择性裁剪，记忆缩容而检索质量不掉。</p>
+
+    <p>这两件事在工程上等价于一个原则：<strong>遗忘是状态迁移，不是 DELETE 语句</strong>。做过 Agent 记忆系统的人在生产里都会撞到同一堵墙——LLM 抽取会出错、用户会改主意，你需要后悔药，而"作废但保留"就是后悔药的存储格式。</p>
+
+    <h2>六、现在能做什么</h2>
+
+    <p>把两年调研压成一张可执行的清单：</p>
+
+    <ol>
+        <li><strong>先榨干混合检索。</strong>BM25 + 向量 + RRF 融合 + reranker，能拿 15-30% 的 recall 提升。语料小于 10 万 token 时别建任何索引，直接塞上下文。</li>
+        <li><strong>要上图，从最小图起步。</strong>entity-centric 骨架图 + 查询时图搜索（PPR 是当前性价比最高的原语），增量更新而不是全量重建。每一层额外结构都必须单独证明下游效用，否则不加。</li>
+        <li><strong>评测拆三模态。</strong>事实/联想/理解分轴报告，外加质量-成本 Pareto 点。单一 accuracy 数字在记忆系统上是误导性的。</li>
+        <li><strong>记忆存储加 bi-temporal 字段。</strong><code>valid_from / valid_to / learned_at</code> 三列，事实变化走"作废不删除"。这是一小时能落地的改动。</li>
+        <li><strong>代码场景别先上图。</strong>Claude Code 用 grep 加 agentic 迭代搜索打天下。结构的价值与查询的组合深度成正比、与查询频率成反比——先用这个乘积估一下你的场景。</li>
+    </ol>
+
+    <p>最后回到那个隐喻。2024 年我们以为自己在建数据库，2026 年才看清建的是脚手架：它的价值不在覆盖多少知识，而在给推理过程提供多少把手。建筑完成后没人会留住脚手架——但盖楼的时候，它决定你能盖多快、多高。</p>
+</body>
+</html>
