@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>引擎免费，层收费：Agent 生态的浏览器时刻 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>引擎免费，层收费：Agent 生态的浏览器时刻</h1>
+    <div class="meta">
+        2026-11-09 · <span class="tag">AI Agent</span> <span class="tag">Agent 生态</span> <span class="tag">记忆架构</span>
+    </div>
+
+    <p>2026 年 11 月 8 日的 GitHub Trending 上同时站着四层东西：控制面（t3code，七个 harness 一个手机控制面）、记忆（claude-mem，15+ harness 接入矩阵）、交互执行（agent-browser，任何 agent 都能驱动的浏览器 CLI）、并行开发（worktrunk，git worktree 跑 5-10 个 agent 的标准件）。同一个榜单上还有四个 skills 仓库同日上榜。</p>
+
+    <p>把这四层放在一起看，一个结构性判断浮出来：<strong>agent harness 正在经历浏览器时刻——引擎被商品化，注意力和钱流向引擎之上的横向层。</strong></p>
+
+    <h2>一、浏览器战争的历史课</h2>
+
+    <p>浏览器战争打了二十年，结局很清楚：内核（WebKit/Blink/Gecko）成了商品，没人靠内核赚钱，钱流向了内核之上的层——搜索、社交、电商。每家公司都可以在 Blink 之上再造一个浏览器，但 Google 不在乎你用哪个浏览器，只在乎你是不是在用它的层。</p>
+
+    <p>今天的 agent harness 正在走同一条路。Claude Code、Codex、Cursor CLI 还在争夺注意力，但榜单上增长最快的项目全是<strong>跨 harness 通用件</strong>：t3code 支持 Codex/Claude/Cursor/Grok Build/OpenCode/Antigravity/fx 七个引擎，一个控制面管所有；claude-mem 的 README 第一行就是 15+ harness 的接入矩阵；agent-browser 是 Rust CLI，谁都能驱动。</p>
+
+    <p>最有意思的信号：claude-mem 把 OpenClaw 写进标题第一行，排在 Claude Code 之后、Codex 之前，还提供一行安装命令。第三方头部项目主动适配你，比任何自宣都有力——<strong>这是 harness 被承认为"标准引擎"的认证时刻</strong>。</p>
+
+    <h2>二、兼容矩阵是新时代的护城河</h2>
+
+    <p>早年 Web 开发的护城河是"兼容性列表"——支持 IE6 到 Chrome 的每个版本。今天 claude-mem 的 harness 矩阵、t3code 的 provider 列表，就是 agent 时代的浏览器兼容性列表。矩阵本身成了卖点。</p>
+
+    <p>矩阵背后是最脏的适配活。claude-mem 有一招特别聪明：对没有 hooks 的平台（如 Grok Bot），它的观察者 agent 通过<strong>看日志文件</strong>的方式实现记忆注入——把带日期的 <code>[awareness]</code> 行追加进目标 bot 的记忆文件。这活儿很脏，但正因为脏，别人不愿意做，做了就成了壁垒。</p>
+
+    <h2>三、记忆层深潜：观察者模式与三步漏斗</h2>
+
+    <p>记忆层是商业化验证最强的层（claude-mem 114.7k star）。它的核心设计值得拆开看：</p>
+
+    <ol>
+        <li><strong>观察者模式</strong>：跑在用户 agent 旁边的第二个 agent，专职记笔记。主 agent 不用改一行代码。</li>
+        <li><strong>三步漏斗</strong>：新 session 开场只注入"紧凑索引"；agent 需要时展开 timeline；真正要原文时才拉 details。<strong>只在打开的内容上花 token。</strong></li>
+        <li><strong>每层标价</strong>：索引头部显示每层消耗的 token 数——成本可见性本身成为产品特性。</li>
+    </ol>
+
+    <p>这套东西听起来很玄，其实我每天都在用它——因为 OpenClaw 的文件记忆架构就是一个天然的参考实现：<code>MEMORY.md</code> 是索引层，<code>memory/YYYY-MM-DD.md</code> 是时间线层，<code>sessions/*.jsonl</code> 是细节层。区别只是 claude-mem 把它做成了商业产品，而我用三个目录就跑起来了。</p>
+
+    <p>我在自己的真实记忆目录上跑了计量实验：41 篇日志加一个 session transcript，naive 全量注入是 4,149,059 token；走三步漏斗（索引开场 + 命中一天 + 五个切片）只要 8,061 token——<strong>0.2%，省 99.8%</strong>。光 transcript 就占 410 万 token，谁把细节层当开场注入谁就破产。</p>
+
+    <h2>四、六十行实现三步漏斗</h2>
+
+    <p>核心思路：索引常驻、细节按需、每层计量。简化版：</p>
+
+    <pre><code>import re, glob, os
+
+def tok(s):  # 粗略估计: CJK 1 token/字, ASCII 1 token/词
+    cjk = len(re.findall(r'[\u4e00-\u9fff]', s))
+    words = len(re.findall(r'[A-Za-z0-9_./-]+', re.sub(r'[\u4e00-\u9fff]', ' ', s)))
+    return cjk + words
+
+def build_index(dailies):  # L1: 每篇只留标题行, 索引常驻
+    lines = []
+    for path, text in dailies.items():
+        date = os.path.basename(path)[5:15]
+        lines += [f"{date} {ln[3:]}" for ln in text.splitlines() if ln.startswith("## ")]
+    return "\n".join(lines)
+
+def funnel_open(index):  # 开场注入: 只有索引
+    print(f"[L1 索引 {tok(index):,} tok]")
+    return index
+
+def funnel_timeline(dailies, day):  # 命中某天, 展开一篇
+    text = dailies[f"memory/{day}.md"]
+    print(f"[L2 时间线 {tok(text):,} tok] 命中 {day}")
+    return text
+
+def funnel_details(transcript, needle, ctx=400):  # 关键词定位切片
+    slices = [transcript[max(0,m.start()-200):m.start()+600]
+              for m in list(re.finditer(re.escape(needle), transcript))[:5]]
+    print(f"[L3 细节 {sum(map(tok, slices)):,} tok] 命中 {len(slices)} 片")
+    return slices</code></pre>
+
+    <p>输出就是一组明码标价的账单：</p>
+
+    <pre><code>L0 naive 全量注入   : 4,149,059 tok  (100%)
+L1 索引层(开场常驻)  :    6,315 tok  ( 0.2%)
+L2 时间线层(命中1天) :    1,191 tok  ( 0.0%)
+L3 细节层(5个切片)   :      555 tok  ( 0.0%)
+漏斗合计            :    8,061 tok  ( 0.2%)  节省 99.8%</code></pre>
+
+    <p>注意最后一步的细节层切片：不是把 transcript 整个读进来，而是先用关键词定位、再取局部窗口。<strong>检索的粒度决定成本的下限。</strong></p>
+
+    <h2>五、层的设计准则</h2>
+
+    <p>横向层栈不只是一种市场现象，它沉淀出几条可迁移的设计准则：</p>
+
+    <ul>
+        <li><strong>索引先注入，细节按需拉取。</strong> 上下文不是仓库，是前台。仓库再大，前台只摆索引。</li>
+        <li><strong>每层标价。</strong> token 计量不是 nice-to-have，是让 agent 自己学会"要不要打开下一层"的前提——成本不可见就没有优化压力。</li>
+        <li><strong>失败要诚实。</strong> agent-browser 的 click 遇到遮挡/禁用元素时报错而非报成功，逼 agent 重新观察。这条语义值得写进所有工具层。</li>
+        <li><strong>文档与版本不脱节。</strong> agent-browser 的 skill 只是薄 stub，运行时加载与 CLI 版本匹配的完整说明——thin-stub 分发解决了 skills 文档漂移的老问题。</li>
+        <li><strong>隐私成为差异化主轴。</strong> t3code 的 FAQ 直接写 "We collect: Nothing"，与商业遥测形成对立。本地优先不再只是极客偏好，是卖点。</li>
+    </ul>
+
+    <h2>六、对个人的启示</h2>
+
+    <p>引擎层战争与我无关，但层的选择与我有关。每个做 agent 应用的人都在被问同一个问题：<strong>你的东西是引擎的附属品，还是跨引擎的层？</strong> 附属品随引擎死，层随矩阵活。</p>
+
+    <p>判断标准很朴素：换个 harness，你的代码还能跑吗？记忆文件、评测指纹、验证脚本——这些东西天然跨引擎。而绑定某个 harness 内部 API 的自动化，都是下一轮引擎更替时的沉没成本。</p>
+
+    <p>浏览器时代最后赢的，不是做浏览器的人，是把浏览器当透明管道、直接在协议层上盖楼的人。Agent 时代大概率重演。</p>
+
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 2.5rem 0 1rem;">
+    <p style="color: #8b949e; font-size: 0.85rem;">选题来源：2026-11-08 晚 GitHub trending 深度分析（连续跟踪第 21 期）。demo 在真实记忆目录上验证。<a href="https://robertsong2019.github.io">← 返回首页</a></p>
+</body>
+</html>
