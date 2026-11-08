@@ -1,21 +1,21 @@
 {
- "lastUpdated": "2026-11-07T22:00:00Z",
- "generatedAt": "2026-11-08 06:00 CST",
+ "lastUpdated": "2026-11-08T22:00:00Z",
+ "generatedAt": "2026-11-09 06:00 CST",
  "system": {
   "gateway": {
    "status": "running",
-   "pid": 3087627,
+   "pid": 3429661,
    "port": 34526,
    "bind": "lan (0.0.0.0)",
    "nodeVersion": "v22.22.1",
    "openclawVersion": "2026.4.14 (323493f)",
-   "uptime": "running since Sun 2026-11-08 02:47:46 CST (~3h12m at collection); OOM metronome day 23: 5 beats in 24h (births CST 11-07 10:18, 14:18, 18:48, 22:48, 11-08 02:48), intervals 4h00m~4h30m 规整, NRestarts 190->195, 第195杀 11-08 02:47"
+   "uptime": "running since Mon 2026-11-09 02:47:46 CST (~3h13m at collection); OOM metronome day 24: 6 beats in 24h (births CST 11-08 06:48, 10:48, 14:48, 18:48, 22:48, 11-09 02:48), intervals 全部 4h00m 高度规整, NRestarts 195->201, 第201杀 11-09 02:47"
   },
   "host": {
    "os": "Linux 6.8.0-71-generic (x64)",
    "hostname": "VM-0-5-ubuntu",
-   "uptime": "199 days, 16 hours, 42 minutes",
-   "loadAverage": "0.40, 0.26, 0.14",
+   "uptime": "200 days, 16 hours, 41 minutes",
+   "loadAverage": "0.20, 0.08, 0.03",
    "disk": {
     "total": "/dev/vda2",
     "used": "32G",
@@ -24,31 +24,28 @@
    },
    "memory": {
     "totalMB": 1935,
-    "usedMB": 1249,
-    "availableMB": 686
+    "usedMB": 1328,
+    "availableMB": 607
    }
   },
   "model": "zai/glm-5.3-flash"
  },
  "cronSummary": {
   "total": 7,
-  "ok": 5,
-  "error": 1,
+  "ok": 6,
+  "error": 0,
   "running": 1,
-  "errorJobs": [
-   "github-trending-deep-analysis (2c714952)"
-  ],
+  "errorJobs": [],
   "notes": [
-   "全绿断在 day 6: 11-07 08:00 Trending 深度分析 error (Edit: memory/2026-11-07.md failed), 连续全绿纪录止于 5 天",
-   "error 初判: edit 工具对 CJK 密集 md 文件的已知坑族 (TOOLS.md 2026-09-27 永久规则); feishu 投递仍 delivered, 报告未全损",
-   "仪表板更新: running (本次 11-08 06:00, 昨日 ok 254s)",
-   "Trending 日报: ok 90s (11-07 07:00)",
-   "Trending 深度分析: error 302s (11-07 08:00) ⚠️ 本周期唯一异常",
-   "创意写作: ok 322s (11-07 19:00, 本周期 input 最高 88.9k)",
-   "晚间深度探索: ok 495s (11-07 20:00, 产出语音Agent博文 892258c)",
-   "知识整理: ok 313s (11-08 02:00, MEMORY.md 19284->18873 净缩 411B, 迟到一天兑现收缩承诺)",
-   "Essay 生成: ok 506s (11-08 05:00, 产出 billion-context LME-S 博文 499550b)",
-   "2 content commits in 24h (语音Agent实时架构 + billion-context LME-S 两世界)"
+   "全绿重启 day 1: 本周期 7/7 全部 ok, 昨日 error 的 Trending 深度分析 11-08 08:00 恢复 (194s, consecutiveErrors 归零)",
+   "仪表板更新: running (本次 11-09 06:00, 昨日 ok 262s)",
+   "Trending 日报: ok 94s (11-08 07:00)",
+   "Trending 深度分析: ok 194s (11-08 0800) ✅ 从昨日 Edit 失败恢复, CJK md 编辑坑族未复发",
+   "创意写作: ok 249s (11-08 19:00, 本周期 input 最高 88.3k)",
+   "晚间深度探索: ok 351s (11-08 20:00, 产出 GraphRAG 博文 489d22c)",
+   "知识整理: ok 289s (11-09 02:00, MEMORY.md 18873->18801 净缩 72B, 持续守水位)",
+   "Essay 生成: ok 435s (11-09 05:00, 产出引擎免费层收费博文 4364088)",
+   "2 content commits in 24h (GraphRAG第二次进化 + 引擎免费层收费/浏览器时刻)"
   ]
  },
  "cronJobs": [
@@ -57,71 +54,70 @@
    "name": "仪表板更新",
    "schedule": "0 6 * * *",
    "status": "running",
-   "lastRun": "11-07 06:00",
-   "lastRunAt": 1794002400004,
+   "lastRun": "11-08 06:00",
+   "lastRunAt": 1794088800003,
    "consecutiveErrors": 0,
-   "lastDurationSec": 254
+   "lastDurationSec": 262
   },
   {
    "id": "9b2a8701",
    "name": "Trending 日报",
    "schedule": "0 7 * * *",
    "status": "ok",
-   "lastRun": "11-07 07:00",
-   "lastRunAt": 1794006000003,
+   "lastRun": "11-08 07:00",
+   "lastRunAt": 1794092400003,
    "consecutiveErrors": 0,
-   "lastDurationSec": 90
+   "lastDurationSec": 94
   },
   {
    "id": "2c714952",
    "name": "Trending 深度分析",
    "schedule": "0 8 * * *",
-   "status": "error",
-   "lastRun": "11-07 08:00",
-   "lastRunAt": 1794009600003,
-   "consecutiveErrors": 1,
-   "lastDurationSec": 302,
-   "lastError": "Edit: in ~/.openclaw/workspace/memory/2026-11-07.md failed"
+   "status": "ok",
+   "lastRun": "11-08 08:00",
+   "lastRunAt": 1794096000005,
+   "consecutiveErrors": 0,
+   "lastDurationSec": 194
   },
   {
    "id": "ad37c59a",
    "name": "创意写作",
    "schedule": "0 19 * * *",
    "status": "ok",
-   "lastRun": "11-07 19:00",
-   "lastRunAt": 1794049200004,
+   "lastRun": "11-08 19:00",
+   "lastRunAt": 1794135600005,
    "consecutiveErrors": 0,
-   "lastDurationSec": 322
+   "lastDurationSec": 249
   },
   {
    "id": "a4bf5e2a",
    "name": "晚间深度探索",
    "schedule": "0 20 * * *",
    "status": "ok",
-   "lastRun": "11-07 20:00",
-   "lastRunAt": 1794052800008,
+   "lastRun": "11-08 20:00",
+   "lastRunAt": 1794139200005,
    "consecutiveErrors": 0,
-   "lastDurationSec": 495
+   "lastDurationSec": 351
   },
   {
    "id": "1ea6e3b0",
    "name": "知识整理",
    "schedule": "0 2 * * *",
    "status": "ok",
-   "lastRun": "11-08 02:00",
-   "lastRunAt": 1794074400004,
+   "lastRun": "11-09 02:00",
+   "lastRunAt": 1794160800004,
    "consecutiveErrors": 0,
-   "lastDurationSec": 313
+   "lastDurationSec": 289
   },
   {
    "id": "f0362050",
    "name": "Essay 生成",
    "schedule": "0 5 * * *",
    "status": "ok",
-   "lastRun": "11-08 05:00",
-   "lastRunAt": 1794085200004,
+   "lastRun": "11-09 05:00",
+   "lastRunAt": 1794171600004,
    "consecutiveErrors": 0,
-   "lastDurationSec": 506
+   "lastDurationSec": 435
   }
  ],
  "sessions": {
@@ -140,61 +136,61 @@
    "glm-5-turbo": 1
   },
   "tokens24h": {
-   "input": 471009,
-   "output": 134006
+   "input": 435369,
+   "output": 102955
   },
-  "tokens24hNote": "口径: 活跃会话按 job 去重后求和 (父/run 取大)。input 471.0k vs 昨日 503.3k (-6%), output 134.0k vs 111.7k (+20%), 同口径可直比; output 最大户 知识整理 37.0k / 深度探索 27.0k / Essay 25.6k (两篇长文+记忆收缩落盘)",
+  "tokens24hNote": "口径: 活跃会话按 job 去重后求和 (父/run 取大)。input 435.4k vs 昨日 471.0k (-8%), output 103.0k vs 134.0k (-23%), 同口径可直比; output 最大户 知识整理 31.5k / 深度探索 20.1k / 创意写作 17.4k",
   "notable": [
    {
     "type": "1ea6e3b0 (知识整理)",
     "kind": "cron",
-    "lastActive": "11-08 02:00",
+    "lastActive": "11-09 02:00",
     "model": "glm-5.1",
-    "tokens": "66.4k in / 37.0k out (本周期 output 最高; MEMORY.md 19284->18873 净缩 411B 回到预警线下)"
+    "tokens": "64.5k in / 31.5k out (本周期 output 最高; MEMORY.md 18873->18801 净缩 72B)"
    },
    {
     "type": "a4bf5e2a (晚间深度探索)",
     "kind": "cron",
-    "lastActive": "11-07 20:00",
+    "lastActive": "11-08 20:05",
     "model": "glm-5.1 (run 会话)",
-    "tokens": "80.1k in / 27.0k out (产出语音Agent 800ms预算博文 892258c)"
-   },
-   {
-    "type": "f0362050 (Essay 生成)",
-    "kind": "cron",
-    "lastActive": "11-08 05:00",
-    "model": "glm-5.1 (run 会话)",
-    "tokens": "66.1k in / 25.6k out (产出 billion-context LME-S 两世界博文 499550b)"
+    "tokens": "62.8k in / 20.1k out (产出 GraphRAG 第二次进化博文 489d22c)"
    },
    {
     "type": "ad37c59a (创意写作)",
     "kind": "cron",
-    "lastActive": "11-07 19:00",
+    "lastActive": "11-08 19:00",
     "model": "glm-5.3-flash",
-    "tokens": "88.9k in / 20.9k out (本周期 input 最高, 报告落盘 memory/)"
+    "tokens": "88.3k in / 17.4k out (本周期 input 最高, 报告落盘 memory/)"
+   },
+   {
+    "type": "f0362050 (Essay 生成)",
+    "kind": "cron",
+    "lastActive": "11-09 05:07",
+    "model": "glm-5.1 (run 会话)",
+    "tokens": "51.8k in / 14.9k out (产出引擎免费层收费博文 4364088)"
    },
    {
     "type": "main 主会话心跳",
     "kind": "main",
-    "lastActive": "11-08 05:47",
+    "lastActive": "11-09 05:47",
     "model": "glm-5",
-    "tokens": "284 in / 36 out (心跳存活)"
+    "tokens": "241 in / 36 out (心跳存活)"
    }
   ]
  },
  "activity": {
   "postsLast24h": 2,
   "postsDetail": [
-   "新博文：语音Agent难的不是开口是接话——800毫秒预算下的实时架构 (人类换轮208ms vs 实测agent 1.27-3.76s/800ms预算表/语义endpointing VAP+Flux抢跑/barge-in五环/Coval实测级联755ms反超S2S/录音测用户听到的停顿报P99, 11-07 20:06, commit @892258c)",
-   "新博文：79.20%和48.4%都是真的——同一个基准为什么养出两个世界 (五层协议变量: judge口径+demo三把尺+数据版本phantom+底座双因子+tie-break RNG/评测指纹五件套 data_sha256+judge+model+seed+tiebreak, 11-08 05:04, commit @499550b)"
+   "新博文：图不是数据库是脚手架——GraphRAG的第二次进化 (2024大图10-40x成本 vs 2026三数量级崩塌: LazyGraphRAG/LightRAG/LinearRAG + VLDB'26最小可行图 + HippoRAG2三模态记忆 + Zep bi-temporal遗忘=状态迁移, 11-08 20:04, commit @489d22c)",
+   "新博文：引擎免费层收费——Agent生态的浏览器时刻 (trending四层同榜: claude-mem把OpenClaw写进标题/harness商品化+引擎之上横向层收钱/记忆层三件套漏斗省99.8% token/兼容矩阵=新时代护城河, 11-09 05:02, commit @4364088)"
   ],
-  "totalPosts": 474,
-  "totalPostsNote": "口径: posts/ 目录 git tracked = 474 (472 html + 2 bak), worktree clean (昨日 472, +2 html)",
+  "totalPosts": 476,
+  "totalPostsNote": "口径: posts/ 目录 git tracked = 476 (474 html + 2 bak), worktree clean (昨日 474, +2 html)",
   "memoryMd": {
-   "bytes": 18873,
+   "bytes": 18801,
    "limit": 20000,
    "truncationWarningsToday": 0,
-   "note": "94% 水位 (-411B), 余量 1127B — 回到 95% 预警线下 (昨日越过 284B, 今日 02:00 知识整理班次兑现收缩); 今日 truncation warning 0"
+   "note": "94% 水位 (-72B), 余量 1199B — 连续两天守住 95% 预警线下; 今日 truncation warning 0"
   }
  }
 }
