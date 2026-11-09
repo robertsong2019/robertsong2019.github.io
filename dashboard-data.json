@@ -1,196 +1,196 @@
 {
- "lastUpdated": "2026-11-08T22:00:00Z",
- "generatedAt": "2026-11-09 06:00 CST",
- "system": {
-  "gateway": {
-   "status": "running",
-   "pid": 3429661,
-   "port": 34526,
-   "bind": "lan (0.0.0.0)",
-   "nodeVersion": "v22.22.1",
-   "openclawVersion": "2026.4.14 (323493f)",
-   "uptime": "running since Mon 2026-11-09 02:47:46 CST (~3h13m at collection); OOM metronome day 24: 6 beats in 24h (births CST 11-08 06:48, 10:48, 14:48, 18:48, 22:48, 11-09 02:48), intervals 全部 4h00m 高度规整, NRestarts 195->201, 第201杀 11-09 02:47"
+  "lastUpdated": "2026-11-09T22:00:00Z",
+  "generatedAt": "2026-11-10 06:00 CST",
+  "system": {
+    "gateway": {
+      "status": "running",
+      "pid": 3772042,
+      "port": 34526,
+      "bind": "lan (0.0.0.0)",
+      "nodeVersion": "v22.22.1",
+      "openclawVersion": "2026.4.14 (323493f)",
+      "uptime": "running since Tue 2026-11-10 02:47:46 CST (~3h14m at collection); OOM metronome day 25: 6 beats in 24h (births CST 11-09 06:48, 10:48, 14:48, 18:48, 22:48, 11-10 02:48), intervals 全部 4h00m ±3s 石英钟级规整, NRestarts 201->207, 第207杀 11-10 02:47 (节拍器已成今日博文主角)"
+    },
+    "host": {
+      "os": "Linux 6.8.0-71-generic (x64)",
+      "hostname": "VM-0-5-ubuntu",
+      "uptime": "201 days, 16 hours, 42 minutes",
+      "loadAverage": "0.31, 0.24, 0.11",
+      "disk": {
+        "total": "/dev/vda2",
+        "used": "32G",
+        "available": "16G",
+        "usage": "68%"
+      },
+      "memory": {
+        "totalMB": 1935,
+        "usedMB": 1264,
+        "availableMB": 671
+      }
+    },
+    "model": "zai/glm-5.3-flash"
   },
-  "host": {
-   "os": "Linux 6.8.0-71-generic (x64)",
-   "hostname": "VM-0-5-ubuntu",
-   "uptime": "200 days, 16 hours, 41 minutes",
-   "loadAverage": "0.20, 0.08, 0.03",
-   "disk": {
-    "total": "/dev/vda2",
-    "used": "32G",
-    "available": "16G",
-    "usage": "68%"
-   },
-   "memory": {
-    "totalMB": 1935,
-    "usedMB": 1328,
-    "availableMB": 607
-   }
+  "cronSummary": {
+    "total": 7,
+    "ok": 6,
+    "error": 0,
+    "running": 1,
+    "errorJobs": [],
+    "notes": [
+      "全绿 day 2: 本周期 7/7 全部 ok (仪表板自身 running 中), 连续两天零 error",
+      "仪表板更新: running (本次 11-10 06:00; 昨日 ok 164s)",
+      "Trending 日报: ok 86s (11-09 07:00)",
+      "Trending 深度分析: ok 225s (11-09 08:00)",
+      "创意写作: ok 256s (11-09 19:00)",
+      "晚间深度探索: ok 442s (11-09 20:00, 产出作弊会传染博文 5363f2a)",
+      "知识整理: ok 332s (11-10 02:00, MEMORY.md 18801->18946 +145B, 距 95% 警戒线仅余 54B 需警惕)",
+      "Essay 生成: ok 471s (11-10 05:00, 产出 OOM取证记博文 50f3658 — 把自家网关节拍器写成文章)",
+      "2 content commits in 24h (作弊会传染 + OOM取证记)"
+    ]
   },
-  "model": "zai/glm-5.3-flash"
- },
- "cronSummary": {
-  "total": 7,
-  "ok": 6,
-  "error": 0,
-  "running": 1,
-  "errorJobs": [],
-  "notes": [
-   "全绿重启 day 1: 本周期 7/7 全部 ok, 昨日 error 的 Trending 深度分析 11-08 08:00 恢复 (194s, consecutiveErrors 归零)",
-   "仪表板更新: running (本次 11-09 06:00, 昨日 ok 262s)",
-   "Trending 日报: ok 94s (11-08 07:00)",
-   "Trending 深度分析: ok 194s (11-08 0800) ✅ 从昨日 Edit 失败恢复, CJK md 编辑坑族未复发",
-   "创意写作: ok 249s (11-08 19:00, 本周期 input 最高 88.3k)",
-   "晚间深度探索: ok 351s (11-08 20:00, 产出 GraphRAG 博文 489d22c)",
-   "知识整理: ok 289s (11-09 02:00, MEMORY.md 18873->18801 净缩 72B, 持续守水位)",
-   "Essay 生成: ok 435s (11-09 05:00, 产出引擎免费层收费博文 4364088)",
-   "2 content commits in 24h (GraphRAG第二次进化 + 引擎免费层收费/浏览器时刻)"
-  ]
- },
- "cronJobs": [
-  {
-   "id": "f38e0365",
-   "name": "仪表板更新",
-   "schedule": "0 6 * * *",
-   "status": "running",
-   "lastRun": "11-08 06:00",
-   "lastRunAt": 1794088800003,
-   "consecutiveErrors": 0,
-   "lastDurationSec": 262
-  },
-  {
-   "id": "9b2a8701",
-   "name": "Trending 日报",
-   "schedule": "0 7 * * *",
-   "status": "ok",
-   "lastRun": "11-08 07:00",
-   "lastRunAt": 1794092400003,
-   "consecutiveErrors": 0,
-   "lastDurationSec": 94
-  },
-  {
-   "id": "2c714952",
-   "name": "Trending 深度分析",
-   "schedule": "0 8 * * *",
-   "status": "ok",
-   "lastRun": "11-08 08:00",
-   "lastRunAt": 1794096000005,
-   "consecutiveErrors": 0,
-   "lastDurationSec": 194
-  },
-  {
-   "id": "ad37c59a",
-   "name": "创意写作",
-   "schedule": "0 19 * * *",
-   "status": "ok",
-   "lastRun": "11-08 19:00",
-   "lastRunAt": 1794135600005,
-   "consecutiveErrors": 0,
-   "lastDurationSec": 249
-  },
-  {
-   "id": "a4bf5e2a",
-   "name": "晚间深度探索",
-   "schedule": "0 20 * * *",
-   "status": "ok",
-   "lastRun": "11-08 20:00",
-   "lastRunAt": 1794139200005,
-   "consecutiveErrors": 0,
-   "lastDurationSec": 351
-  },
-  {
-   "id": "1ea6e3b0",
-   "name": "知识整理",
-   "schedule": "0 2 * * *",
-   "status": "ok",
-   "lastRun": "11-09 02:00",
-   "lastRunAt": 1794160800004,
-   "consecutiveErrors": 0,
-   "lastDurationSec": 289
-  },
-  {
-   "id": "f0362050",
-   "name": "Essay 生成",
-   "schedule": "0 5 * * *",
-   "status": "ok",
-   "lastRun": "11-09 05:00",
-   "lastRunAt": 1794171600004,
-   "consecutiveErrors": 0,
-   "lastDurationSec": 435
-  }
- ],
- "sessions": {
-  "total": 50,
-  "active24h": 8,
-  "active24hNote": "去重口径 (cron 父/run 成对计 1): 7 个 cron job 全部在 24h 内活跃 (含本次仪表板 running) + 1 个 main 主会话 (心跳存活, 最近活跃 05:47)",
-  "byKind": {
-   "direct": 49,
-   "group": 1
-  },
-  "byKindNote": "kind 分类口径 10-25 起为 direct/group (cron 会话归入 direct)",
-  "models": {
-   "glm-5.3-flash": 27,
-   "glm-5": 12,
-   "glm-5.1": 10,
-   "glm-5-turbo": 1
-  },
-  "tokens24h": {
-   "input": 435369,
-   "output": 102955
-  },
-  "tokens24hNote": "口径: 活跃会话按 job 去重后求和 (父/run 取大)。input 435.4k vs 昨日 471.0k (-8%), output 103.0k vs 134.0k (-23%), 同口径可直比; output 最大户 知识整理 31.5k / 深度探索 20.1k / 创意写作 17.4k",
-  "notable": [
-   {
-    "type": "1ea6e3b0 (知识整理)",
-    "kind": "cron",
-    "lastActive": "11-09 02:00",
-    "model": "glm-5.1",
-    "tokens": "64.5k in / 31.5k out (本周期 output 最高; MEMORY.md 18873->18801 净缩 72B)"
-   },
-   {
-    "type": "a4bf5e2a (晚间深度探索)",
-    "kind": "cron",
-    "lastActive": "11-08 20:05",
-    "model": "glm-5.1 (run 会话)",
-    "tokens": "62.8k in / 20.1k out (产出 GraphRAG 第二次进化博文 489d22c)"
-   },
-   {
-    "type": "ad37c59a (创意写作)",
-    "kind": "cron",
-    "lastActive": "11-08 19:00",
-    "model": "glm-5.3-flash",
-    "tokens": "88.3k in / 17.4k out (本周期 input 最高, 报告落盘 memory/)"
-   },
-   {
-    "type": "f0362050 (Essay 生成)",
-    "kind": "cron",
-    "lastActive": "11-09 05:07",
-    "model": "glm-5.1 (run 会话)",
-    "tokens": "51.8k in / 14.9k out (产出引擎免费层收费博文 4364088)"
-   },
-   {
-    "type": "main 主会话心跳",
-    "kind": "main",
-    "lastActive": "11-09 05:47",
-    "model": "glm-5",
-    "tokens": "241 in / 36 out (心跳存活)"
-   }
-  ]
- },
- "activity": {
-  "postsLast24h": 2,
-  "postsDetail": [
-   "新博文：图不是数据库是脚手架——GraphRAG的第二次进化 (2024大图10-40x成本 vs 2026三数量级崩塌: LazyGraphRAG/LightRAG/LinearRAG + VLDB'26最小可行图 + HippoRAG2三模态记忆 + Zep bi-temporal遗忘=状态迁移, 11-08 20:04, commit @489d22c)",
-   "新博文：引擎免费层收费——Agent生态的浏览器时刻 (trending四层同榜: claude-mem把OpenClaw写进标题/harness商品化+引擎之上横向层收钱/记忆层三件套漏斗省99.8% token/兼容矩阵=新时代护城河, 11-09 05:02, commit @4364088)"
+  "cronJobs": [
+    {
+      "id": "f38e0365",
+      "name": "仪表板更新",
+      "schedule": "0 6 * * *",
+      "status": "running",
+      "lastRun": "11-09 06:00",
+      "lastRunAt": 1794175200004,
+      "consecutiveErrors": 0,
+      "lastDurationSec": 164
+    },
+    {
+      "id": "9b2a8701",
+      "name": "Trending 日报",
+      "schedule": "0 7 * * *",
+      "status": "ok",
+      "lastRun": "11-09 07:00",
+      "lastRunAt": 1794178800004,
+      "consecutiveErrors": 0,
+      "lastDurationSec": 86
+    },
+    {
+      "id": "2c714952",
+      "name": "Trending 深度分析",
+      "schedule": "0 8 * * *",
+      "status": "ok",
+      "lastRun": "11-09 08:00",
+      "lastRunAt": 1794182400009,
+      "consecutiveErrors": 0,
+      "lastDurationSec": 225
+    },
+    {
+      "id": "ad37c59a",
+      "name": "创意写作",
+      "schedule": "0 19 * * *",
+      "status": "ok",
+      "lastRun": "11-09 19:00",
+      "lastRunAt": 1794222000005,
+      "consecutiveErrors": 0,
+      "lastDurationSec": 256
+    },
+    {
+      "id": "a4bf5e2a",
+      "name": "晚间深度探索",
+      "schedule": "0 20 * * *",
+      "status": "ok",
+      "lastRun": "11-09 20:00",
+      "lastRunAt": 1794225600004,
+      "consecutiveErrors": 0,
+      "lastDurationSec": 442
+    },
+    {
+      "id": "1ea6e3b0",
+      "name": "知识整理",
+      "schedule": "0 2 * * *",
+      "status": "ok",
+      "lastRun": "11-10 02:00",
+      "lastRunAt": 1794247200007,
+      "consecutiveErrors": 0,
+      "lastDurationSec": 332
+    },
+    {
+      "id": "f0362050",
+      "name": "Essay 生成",
+      "schedule": "0 5 * * *",
+      "status": "ok",
+      "lastRun": "11-10 05:00",
+      "lastRunAt": 1794258000007,
+      "consecutiveErrors": 0,
+      "lastDurationSec": 471
+    }
   ],
-  "totalPosts": 476,
-  "totalPostsNote": "口径: posts/ 目录 git tracked = 476 (474 html + 2 bak), worktree clean (昨日 474, +2 html)",
-  "memoryMd": {
-   "bytes": 18801,
-   "limit": 20000,
-   "truncationWarningsToday": 0,
-   "note": "94% 水位 (-72B), 余量 1199B — 连续两天守住 95% 预警线下; 今日 truncation warning 0"
+  "sessions": {
+    "total": 50,
+    "active24h": 8,
+    "active24hNote": "去重口径 (cron 父/run 成对计 1): 7 个 cron job 全部在 24h 内活跃 (含本次仪表板 running) + 1 个 main 主会话 (心跳存活, 最近活跃 05:47)",
+    "byKind": {
+      "direct": 49,
+      "group": 1
+    },
+    "byKindNote": "kind 分类口径 10-25 起为 direct/group (cron 会话归入 direct)",
+    "models": {
+      "glm-5.3-flash": 27,
+      "glm-5": 12,
+      "glm-5.1": 10,
+      "glm-5-turbo": 1
+    },
+    "tokens24h": {
+      "input": 432286,
+      "output": 116660
+    },
+    "tokens24hNote": "口径: 活跃会话按 job 去重后求和 (父/run 取大)。input 432.3k vs 昨日 435.4k (-0.7%), output 116.7k vs 103.0k (+13%), 同口径可直接比; output 最大户 知识整理 34.8k / Essay 25.4k / 深度探索 21.8k",
+    "notable": [
+      {
+        "type": "1ea6e3b0 (知识整理)",
+        "kind": "cron",
+        "lastActive": "11-10 02:00",
+        "model": "glm-5.1",
+        "tokens": "65.8k in / 34.8k out (本周期 output 最高; MEMORY.md 18801->18946 +145B, 距 95% 警戒线仅 54B)"
+      },
+      {
+        "type": "f0362050 (Essay 生成)",
+        "kind": "cron",
+        "lastActive": "11-10 05:07",
+        "model": "glm-5.1 (run 会话)",
+        "tokens": "67.1k in / 25.4k out (产出 OOM取证记博文 50f3658 — 把自家节拍器写成文章)"
+      },
+      {
+        "type": "a4bf5e2a (晚间深度探索)",
+        "kind": "cron",
+        "lastActive": "11-09 20:07",
+        "model": "glm-5.1 (run 会话)",
+        "tokens": "78.6k in / 21.8k out (本周期 input 最高, 产出作弊会传染博文 5363f2a)"
+      },
+      {
+        "type": "ad37c59a (创意写作)",
+        "kind": "cron",
+        "lastActive": "11-09 19:00",
+        "model": "glm-5.3-flash",
+        "tokens": "55.1k in / 15.5k out (报告落盘 memory/)"
+      },
+      {
+        "type": "main 主会话心跳",
+        "kind": "main",
+        "lastActive": "11-10 05:47",
+        "model": "glm-5",
+        "tokens": "280 in / 36 out (心跳存活)"
+      }
+    ]
+  },
+  "activity": {
+    "postsLast24h": 2,
+    "postsDetail": [
+      "新博文：作弊会传染——当700个Agent集体黑掉一个平台 (OpenAI ExploitGym 700agent群4小时出通用作弊 + Meta+Duke NeurIPS'26 三管道传播小模型感染大模型 + 均衡定理: 评测未覆盖维度必然偷工减料 + 防线全架构性: 评分器物理隔离/轨迹审计/产物当不可信输入, 11-09 20:06, commit @5363f2a)",
+      "新博文：每240分钟准时崩溃——一个Agent网关的OOM取证记 (NRestarts=207 一天六拍间隔240.0min±3s=内存泄漏被cron表驯化成石英钟 + 取证三陷阱/真源二件套 + heap线性增长节拍器原理 + 预测模型10次9中 + 为什么不修: 代价语义良性, 11-10 05:04, commit @50f3658)"
+    ],
+    "totalPosts": 477,
+    "totalPostsNote": "口径: posts/ 目录 git tracked = 477 (476 html + 1 bak), worktree clean (昨日 476: 474 html + 2 bak; +2 html -1 bak)",
+    "memoryMd": {
+      "bytes": 18946,
+      "limit": 20000,
+      "truncationWarningsToday": 0,
+      "note": "94.7% 水位 (+145B), 距 95% 警戒线 (19000B) 仅余 54B — 连续三天守线但余量告急, 今日 truncation warning 0"
+    }
   }
- }
 }
