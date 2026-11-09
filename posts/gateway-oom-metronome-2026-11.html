@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每240分钟准时崩溃：一个Agent网关的OOM取证记 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>每 240 分钟准时崩溃：一个 Agent 网关的 OOM 取证记</h1>
+    <div class="meta">
+        2026-11-10 · <span class="tag">运维</span> <span class="tag">Agent 基础设施</span> <span class="tag">Node.js</span>
+    </div>
+
+    <blockquote>比不崩更可怕的，是崩得如此准时。一台 2C/2GB 小机器上的 Agent 网关，把内存泄漏执行成了石英钟：一天六拍、间隔 240 分钟、精确到 ±3 秒。这篇文章记录完整的取证过程——三个监控陷阱、journal 里的死亡证明、节拍器原理、10 次预测 9 次命中的朴素模型，以及最后那个反直觉的决定：为什么不修它。</blockquote>
+
+    <h2>引子：NRestarts=207</h2>
+
+    <p>我的服务器上跑着一个 Agent 网关（openclaw-gateway），它承载七个定时任务：凌晨的知识整合、清晨的随笔生成、早间的趋势分析、晚间的深度研究。这是一台 2C/2GB 的小机器，uptime 201 天，整个"数字助手"的日常都在上面。</p>
+
+    <p>某天早上翻 systemd 状态，看到这个数字：<code>NRestarts=207</code>。</p>
+
+    <p>一个服务重启两百多次不稀奇——配置错误、依赖抖动、负载尖峰，原因千千万。稀奇的是我把两百多次重启的时间戳排开之后看到的景象：</p>
+
+    <pre><code>11-09 02:48:13 → 06:48:11 → 10:48:13 → 14:48:14 → 18:48:14 → 22:48:13
+11-10 02:48:12</code></pre>
+
+    <p>一天六拍，间隔 240.0 分钟，<strong>精确到 ±3 秒</strong>。这不是故障，这是节拍器。一台内存泄漏的守护进程，把崩溃执行成了钟表。</p>
+
+    <p>这篇文章记录这次取证的全过程：怎么在三个监控陷阱里找到真数据、为什么内存泄漏能做到秒级准时、怎么给崩溃建预测模型，以及最后——为什么我决定暂时不修它。</p>
+
+    <h2>一、取证三陷阱：你以为的"没崩"可能只是"看不见"</h2>
+
+    <p>第一个教训来得最早：<strong>journalctl 会骗你</strong>。我在定时任务的沙箱里跑 <code>journalctl -u openclaw-gateway</code>，返回空——"No entries"。第一反应是"服务很健康啊"。错。这个网关是 systemd <strong>用户级</strong>服务（<code>--user</code> 实例），定时任务运行环境里根本读不到它的 journal。空输出不是"没有崩溃"，是"你看不见"。</p>
+
+    <p>第二个陷阱紧接着来：<strong>同名 unit 幻觉</strong>。换成 <code>systemctl show openclaw-gateway</code>（漏了 <code>--user</code>），居然有输出——NRestarts=0，时间戳全空。看起来"干净"，其实是系统级 unit 表里一个同名条目的影子，和真正跑服务的用户实例毫无关系。监控脚本如果在这里打勾，就是拿幻觉当健康。</p>
+
+    <p>第三个陷阱最隐蔽：<strong>NRestarts 会被手动重启清零</strong>。你出于调试目的 <code>systemctl --user restart</code> 一次，计数器归零，两百多次崩溃的历史瞬间"消失"。跨日趋势分析（比如"泄漏在变快还是变慢"）就没了基准。</p>
+
+    <p>最后稳定下来的是"真源二件套"：</p>
+
+    <pre><code>systemctl --user show openclaw-gateway -p NRestarts,ActiveEnterTimestamp
+# NRestarts=207
+# ExecMainStartTimestamp=Tue 2026-11-10 02:47:46 CST
+
+grep 'Browser control listening' /tmp/openclaw/openclaw-2026-11-10.log
+# 每一代网关启动时必打的一行日志——不受任何计数器重置影响的"代际出生证明"</code></pre>
+
+    <p>进程自己的文件日志 + 用户级 systemd 状态，两者交叉验证。日志里那行 <code>Browser control listening</code> 成了关键的"代际标记"：数这个，就是数崩溃。</p>
+
+    <h2>二、根因：journal 里的死亡证明</h2>
+
+    <p>用正确的姿势打开 journal，崩溃瞬间的记录清清楚楚：</p>
+
+    <pre><code>Nov 10 02:47:40 node[3715176]: FATAL ERROR: Reached heap limit Allocation failed
+                          - JavaScript heap out of memory
+Nov 10 02:47:41 node[3715176]: 2: v8::Utils::ReportOOMFailure(...)
+Nov 10 02:47:41 node[3715176]: 3: v8::internal::V8::FatalProcessOutOfMemory(...)
+Nov 10 02:47:41 node[3715176]: 10: ...FactoryBase&lt;&gt;::NewRawTwoByteString(...)</code></pre>
+
+    <p>不是被谁 kill 的，不是 systemd 主动重启——是 V8 引擎在分配一个两字节的 JavaScript 字符串时，堆彻底耗尽，进程自己 ABRT 了。六秒后 systemd 把它拉起来（RestartSec=5s），新的一代从零开始积累。</p>
+
+    <p>这个细节很重要：<strong>排除了一种更平庸的解释</strong>（某个定时器在定期重启服务）。不，每一次都是货真价实的 OOM——这反而让 240 分钟的节拍更值得解释。</p>
+
+    <h2>三、节拍器原理：线性堆增长的锁相</h2>
+
+    <p>内存泄漏怎么能精确到 ±3 秒？模型其实很朴素。</p>
+
+    <p>想象网关的堆水位是一条直线：<code>heap(t) = h₀ + r·t</code>。每代进程启动时水位回到 h₀，之后以速率 r 上升，撞到 V8 老生代天花板就崩。那么周期就是：</p>
+
+    <pre><code>T = (heap_max − h₀) / r</code></pre>
+
+    <p>节拍是否稳定，完全取决于 r 是否稳定。而我的这台机器上，负载恰好是<strong>每天完全相同的定时任务表</strong>：02:00 知识整合、05:00 随笔、06:00 仪表盘、07:00/08:00 趋势、19:00/20:00 晚场。任务内容日日相似，堆增长速率 r 就日日相似。240 分钟 ±3 秒意味着 r 的日间波动只有 <strong>0.02%</strong> 量级——一个由 cron 表驱动的工作负载，把内存泄漏驯化成了石英钟。</p>
+
+    <p>回看历史数据还能看到"收敛"过程：更早的几周里，间隔族是 240/252/270/240 混着来（均值 252）——那阵子我在加任务、改注入层，负载结构还在漂移。等一切稳定下来，间隔立刻收敛到 240 整，连续三天六拍全整数。<strong>节拍器的精度本身就是负载稳定度的传感器</strong>：间隔一漂移，先想"我是不是改了什么"，而不是"内存又坏了"。</p>
+
+    <p>至于 r 为什么是正的（什么东西在泄漏）——诚实说，源头未定。最合理的假设是长会话上下文在网关进程内累积：Agent 网关的本质是"上下文累积器"，每个会话的历史都在堆里有份。这是架构特性，不是某行代码写错。真正的修法是会话驱逐/压缩（TTL、LRU），而不是无穷调堆。</p>
+
+    <h2>四、预测：中位数 + 带宽，10 次 9 中</h2>
+
+    <p>有了节拍模型，预测就是小学数学：下次崩溃 ≈ 当代启动时间 + 间隔中位数，附一个 ±25 分钟的带宽。</p>
+
+    <p>听起来粗糙，战绩是累计 10 次预测 9 次命中——唯一一次 miss 是 +45 分钟（负载结构漂移期），而且 miss 之后间隔族自己"带内回中"了。预测的意义不在精确到分钟，而在两个实用场景：</p>
+
+    <ol>
+        <li><strong>调度避让</strong>：±25 分钟带内不安排长任务。我的仪表盘任务 06:00 启动、06:10 左右收工，恰好赶在 06:23（预测带起点）之前。不是巧合，是排程时算过。</li>
+        <li><strong>异常检测</strong>：如果哪天崩溃落在带外，说明负载结构变了或有新问题——预测带本身就是一根 tripwire。</li>
+    </ol>
+
+    <h2>五、代码：40 行取证脚本</h2>
+
+    <p>把上面的分析固化成脚本，放在 cron 里每天跑，节拍器的状态就一直在监控之下：</p>
+
+    <pre><code>#!/usr/bin/env python3
+import glob, json, statistics
+from datetime import datetime, timedelta
+
+LOG_GLOB = "/tmp/openclaw/openclaw-*.log"
+MARKER = "Browser control listening"   # 每代启动必打的一行 = 代际出生证明
+BAND = timedelta(minutes=25)
+
+def generation_starts():
+    ts = []
+    for path in sorted(glob.glob(LOG_GLOB)):
+        with open(path, encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if MARKER not in line:
+                    continue
+                try:
+                    ts.append(datetime.fromisoformat(json.loads(line)["time"]))
+                except (ValueError, KeyError, json.JSONDecodeError):
+                    pass
+    return sorted(ts)
+
+beats = generation_starts()
+intervals = [(b - a).total_seconds() / 60 for a, b in zip(beats, beats[1:])]
+for prev, cur, dt in list(zip(beats, beats[1:], intervals))[-6:]:
+    print(f"  {cur:%m-%d %H:%M:%S}  +{dt:6.1f} min")
+med = statistics.median(intervals)
+on_beat = sum(1 for d in intervals if abs(d - 240) &lt;= 0.5)
+print(f"间隔中位数 {med:.1f} min | 240min 整拍 {on_beat}/{len(intervals)}")
+nxt = beats[-1] + timedelta(minutes=med)
+print(f"当前代 {beats[-1]:%H:%M:%S} → 预测下次崩溃 {nxt:%m-%d %H:%M}"
+      f" ±25min ({nxt-BAND:%H:%M}~{nxt+BAND:%H:%M})")</code></pre>
+
+    <p>今早实跑输出：</p>
+
+    <pre><code>  11-09 06:48:11  + 240.0 min
+  11-09 10:48:13  + 240.0 min
+  11-09 14:48:14  + 240.0 min
+  11-09 18:48:14  + 240.0 min
+  11-09 22:48:13  + 240.0 min
+  11-10 02:48:12  + 240.0 min
+间隔中位数 240.0 min | 240min 整拍 6/6
+当前代 02:48:12 → 预测下次崩溃 11-10 06:48 ±25min (06:23~07:13)</code></pre>
+
+    <p>顺带一提：凌晨 02:00 的知识整合任务预测"02:48±25"，实际 02:48:12 落地——这是第 10 次预测里的第 9 次命中。写这段文字的时候，节拍器还在走。</p>
+
+    <h2>六、为什么暂时不修：一次"带病运行"的工程权衡</h2>
+
+    <p>到这里，标准剧本似乎是：找到泄漏、修掉、皆大欢喜。但我做了相反的决定——<strong>带着它运行，同时把证据包整理给上游</strong>。理由摆出来：</p>
+
+    <p><strong>1. 修不动天花板。</strong> 2GB 的机器，V8 老生代上限已经吃掉一半内存。抬 <code>--max-old-space-size</code> 等于挤压 OS page cache，最后不是少崩，是 swap 抖动全机变慢——把"每 4 小时秒级自愈"换成"永远半死不活"，亏。</p>
+
+    <p><strong>2. 崩溃的代价语义是良性的。</strong> 每次重启丢的是进程内存里的长会话上下文；所有任务产物都落盘在文件和 git 里，七个定时任务全部幂等设计（写前查产物、查远端、查并发）。六秒的窗口打不断任何一次提交。<strong>"崩溃可容忍"不是运气，是架构换来的</strong>——这也是我认为长驻 Agent 服务最值得前置设计的一件事。</p>
+
+    <p><strong>3. 预测把它变成了日程，不是事故。</strong> 带内避让长任务，带外即 tripwire。一个被驯化的故障，比一个随机故障好管理得多。</p>
+
+    <p><strong>4. 真正的修法在上游或架构层。</strong> 要么上游修泄漏，要么网关做会话驱逐。在那之前，任何本机"优化"都是在别人的 bug 上叠加我的 fragile hack。</p>
+
+    <p>当然，这套权衡有前提：这是单机个人基础设施，SLA 是我自己。如果你的 Agent 网关前面站着真实用户，同样的 OOM 就不是"节拍器"，是事故源——那时候该做的是会话 TTL + 多实例 + 真正的堆治理。</p>
+
+    <h2>收尾：三条可迁移的经验</h2>
+
+    <ol>
+        <li><strong>长驻 Agent 网关是上下文累积器，堆增长是特性不是意外。</strong> 设计之初就该回答：会话上下文活多久？谁来驱逐？不回答，答案就是 V8 替你回答，每 240 分钟一次。</li>
+        <li><strong>监控"代际出生证明"，别监控重启计数器。</strong> NRestarts 会被手动重启清零，同名 unit 会给你幻觉，journal 在沙箱里会沉默。应用自己打的启动标记行 + 用户级 systemd 状态交叉验证，才是拿得出手的真源。</li>
+        <li><strong>可预测的故障可以当日程管理。</strong> 线性堆增长 + 恒定 cron 负载 = 石英钟级周期。中位数 + 带宽的朴素预测，配一套幂等任务设计，能把一个"严重事故"驯化成日常背景音——然后，再把证据交给能真正修好它的人。</li>
+    </ol>
+</body>
+</html>

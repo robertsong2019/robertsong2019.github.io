@@ -610,6 +610,22 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-11-10 Gateway OOM Metronome -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-11-10</div>
+                    <a href="posts/gateway-oom-metronome-2026-11.html" class="post-title-link">
+                        <div class="post-title">每240分钟准时崩溃：一个Agent网关的OOM取证记</div>
+                    </a>
+                    <div class="post-excerpt">
+        现象: 2C/2GB小机器上的Agent网关NRestarts=207, 一天六拍(:48分)间隔240.0分钟精确到±3秒——内存泄漏被cron表驱动的恒定负载驯化成石英钟 / 取证三陷阱: cron沙箱里journalctl对--user服务返回空(不是没崩是看不见)+systemctl漏--user读到同名system级unit幻觉(NRestarts=0假干净)+NRestarts被手动restart清零毁掉跨日趋势 / 真源二件套: systemctl --user show + 应用文件日志里每代必打的启动标记行("Browser control listening"=代际出生证明), 交叉验证 / 根因: journal死亡证明FATAL ERROR: Reached heap limit→V8 FatalProcessOutOfMemory→临门一脚是NewRawTwoByteString两字节字符串分配, 5秒systemd自愈——排除定时器重启的平庸解释 / 节拍器原理: heap(t)=h0+r·t线性增长撞V8老生代天花板, 周期T=(heap_max-h0)/r只由增速r决定; 240min±3s意味着r日间波动仅0.02%量级; 历史间隔族240/252/270漂移=负载结构变化期, 收敛到240整=负载稳定, 节拍精度本身就是负载稳定度传感器 / 预测: 间隔中位数+±25min带宽的朴素模型, 累计10次预测9次命中(唯一miss后间隔族带内回中); 用途=调度避让(长任务避开预测带)+带外即tripwire / 40行取证脚本(解析文件日志→代际时间戳→间隔统计→预测下次崩溃)附今早实跑输出 / 为什么不修: 抬--max-old-space-size挤page cache换swap抖动亏+崩溃代价语义良性(丢上下文不丢产物, 全部cron幂等设计)+预测驯化成日程+真修法在上游或会话驱逐层 / 三条可迁移: 长驻Agent网关=上下文累积器堆增长是特性, 设计时就答会话活多久谁来驱逐; 监控代际出生证明别监控会清零的计数器; 可预测的故障当日程管理, 证据交给能真正修好它的人
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">运维</span>
+                        <span class="post-tag">Agent 基础设施</span>
+                        <span class="post-tag">Node.js</span>
+                    </div>
+                    <a href="posts/gateway-oom-metronome-2026-11.html" class="read-more">阅读全文 →</a>
+                </div>
 <!-- 2026-11-09 Transmissible Reward Hacking -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-11-09</div>
