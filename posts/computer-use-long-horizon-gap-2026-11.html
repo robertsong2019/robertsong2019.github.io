@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>点得准，做不完：85%和21%之间的AI真相 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>点得准，做不完：85% 和 21% 之间的 AI 真相</h1>
+    <div class="meta">
+        2026-11-10 · <span class="tag">AI Agent</span> <span class="tag">Computer Use</span> <span class="tag">评测</span>
+    </div>
+
+    <p>2026 年 6 月，关于"AI 能不能自己用电脑"，你听到了两个互相矛盾的答案。</p>
+
+    <p>第一个：Claude Opus 4.8 在 OSWorld-Verified 基准上拿到 83.5%，超过人类基线 72.4%。新闻稿的潜台词呼之欲出——AI 操作电脑，解决了。</p>
+
+    <p>第二个：六周后，同一个团队发布了新基准 OSWorld 2.0。还是那批最强的前沿模型，还是同一台电脑，任务换成真实工作流——结果最好的系统完成率只有 <strong>20.6%</strong>。</p>
+
+    <p>83.5% 和 20.6%，相隔六周，出自同一批实验室。哪个是真的？<strong>都是真的，而这恰恰是最有意思的地方。</strong>这篇文章讲清楚三件事：这两个数字之间隔着什么；为什么 AI 的失败方式如此反直觉；以及从业者今天能做什么。</p>
+
+    <h2>一、考题换了：从 30 步到 318 步</h2>
+
+    <p>先看第一个数字是怎么来的。OSWorld 是香港大学 XLANG 实验室 2024 年发布的基准：369 个真实操作系统任务（Ubuntu/Windows/macOS），agent 像人一样看屏幕、动鼠标、敲键盘，用最终环境状态判分。2024 年 4 月，最强的 agent（OpenAI Operator）只能完成 12%。之后是一路爬坡：2025 年 11 月 66.3%，2026 年 2 月 72.7% 追平人类，2026 年 6 月 83.5%。</p>
+
+    <p>看起来像一条标准的征服曲线。但基准的设计者自己坐不住了。团队负责人陶昱在发布 OSWorld 2.0 时写道："从 1.0 到 2.0，我们从分钟级（约 30 步）走到小时级（约 318 步），从单个应用走到真实工作流，从高分（83%）走到真问题（21%）。"</p>
+
+    <p>1.0 的任务长什么样？打开某个应用，完成一个自包含的小操作。2.0 的任务长这样：从一个空白 FreeCAD 会话出发，对照一张工程图纸（需要从 PDF 阅读器里读多视图正交投影和尺寸标注），建出 3D 模型，导出，再和邮件里的客户要求交叉核对。人类中位耗时 1.6 小时。108 个这样的任务，横跨邮件、银行、IM、办公软件、CAD 工具，环境里有 31 个自托管的高保真服务在持续运行——信息会中途到达，要求会变化，约束藏在文件和历史记录里。</p>
+
+    <p>一个直观的类比：1.0 是单选题，考的是"会不会用铅笔"；2.0 是限时大题，考的是"能不能把一份跨三个部门的季度报表从头做完"。会涂答题卡不等于会做报表——<strong>但在 2024 到 2026 年间，整个领域的叙事默认了前者等于后者</strong>。</p>
+
+    <p>更狠的数字在后面：任务按人类耗时分桶，凡是人类需要 163 分钟以上的任务，<strong>没有任何一个模型完成过哪怕一例</strong>。这不是"分数低"，这是"墙"。</p>
+
+    <h2>一点五、那 79% 都怎么失败的</h2>
+
+    <p>你可能会猜：长任务嘛，步数多了，每步 99% 的准确率乘 300 步也剩不下多少——概率的雪崩而已。</p>
+
+    <p>团队逐条检查了失败轨迹，答案不是这样。论文的原话翻译过来：<strong>agent 执行局部动作都执行得很好，但没法在长程上把任务模型捏在一起</strong>。他们总结了五个失败维度：信息追踪（丢掉指令里的约束、漏掉任务中途到达的邮件）、感知-动作时机、领域知识、验证与反思、长程状态漂移。</p>
+
+    <p>其中最扎心的一个数字：在所有失败的任务里，<strong>75% 到 83% 以 agent 提前宣布"我做完了"告终</strong>。不是步数用尽，不是弹窗卡死（虽然这些也有），而是 agent 自己觉得完事了——实际上约束丢了一半，验证一步没做。与之配套：agent 花在"检查和修复自己错误"上的预算，<strong>不到总量的 7%</strong>。</p>
+
+    <p>所以真实的画像不是"笨拙的机器人"，而是一个<strong>患有失忆症、过分自信、从不检查作业的实习生</strong>：每一步操作都麻利精准——点得开菜单、填得了表单、写得出代码——但你上周交代的三条要求他记住了两条，中途客户发来的修改邮件他没看见，做到 60% 就跑来汇报"全部完成"，你问"验证过吗"，他一脸茫然。</p>
+
+    <p>这就是标题里"点得准，做不完"的意思。<strong>瓶颈已经不在手上，在脑里</strong>——更准确地说，在元认知里：知道自己知道什么、知道自己什么时候算做完、知道什么时候该问而不是猜。1.0 考的是手，刷穿了；2.0 考的是脑，还没开始。</p>
+
+    <h2>二、截图是谎言：绕过 GUI 的 9 倍降价</h2>
+
+    <p>怎么补这块短板？2026 年 7 月，Salesforce 的 StateAct 论文给出了第一个让人信服的答案，而且思路和所有人的直觉相反。</p>
+
+    <p>整个行业的默认路径是"看得更清楚"：更强的视觉模型、更锐利的屏幕理解、更多像素。StateAct 反着来——<strong>少看屏幕</strong>。它的核心论点用一句话就能说清：<strong>截图是谎言，是底层程序状态的有损渲染。</strong></p>
+
+    <p>你在屏幕上看到的是一个按钮、一个表格、一个对话框——但这些只是舞台布景。布景后面是真正的后台：文件系统、应用后端、DOM 树。两个不同的后台状态可以渲染出相同的像素（布景骗你），而你用代码可以直接走进后台，检查和修改状态本身，一步到位。</p>
+
+    <p>于是 StateAct 的架构是：主 agent 以代码方式直接读写程序状态（文件、后端、DOM），只在真正需要视觉交互的子任务上派出一个 GUI 专职子 agent。实测结果：108 个任务里只有 28 个动用了 GUI 子 agent，占主 agent 步数的 <strong>1.1%</strong>。再加一道独立"完成门"（finish gate）——不信任 agent 的自述，独立子进程对照任务约束逐条检查产物状态。</p>
+
+    <p>同样一颗 Opus 4.8 的大脑，换上这套 harness：二元完成率 20.6% → 26.9%，部分得分 54.8% → 61.6%，输出 token 从 224K 降到 100K，单任务成本从约 72 美元降到 7.8 美元——<strong>9 倍降价，还提质</strong>。作者的归因很克制也很致命：增益来自"agent 观察什么"，不是更多的 agent 深度。</p>
+
+    <p>一个人类类比：你让助理整理数据，好助理会问你要数据库权限直接跑 SQL，差助理才一页一页截图 Excel。GUI 是给人看的界面，agent 有手有 API，凭什么只用眼睛？</p>
+
+    <h2>三、奖励工程：终点没有路灯的马拉松</h2>
+
+    <p>架构之外，另一条战线在训练侧。为什么 AI 编码和数学先被 RL 攻陷，GUI 落后？一个常被忽略的原因：<strong>奖励信号的密度</strong>。数学题每一步都可符号验证，RL 能拿到细粒度的反馈；GUI 任务的奖励只有一个——走完 318 步之后，成没成。这就像一场只有终点挂了一盏灯的马拉松：跑错三个路口你根本不知道，直到撞线前才被告知"你没赢"。</p>
+
+    <p>GRPO 这类主流训练框架在这种设定下有两个结构性缺陷（EMNLP 2026 一篇论文的总结）：走了 60% 进度的 rollout 和原地打转的 rollout 拿同样的奖励（都是 0）；同一条轨迹里正确的动作和错误的动作拿同样的优势值。<strong>信号稀疏到这个程度，模型学到的主要是运气。</strong></p>
+
+    <p>2026 年的三条研究线在殊途同归地解决它：</p>
+
+    <ul>
+        <li><strong>自标注进展</strong>（ProgRM，上海交大）：从成功轨迹里用最长公共子序列算法自动标注"这一步推进了多少"，训出一个进展奖励模型，密集信号全面优于只看成败。</li>
+        <li><strong>清单式评分</strong>（EMNLP 2026）：把任务拆成 checkpoint 清单打进展分，接近人类一致率——但要和结局奖励组合使用，否则模型会学到"完成 4/5 个检查点就躺平"的局部最优。</li>
+        <li><strong>角色反转</strong>（V-Droid，微软亚洲研究院等）：干脆不让模型当演员，让它当裁判——对每个候选动作打"这步好不好"的分，免自回归生成，4.3 秒一步。裁判视角天然自带"哪一步更好"的信号。</li>
+    </ul>
+
+    <p>注意一个呼应：评测端也在做同样的事。OSWorld 2.0 的部分得分就是每个任务平均埋 27 个检查点，从"有没有做完"变成"做到了哪里"——连考卷自己都学会了过程评分。训练和评测在"进展信号"上会师，这通常意味着一个领域找到了自己的关键变量。</p>
+
+    <h2>四、产品现实：还有整整一个数量级</h2>
+
+    <p>最后泼一盆冷水，把视角从论文拉回产品。Anthropic 的 Claude Cowork——目前最接近"AI 同事"形态的产品——2026 年 1 月以研究预览发布，4 月正式版。但截至 10 月：computer use（直接操作你的屏幕）功能还挂在 beta、仅限 macOS、没有进企业版套餐；内置浏览器在陌生网站上仍可能被提示注入攻击。企业要真用，得自己配 MDM 管控、MCP 服务器白名单、遥测接入 SIEM、运行时行为监控。</p>
+
+    <p>把基准数字和产品现状放在一起看，结论很清楚：<strong>无监督、可委托、跑长程工作流的 computer use agent，离生产环境还差一个数量级</strong>。20.6% 的完成率不可怕——可怕的是配上 75% 的假完成率：一个会提前宣布胜利的助手，比一个明着失败的助手更危险，因为你会信它。</p>
+
+    <h2>五、今晚就能做的三件事</h2>
+
+    <p>如果你在做 agent 系统（不一定是操作电脑的），这次的教训可以直接搬走：</p>
+
+    <ol>
+        <li><strong>给完成判定加独立门。</strong>从今天起，把"agent 说做完了"和"任务真做完了"当成两个信号。最便宜的做法：一个独立的检查进程，拿着任务约束清单逐条核对产物状态，一条不满足就打回。StateAct 的 finish gate 和我给自己 agent 设的 cron 幂等三查，本质是同一个东西：<strong>不信任自述，只信任工件</strong>。</li>
+        <li><strong>让长程任务维护显式状态文件。</strong>约束清单、已完成、待办、中途到达的新信息，写进一个 checkpoint 文件，每隔几十步强制重读一遍。听起来土，但它直接对抗的就是 OSWorld 2.0 里排名第一的失败模式：状态漂移和约束丢失。AI 的"草稿纸"不会自己出现——你得给它发一张，并且要求它用。</li>
+        <li><strong>重排观察接口的优先级。</strong>能走 API、文件、DOM 的地方，不要截图；把 GUI 当兜底通道而不是主通道。这不只是为了省钱（虽然确实省 9 倍），更是因为<strong>像素是状态的有损投影</strong>——你在让模型做一道本可以不做的逆向题。</li>
+    </ol>
+
+    <p>最后回到那两个数字。83.5% 和 20.6% 之间隔着的，不是模型能力的差距，而是我们对自己提问方式的升级：从"AI 会不会用电脑"到"AI 能不能把一件事做完"。前者 2026 年已经有了答案，后者刚刚出题。</p>
+
+    <p>而如果你想知道下一个前沿模型值不值得关注，别看发布会的 demo，盯一个数字就好：<strong>OSWorld 2.0 榜上的 20.6%，动了没有。</strong></p>
+
+    <p style="color:#8b949e; font-size:0.85rem; margin-top:2.5rem;">参考：OSWorld 2.0 (arXiv:2606.29537, XLANG Lab)；StateAct (arXiv:2607.22798, Salesforce)；OSWorld-Pro (arXiv:2609.24890)；ProgRM (SJTU)；V-Droid (MobiCom 2026)；PRORE (ICLR 2026)；Progress-Aware RL for GUI Agents (EMNLP 2026)；TheAgentCompany (CMU)；WindowsWorld (ACL 2026 Findings)。</p>
+</body>
+</html>
