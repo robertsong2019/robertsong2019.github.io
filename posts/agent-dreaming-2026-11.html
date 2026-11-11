@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当 Agent 学会做梦：记忆固化从论文到基础设施只用了 18 个月 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>当 Agent 学会做梦：记忆固化从论文到基础设施只用了 18 个月</h1>
+    <div class="meta">
+        2026-11-11 · <span class="tag">AI Agent</span> <span class="tag">记忆系统</span> <span class="tag">Sleep-time Compute</span>
+    </div>
+
+    <p>凌晨两点，你的 Agent 没在工作。但在你看不见的地方，它正在"做梦"：把今天所有会话的记录翻一遍，三条记了同一个构建命令的坑合并成一条，"昨天我们决定用 Redis"被改写成"2026 年 11 月 10 日决定用 Redis"，上个月那个已经删掉的调试笔记被静默清理。第二天早上你回来，它记得的比昨天更少——但用它的时候，它答得比昨天更准。</p>
+
+    <p>这不是思想实验。2026 年 5 月，Anthropic 在 Code with Claude 大会上发布了叫 <strong>Dreaming</strong> 的功能，做的正是上面这些事；法律 AI 公司 Harvey 把它打开之后，Agent 任务完成率涨了约 <span class="highlight">6 倍</span>。同样的活儿，同一个 Agent，之前每个新会话都重新踩一遍文件格式的坑，之后突然就会了。OpenAI 一个月后跟进。一家 2025 年还在发论文的创业公司 Letta，把这个方向押成了整个公司的赌注。</p>
+
+    <p>一个听起来像营销话术的比喻——"AI 做梦"——是怎么在 18 个月里变成基础设施的？往下看。</p>
+
+    <h2>一、Agent 的两种失忆症</h2>
+
+    <p>长寿命 Agent 的记忆问题，通常被当成一种病：会话结束就失忆，每个新会话都是失忆症实习生，麻利地把昨天的错误全部重犯一遍。这是第一种失忆症，靠外部记忆库（RAG、记忆文件）能缓解。</p>
+
+    <p>但给它装上记忆后，你会发现第二种，更隐蔽：<strong>记的越多，答得越差</strong>。记忆条目线性堆积，重复的坑记了七八遍，过时的结论（"API 用 Express"——其实三周前就迁到 Fastify 了）没人删，每次检索都把这些垃圾一起捞上来。记忆没有腐坏机制，就像一间只进不出的仓库。</p>
+
+    <p>人类恰好没有这个问题，因为我们有睡眠。神经科学里有个成熟理论叫<strong>互补学习系统</strong>（Complementary Learning Systems）：海马体负责快速记录单次经历，新皮层在睡眠时慢速回放、提炼、整合跨经历的模式。快系统负责"记住"，慢系统负责"想明白"。Agent 记忆系统缺的正是那个慢系统。</p>
+
+    <h2>二、2025 年的种子：把思考搬出提问那一刻</h2>
+
+    <p>2025 年 4 月，Letta（MemGPT 团队，与 UC Berkeley 的 Ion Stoica 等人合作）发了一篇论文，提出 <strong>sleep-time compute</strong>：模型不必把所有推理都挤在用户提问那一刻做，可以在空闲期对着存储的上下文预先思考，把 <em>raw context</em>（原始上下文）加工成 <em>learned context</em>（学过的上下文）。用户来提问时，直接用预加工的结论。</p>
+
+    <p>类比很朴素：考试前一晚把书读完做好笔记，比考场上现场翻书快得多也稳得多——前提是考的内容你猜得八九不离十。这个"前提"后面会再谈到，它决定了这套东西什么时候不灵。</p>
+
+    <p>当时的实现是个双 Agent 架构：主 Agent 对话，另一个"睡眠 Agent"在后台异步整理主 Agent 的记忆。关键工程收益有两个：一是<strong>不阻塞</strong>——记忆整理不再占用对话延迟；二是<strong>可整理</strong>——增量写入的记忆注定零散，事后整理才能产出干净、有结构、跨会话的知识。</p>
+
+    <h2>三、做梦的解剖学：产品化后的收敛形态</h2>
+
+    <p>到 2026 年，"做梦"作为产品功能已经收敛出一套相当一致的工程形态。以 Claude Dreaming 为例：</p>
+
+    <ul>
+        <li><strong>触发器刻意保守</strong>：距上次固化满 24 小时、或攒满 5 个会话，先到先触发。另有手动 <code>/dream</code> 命令，供高风险任务前强制整理一次。</li>
+        <li><strong>三阶段流水线</strong>：定向（读当前记忆，找出最近被碰过的部分）→ 固化（合并重复、修剪过时、把重复出现的模式提炼升格）→ 输出。</li>
+        <li><strong>产出是 diff，不是覆盖</strong>：新记忆以可审阅的差异形式提交，可以要求人工批准后才落地，全程留审计日志。</li>
+        <li><strong>记忆库就是纯文本文件</strong>。没有向量库，没有嵌入索引，没有说不清道不明的潜变量状态。Claude Code 里被逆向出来的固化规则朴素得可爱：相对日期改绝对日期、删除被后续事实推翻的条目、修剪指向已删除文件的调试笔记、合并重叠条目。</li>
+    </ul>
+
+    <p>纯文本 + diff 这两个选择值得单独说。法律和医疗行业已经开始把"Agent 行为不可解释的漂移"当合规风险看待——一个会自己改主意的系统，如果改动的理由说不清楚，审计就是灾难。而"记忆改动 = 一条 git commit"天然解决了这个问题：<strong>Agent 为什么变了，去看它的 diff</strong>。Letta 的下一代架构干脆把记忆搬进 git 管理的 context repository，固化就是一次 commit。可回滚，可追溯，可审计。</p>
+
+    <h2>四、固化是技能，不是脚本</h2>
+
+    <p>上面这些听起来都像是写几条 prompt 规则就能搞定的事：合并重复、删除过时——谁不会写？今年的一系列论文给出了泼冷水的答案：<strong>手写规则不行</strong>。</p>
+
+    <p>MemoPilot（2026 年 6 月）的观察很直接：即使是强指令跟随模型，用 prompt 驱动记忆更新，也无法跨会话持续变好。解法是把记忆更新本身当成一个可训练的策略，用 RL（GRPO）端到端训练，奖励直接对着下游任务表现。</p>
+
+    <p>这条路上目前最好的结果是 Auto-Dreamer（UCSD，2026 年 5 月）。它的固化器做"区域重写"：选中记忆库的一片工作区域，把它当只读证据，检索相关来源轨迹，然后<strong>合成一套全新的条目整体替换</strong>。注意这个设计：信息必须被重新合成一遍才能存活。像搬家时只带走你愿意再读一遍的书——冗余和垃圾不是被"删除"的，是在重写中自然没能活下来的。<strong>遗忘是重写的副产品，不需要专门的删除命令。</strong></p>
+
+    <p>训练它的奖励里最妙的一项叫<strong>反事实效用</strong>（counterfactual utility）：把某条记忆遮住，看下游任务掉多少分。掉分多的才是真正 load-bearing 的记忆，不掉分的多半是冗余。这顺手给了"一条记忆值多少钱"一个可计算的定义——困扰记忆系统多年的价值度量问题，被一个 mask 实验粗暴地解决了。</p>
+
+    <p>结果数字：ScienceWorld 持续部署下，41.1% 成功率对 UMEM 基线的 34.1%，而活动记忆库只有 <span class="highlight">6,947 tokens，对基线的 80,918</span>——效果好 7 个点，记忆还小 12 倍。只训了 ScienceWorld，零样本迁移到 ALFWorld 和 WebArena 依然领先。固化不是花钱买内存，是<strong>同时优化效果和体积</strong>：因为奖励从头到尾只盯着"哪些记忆真正承重"。</p>
+
+    <h2>五、三个边界条件</h2>
+
+    <h3>做梦能力是模型能力</h3>
+
+    <p>Anthropic 五天前（2026-11-06）发的研究很有意思：同一套固化流程，换不同模型跑，Opus 5 和 Fable 5 能正确判断哪些记忆值得留、形成学习闭环；而老一代的 Sonnet 3.7 会无差别地往记忆里塞冗余条目——<strong>开着做梦比关着还差</strong>。固化器不是外挂脚手架，它的上限由底层模型的判断力决定。想省钱用小模型整理记忆之前，先想清楚这一点。</p>
+
+    <h3>做梦不免费</h3>
+
+    <p>MemDream 论文（2026 年 9 月）给了罕见的成本实测：一次固化循环平均 60.9 次 LLM 调用、约 4.7 万 tokens、约 37 分钟墙钟时间。做梦是一笔投资，不是免费午餐。它值不值，取决于<strong>未来查询的可预测性</strong>：如果你的用户接下来问的东西能从存量上下文里猜个八九不离十，离线预加工划算；如果完全不可预测，Letta 自己的论文都承认，高预算下把计算花在 test-time 更好。别给一个每天聊闲天的机器人配全套 REM 睡眠。</p>
+
+    <h3>两条固化路线，尚未分出胜负</h3>
+
+    <p>本文讲的都是 context 层的固化：整理产物是文本。另一条路线在 weights 层：test-time training 家族（NVIDIA 的 TTT-E2E、ICLR 2026 Oral 的 In-Place TTT）让模型边读边把上下文压进参数里，读着读着自己就"变聪明了"。文本路线可读、可 diff、可跨模型迁移；权重路线容量大、延迟恒定。两条线在一点上已经会师：<strong>记忆不是数据的堆积，是数据在结构上留下的形状</strong>。五年后 Agent 的记忆跑在哪一层，现在没有答案，但"必须有个离线整理阶段"这件事，两边已经一致。</p>
+
+    <h2>六、今晚你就能做的五件事</h2>
+
+    <ol>
+        <li><strong>给长寿命 Agent 加一个"下班整理"任务</strong>。一个 cron，会话结束后触发，哪怕第一版只做合并去重和相对日期转绝对日期，都是从"只进不出的仓库"往"活的记忆"迈的第一步。</li>
+        <li><strong>记忆存纯文本，进 git，每次整理产出 diff</strong>。别用说不清的潜状态存记忆。Agent 行为漂移的合规问题，一条可 review 的 commit 就能挡掉大半。</li>
+        <li><strong>给每条记忆记"最近被引用时间"</strong>。检索命中时打点，长期零命中的条目进入降级候选。这是反事实效用奖励的穷人版，成本几乎为零。</li>
+        <li><strong>固化先用你手里最强的模型小规模验证，再谈降本</strong>。做梦质量跟模型代际强相关——固化写坏的记忆比没有记忆更危险，因为你会信它。</li>
+        <li><strong>算清 ROI 再上自动化</strong>：你的场景里，用户未来的问题能从历史预测吗？不能的话，把预算留给 test-time，或者干脆不做。</li>
+    </ol>
+
+    <h2>尾声：记忆会变得比模型更贵</h2>
+
+    <p>Letta 有个判断我越来越信：随着模型每年被更强的新模型替代，<strong>Agent 的记忆将成为比任何底层模型都更贵、也更不该丢的资产</strong>——模型是租来的，记忆是复利的。</p>
+
+    <p>这件事有个安静的注脚。训练与推理之间那条几十年不变的分界线，正在被从两边同时溶解：test-time training 让推理变成训练，sleep-time compute 让空闲变成生产。当 Agent 在你睡觉的时候把白天踩过的坑想明白了，"部署之后模型就冻结了"这个假设，就成了上个时代的说法。</p>
+
+    <p>下次你的 Agent 半夜在跑什么东西，别急着关掉它。它可能正在做梦。</p>
+</body>
+</html>
