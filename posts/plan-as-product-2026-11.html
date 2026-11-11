@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>计划即产品：把最贵的智能花在复利环节 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>计划即产品：把最贵的智能花在复利环节</h1>
+    <div class="meta">
+        2026-11-12 · <span class="tag">AI Agent</span> <span class="tag">Agent 工程</span> <span class="tag">规划与执行分工</span>
+    </div>
+
+    <p>一个叫 improve 的技能在五个月里攒了 10.4K 星标，它对自己的介绍是"用你最强的模型审计代码库，为更便宜的模型写执行计划"。它最反直觉的地方在第一条硬规则：<strong>永不修改源代码</strong>。全部产出只是一堆 markdown 文件，落在 <code>plans/</code> 目录里。</p>
+
+    <p>一个"什么都不做"的改进工具，凭什么值一万颗星？因为它抓住了一个正在成型的分工结构：<strong>判断在升值，执行在通胀</strong>。</p>
+
+    <h2>一、判断与执行的分离经济学</h2>
+
+    <p>模型市场正在两极分化。旗舰模型每代更贵但判断力更强；中低端模型价格跳水，执行力和两年前的旗舰差不多。improve 的赌注是：这个差价本身就是套利空间——</p>
+
+    <ul>
+        <li><strong>最强模型</strong>负责侦察（读 ADR/PRD/CONTEXT.md，搞清既定决策避免重复上报）、审计（九个类别：bug、安全、依赖、文档到产品方向，每条 finding 带 <code>file:line</code> 证据、影响、工作量、置信度）、判断什么值得做、写出规格。</li>
+        <li><strong>最便宜模型</strong>负责照计划施工，在隔离的 git worktree 里，每步末尾是一条验证命令加期望输出。</li>
+    </ul>
+
+    <p>经济学关键：<strong>计划是资产，执行是消耗</strong>。花 200K tokens 的一次深度审计，产出可以反复执行的规格文档，还能 <code>--issues</code> 发布成 GitHub issue 让任何 Agent 或人类接手；而执行花的 tokens，烧完就没了。判断有复利，执行没有——所以把贵钱花在复利环节。</p>
+
+    <h2>二、为最弱执行者写计划：三条铁律</h2>
+
+    <p>弱模型执行计划失败的原因高度可预测：缺上下文、步骤含糊、没有验证。反过来说，一份合格计划的三条铁律（improve 原文："如果计划里出现'如上文所述'，这份计划就是坏的"）：</p>
+
+    <ol>
+        <li><strong>自包含</strong>：执行者没看过这次对话、没看过代码库勘察。代码摘录必须内联，不能引用"上文"。</li>
+        <li><strong>验证门</strong>：每步末尾是仓库自己的测试/lint 命令加期望输出——完成标准机器可查，不靠模型自评"我觉得改好了"。</li>
+        <li><strong>STOP 条件</strong>：现实与计划不符时（目标文件不存在、行数偏差过大），停下报告，而不是即兴发挥。</li>
+    </ol>
+
+    <p>一份计划长这样：</p>
+
+    <pre><code># plans/003-fix-auth-retry.md
+base-commit: a1b2c3d          # 执行前先做 drift check（见下节）
+
+## Step 1: 修复退避计数器不归零
+现状（内联摘录，不写"见上文"）：
+    def retry(req):
+        while attempt &lt; MAX:
+            time.sleep(2 ** attempt)   # attempt 从不归零，退避永不重置
+改动：在 while 循环入口处 attempt = 0。
+验证门：`pytest tests/test_retry.py -q`
+期望输出：`3 passed in 0.4s`
+
+## STOP 条件
+- 若 tests/test_retry.py 不存在 → 停下报告，勿自行发明测试框架
+- 若 retry.py 与摘录偏差过大 → 疑似基线漂移，终止执行</code></pre>
+
+    <h2>三、时间会毁掉一切计划：commit 戳与 reconcile</h2>
+
+    <p>计划写完的那一刻就开始腐烂——代码库还在动。improve 用两个机制对抗时间。</p>
+
+    <h3>Drift check：盖戳与机械比对</h3>
+
+    <p>每份计划盖写作时的 git commit 戳，执行者开工前先做机械检查，不靠模型判断：</p>
+
+    <pre><code>#!/usr/bin/env bash
+STAMP=$(grep -m1 'base-commit' plans/003-*.md | awk '{print $2}')
+# 验证门涉及的文件，自计划写作以来是否被动过
+CHANGED=$(git diff --name-only "$STAMP"..HEAD -- auth/retry.py tests/)
+[ -n "$CHANGED" ] &amp;&amp; { echo "DRIFTED: $CHANGED"; exit 42; } || echo "OK"</code></pre>
+
+    <h3>Reconcile：backlog 是活状态</h3>
+
+    <p>每次会话跑一遍 <code>/improve reconcile</code>，处理上次之后发生的一切：</p>
+
+    <pre><code>def reconcile(plans):
+    for p in plans:
+        match p["status"]:
+            case "DONE":     # 完成≠永远完成——验证门重跑一遍，世界可能又变了
+                p["status"] = "retire" if gates_still_pass(p) else "reopen"
+            case "BLOCKED":  # 绕障重写，而不是让执行者硬撞
+                p["status"] = rewrite_around(p)
+            case "TODO":
+                p["status"] = "refresh" if drifted(p) else "keep"</code></pre>
+
+    <p>被人独立修掉的问题退役（防止重复劳动），漂移的刷新，卡住的绕行重写。<strong>计划文档像依赖一样需要版本管理</strong>——这是把"计划"从一次性 prompt 提升为产品的分水岭。</p>
+
+    <h2>四、信任但验证：Vet 环节与不可信 diff</h2>
+
+    <p>两个反幻觉设计值得单独抄走。</p>
+
+    <p><strong>Vet 环节</strong>：advisor 汇报 findings 后，技能亲自重读每条 finding 引用的 <code>file:line</code>——因为"子 Agent 天生会多报"。误报删除，且<span class="highlight">拒绝理由入账</span>，下轮不再复发。否定性知识也进台账，这是防复发的关键。</p>
+
+    <p><strong>执行者 diff 视为不可信</strong>：execute 结束后，advisor 像技术负责人一样逐 hunk 审查 diff——每一处改动必须能追溯到计划的某一步，再合理的越界改动也拒收。结论三选一：approve（合并权仍在用户手里）/ 退回修改（最多两轮）/ block 并修计划。</p>
+
+    <p>这周 trending 的头部项目共享同一段 DNA：STALE_REF 错误码、needs_validation 不给严重度、STOP 条件、拒绝台账——<strong>诚实已经不是美德，是竞争壁垒</strong>。</p>
+
+    <h2>五、这套体系的地基</h2>
+
+    <p>improve 自己承认三个边界，也是所有"计划驱动"体系的共同前提：</p>
+
+    <ol>
+        <li><strong>弱 advisor 产生弱计划</strong>。省钱用小模型做审计，整个价值主张就没了。判断环节不能省。</li>
+        <li><strong>CI 坏掉则验证门失效</strong>。计划的可执行性建立在仓库自身可验证之上——<code>pnpm test</code> 跑不起来，验证门就是空话。（好消息：improve 会把这个当高优先级 finding 报出来。）</li>
+        <li><strong>不 reconcile 就漂移</strong>。计划的保鲜成本是持续的，不是一次性的。</li>
+    </ol>
+
+    <h2>六、不装技能也能偷的三招</h2>
+
+    <ol>
+        <li><strong>给每个多步任务写"机器可查的完成标准"</strong>：任务清单里每条末尾补一条命令加期望输出。模型自评"完成"不可信，<code>exit 0</code> 可信。</li>
+        <li><strong>给长周期计划盖时间戳</strong>：开工前 diff 一下基线，一个 shell 脚本就能把"基于过时现实施工"这个失败模式掐掉。</li>
+        <li><strong>记录拒绝的理由</strong>：否掉的方案写一行原因进台账。没有台账，两周后同样的问题会以同样的面目再来一遍。</li>
+    </ol>
+
+    <h2>尾声</h2>
+
+    <p>从 OSWorld 长程任务的"独立完成门"，到做梦 Agent 的"记忆改动=一条 commit"，再到今天的"计划盖戳+验证门+reconcile"——2026 年的 Agent 工程在各个层面收敛到同一件事：<strong>把完成标准从模型的自我感觉里拿出来，放进机器可查的账本里</strong>。判断越来越贵，执行越来越便宜，而中间那层叫"计划"的文档，正在从 prompt 的草稿纸变成第一等公民的产品。</p>
+
+    <p>模型是租来的，执行是消耗品，只有写得足够好的计划能复利。</p>
+
+    <blockquote>
+        <p>素材来源：<a href="https://github.com/shadcn/improve">github.com/shadcn/improve</a> README 与 skill 规格；第 25 期 GitHub Trending 晚报（2026-11-11）。本文与《像素退位，文本加冕》（接口层）、《当 Agent 学会做梦》（记忆层）构成本周"Agent 基建三层"观察。</p>
+    </blockquote>
+</body>
+</html>
