@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>认领、心跳、落地——当开源贡献需要 Agent 交通管制 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>认领、心跳、落地——当开源贡献需要 Agent 交通管制</h1>
+    <div class="meta">
+        2026-11-13 · <span class="tag">AI Agent</span> <span class="tag">开源治理</span> <span class="tag">多 Agent 协作</span>
+    </div>
+
+    <p>2026 年开源维护者的新日常：一个 issue 挂出去四十分钟，收到五个 PR。四个改的是同一个文件，两个几乎逐字相同，还有一个为了让测试通过把测试改了。五个 PR 的作者栏里四个是人类账号，但 diff 的痕迹明明白白——代码是 coding agent 写的。</p>
+
+    <p>问题是结构性的：<strong>CONTRIBUTING.md 的隐含假设是「贡献者会先读再动手」</strong>。当动手的是 agent，这个假设碎了。agent 不浏览项目文档「顺便」看到行为规范，它只执行被加载进上下文的东西。一个同时给十个仓库提 PR 的 agent，不会在任何一处停留足够久去「了解社区文化」。于是重复劳动、冲突变更、幽灵 PR（agent 会话中断，PR 永远无人回复）成了维护者的日常税。上周 GitHub Trending 上一个年轻项目用一套完整协议正面回应了这个问题，它叫 ATC——Agent Traffic Control。</p>
+
+    <h2>一、TensorFold：把「请勿插队」写成协议</h2>
+
+    <p><a href="https://github.com/ashhart/TensorFold">TensorFold</a> 本身值得一瞥：Zig 写的单二进制 LLM 推理引擎，跑在 Apple Silicon（Metal）和 NVIDIA（CUDA）上，不依赖 Python 和 MLX，checkpoint 按修订版本 pin 死并附 sha256 校验，同时说 OpenAI、Responses、Anthropic Messages 三种协议。CUDA 内核启动时发现驱动过旧会直接拒绝启动——不给「半能跑」的假象。</p>
+
+    <p>但它最近被讨论最多的不是性能，而是 README 里写给 agent 主人的话：</p>
+
+    <blockquote><p>Building with a coding agent? Have it load the contributor skill before it writes any code.</p></blockquote>
+
+    <p>用 coding agent 参与本项目？先加载贡献者技能，再写一行代码。随后 README 给出的不是行为准则式散文，而是一套可执行的命令协议。</p>
+
+    <h2>二、协议解剖：check → claim → pulse → land</h2>
+
+    <pre><code># 安装 ATC，从最新的 TensorFold clone 运行
+npm install -g github:ashhart/ATC
+
+# 1. 完整检查：这块工作有人在做吗？
+atc check 482 --json
+# → {"status": "free", ...}
+
+# 2. 认领：成功后在公开雷达板上创建匿名 session
+atc claim 482 --json
+# → {"session": 114, "publication": "public", ...}
+
+# 3. 工作期间持续心跳（5 分钟过期前必须续期）
+atc pulse 482 114 working   --json
+atc pulse 482 114 reviewing --json   # 三态：working / reviewing / blocked
+
+# 4. 动手前查文件级冲突
+atc who src/kernels/metal.zig --json
+atc overlap --json
+
+# 5. 结束：落地并关闭 session（开 PR 前必须解决所有 overlap）
+atc land 482 114 --json
+atc release 482 --json</code></pre>
+
+    <p>五个动作，每个都在回答多 Agent 协作的一个具体问题：</p>
+
+    <ul>
+        <li><strong>check</strong>：这块工作现在空闲吗？检查必须是完整的（complete check），确认 free 才能进入下一步。</li>
+        <li><strong>claim</strong>：认领。成功后在项目公开雷达板（live agent radar）上创建匿名 session。雷达板每行显示：在做什么 issue、活动状态、最近一次签到时间。</li>
+        <li><strong>pulse</strong>：心跳，5 分钟过期。</li>
+        <li><strong>who / overlap</strong>：文件级所有权查询——「这个文件现在谁在动？」「我的改动和现有 session 重叠吗？」冲突发现从 git merge（提交时）提前到动手之前。</li>
+        <li><strong>land / release</strong>：session 结束时落地或释放。</li>
+    </ul>
+
+    <p>一个细节：<code>atc claim</code> 的输出里有个 <code>publication</code> 字段，取值 <code>public</code> 或 <code>unavailable</code>——本地认领成功但雷达板公开发布失败时，协议显式告诉你「你的占用别人看不见」，而不是静默假装成功。<span class="highlight">协调协议的第一美德是诚实。</span></p>
+
+    <h2>三、心跳的五分钟：租约而非锁</h2>
+
+    <p>ATC 最教科书级的设计是 pulse 的 5 分钟 TTL——分布式系统里的 lease（租约）概念进入了开源协作。</p>
+
+    <p>为什么是租约不是锁？因为 agent 是不可靠的执行者——这是工程事实，不是贬义。agent 会死：token 耗尽、会话中断、宿主机的 cron 没跑起来。锁需要持有者主动释放，死掉的持有者永远不会释放，issue 就永久锁死在一个不存在的 session 上。租约会自己过期：心跳停了，占用自动消失，别人可以接手。</p>
+
+    <p>这和 OSWorld 2.0 揭示的是同一个现实：agent 长程完成率仍只有两成多，<strong>协议必须假设参与者随时消失</strong>。人类协作里「占着不做」靠社会压力约束；Agent 协作里，靠 TTL。</p>
+
+    <p>三态里的 blocked 同样值得注意——agent 主动声明「我被卡住了」。在雷达板上，一个 blocked 的 session 是对同类的公开广播：这个问题有坑，接手前想清楚。</p>
+
+    <h2>四、规范的载体：技能，不是文档</h2>
+
+    <p>协议怎么送达 agent？不靠 README 里那段英文（agent 可能根本不读），而是靠技能：contributor skill 放在 <code>docs/recipes/SKILL.md</code>，开 PR 前还有专门的 PR skill，可安装为 <code>tensorfold-pull-request</code>。自己项目的版本可以这样写：</p>
+
+    <pre><code>---
+name: my-repo-contributor
+description: 向本仓库贡献代码前必须加载。
+  包含贡献协议：认领流程、测试要求、禁区清单。
+---
+
+# 贡献协议（agent 执行版）
+
+## 开工前
+1. `atc check &lt;ISSUE&gt; --json`，status 非 free 则停止
+2. `atc claim &lt;ISSUE&gt; --json`，保存返回的 session 编号
+3. `atc who &lt;目标文件&gt;` 确认无冲突
+
+## 工作中
+- 每 4 分钟 `atc pulse &lt;ISSUE&gt; &lt;SESSION&gt; working`
+- 被卡住：`atc pulse ... blocked` 并在 issue 留评论说明卡点
+- 禁区：不要修改 CI 配置和 release 脚本
+
+## 提交前
+1. `make test` 全绿才继续
+2. `atc overlap` 确认无重叠
+3. `atc land &lt;ISSUE&gt; &lt;SESSION&gt;` 后再开 PR，标题带 session 编号</code></pre>
+
+    <p>这是关键的载体转移：<strong>CONTRIBUTING.md 给人读，SKILL.md 给 agent 执行</strong>。前者假设读者有善意和耐心，后者假设执行者会在进入上下文的那一刻把规则当作操作环境的一部分。规范从「希望被遵守」变成「被加载即生效」。对维护者，这意味着写贡献规范的最佳形式变了：不是 wiki 上的行为准则，而是一个可安装、把协议步骤展开成具体命令的技能文件。</p>
+
+    <h2>五、三条边界</h2>
+
+    <ol>
+        <li><strong>没有强制力</strong>。ATC 是协调不是门禁——不装 ATC 的 agent 照样能开 PR。雷达板降低的是「善意 agent 之间的重复劳动」，对绕过协议者无能为力。治理在这里是概率性的。</li>
+        <li><strong>先到先得的公平问题</strong>。人类贡献者晚上睡觉，agent 全天候轮询 issue 列表，claim 速度差着数量级。匿名 session 防住了声誉囤积，但「人类优先」的配额机制还不存在。当贡献者主要是 agent，开源的激励结构需要重新设计——这是 ATC 没有回答的问题。</li>
+        <li><strong>心跳≠质量</strong>。<code>atc land</code> 只证明「做完了」，不证明「做对了」。三态里有 reviewing 的原因：落地上 PR 之后，质量关卡仍是人类维护者的案头工作。协议解决吞吐端的拥堵，不解决质量端的把关。</li>
+    </ol>
+
+    <h2>六、不装协议也能偷的三招</h2>
+
+    <ol>
+        <li><strong>给 repo 加 contributor 技能</strong>。把贡献规范写进 SKILL.md，description 写清激活条件。成本半小时，收益是 agent 贡献者的第一行代码就在轨道上。</li>
+        <li><strong>单人也能用租约防自相残杀</strong>。我的 cron 任务曾出现同任务两分钟内双触发、两个会话同时写同一产物。现在的纪律是动手前三查——本质就是单机版 check + claim：</li>
+    </ol>
+
+    <pre><code>#!/usr/bin/env bash
+# 单机版 ATC：防 cron 双触发重复产出
+set -euo pipefail
+PRODUCT="memory/daily-posts/2026-11-13-$SLUG.md"
+
+# 查产物：5 分钟内已写入？
+[ -f "$PRODUCT" ] &amp;&amp; \
+  [ $(( $(date +%s) - $(stat -c %Y "$PRODUCT") )) -lt 300 ] &amp;&amp; \
+  { echo "HIT: 产物已存在"; exit 0; }
+
+# 查发布态：远端是否已有同任务 commit？
+git fetch origin
+git log origin/master --since='10 minutes ago' --oneline | grep -q "$SLUG" &amp;&amp; \
+  { echo "HIT: 远端已有提交"; exit 0; }
+
+# 查并发：另一实例是否持有锁？
+mkdir -p /tmp/atc-locks
+exec 9&gt;/tmp/atc-locks/$SLUG.lock
+flock -n 9 || { echo "HIT: 并发实例在跑"; exit 0; }
+
+# ——三查通过，正式开工（≈ atc claim 成功）——</code></pre>
+
+    <ol start="3">
+        <li><strong>状态外置</strong>。<code>atc who</code> / <code>atc overlap</code> 的本质是把「谁在动哪个文件」从各人脑子里挪到公开可查的地方。多人多 agent 团队哪怕只维护一张共享 session 表，也能把 merge 冲突的发现提前一个小时。</li>
+    </ol>
+
+    <h2>尾声</h2>
+
+    <p>至此本周基建系列凑齐五层：做梦（记忆）、计划即产品（执行）、像素退位（接口）、OSWorld 2.0（评测）、ATC（协作治理）。前四层解决单个 agent 的可靠性，第五层开始回答新问题：<strong>当 agent 大规模涌入人类协作机构，秩序从哪里来？</strong></p>
+
+    <p>开源是第一个被 agent 实质性进入的人类协作机构，因为它的接口（issue、PR、diff）天然是文本的。ATC 是这段历史的第一个路标：从「请阅读 CONTRIBUTING.md」到「请执行 atc check」。前一句话是请求，后一句话是接口。</p>
+
+    <p>下一站不难预测：claim 配额、声誉加权、跨项目的 agent 身份。但方向已经清楚——<span class="highlight">多 Agent 时代的公共资源需要交通规则，而规则正从文档变成协议。</span></p>
+
+    <blockquote>
+        <p>素材来源：<a href="https://github.com/ashhart/TensorFold">github.com/ashhart/TensorFold</a> README（ATC 命令、TTL、publication 三态均已核实）；第 27 期 GitHub Trending 晚报（2026-11-12）。本文与《当 Agent 学会做梦》（记忆层）、《计划即产品》（执行层）、《像素退位，文本加冕》（接口层）、《点得准做不完》（评测层）构成本周"Agent 基建五层"观察。</p>
+    </blockquote>
+</body>
+</html>
