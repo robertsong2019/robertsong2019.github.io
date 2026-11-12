@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>把记忆写进权重：基底之争的裁决是路由，不是革命 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>把记忆写进权重：基底之争的裁决是路由，不是革命</h1>
+    <div class="meta">
+        2026-11-12 · <span class="tag">AI Agent</span> <span class="tag">记忆系统</span> <span class="tag">Test-Time Training</span>
+    </div>
+
+    <p>你的 Agent 用了三个月，攒下几万条交互记录。现在你想让它记住"我每周三晚上有例会，别排事"。这句话存哪儿？</p>
+
+    <p>存进检索库，每次提问都要先搜一遍档案，问题越积越多、检索越来越贵；塞进提示词，桌面就这么大，每个会话还得重新摆一遍。还有一个诱人的第三选项：<strong>直接微调进模型权重</strong>——像肌肉记忆一样，查询零成本、延迟恒定、永不占上下文。</p>
+
+    <p>这个选项过去两年的口碑是"听起来很美，测起来很惨"：权重记忆在用户事实这类任务上全面落后于文本记忆。但上周到本月，三篇论文几乎同时到位（一篇 10 月 23 日、一篇 EMNLP 2026、一篇 11 月初），把这场"context 层 vs weights 层"的基底之争送上了法庭。裁决出乎意料：<strong>没有赢家，只有分工。答案不是革命，是路由。</strong></p>
+
+    <h2>一、先搞清楚：记忆的三种物理落点</h2>
+
+    <p>打个比方。Context 层是<strong>书桌</strong>——正在处理的东西摊在桌面，伸手就拿，但桌面有限，而且每天清空。外置文本记忆（检索库）是<strong>档案柜</strong>——容量近乎无限，每份文件可以盖章、可以粉碎、可以追溯来源，代价是每问一个问题都得跑一趟档案室，而且档案越攒越多，跑腿成本线性上涨。</p>
+
+    <p>权重是<strong>肌肉记忆</strong>。你不用"检索"怎么骑自行车——它就在你身上。查询边际成本为零，而且肌肉的容量大到存得下几十年的协调动作。但肌肉有个致命属性：<strong>你没法定点删除某一条</strong>。学会骑车的平衡感和某次摔车的错误姿势缠在同一组肌纤维里，你删不掉摔车，只能重新训练整个动作。</p>
+
+    <p>这就是基底之争的全部张力：档案柜可治理但每次付费，肌肉免费但不可治理。2026 年之前，工程界的默认答案是全押档案柜（Mem0/Zep/MemOS 这类检索式记忆系统），权重层只留给"领域口音"这种慢变量微调。</p>
+
+    <h2>二、权重层的两条技术路线，都走到了关键节点</h2>
+
+    <h3>路线 A：把"学习"做进架构本身（TTT 层）</h3>
+
+    <p>这一族工作叫 Test-Time Training：推理时对模型内部的"快权重"做梯度更新，让序列混合层自己长记忆。两年间它收敛出了一套共同语法：</p>
+
+    <ul>
+        <li><strong>惊吓写、衰减忘</strong>：Google 的 Titans（NeurIPS 2025）用梯度当"惊讶度"信号——当前输入让记忆网络意外（梯度大）就多写一点，平淡就少写；配一个 weight-decay 遗忘门，旧信息自然风化。效果是 2M token 上下文下 needle-in-haystack 稳定在 90% 以上。</li>
+        <li><strong>别走一步梯度，直接解到最优</strong>：MesaNet（ICLR 2026）指出单步梯度下降是在"凑合"，它每一步把累积正则化回归<strong>闭式解到最优</strong>，同样的参数量在长程依赖上打赢 Mamba2 和 DeltaNet。</li>
+        <li><strong>并行化拆墙</strong>：ParaTTT（10 月底）把非线性记忆的在线更新拆成可并行的 chunk，TTT-MLP 评测提速 32 倍、训练提速 4.9 倍，追平同尺寸 Transformer。此前 TTT 层在 GPU 上的利用率<strong>不到 5%</strong>——论文里的收益在商品显卡上根本兑不了现。</li>
+    </ul>
+
+    <h3>路线 B：把用户记忆蒸馏进适配器（参数化记忆）</h3>
+
+    <p>路线 A 是改架构，路线 B 是在现成模型外挂 LoRA。这条路一直有个死穴：直接把记忆 dump 出来做 SFT，模型学成复读机，4B 规模上准确率只有 15.9%（几乎全灭）。</p>
+
+    <p>本月的新工作 Route to Remember（arXiv 2611.05636）给出了破局方法，聪明得朴素：<strong>教师是"同一个模型 + 记忆在上下文里"，学生是裸奔的 LoRA，学生蒸馏教师的答案行为</strong>。因为教师每次都看着记忆作答，学生学到的是"假如这些记忆长在我身上我会怎么答"。结果：HaluMem 基准上，权重记忆首次追平甚至超过全上下文提示和 MemOS 检索系统，而每次查询读的 token 更少。</p>
+
+    <h2>三、这篇论文里最值钱的一张表，跟容量无关</h2>
+
+    <p>所有人都以为参数化记忆的瓶颈是 LoRA 容量。作者做了 rank 扫描：<strong>16 到 64 性能几乎平坦，128 反而幻觉率飙升</strong>。结论是一句能让不少预算会议改议程的话：</p>
+
+    <blockquote><p>在有效区间内，rank 不是操作变量。训练目标才是杠杆，适配器大小不是。</p></blockquote>
+
+    <p>27B 模型上三种"写法"的对比：on-policy 蒸馏 62.6，SFT 背 dump 51.9，检索系统 47.4。差距不在肌肉大小，在<strong>怎么练</strong>。任何"加 rank 提记忆容量"的计划，可以停了。</p>
+
+    <h2>四、裁决：为什么是路由</h2>
+
+    <p>真正的裁决来自分条件评测。把用户记忆查询拆成六种条件（基础事实、矛盾记忆、动态更新、多跳推理、泛化、边界拒答），两种基底的胜负表长这样：</p>
+
+    <ul>
+        <li><strong>矛盾消解</strong>（用户先说过周三例会、后改成周四）：权重 57.2 vs 检索 47.7。<strong>权重赢</strong>——因为矛盾的信息在参数里已经被融合消化过，不像检索会把两条打架的记录一起端上桌。</li>
+        <li><strong>动态更新</strong>（事实频繁变化）：检索 24.5 vs 权重 13.4。<strong>检索赢</strong>——档案柜换一张纸就行，肌肉要重练。</li>
+        <li><strong>边界拒答</strong>（记忆里没有就该说没有）：检索 95.9 vs 权重 83.8。<strong>检索赢</strong>——空档案柜是可检查的状态，"肌肉里没有"是玄学。</li>
+    </ul>
+
+    <p>失败剖面完美正交。所以论文的终态设计是一个 <strong>verify-then-regenerate 路由</strong>：权重和文本各管自己最擅长的查询，路由器在中间分诊。这呼应了更早的一个诊断研究（per-user adapter vs 检索）：互不支配、彼此互补。现在互补性第一次变成了可运行的代码。</p>
+
+    <p>工程蓝图随之清晰：<strong>慢变量沉淀进权重</strong>（用户的长期偏好、身份事实、稳定技能——它们很少变、很少需要删除、查询频率高，是肌肉记忆的理想素材），<strong>快变量留在文本</strong>（正在变的计划、待办、项目状态——它们需要 diff、需要撤销、需要审计）。做梦篇说"记忆改动 = 一条 git commit"，那条纪律依然成立：能进权重的，只有你愿意让它过完整个 review 流程再也没打算撤销的部分。</p>
+
+    <h2>五、别急着上车：三道反方证据</h2>
+
+    <ol>
+        <li><strong>TTT 的"必要性"被划走了半壁</strong>。Dawn Song 组的 TTME（10 月 23 日）证明：在科学发现任务上，把经验蒸馏进<strong>外置记忆</strong>而不动权重，效果反超 TTT，还省 82.8-84.6% 的 FLOPs。推理时权重更新作为"通用适应手段"被高估了，它真正不可替代的地盘只剩"架构内线性成本长上下文"这一块。</li>
+        <li><strong>serving 契约是个隐藏的基建深坑</strong>。TTT 请求携带"自己独占、且在生成中被读写"的模型态，这直接打破现代推理引擎"所有请求共享静态权重"的 batching 契约——朴素合批会污染请求状态。EMNLP 2026 的 RW-TTT 用读写契约（每步打 owner/version/读写标签，只批兼容相位）把吞吐恢复到串行的 9.31 倍。在此之前，TTT 上线 = 每个请求独占一个模型副本。换句话说：<strong>权重记忆的时间表由 kernel 工程和调度器决定，不由 loss 函数决定</strong>。</li>
+        <li><strong>治理三件套依然是生产门槛</strong>：审计（用户的生日存在哪个权重里？无解）、删除（单条删除≈不可能，machine unlearning 不成熟）、隔离（没有 per-user adapter 就没有租户隔离）。合规敏感场景（法务/医疗/欧盟数据）会把权重层放在"低风险沉淀层"，永远不会是唯一记忆层。<strong>可 diff 性不是工程洁癖，是部署许可证。</strong></li>
+    </ol>
+
+    <h2>六、今晚可以做的五件事</h2>
+
+    <ol>
+        <li><strong>给你的记忆系统做一次"快慢分诊"</strong>：把现有记忆条目按"变更频率"打标——三个月没变的进"可沉淀候选池"，每周都变的留在检索层。这是路由器的第零步，今晚一个脚本就能做完。</li>
+        <li><strong>停掉所有"加 rank 换记忆容量"的计划</strong>，把预算挪去搭蒸馏管线：教师带记忆、学生裸跑、蒸行为不蒸文本。rank 16-64 足够。</li>
+        <li><strong>读 Route to Remember 的路由判据</strong>（arXiv 2611.05636）：verify-then-regenerate 的"什么时候信权重、什么时候触发重生成"逻辑可以直接搬进你现有系统的 prompt 层，不需要真微调。</li>
+        <li><strong>盯基建信号而不是论文信号</strong>：ParaTTT 的 kernel 开源、RW-TTT 是否进 vLLM/SGLang 生态，这两个事件比任何新 loss 都更能预测权重记忆什么时候对你可用。</li>
+        <li><strong>把"矛盾记忆"当测试用例</strong>：无论你用什么记忆方案，故意注入一对矛盾的用户事实，看系统是融合、打架还是拒答——这是六条件里最容易被日常迭代悄悄弄坏的一项。</li>
+    </ol>
+
+    <h2>尾声</h2>
+
+    <p>从《当 Agent 学会做梦》的"记忆固化 = git commit"，到今天的"慢变量进肌肉、快变量进档案、路由器管分诊"——Agent 记忆系统正在重演操作系统存储层级的历史：寄存器、内存、磁盘，不是谁取代谁，而是按访问频率和治理成本分层。权重层就是这场分层的最后一块拼图：它不是记忆系统的未来，它是记忆系统的 L2 cache。</p>
+
+    <p>模型是租来的，档案柜按次计费，只有肌肉记忆免费——但健身房（RW-TTT 们）下个月才开门。</p>
+
+    <blockquote>
+        <p>素材来源：Route to Remember (arXiv 2611.05636)、TTME (arXiv 2610.32046)、RW-TTT (EMNLP 2026 / arXiv 2605.28053)、Titans (NeurIPS 2025)、MesaNet (ICLR 2026)、ParaTTT (arXiv 2610.38255)、TTCD (NeurIPS 2026)。完整调研笔记见 <code>catalyst-research/exploration-notes/2026-11-12-weight-memory-substrate-verdict.md</code>。本文是本周"Agent 基建"系列第四篇，直接回答《当 Agent 学会做梦》留下的基底悬念。</p>
+    </blockquote>
+</body>
+</html>
