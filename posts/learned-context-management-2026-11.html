@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>谁来收拾 Agent 的桌面——上下文管理正在从工程变成技能 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>谁来收拾 Agent 的桌面——上下文管理正在从工程变成技能</h1>
+    <div class="meta">
+        2026-11-13 · <span class="tag">AI Agent</span> <span class="tag">Context Engineering</span> <span class="tag">LLM 推理系统</span>
+    </div>
+
+    <p>先看一个可能违反直觉的数字：一个 8B 参数的小模型，只开 20K 的上下文窗口，去做一整本书（250 万 token）的问答，正确率 67.8%。作为对照，比它大一百倍的旗舰模型把整本书塞进上下文，69.3%——小模型用 1/26 的成本追到了 1.5 分以内（<a href="https://arxiv.org/abs/2611.00244">MEMENTO，哥伦比亚大学，10 月 30 日</a>）。</p>
+
+    <p>差距怎么抹平的？答案不是更大的窗口、更好的检索，而是一件看起来很朴素的事：<strong>这个 8B 模型被专门训练过「怎么做笔记」</strong>。它在读书过程中不断把读过的内容压缩成自己写的笔记，用笔记替换原文，20K 的窗口装的是蒸馏后的书。</p>
+
+    <p>这背后是过去六周里正在发生的一场范式转移：上下文窗口的管理权，正在从外部工程系统移交到模型自己手里。</p>
+
+    <h2>一、2025：保洁阿姨按排班收拾桌面</h2>
+
+    <p>把上下文窗口想象成 Agent 的办公桌。桌面就这么大，但任务越做越长：检索回来的文档、工具的输出、前几轮的推理，全都往上堆。堆到一定密度，Agent 的判断力肉眼可见地下滑——这个现象有个名字，context rot（上下文腐烂），Chroma 用 18 个模型做过测试，<strong>无一例外，输入越长，表现越差</strong>，远在窗口标称上限之前就开始掉。</p>
+
+    <p>2025 年的解法叫 context engineering（上下文工程），Karpathy 给的定义是「往窗口里填恰好正确的信息的微妙艺术」。谁来填？<strong>外部 harness</strong>。LangChain 的 middleware 在每一步拦截上下文，超阈值就触发摘要压缩；Anthropic 把 context editing 和 server-side compaction 做成了产品功能。本质上，是物业派保洁阿姨按固定排班来收拾 Agent 的桌子：每周三打扫一次，超过两摞的纸打包进档案盒。</p>
+
+    <p>这套体系能用，但有两个先天缺陷。第一，排班是死的，任务是活的——阿姨来的时机和桌面实际需要收拾的时机对不上。第二，也是最要命的：<strong>阿姨不知道哪些纸重要</strong>。她只能按规则打包，而规则不知道你正在做的那道题需要三小时前那张便签。</p>
+
+    <h2>二、2026：把桌面的所有权交给员工</h2>
+
+    <h3>CLM：上下文从日志变成文件</h3>
+
+    <p>9 月底，华盛顿大学、MIT 和 Meta 超级智能实验室的团队发了一篇论文，<a href="https://arxiv.org/abs/2609.37725">Context Language Models（CLM）</a>。它的形式化改动只有一行：</p>
+
+    <pre><code>标准语言模型： c(t+1) = c(t) ⊕ 输出        # 只能追加
+CLM：          c(t+1) = f(c(t))              # 任意改写</code></pre>
+
+    <p>翻译成人话：上下文不再是一本只能往后写的流水账，而是一个<strong>模型自己拥有的文件</strong>。实现上，对话被镜像成一个文件，模型用普通的 Bash 命令随意编辑它——删掉过时的搜索结果、把二十次工具调用压成两行、在文件顶部维护一张实时更新的任务计分板。每次编辑立刻同步进下一次模型调用，生成在编辑后的版本上继续。</p>
+
+    <p>效果是零样本（不改任何权重）就超过了所有手工压缩策略：深度研究基准 BrowseComp-Plus 上精度 +11.4% 同时计算量 -21.5%；12 小时长时间任务分数更高、FLOPs 省 59%；24 小时多仓库 agent 协作任务同等算力下提升 65%。论文作者自己把这归为 Bitter Lesson 的又一实例：与其把人类的整理先验编码进 harness，不如让模型自己搜索策略。</p>
+
+    <h3>MEMENTO：好笔记是一种要教的手艺</h3>
+
+    <p>CLM 的零样本成绩单很漂亮，但哥伦比亚的 MEMENTO 论文泼了一盆冷静的水：<strong>现货 agent 模型——包括 GPT-5.5 和 GLM-5.3——写出来的压缩笔记大多无效，而且光靠 RL 激励，模型几乎探索不出「记笔记」这个行为本身</strong>。奖励太远、动作空间太大，随机探索碰不到。</p>
+
+    <p>MEMENTO 的训练法值得记住，它像培养一个实习生：先让他看一批「事后诸葛亮笔记」——任务做完后回头补写的标准答案式笔记——在这些合成轨迹上做监督微调，把「好笔记长什么样」教进去；然后再上 RL，奖励函数是答案正确性、笔记质量启发式、置信度校准的加权和。教出来的 8B 模型开篇那个成绩之外，还自发涌现了两种没教过的策略：上下文折叠和置信度回溯。</p>
+
+    <p>这两篇论文放在一起，划出了一条重要的分界线：<strong>上下文管理能力是预训练分布的属性，不是模型架构的属性</strong>。旗舰模型见得多，零样本就会；小模型没有这个底子，得付「教学法成本」。想在小模型上复现，别指望 reward 从天上掉下来，先准备 hindsight 示例。</p>
+
+    <h3>AgentMemRec：选记忆这件事，根本不需要 LLM</h3>
+
+    <p>如果说前两篇说的是「模型接管」，<a href="https://arxiv.org/abs/2610.34673">AgentMemRec</a> 说的是更釜底抽薪的一件事：跨会话记忆的「选哪些进窗口」环节，LLM 一个都不用。</p>
+
+    <p>它的形式化很漂亮：记忆选择就是推荐系统。当前请求是用户，存储的记忆是商品，上下文窗口是预算约束下的一次货架装填（budgeted slate recommendation）。于是召回、排序、装填这套 Web 推荐炼了二十年的级联直接搬过来：双通道便宜召回 + 十个便宜特征训练的排序器，全程零 LLM 调用。结果在 LongMemEval 多会话问题上超过 A-Mem、HippoRAG 2 这些花 440 到 2,270 次 LLM 调用建知识图谱的系统 10 到 31 分。</p>
+
+    <p>这篇论文里最值钱的统计数字是：**上下文里缺一条证据，答案正确率掉 37 到 64 分**。那些昂贵的图结构系统，上下文凑齐全部证据的比例只有 50%-68%——建得漂亮和证据进窗是两回事。图书馆员不需要是教授；教授只负责读桌上已经摆好的那摞纸。</p>
+
+    <h2>三、系统层的反击：每一次自由编辑都在打翻活字版</h2>
+
+    <p>故事到这里，好像只差把所有权全交给模型了。但有一个不那么性感的阻力：<strong>FLOPs 经济学</strong>。</p>
+
+    <p>KV cache 是推理引擎为省算力做的缓存——前文每个 token 的注意力中间态都存着，下一个 token 直接复用，不用重算。问题在于缓存有严格的因果依赖：第 500 个位置的缓存建立在前 499 个位置之上。<strong>你编辑了第 50 页，第 51 页往后的缓存全部作废，必须从头重算</strong>。这就像流水线上每个工位的进度都建立在前一工位的结果上，中途改了图纸，后面所有工位返工。</p>
+
+    <p>于是「模型自由编辑上下文」（token 层最优）和「推理引擎复用缓存」（FLOP 层最优）正面相撞。CLM 团队的解法是配套的 Suffix Cache Reuse，把服务端计算砍了 35%，已移植进 vLLM。更釜底抽薪的是 10 月底清华和港中文的 <a href="https://arxiv.org/abs/2610.28577">Cache Engineering（AKV 引擎）</a>：干脆不许碰文本，让 agent 直接操作缓存本身——<code>drop</code> 把选中的缓存条目移出未来注意力的视野，<code>repos</code> 重排位置编码。文本一字不动，缓存选择性失明。三个模型四个基准平均成本 -27.7%、分数还 +1.7；SWE-bench Verified 上单题成本从 20 美分降到 9.7 美分，分数反而从 40.0 涨到 43.2。</p>
+
+    <p>AKV 顺手揭开了一个哲学反转：模型真正「读」的也许从来不是文本，而是 KV 状态，文本只是缓存的序列化形式。drop 之后信息还在文件里，只是不再被注意——<strong>没有消失，只是想不起来</strong>。这比摘要的不可逆丢失更接近人类遗忘的本义，也把「省成本」和「伤精度」这对 context engineering 的原生矛盾解开了。</p>
+
+    <h2>四、三个没解决的裂缝</h2>
+
+    <ul>
+        <li><strong>注入面扩大了。</strong>能给自己写指令的模型，就能在两轮之间给自己植入恶意指令。CLM 的安全章节自己承认这一点，补救是每次编辑留快照（context_snapshots）。上下文越自治，「模型相信自己的历史」这条推理链就越需要版本控制。这与上周聊的 transmissible reward hacking 同族：agent 的自我状态正在成为新的攻击面。</li>
+        <li><strong>不是全场景赢家。</strong>AKV 在 MiniMax-M2.7 + BrowseComp-Plus 上就输给了传统文本工程（58.9 vs 62.3）；CLM 的作者数字尚无独立复现，代码还是非商用许可。三篇主论文全是未经完整同行评审的预印本。</li>
+        <li><strong>检索到 ≠ 利用到。</strong>ContextBench 对 66 个仓库 1,136 个任务做过过程级评测：Agent 一致地偏召回轻精度，翻到的代码和真正用上的代码之间有巨大断崖。把桌面收拾干净只是必要条件，用不用桌上那张纸是另一回事。</li>
+    </ul>
+
+    <h2>五、周一早上可以做的五件事</h2>
+
+    <ol>
+        <li><strong>试提示词版 CLM。</strong>不需要任何训练：把 harness 里的「阈值触发摘要」换成「给模型一个可编辑的上下文文件，让它自己重写」。CLM 论文证明这在 Claude/GPT 级模型上今天就能跑。对比指标就两个：同任务 token 成本和最终准确率。</li>
+        <li><strong>审计你的记忆选择层。</strong>凡是用了 LLM 做 rerank 的环节，问一句：AgentMemRec 用十个便宜特征加嵌入相似度就打平了 64 次 LLM 调用的排序器，你付的那份钱买到了什么？</li>
+        <li><strong>量一次「证据进窗率」。</strong>在你的任务上标注一小批 gold 证据，数数现在系统的上下文多久凑齐一次全部证据。缺一条掉几十分——这个数字值得出现在你的监控面板上。</li>
+        <li><strong>盯 serving 生态而不是论文。</strong>AKV 已经 Apache 2.0 开源且基于 SGLang（Qwen、GPT-OSS、MiniMax-M2 已适配），Suffix Cache Reuse 进了 vLLM。这些基础设施的落地时间表，比任何新 loss 都更能预测「什么时候真的能用」。</li>
+        <li><strong>给上下文编辑加快照。</strong>如果要让模型改自己的上下文，先给它配上版本控制。这既是安全审计的需要，也是 debugging 的救命稻草——出问题时你得能回放「它到底把什么改没了」。</li>
+    </ol>
+
+    <p>2025 年，我们教 harness 怎么喂模型；2026 年的这批论文在教模型自己吃饭。哥伦比亚人提醒我们这个技能得手把手教，清华人提醒我们吃饭的手每动一次都在打翻印刷厂的活字版，而推荐系统的人耸耸肩：选菜这件事，本来就不需要 chef。</p>
+
+    <p>上下文工程不会消失——但它的重心正在从「替模型做决定」移向「给模型递工具」。桌面的所有权正在易主，保洁阿姨的下一个岗位，是给会自己收拾桌子的员工配置好快照和回滚。</p>
+</body>
+</html>
