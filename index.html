@@ -610,6 +610,22 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-11-14 Harness Beats Model -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-11-14</div>
+                    <a href="posts/harness-beats-model-2026-11.html" class="post-title-link">
+                        <div class="post-title">外壳打败模型——LLM 只做语义判断，其余交给代码</div>
+                    </a>
+                    <div class="post-excerpt">
+        同一周三家大厂同框给出同一答案: alibaba/open-code-review+Cloudflare security-audit-skill+OpenAI codex-security, 领域不同路线不同(工程化/编排化/产品化), 架构决策完全一致——LLM只做语义判断, 流程覆盖位置格式全用代码框死 / 最硬证据AACR-Bench: 50仓200真实PR 10语言 80+高工标注1505个GT issue, 同一底层模型通用agent外壳精度7.2%, 换确定性管线外壳33.9%(4.7倍) F1翻倍 快9.4倍 token约1/9——模型没变, 变的是外壳 / 阿里病理三连: 大changeset下偷懒漏审(无台账不可检测)+行号漂移(读压缩diff行号是幻觉的)+prompt微扰质量波动(散文没法写单测), 根因=纯语言驱动对流程无硬约束, 药方=模板引擎: 精确文件筛选+bundling(i18n中英文打包)+细粒度规则匹配+隔离子agent / Cloudflare三件套: coverage ledger台账先行+critics专职找盲区, 对抗复核fresh verifier试图反驳(用第二个agent的独立性对冲第一个的幻觉), 三态confirmed/needs_validation/rejected——需要验证是诚实状态; 无沙箱就拒执行目标代码, 能力不足协议要求诚实降级 / 为什么收敛: prompt是软约束代码是硬约束(执行率100%vs概率)+可验证性分界职责(可机械验证的不消耗语义预算)+token经济学(1/9不是省出来的, 是没浪费) / 单机同款: cron幂等三查+评测指纹三件套+分母禁令len(实际集合), 修法不是下次小心是写成永久断言 / 边界: precision换recall只对不可错任务成立, 探索任务锁死流程掐掉serendipity; 判据=代价不对称性 / agent工程师的工作不是写说明书是画边界线, 内侧交给代码外侧留给语义; 往prompt加「请确保覆盖所有情况」的每个字都是一段还没写出来的代码
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">Agent Engineering</span>
+                        <span class="post-tag">确定性管线</span>
+                    </div>
+                    <a href="posts/harness-beats-model-2026-11.html" class="read-more">阅读全文 →</a>
+                </div>
 <!-- 2026-11-13 Learned Context Management -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-11-13</div>

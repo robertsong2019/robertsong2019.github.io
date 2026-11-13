@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>外壳打败模型——LLM 只做语义判断，其余交给代码 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>外壳打败模型——LLM 只做语义判断，其余交给代码</h1>
+    <div class="meta">📅 2026-11-14 · 技术随笔 · 基建系列第六篇</div>
+    <div>
+        <span class="tag">AI Agent</span>
+        <span class="tag">Agent Engineering</span>
+        <span class="tag">确定性管线</span>
+    </div>
+
+    <p>本周 GitHub 榜单上，三家大厂同框给出了同一个答案的不同写法：阿里 <code>open-code-review</code>（代码评审）、Cloudflare <code>security-audit-skill</code>（安全审计，周增万星蝉联冠军）、OpenAI <code>codex-security</code>（漏洞修复）。三个项目领域不同、路线不同——工程化、编排化、产品化——但在最核心的架构决策上完全一致：</p>
+
+    <blockquote><p><strong>LLM 只做语义判断。流程、覆盖、位置、格式，全部用代码框死。</strong></p></blockquote>
+
+    <p>这不是三条独立的工程直觉，这是对「prompt 即架构」路线的一次系统性证伪。</p>
+
+    <h2>一、最硬的证据：同一模型，两种外壳</h2>
+
+    <p>AACR-Bench 是这场讨论里最干净的实验：50 个流行开源仓库、200 个真实 PR、10 种语言、80+ 位高级工程师交叉标注出 1,505 个 ground-truth issue。</p>
+
+    <p>同一个底层模型，两种外壳：</p>
+
+    <ul>
+        <li>通用 agent 外壳（Claude Code）：精度 7.2%，F1 11.6%</li>
+        <li>确定性管线外壳（open-code-review）：精度 <span class="highlight">33.9%</span>（4.7 倍），F1 25.1%，快 9.4 倍，token 只花约 <span class="highlight">1/9</span></li>
+    </ul>
+
+    <p>模型没变。变的是外壳。</p>
+
+    <p>诚实注脚：基准和工具同出阿里之手，尚无独立复现；且 recall 刻意更低（20.0% vs 28.9%）——这是 precision-over-noise 的取舍：宁可少报，不可用误报把人淹死。</p>
+
+    <h2>二、阿里的病理切片：纯语言驱动的三大并发症</h2>
+
+    <p><code>open-code-review</code> 的 README 值得每个做 agent 工程的人精读，因为它先做的不是设计，是病理诊断：</p>
+
+    <ol>
+        <li><strong>incomplete coverage</strong>——大 changeset 下 agent「偷懒」选择性审查。没有台账记录哪些文件看过，偷懒不可检测。</li>
+        <li><strong>position drift</strong>——报告行号与实际位置漂移。agent 在自由文本里说「第 42 行有问题」，但它读的可能是压缩后的 diff，行号是幻觉的。</li>
+        <li><strong>unstable quality</strong>——自然语言 skill 难调试，prompt 微扰导致质量波动。你没法给一段散文写单元测试。</li>
+    </ol>
+
+    <p>根因一句话：<strong>纯语言驱动架构，对流程没有任何硬约束。</strong></p>
+
+    <p>药方是模板引擎：精确文件筛选保证不漏变更；智能 bundling（i18n 中英文文件打包成一个审查单元，因为问题总成对出现）；按文件特征细粒度匹配规则消灭信息噪声；每个 bundle 作为隔离子 agent 并发审查。</p>
+
+    <pre><code>def review_pr(pr):
+    # 语义判断之前, 一切由代码决定
+    files = exact_file_filter(pr.changed_files)      # 硬约束1: 不漏
+    bundles = smart_bundling(files)                  # 硬约束2: 相关性成组
+    findings = []
+    for bundle in bundles:
+        rules = match_rules(bundle)                  # 硬约束3: 只喂相关规则
+        # LLM 只出现在这一行: 在被框死的上下文里做语义判断
+        raw = subagent_review(bundle, rules)
+        # 硬约束4: 位置由代码锚定, 不由模型口述
+        for f in raw.findings:
+            f.location = anchor_to_bundle(f, bundle)
+            findings.append(f)
+    return schema_validate(findings)                 # 硬约束5: 出门先过schema</code></pre>
+
+    <p>注意 LLM 在整个管线里只出现一次。它不决定看什么、不决定分组、不决定行号、不决定输出格式——它只判断「这段代码有没有问题」。</p>
+
+    <h2>三、Cloudflare 的参考实现：台账 + 对抗复核 + Schema 门禁</h2>
+
+    <p>如果说阿里给了病理和药方，Cloudflare 给的是完整手术直播。六阶段审计编排（侦察 → 覆盖驱动狩猎 → 候选验证 → 结构化输出 → 独立复核 → 报告）里最有借鉴价值的是三件套：</p>
+
+    <p><strong>覆盖率台账</strong>。审计前先从架构文档切分出 <code>coverage-ledger.json</code>，把待审面分解成显式单元；隔离子 hunter 认领单元去挖；挖完由 coverage critics 专门找盲区——有一个专职角色负责问「我们还漏了什么」，而不是指望主 agent 的良心发现。</p>
+
+    <p><strong>对抗复核</strong>。每个候选发现交给一个 fresh verifier，任务不是确认而是<strong>试图反驳</strong>。心理学上这是对抗确认偏误的机制设计；工程上这是用第二个 agent 的独立性对冲第一个 agent 的幻觉。最终发现分三态：confirmed / needs_validation / rejected——「需要验证」是一种诚实的状态，比强行二值化可信得多。</p>
+
+    <p><strong>Schema 门禁</strong>。所有发现必须通过 findings.json 的 schema 校验才能进入下一阶段，格式错了根本到不了人眼。</p>
+
+    <p>还有一个容易被忽略的细节：无 OS 级沙箱（断网、allowlist、资源限制、scratch 白名单）就拒绝执行目标代码，发现保持 needs_validation。<strong>能力不足时协议要求诚实降级，而不是悄悄冒险。</strong></p>
+
+    <pre><code>ledger = split_coverage_surface(architecture_doc)   # 台账先行
+findings = []
+for unit in ledger.claim_all():
+    found = isolation_hunter(unit)                  # 子agent只管挖
+    for f in found:
+        verdict = fresh_verifier(f, refute=True)    # 对抗: 试图反驳
+        f.status = {"refuted": "rejected",
+                    "needs_more": "needs_validation",
+                    "survived": "confirmed"}[verdict]
+    findings += schema_gate(found)                  # 三态出门
+blind_spots = coverage_critic(ledger)               # 专职找盲区
+ledger.add_units(blind_spots)                       # 台账是活的</code></pre>
+
+    <h2>四、OpenAI 的产品化闭环</h2>
+
+    <p><code>codex-security</code> 把同一条铁律包进产品：scan（repo / 路径 / git diff）→ validate → patch 生成与修复验证 → SECURITY.md / threat model 起草，外加 SARIF 导出、Linear/Jira/GitHub 工单流转、容器化批量扫描。发现、验证、修复、流转——每一步的边界都是代码画的，agent 在步与步之间做语义填充。</p>
+
+    <p>三条路线，一条铁律：<strong>能确定性的都用代码，LLM 只做语义判断。</strong></p>
+
+    <h2>五、为什么全收敛到这里</h2>
+
+    <p>这不是新东西——软件工程一百年的老道理：不要把不变量交给运行时去猜。但在 agent 热潮里它被遗忘过两年，因为「全能 agent」的叙事太好卖。三个工程事实把它拉回来：</p>
+
+    <p><strong>Prompt 是软约束，代码是硬约束。</strong> 自然语言写「确保检查所有文件」，agent 在 token 压力下的执行率是概率的；<code>exact_file_filter()</code> 的执行率是 100%。软约束适合表达意图，硬约束适合保证不变量。</p>
+
+    <p><strong>可验证性分界了职责。</strong> 覆盖率可以断言、位置可以校验、格式可以 schema 校验——凡是可机械验证的，就不该消耗语义预算；语义判断恰恰是不可机械验证的部分，这才是 LLM 的岗位。</p>
+
+    <p><strong>Token 经济学站在约束这边。</strong> 那 1/9 的 token 差距不是省出来的，是没浪费：不相关的规则没喂、无关的文件没读、幻觉行号没产生返工。约束越硬，浪费越少。</p>
+
+    <p>我在自己的单机 agent 实践里踩过同款坑、得出过同款结论：cron 任务双触发，靠「幂等三查」（查产物、查提交态、查并发）代码化根治；评测跑分出幻影，靠指纹三件套（cand_mean / tok_mean / abstain）断言数据集身份；最惨的一课是比率汇报——打印 <code>agree/Q</code> 而 Q ≠ <code>len(queries)</code>，常量与集合脱钩，显示层 bug 伪装成数据异常。修法不是「下次小心」，是把规则写成永久断言：</p>
+
+    <pre><code>def report(metrics):
+    # 平行常量禁令: 分母必须是实际集合, 不是命名常量
+    for name, q in metrics.ratios.items():
+        assert q.denominator == len(q.actual_set), f"{name}: 分母漂移"
+    # 指纹断言: 好数字先验, 偏离即数据链坏了
+    for key, (lo, hi) in FINGERPRINTS.items():      # cand_mean≈36.8 等
+        v = metrics[key]
+        assert lo &lt;= v &lt;= hi, f"指纹漂移: {key}={v}, 预期[{lo},{hi}]"
+    return metrics</code></pre>
+
+    <p>大厂把这套东西做成了开源参考实现，单机玩家的版本可以更小：台账是三个 grep，对抗复核是重跑一遍做 diff，schema 门禁是一个 assert。规模不同，铁律同一条。</p>
+
+    <h2>六、边界：不可错的任务才值得上笼子</h2>
+
+    <p>Precision 换 recall 不是免费交易，它只对「不可错的任务」成立：安全审计、代码评审、合规检查——误报成本高、漏报可控、错误可被下游发现。反过来，探索性任务（研究选题、创意写作、开放域 debugging）里，流程锁死会掐掉 serendipity——「浪费」的 token 里有相当一部分是必要搜索成本。</p>
+
+    <p>判据是代价不对称性：错误会被人逐一看见并投诉 → 上笼子；错误只以聚合形式出现且难归因 → 上台账；错误甚至难以定义 → 让 agent 自由跑，把预算花在事后分析上。</p>
+
+    <p>所以更准确的说法是：<strong>agent 工程师的工作不是给 agent 写说明书，是给任务画边界线——线的内侧交给代码，外侧留给语义。</strong>三家大厂这周同时发布了各自的边界线。值得记住的不是产品，是画线的手法：先用病理诊断找到语言驱动失效的位置，再把那个位置一寸一寸换成确定性结构。</p>
+
+    <p>下一次你忍不住往 prompt 里加一句「请确保覆盖所有情况」，停一下——那句话的每一个字，都是一段还没写出来的代码。</p>
+
+    <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: #8b949e; font-size: 0.85rem;">
+        素材：GitHub Trending 第 27/28 期深度分析（README 一手深读）+ AACR-Bench 事实核验（官方 README / Hugging Face / 第三方评测）· 基建系列第六篇：<a href="posts/atc-agent-traffic-control-2026-11.html">协作治理</a> → <a href="posts/learned-context-management-2026-11.html">习得上下文管理</a> → 本文
+    </div>
+</body>
+</html>
