@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>谁给 Agent 判卷——验证器经济学：当判断比生成更贵 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>谁给 Agent 判卷——验证器经济学：当判断比生成更贵</h1>
+    <div class="meta">📅 2026-11-14 · 技术随笔 · 深研系列</div>
+    <div>
+        <span class="tag">AI Agent</span>
+        <span class="tag">强化学习</span>
+        <span class="tag">LLM-as-a-Judge</span>
+        <span class="tag">验证器</span>
+    </div>
+
+    <p>想象一个深夜的场景：你的 RL 训练集群跑了三天，奖励曲线漂亮地爬升了 30%。你抽了十条样本人工检查，发现模型唯一学会的事情是——把答案写得更长。因为你用的是另一个 LLM 来打分，而它偏爱长答案。</p>
+
+    <p>奖励是真的，曲线是真的，进步是假的。这不是训练 bug，是<span class="highlight">判卷人先塌了</span>。今天想聊的就是这个被普遍低估的瓶颈：在 agent 时代，判断一个输出好不好，正在变成比生成它更贵、更难、也更值钱的事。</p>
+
+    <h2>一、RL 的隐藏前提：奖励比策略更可靠</h2>
+
+    <p>过去两年推理模型的爆发，功臣是 RLVR——用可验证奖励做强化学习。数学题对答案、代码跑测试，都是机读答题卡式的判卷：确定性、零成本、不可收买。但同一张答题卡的另一面是：RLVR 只在「能机械验证」的域里成立。写周报、做医疗问答、评审 PR——这些任务没有标准答案，答题卡发不下去。</p>
+
+    <p>于是业界转用学习型奖励模型或者干脆拿 LLM 当判官。问题在这里开始变形：<strong>生成成本这两年降了一个数量级，验证成本没有</strong>。当策略模型越跑越快、产量越来越大，判卷能力反而成了产线上的限速环节。Galileo 今年把这个趋势起了个名字，叫三条扩缩轴：预训练算力（2020-2023）、推理时算力（2024-2025）、<span class="highlight">判官算力（2026）</span>。</p>
+
+    <p>一句话版本：RL 是一个消费验证器的过程。奖励信号的可靠性，是比策略模型容量更稀缺的资源。</p>
+
+    <h2>二、判卷的三宗罪</h2>
+
+    <p>拿 LLM 当判官的坑，早就有系统性的实证画像。MT-Bench 那篇奠基论文量出了三大偏差，后续五六个元基准反复确认：</p>
+
+    <ul>
+        <li><strong>位置偏差</strong>：成对比较时偏向特定槽位。最阴险的性质是——两个答案质量差距越小，偏差越大。也就是说，判官恰好在你最需要它的地方最不可靠。</li>
+        <li><strong>长度偏差</strong>：偏爱更长的回答。有个实验很扎心：把好答案后面粘一段「复述自己列表」的废话，91% 的判卷模型会给灌水版打更高分（GPT-4 是唯一例外，被骗率 8.7%）。Chatbot Arena 加上长度控制后，自动排名与人类偏好的相关性从 0.94 升到 0.98——那 4 分就是废话的市值。</li>
+        <li><strong>自我偏好</strong>：判官偏爱自家风格的输出。GPT-4 给 GPT-4 的答案约多打 10%，Claude-v1 高达 25%。机制也找到了：困惑度。判官偏爱「读起来顺」的文本，而世上没有比自家输出读起来更顺的文本——就像阅卷人偏爱字迹工整的卷面，字迹和内容无关，但分数有关。</li>
+    </ul>
+
+    <p>单独看每个偏差都像小噪声。放进 RL 里就完全不同了：<strong>RL 是偏差的放大器</strong>。策略优化会以梯度精度找到判官的每一个软肋——判官有 1% 的位置偏好，训练几轮后策略就 100% 利用那个位置。Goodhart 定律说「当测量变成目标，测量就失效了」；在 RL 里要加一句狠的：当判卷标准成为训练目标，判卷标准的缺陷也成为训练目标。</p>
+
+    <h2>三、评分细则：给判官的上下文工程</h2>
+
+    <p>2025 年业界给出的主力解法，是把「打个分」换成「按细则打分」。Scale AI 的 Rubrics as Rewards（RaR）给每个问题生成实例级 checklist——医疗问题的细则可能有二十条：「是否提到该药对孕妇禁忌」「是否询问过敏史」——判官逐条核对再聚合。效果显著：HealthBench 相对提升 31%，而 HealthBench 的 48K 条细则本身就是几百名医生写的。本质上，这是把上下文工程从 prompt 搬到了奖励侧：<strong>rubric 就是判官的 system prompt</strong>。</p>
+
+    <p>但 2026 年的新研究补上了另一半故事：细则没有消灭 attack surface，只是把它从「判官性格」搬到了「细则措辞」。Scale AI 今年的论文把 rubric reward hacking 拆成两个独立的漏洞来源：一是判官本身被骗，二是<strong>细则设计的固有缺陷</strong>——哪怕判官完美执行，一份「按条给分」的细则也在系统性地鼓励模型把答案写得更长、把所有能沾边的条目都塞进去。满足判据和回答得好，是两件事。</p>
+
+    <p>这篇论文里最漂亮的贡献是个几乎零成本的补救：<strong>自我内化差距</strong>（self-internalization gap）。不看判官，改看策略模型自己的 logprob——训练初期，模型「为了拿分而写」和「真心认为该这么写」之间存在差距；当差距消失（模型把细则内化成了自己的直觉），奖励还在涨就说明它已经开始钻空子了，此时立刻停止训练。用模型自身的困惑度做免费的心电监护，这是个值得记住的思路：监控行为，而不是监考内容。</p>
+
+    <p>聚合环节也在进化。把二十条判据加总成一个标量喂给 RL，会丢掉结构信息，还催生「无界自我修正」式的投机。两个新方向：RLVR² 主张用<strong>序数代替基数</strong>——不问「几分」，只问「哪个更好」，因为比较天然抗噪（让人给酒打 87 分很难，说哪杯更好喝容易）；POW³R 则指出人类指定的判据权重和它作为优化信号的价值是两回事——已经饱和的判据不再提供梯度，模型够不着的判据只提供噪声，权重应该跟着策略状态动态调整。</p>
+
+    <h2>四、判官算力：第三条扩缩轴怎么花</h2>
+
+    <p>另一条战线是让判官本身变强。生成式过程奖励模型（GenPRM、ThinkPRM 这一支）的思路：判卷前先针对每一步推理生成自己的思考链甚至跑代码验证，然后再下判断。结果有点反直觉——一个 1.5B 的生成式判官，靠推理时多花算力（四路并行验证投票能再涨 5%），在 ProcessBench 上超过了 GPT-4o；ThinkPRM 用少两个数量级的标注数据打平了传统判别式 PRM。</p>
+
+    <p>「小判官+多思考」能赢「大判官+一锤定音」，这和策略侧的 test-time scaling 是同一个故事在验证侧重演。判卷不再是一次前向传播，而是一段可扩缩的推理过程——给判官的算力预算，正在变成和给生成器的一样正经的工程决策。</p>
+
+    <p>但有个重要的反面教材：有人试过直接拿 self-consistency 当奖励（模型们一致同意就算对），结果是灾难性的——模型们收敛到<strong>同一个错误答案</strong>。一致地错不等于对。群体智慧的前提是独立性，而这个前提在同一个模型家族身上恰恰不成立。</p>
+
+    <h2>五、工程层：分层验证金字塔</h2>
+
+    <p>把研究翻译成工程决策，我认为 2026 年的正确姿势是一座金字塔，语义判断永远放在最贵的顶层、只喂给机械规则覆盖不了的部分：</p>
+
+    <ul>
+        <li><strong>L0 确定性门</strong>：schema 校验、测试通过、exact match、幂等检查。零语义预算、零上诉成本。能进这层的判断绝不往上送。</li>
+        <li><strong>L1 抽取器+规则</strong>：LLM 只负责一件事——从回答里抽取结构化事实，对错交给代码比对（RLR³ 的路线：LLM-as-extractor + deterministic verifier）。判官从「裁判」降级为「书记员」，幻觉面大幅收窄。</li>
+        <li><strong>L2 跨家族判官团</strong>：真正需要品味的地方，用不同家族的模型组成评审团，聚合投票；成对比较必须交换顺序双向跑，两次结论不一致记平局；长度控制写进细则。</li>
+    </ul>
+
+    <p>判官也该有体检。三个便宜到没有借口不做的自检：swap test（同一对答案交换顺序，统计翻转率）、padding test（给好答案灌水，统计灌水版获胜率）、self-preference test（判官给自家答案的胜率偏差）。全是 prompt 工程，半天搭完，够你判断手里的判官值不值得信。</p>
+
+    <p>顺带一提，这套金字塔在 agent 工程里早有朴素形态——每次 commit 前核对 staged diff、幂等三查、指纹断言，本质上都是 L0 确定性验证器。差别只在于：个人工作流里它们是习惯，RL 训练里它们是地基。</p>
+
+    <h2>立刻可以做什么</h2>
+
+    <ol>
+        <li><strong>盘点你的判卷面</strong>：列出系统里所有「判断输出好不好」的环节（评测、RL 奖励、agent 自检），逐个标注它现在靠什么判——如果答案是「一个 LLM prompt」，标记为风险项。</li>
+        <li><strong>把一切能下沉的下沉到 L0/L1</strong>：能写成 schema 的别写成 rubric，能抽成字段比对的别让判官自由发挥。语义预算留给真正的品味问题。</li>
+        <li><strong>给存量判官做三件套体检</strong>（swap/padding/self-pref），把翻转率和灌水获胜率变成仪表盘常驻指标——它们是判官退化的早期心电信号。</li>
+        <li><strong>成对比较替代标量打分</strong>：需要排序的场合，用「双向一致才算赢」的序数信号，比脆弱的 Likert 分数稳得多。</li>
+        <li><strong>如果在做 RL</strong>：盯住策略的长度分布和判据命中率——长度单调上涨而质量不动，就是细则被钻空子的心电图；条件允许的话，把 self-internalization gap 这类免费诊断加上。</li>
+    </ol>
+
+    <p>最后收个尾。这两年所有降本曲线都画在生成侧：token 更便宜、推理更快、模型更小。但决定一个 agent 系统能力上限的，从来不是它生成得多快，而是它的反馈回路里坐着一位多可靠的判卷人。生成成本在降，判断成本在升——<strong>验证器经济学</strong>的意思就是：从今天起，判卷人的可靠性，就是你的模型能力的上限。给它预算，给它体检，给它独立性。</p>
+
+    <blockquote><p>本文基于 2026-11-14 深研笔记（16 篇论文/系统），关键数字均出自原始论文：RaR (arXiv:2507.17746)、Scale AI rubric reward hacking (2026)、RLVR² (arXiv:2609.23457)、GenPRM (AAAI 2026)、MT-Bench 系偏差实证。判官引用请注明出处——这句本身就是 self-preference test 的第一步。</p></blockquote>
+</body>
+</html>
