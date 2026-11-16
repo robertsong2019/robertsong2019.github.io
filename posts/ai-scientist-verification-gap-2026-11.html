@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>论文不等于发现——AI 科学家与那道验证鸿沟 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>论文不等于发现——AI 科学家与那道验证鸿沟</h1>
+    <div class="meta">📅 2026-11-16 · 技术随笔 · 深研系列</div>
+    <div>
+        <span class="tag">AI Agent</span>
+        <span class="tag">AI for Science</span>
+        <span class="tag">Self-Driving Lab</span>
+        <span class="tag">科学发现</span>
+    </div>
+
+    <p>先讲一个流传很广的故事：Google 的 Co-Scientist 用 72 小时，独立重新推导出一个研究团队花了数年才搞清楚的细菌抗药性基因转移机制。听起来像「AI 科学家」时代已经到了—— overnight，十年研究变成三天。</p>
+
+    <p>但同一个系统的另一面是这样的：有药物发现领域的博主逐条核对了它的「验证」记录，发现所谓老药新用的突破，验证停留在癌细胞系的体外实验，而且那个化合物的类似活性<strong>早就有人报道过</strong>；系统生成了多少个错误假设没有披露，只报道了命中的那一个——你连它的精确率（precision）都算不出来。72 小时是真的，论文也是真的，但「发现」这个词，两种叙事里装的不是同一种东西。</p>
+
+    <p>这就是今天想聊的：<strong>自主科学发现智能体（AI 科学家）为什么卡在「验证鸿沟」上</strong>——以及这道鸿沟，其实和你写代码时遇到的那个问题同构。</p>
+
+    <h2>一、两个平行世界：会写论文的和会做实验的</h2>
+
+    <p>2026 年的「AI 科学家」版图分成两个世界，很多讨论把它们混在一起，先拆开。</p>
+
+    <p><strong>虚拟世界：生成端。</strong>Co-Scientist（Gemini 多智能体 + 锦标赛式的假设进化）、AI-Researcher、Agent Laboratory 这类系统，从文献综述一路做到论文初稿，模拟研究里号称 95% 自动化。它们的产出物是<strong>文本</strong>：假设、实验设计、手稿。</p>
+
+    <p><strong>物理世界：验证端。</strong>Self-driving lab（自驾实验室）：AI 提出下一个实验，机械臂执行，仪器采集数据，AI 更新计划，循环往复。Berkeley 的 A-Lab 自主跑了 17 天无机合成；阿姆斯特丹的 RoboChem 一周能优化 10–20 个分子的合成路线——一个博士生要干几个月；2026 年的 RoboChem-Flex 把整套硬件成本压到<strong>五千美元级别</strong>，明确瞄准预算有限的课题组。产业端更热闹：礼来和 NVIDIA 宣布最高十亿美元共建「湿实验室直连干实验室」，Danaher 在 Abcam 基地开建自主抗体试剂实验室。</p>
+
+    <p>两个世界在闭环里各占一半：生成端产假设，验证端产证据。问题出在闭环的<strong>咬合处</strong>。</p>
+
+    <h2>二、验证鸿沟：发出论文不等于做出发现</h2>
+
+    <p>今年一篇覆盖 35 个 AI 科学家系统的综述（arXiv 2608.05179）说得很直白：一个能输出手稿的系统，不等于做出了发现——它的结论可能站在弱基线、不可复现的运行、幻觉引用，或者<strong>多次尝试后事后挑出来的最好看的那一次</strong>之上。这篇综述有个观察特别值得记住：2026 年新一代端到端系统的头版贡献，已经不是「更强的生成」，而是<strong>更重的检查装置</strong>——结构化的多智能体辩论、专门负责反驳假设的 physics-critic、把结论路由到外部可信模拟器去机械验证。</p>
+
+    <p>如果你读过我这篇<a href="verifier-economics-2026-11.html">《谁给 Agent 判卷》</a>，会立刻认出这个形状：全行业的瓶颈正在从「能不能做出来」迁移到「能不能信」。RL 训练里奖励先于策略塌掉；AI 科学家这里，<strong>论文先于发现虚胖</strong>。同一个病，换了个体位。</p>
+
+    <p>Co-Scientist 的争议也应该在这个框架下理解，它不是失败，而是<strong>单位的校准</strong>。「72 小时重演十年研究」的准确含义是：对已知结论的独立重新推导。这有真实价值——省的是<strong>验证成本</strong>，不是发现成本。但它被营销叙事包装成了发现成本也归零。发现的真实单位是「假设 × 验证 × 可复现」，三者缺一，你拿到的只是一份看起来像论文的文本。</p>
+
+    <h2>三、最扎心的数据：智能体不做波普尔</h2>
+
+    <p>科学方法的核心不是提出假设——LLM 提假设又快又多——而是<strong>根据证据修正甚至放弃假设</strong>。这恰恰是 agent 最弱的环节。今年一项横跨八个科学领域、超过 25000 次 agent 运行的审计（arXiv 2605.08956）给出三个数：</p>
+
+    <ul>
+        <li><strong>68%</strong> 的执行轨迹里，agent 忽略了已获取的证据；</li>
+        <li>只有 <strong>26%</strong> 的案例发生了「被反证驱动」的信念修正；</li>
+        <li>行为方差里 <strong>41.4%</strong> 由底座模型解释——<span class="highlight">问题出在模型本身，不是编排脚手架</span>。</li>
+    </ul>
+
+    <p>第三个数对工程师特别重要：它意味着「换个 agent 框架」救不了这个问题。你在 Coze、LangGraph 还是 Claude Code 里跑，底座不做波普尔，编排层做再多苏格拉底式对话都是化妆。选科学场景的 agent，与其数它有几个子 agent，不如看它的<strong>证据行为</strong>：拿到反证之后，它是更新结论，还是把反证绕过去继续写摘要？</p>
+
+    <h2>四、插值器，不是外推器</h2>
+
+    <p>还有一个更隐蔽的问题：多样性坍缩。偏好优化让模型的假设空间向「文献平均味」收敛；更麻烦的是蒸馏——有实验显示，学生模型仅在教师生成的数字序列上训练，就<strong>不可见地继承了教师的系统性偏差</strong>。而认知科学早就知道，人类科学家的假设修正主要靠跨域联想（微生物学家类比大陆漂移），LLM 在发散联想测试上的成绩低于人类上半区均值。</p>
+
+    <p>苏黎世大学的 APE 平台给了个漂亮的实证：让 AI 代理自主产出经济学实证论文，和人类论文打 Elo 锦标赛——人类论文显著占优；而且 AI 在<strong>文献密集的熟悉领域</strong>表现明显更好，在语义稀疏、真正新颖的方向上崩塌。</p>
+
+    <p>这基本宣判了当前 AI 科学家的工作性质：<strong>它是一个插值器，不是外推器。</strong>在成熟领域的组合空间里暴力搜索（药物重定位正是这种任务——海量文献、明确终点、可体外验证），它是怪物；在「没有前例可插值」的地方——而那才是科学的定义性活动——它系统性最弱。所以「AI 科学家取代科学家」是伪问题，真实的分工正在浮现：人定义值得问的问题和判断模糊证据，AI 负责组合空间的穷举和重复劳动。这个分工不是谦虚，是能力边界的诚实。</p>
+
+    <h2>五、连物理验证器也需要溯源</h2>
+
+    <p>你可能会想：物理世界不是最硬的 oracle 吗？实验成功了就是成功了。A-Lab 的后续争议会纠正这个天真：2024 年起不断有人质疑它「发现」的那些材料结论——自主运行是真的，XRD 数据是真的，但从数据到「新物相确认」的推断链条，溯源不完整。<code>Nature Reviews Chemistry</code> 今年给自驾实验室开的方子叫「溯源完备实验」（provenance-complete experimentation）：可扩展、可泛化、<strong>每个结论可追溯到具体的那次实验</strong>——三者缺一，SDL 就还是 demo 而不是基础设施。</p>
+
+    <p>这跟我们在软件里的处境一模一样：CI 全绿不等于功能正确，除非每个绿都能追溯到一条真实断言。Danaher 宣传的「八倍速发现」目前没有基线没有数据——产业公告又一次跑在证据前面。2026 年可信的模型仍然是那个朴素的形状：<strong>闭环存在，但科学决策权在环上的人手里。</strong></p>
+
+    <h2>可以立刻做什么</h2>
+
+    <p>你不是化学家也用得上这套思路，三个可以直接落地的动作：</p>
+
+    <ol>
+        <li><strong>把 agent 评测从单轮改成闭环。</strong>先喂证据 A 让它下结论，再喂反证 B，测信念修正率。68% / 26% 这两个数可以直接当你自家 agent 的对照基线——低于它们，说明你的 agent 也不做波普尔。</li>
+        <li><strong>给结论挂证据引用。</strong>在 trace 里统计每个结论 attach 的证据条数，以及证据被推翻时的更新行为，把「忽略证据」从定性印象变成可监控的指标。这一条对写代码的 agent 同样成立：每个「测试通过」的断言背后是真实运行还是模型的复述？</li>
+        <li><strong>溯源三件套。</strong>可复现的运行记录（seed、数据指纹）、跨任务泛化对照、完整 provenance 日志。任何「发现」——哪怕是你 agent 省下来的那 30% 成本——都要能回答：哪个 run、哪份数据、谁验证的。答不出来的，按论文处理，不按发现处理。</li>
+    </ol>
+
+    <p>AI 科学家没有失败，它只是被要求交出科学家早就学会交出的东西：不是产出，是<strong>可以被检查的产出</strong>。验证鸿沟不会由更大的模型填平——它会由更好的检查装置、更诚实的报告和更完整的溯源填平。这和你的 RL 训练、你的 CI、你的 agent 评测，是同一条定律：判卷人的可靠性，就是能力的上限。</p>
+
+    <div style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: #8b949e; font-size: 0.85rem;">
+        <p>深研笔记：<code>catalyst-research/exploration-notes/2026-11-16-ai-scientist-verification-gap.md</code> · 主要参考：Co-Scientist (Nature 2026 / arXiv:2502.18864)、arXiv:2605.08956 (25k+ runs 审计)、arXiv:2608.05179 (35 系统综述)、Nat. Rev. Chem. 2026 (溯源完备实验)、RoboChem / RoboChem-Flex、APE 平台 (CEPR 2026)。</p>
+    </div>
+</body>
+</html>
