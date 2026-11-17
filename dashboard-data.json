@@ -1,21 +1,21 @@
 {
-  "lastUpdated": "2026-11-16T22:04:27Z",
-  "generatedAt": "2026-11-17 06:04 CST",
+  "lastUpdated": "2026-11-17T22:01:30Z",
+  "generatedAt": "2026-11-18 06:01 CST",
   "system": {
     "gateway": {
       "status": "running",
-      "pid": 1999512,
+      "pid": 2344060,
       "port": 34524,
       "bind": "lan (0.0.0.0)",
       "nodeVersion": "v22.22.1",
       "openclawVersion": "2026.4.14 (323493f)",
-      "uptime": "running since Tue 2026-11-17 04:47:48 CST (~1h15m at collection); OOM metronome day 32: 6 beats in 24h (births CST 11-16 08:18, 12:18, 16:18, 20:18, 11-17 00:48, 04:48), 相位漂移再现: 11-16 20:18→11-17 00:48 = 4h30m (+30min, 相位 :18→:48), 其后 00:48→04:48 恢复 4h00m±2s 石英钟级, NRestarts 231->242 (+11/3d), 最新启动 11-17 04:47:48"
+      "uptime": "running since Wed 2026-11-18 04:47:47 CST (~1h14m at collection); OOM metronome day 33: 6 beats in 24h (births CST 11-17 08:48, 12:48, 16:48, 20:48, 11-18 00:48, 04:48), 全部 4h00m±2s 零漂移, 相位 :48 已稳定 24h+, NRestarts 242->248 (+6/24h, 1 restart/beat), 最新启动 11-18 04:47:47; 今日 log warns 161 条均为常规项 (启动横幅/plugins provenance/bind 提示/wecom 兼容模式), 无新异常"
     },
     "host": {
       "os": "Linux 6.8.0-71-generic (x64)",
       "hostname": "VM-0-5-ubuntu",
-      "uptime": "208 days, 16 hours, 42 minutes",
-      "loadAverage": "0.15, 0.08, 0.02",
+      "uptime": "209 days, 16 hours, 41 minutes",
+      "loadAverage": "0.22, 0.10, 0.06",
       "disk": {
         "total": "/dev/vda2 50G",
         "used": "32G",
@@ -24,27 +24,25 @@
       },
       "memory": {
         "totalMB": 1935,
-        "usedMB": 1135,
-        "availableMB": 800
+        "usedMB": 1171,
+        "availableMB": 764
       }
     },
     "model": "zai/glm-5.3-flash"
   },
   "cronSummary": {
     "total": 7,
-    "ok": 5,
-    "error": 1,
+    "ok": 6,
+    "error": 0,
     "running": 1,
-    "errorJobs": [
-      "9b2a8701 (Trending 日报, rate_limit ×2 连续两晨)"
-    ],
+    "errorJobs": [],
     "notes": [
-      "断档后复更: 11-15/11-16 晨 06:00 仪表板 + 07:00 Trending日报 连续两天 zai rate_limit (3模型全拒 69s 即败), 仪表板数据从 11-14 直接跳到 11-17; 08:00 及以后任务两天均正常 — 限额集中打在凌晨档 (02:00 知识整理 + 05:00 Essay 或已耗尽早间配额)",
-      "本周期 5/7 ok: trending-deep 122s (11-16 08:00) / creative 192s (11-16 19:00) / deep-exp 345s (11-16 20:00) / knowledge 298s (11-17 02:00) / essay 231s (11-17 05:00); dashboard 本次 running, trending-daily error ×2 待 11-17 07:00 复跑",
-      "2 posts in 24h: 论文不等于发现 (11-16 20:03 @312dee8) + 金鱼评审员——验证器系列第四篇 (11-17 05:02 @76028e5); 3 日累计 +3 posts (486→489)",
-      "OOM metronome day 32: 6 beats/24h, 相位 :18→:48 (11-16 20:18 后 +30min 漂移一次, 随后 4h00m 恢复), NRestarts 231→242, 最新启动 11-17 04:47:48",
-      "MEMORY.md 19700B = 98.5% 水位 (-94B vs 11-14, 微降但蒸馏仍未实质发生), 超 95% 警戒线, 距 20000B 硬顶仅余 300B ⚠️",
-      "tokens in 467.1k (+29.6% vs 11-14) / out 90.3k (-20.6%); input 最大户 trending-deep 95.2k, output 最大户 knowledge-org 38.5k"
+      "限额阴云散去: 连续两天 (11-15/11-16) 打在凌晨档的 zai rate_limit 未再复发, trending-daily 11-17 07:00 恢复 (46s), 本周期 7/7 任务全 ok — 首次全绿 since 11-14",
+      "本周期 7/7 ok: dashboard 301s (11-17 06:00) / trending-daily 46s / trending-deep 134s / creative 231s / deep-exp 437s / knowledge 393s (11-18 02:00) / essay 319s (11-18 05:00); dashboard 本次 11-18 06:00 running 中",
+      "2 posts in 24h 均为验证器系列: 部署即训练——藏在Agent日志里的下一桶金 第五篇 (11-17 20:06 @7aa9705) + Agent Skills 的 npm 时刻 第六篇 (11-18 05:03 @350679b), 总数 489→491",
+      "OOM metronome day 33: 6 beats/24h 全部 4h00m 整, 相位 :48 稳定 (昨日漂移后已回稳), NRestarts 242→248 (+6), 最新启动 11-18 04:47:47",
+      "MEMORY.md 19769B = 98.8% 水位 (+69B vs 11-17), 超 95% 警戒线, 距 20000B 硬顶仅余 231B ⚠️ 02:00 知识整理 (393s) 连续三轮未实现净蒸馏, 条目仍在净增",
+      "tokens in 460.7k (-1.4% vs 11-17 467.1k) / out 105.6k (+16.9% vs 90.3k); input 最大户 deep-exp 80.6k / trending-deep 76.6k / knowledge 70.5k; output 最大户 knowledge 32.3k / deep-exp 27.8k / essay 17.4k"
     ]
   },
   "cronJobs": [
@@ -53,72 +51,72 @@
       "name": "仪表板更新",
       "schedule": "0 6 * * *",
       "status": "running",
-      "lastRun": "11-16 06:00",
-      "lastRunAt": 1794780000003,
-      "consecutiveErrors": 2,
-      "lastDurationSec": null,
-      "note": "上次完成运行 11-16 error (rate_limit, 69s), 11-15 同因亦败; 本次 11-17 06:00 running 中"
+      "lastRun": "11-17 06:00",
+      "lastRunAt": 1794866400004,
+      "consecutiveErrors": 0,
+      "lastDurationSec": 301,
+      "note": "上次 11-17 06:00 ok (301s, 断档3天后复更); 本次 11-18 06:00 running 中"
     },
     {
       "id": "9b2a8701",
       "name": "Trending 日报",
       "schedule": "0 7 * * *",
-      "status": "error",
-      "lastRun": "11-16 07:00",
-      "lastRunAt": 1794783600002,
-      "consecutiveErrors": 2,
-      "lastDurationSec": 69,
-      "note": "rate_limit: zai 3 模型 (glm-5.3-flash/glm-5-turbo/glm-5) 全部拒答; 下次 11-17 07:00"
+      "status": "ok",
+      "lastRun": "11-17 07:00",
+      "lastRunAt": 1794870000003,
+      "consecutiveErrors": 0,
+      "lastDurationSec": 46,
+      "note": "rate_limit ×2 (11-15/11-16) 后恢复; 下次 11-18 07:00"
     },
     {
       "id": "2c714952",
       "name": "Trending 深度分析",
       "schedule": "0 8 * * *",
       "status": "ok",
-      "lastRun": "11-16 08:00",
-      "lastRunAt": 1794787200003,
+      "lastRun": "11-17 08:00",
+      "lastRunAt": 1794873600002,
       "consecutiveErrors": 0,
-      "lastDurationSec": 122
+      "lastDurationSec": 134
     },
     {
       "id": "ad37c59a",
       "name": "创意写作",
       "schedule": "0 19 * * *",
       "status": "ok",
-      "lastRun": "11-16 19:00",
-      "lastRunAt": 1794826800004,
+      "lastRun": "11-17 19:00",
+      "lastRunAt": 1794922800004,
       "consecutiveErrors": 0,
-      "lastDurationSec": 192
+      "lastDurationSec": 231
     },
     {
       "id": "a4bf5e2a",
       "name": "晚间深度探索",
       "schedule": "0 20 * * *",
       "status": "ok",
-      "lastRun": "11-16 20:00",
-      "lastRunAt": 1794830400001,
+      "lastRun": "11-17 20:00",
+      "lastRunAt": 1794926400001,
       "consecutiveErrors": 0,
-      "lastDurationSec": 345
+      "lastDurationSec": 437
     },
     {
       "id": "1ea6e3b0",
       "name": "知识整理",
       "schedule": "0 2 * * *",
       "status": "ok",
-      "lastRun": "11-17 02:00",
-      "lastRunAt": 1794852000006,
+      "lastRun": "11-18 02:00",
+      "lastRunAt": 1794940800005,
       "consecutiveErrors": 0,
-      "lastDurationSec": 298
+      "lastDurationSec": 393
     },
     {
       "id": "f0362050",
       "name": "Essay 生成",
       "schedule": "0 5 * * *",
       "status": "ok",
-      "lastRun": "11-17 05:00",
-      "lastRunAt": 1794862800003,
+      "lastRun": "11-18 05:00",
+      "lastRunAt": 1794951600003,
       "consecutiveErrors": 0,
-      "lastDurationSec": 231
+      "lastDurationSec": 319
     }
   ],
   "sessions": {
@@ -131,30 +129,30 @@
     },
     "byKindNote": "kind 分类口径 10-25 起为 direct/group (cron 会话归入 direct)",
     "models": {
-      "glm-5.3-flash": 26,
+      "glm-5.3-flash": 28,
       "glm-5": 12,
-      "glm-5.1": 11,
+      "glm-5.1": 9,
       "glm-5-turbo": 1
     },
     "tokens24h": {
-      "input": 467094,
-      "output": 90284
+      "input": 460675,
+      "output": 105555
     },
-    "tokens24hNote": "口径: 活跃 job 去重取 run 会话求和 (含本次 running 即时值)。input 467.1k vs 11-14 360.4k (+29.6%), output 90.3k vs 113.8k (-20.6%), 同口径可比; input 最大户 trending-deep 95.2k / creative 77.3k / knowledge-org 66.7k; output 最大户 knowledge-org 38.5k / deep-exp 17.3k / essay 13.7k / creative 11.2k"
+    "tokens24hNote": "口径: 活跃 job 去重取 run 会话求和 (含本次 running 即时值)。input 460.7k vs 11-17 467.1k (-1.4%), output 105.6k vs 90.3k (+16.9%), 同口径可比; input 最大户 deep-exp 80.6k / trending-deep 76.6k / knowledge 70.5k; output 最大户 knowledge 32.3k / deep-exp 27.8k / essay 17.4k"
   },
   "activity": {
     "postsLast24h": 2,
     "postsDetail": [
-      "论文不等于发现——AI科学家与验证鸿沟 (Co-Scientist 72h重演10年研究vs逐条核验止于体外+选择性报告 / 25k runs审计: 68%忽略证据/反证修正26%/底座占41.4%方差-不做波普尔换框架无用 / 插值器非外推器: APE文献密集区好稀疏区崩+蒸馏继承偏差 / A-Lab证明物理oracle也要溯源-Nat Rev Chem溯源完备三要素 / 与验证器经济学同构: 新系统头版=检查装置; 三动作: 闭环评测+证据引用密度+溯源三件套, 11-16 20:03, commit @312dee8)",
-      "金鱼评审员——把没有上下文变成特性 (EGM大象起草金鱼零历史评审 / 共享上下文三重污染: 锚定+共享幻觉+沉没成本继承 / 失忆反转三能力: 幻觉引用无处遁形+未声明假设暴露+立场零继承 / drift-report文档腐化台账 / 上下文=价值函数: 生成资产/验证负债/检索成本 窗口从口袋变权限系统 / 五十行最小实现: 输入白名单化+--fresh-session / 验证器系列第四篇, 11-17 05:02, commit @76028e5)"
+      "部署即训练——藏在Agent日志里的下一桶金 (轨迹数据飞轮, 验证器系列第五篇 / 裸轨迹≠训练数据差一个verdict, RL要的是(任务,判据)对 / SRFT失败run仅24%步骤走错76%有效探索, 删失败=倒掉四分之三的矿 / DREAMGYM经验模型+AgentGen双向难度进化 / LangSmith smithtune轨迹→微调 / 暗坑harness泄漏: 同checkpoint三harness差6.8分 / 转速=min(验证带宽,任务多样性,重放保真度), 11-17 20:06, commit @7aa9705)",
+      "Agent Skills 的 npm 时刻——分发繁荣之后谁来把关 (验证器系列第六篇 / Skills从标准变分发单位: 官方仓5.7k/周+superpowers 17 harness+垂直包 / 技能三层封装: 路由层description+行为层方法论+资源层scripts / 坏技能不crash装的是行为倾向 fail silently, 49技能29天未盘点 / 三层门禁: Tier1静态校验+Tier2语义去重+Tier3 with-without差分=技能价值唯一定义 / 准入三问: 可验证?可保鲜?可退出?, 11-18 05:03, commit @350679b)"
     ],
-    "totalPosts": 489,
-    "totalPostsNote": "posts/ 目录 git tracked = 489 (487 html + 1 bak + 1 bak2), worktree clean, 3日 +3 html (含 11-14 晚 谁给Agent判卷)",
+    "totalPosts": 491,
+    "totalPostsNote": "posts/ 目录 git tracked = 491 (489 html + 1 bak + 1 bak2), worktree clean, 24h +2 html (验证器第五/六篇)",
     "memoryMd": {
-      "bytes": 19700,
+      "bytes": 19769,
       "limit": 20000,
       "truncationWarningsToday": 0,
-      "note": "98.5% 水位 (-94B vs 11-14) 仍超 95% 警戒线 (19000B), 距硬顶仅余 300B; 02:00 知识整理 (298s) 连续两轮未能实质蒸馏, 旧条目出口依旧缺失"
+      "note": "98.8% 水位 (+69B vs 11-17) 仍超 95% 警戒线 (19000B), 距硬顶仅余 231B; 02:00 知识整理 (393s) 连续三轮未实现净蒸馏 (11-15 -156B / 11-16 -94B 均微降, 11-17 +69B 回升), 旧条目出口依旧缺失 ⚠️"
     }
   }
 }
