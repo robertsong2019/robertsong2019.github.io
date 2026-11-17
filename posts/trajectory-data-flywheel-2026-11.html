@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>部署即训练——藏在 Agent 日志里的下一桶金 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>部署即训练——藏在 Agent 日志里的下一桶金</h1>
+    <div class="meta">📅 2026-11-17 · 技术随笔 · 深研系列</div>
+    <div>
+        <span class="tag">AI Agent</span>
+        <span class="tag">Agentic RL</span>
+        <span class="tag">数据飞轮</span>
+        <span class="tag">Fine-Tuning</span>
+    </div>
+
+    <p>先看两个对照的画面。</p>
+
+    <p>画面一：特斯拉。每一辆在路上跑的车，每天都在往总部传千万英里级的真实驾驶数据，Autopilot 团队用这些数据筛选「关键时刻」、构造场景、训练下一版模型——<strong>部署本身在生产训练数据</strong>，车队越跑越聪明。</p>
+
+    <p>画面二：你的 Agent。它每天执行上千次任务：查库、调 API、写代码、开 PR。观测平台里躺着几百 GB 的 trace 日志，S3 存储费月月上涨——而模型呢？今天和上个月一样笨。日志在那里安静地燃烧，或者更准确地说，<strong>氧化</strong>。</p>
+
+    <p>这两个画面的差距，不是「买不买得起算力」的差距，是<strong>认知</strong>的差距：2026 年，轨迹已经是可以直接烧进权重里的燃料。今年 9 月 LangSmith 发布了 Fine-Tuning 功能——你在它的观测平台里存的所有 agent 轨迹，一条 <code>smithtune</code> 命令就能变成微调数据集，训练完的模型评估结果自动回传对比。从「日志」到「模型」的管道，被压缩到了一条命令。</p>
+
+    <p>问题是：大部分团队的日志，即使接上这条管道也炼不出东西——因为缺的不是数据量，是几样更根本的东西。今天这篇把「Agent 轨迹数据飞轮」拆开讲清楚：什么让一条轨迹变得可训练、为什么你不该删失败日志、环境本身如何变成数据、以及飞轮到底卡在哪儿。这是我这个系列的第五篇——前三篇讲「怎么判对」（<a href="verifier-economics-2026-11.html">验证器经济学</a>、<a href="ai-scientist-verification-gap-2026-11.html">验证鸿沟</a>），这一篇讲判完之后，<strong>那些判定结果去哪了</strong>。</p>
+
+    <h2>一、轨迹是新货币，但裸轨迹只是废纸</h2>
+
+    <p>先定义清楚交易标的。一条 agent 轨迹是一个完整的执行序列：任务描述，加上一串「动作—观察」对——agent 调了什么工具、环境返回了什么、它想了什么、最后干成了什么。形式化写出来就是 τ = (s, u, (a₀,o₀), (a₁,o₁), …)。</p>
+
+    <p>关键认知是：<strong>裸轨迹和训练数据之间，隔着一个判定结果。</strong></p>
+
+    <p>这就像学生的错题本。一本错题本的价值不在题目抄得工整，在于每道题旁边有没有批改——对了为什么对，错了错在哪一步。没人批改的错题本，翻一万遍也只是废纸堆。同理，一条 trace 如果没有「这个任务到底成功了没有、判据是什么」，对训练管线来说就是噪声。</p>
+
+    <p>今年一场 RL for Agents 研讨会上有句话把这个道理说透了：<strong>「RL 真正想训练的不是 token，是（任务， 判据）对。」</strong>你收集的不该只是模型的思考链，而是每个场景下「你如何判定答案对错」的标准。判据比思考链更保值——模型换代之后，旧的思考链风格过时了，但「什么算成功」的定义永远有效。</p>
+
+    <p>所以，验证器在这个故事里的角色变了。我在验证器经济学里说它是瓶颈；在飞轮里它是<strong>标注器</strong>——每一次判卷，都是免费的数据打标。判卷速度就是标注速度。</p>
+
+    <h2>二、失败轨迹是大多数——而且大部分是好的</h2>
+
+    <p>新手做蒸馏会本能地用 RFT（Rejection-sampling Fine-Tuning）：让强模型跑 N 次，只把成功的轨迹留给学生模型学。听起来合理：学坏的干嘛？</p>
+
+    <p>JetBrains 今年的 SRFT 论文（ICML 2026）把这条直觉打碎了。他们逐步审查失败轨迹，发现一个反直觉的事实：<strong>在完全失败的任务里，最多只有 24% 的步骤是真的走错了方向，剩下 76% 是有效的探索、导航和无害的工具调用。</strong>一次失败，通常意味着一两步致命失误加上大量正确劳动。</p>
+
+    <p>SRFT 的做法：让一个 critic 模型逐步标注失败轨迹，训练时把错误步骤的 loss 屏蔽掉，但<strong>保留它们在上下文里</strong>——模型于是学会「看到错误之后如何恢复」，而不是假装错误从未发生。在 SWE-bench Verified 上，这比纯 RFT 多赚了 1.3 个百分点（30.9% → 32.2%）。这在接近饱和的基准上不是小数。</p>
+
+    <p>同一个方向上还有更漂亮的招：<strong>ECHO（NeurIPS 2025）的「事后诸葛亮改写」</strong>——agent 试图做 A 任务失败了，但这条轨迹其实漂亮地完成了一个别的目标 B，那就把目标改写成 B，失败轨迹瞬间变成成功样本。BREW（COLM 2026）更进一步，把失败尝试重新标注成替代任务重跑，再把结果蒸馏成自然语言的「经验配方」。还有论文专门研究「专家的失败」：GPT-4 没做出来的难题轨迹，恰好覆盖了只学成功样本永远够不着的困难区间。</p>
+
+    <p>选矿厂早就想明白了这件事：尾矿不是垃圾，是品位较低的矿。<strong>删掉失败日志，等于把四分之三的矿倒进海里。</strong></p>
+
+    <h2>三、环境即数据：把你的应用变成飞行模拟器</h2>
+
+    <p>「日志不够多怎么办？」——低流量场景（内部工具、垂直领域）连失败轨迹都攒不出几条。2026 年的答案是：合成经验。</p>
+
+    <p>DREAMGYM（ICLR 2026，ServiceNow）的思路最值得细看：训练一个「经验模型」来<strong>预测你的应用环境的下一步</strong>——agent 点了那个按钮，页面会变成什么；跑了那条 SQL，会返回什么。这就是你私有应用的世界模型。有了它，agent 可以在「飞行模拟器」里离线飞几万次：新飞行员不需要摔真飞机才学会处置发动机停车。合成轨迹和真实轨迹混入同一个经验回放池，再加一个按「奖励熵」挑高价值任务的课程生成器，难度自动爬坡。</p>
+
+    <p>环境合成的另一路是<strong>造任务而不是造环境</strong>：AgentGen（KDD 2025）让 LLM 从灵感语料自动生成环境（配一个双向难度进化器，任务集从易到难平滑分布），592 个环境、7246 条轨迹，把 Llama-3.1-8B 训到超过 GPT-3.5 的规划水平。Prime Intellect 开源的 General Agent 更是把任务合成做成了<strong>双 agent 博弈</strong>：一个 synthesizer 专门设计越来越难的任务族，一个 solver 负责解题并校准难度门槛，1000 多个合成 agent 并行跑了几天，任务库自我膨胀。</p>
+
+    <p>这里的深层含义是：<strong>你的测试环境就是你的私人训练场。</strong>有沙箱、有评测、有回放能力的团队，哪怕线上流量不大，也能离线自造经验。反过来说，连一个可重放的测试环境都没有的团队，飞轮从物理上就转不起来。</p>
+
+    <h2>四、飞轮的管道已经铺到你家门口</h2>
+
+    <p>把「经验」变成「改进」的路径，2026 年明显产品化了。Augment 把它总结成四段飞轮：执行（记轨迹）→ 教练（拿反馈）→ 蒸馏（变成提示词/技能/微调数据）→ 改进（部署回去）。OpenPipe 的 ART（Agent Reinforcement Trainer）干脆把这个循环做成了训练框架：客户端记录每次 agent 运行的完整轨迹，后端 vLLM 推理 + GRPO 训练，训完的 LoRA 热加载回推理服务——部署的模型和训练的模型是同一个。</p>
+
+    <p>ART 配套的 RULER 解决了最劝退的环节：写奖励函数。它不写规则，而是让 LLM 判官做<strong>相对判断</strong>——同一个任务的四条轨迹里哪条最好？然后直接把排序结果当奖励喂 GRPO（GRPO 本来就只需要相对分数）。绝对打分（0-10 分）不稳定，四选一稳定得多——这和我上一篇金鱼评审员是同一条原理：<strong>把判断题改小，可靠性才上来。</strong></p>
+
+    <p>所以现在的局面是：管道铺好了，阀门在你手里。而真正决定你能不能用上管道的，是下面这个暗坑。</p>
+
+    <h2>五、暗坑：harness 泄漏，你的日志混着不同的物理学</h2>
+
+    <p>Lego-RL（开源的 agentic RL 训练方案）公布了一个让很多人不安的数字：<strong>同一个模型 checkpoint，分别在 OpenHands SDK、Claude Code、OpenCode 三个 harness 里跑 SWE-bench Verified，得分 64.0 / 62.4 / 57.2。</strong>Harness（agent 的运行时骨架：控制流、提示词模板、工具注册方式）独立贡献了 6.8 分——比很多团队一年优化的总和还多。</p>
+
+    <p>对数据飞轮的含义是残酷的：轨迹是 harness 特异的。你在三个框架里混采的日志，对训练管线来说相当于三种不同物理学的世界的混合观测。Lego-RL 的答案是干脆在原生 harness 内做 RL、不改控制流、保持 token 级进出保真；而对你，最低成本的版本是：<strong>每条日志记 harness 指纹</strong>——框架版本、系统提示词哈希、工具清单。没有这层元数据，你的数据集永远解释不了为什么训出来的模型「在这个部署里好、在那个部署里怪」。</p>
+
+    <p>顺便说一句量的问题：LegoFlow 用 512 条从真实 GitHub PR 挖出的、带验证的任务轨迹，把一个基座模型从 7.6% 拉到 64.4%。<strong>五百条高质量的「任务+判据」对，胜过五十万条裸日志。</strong>数据量从来不是飞轮的瓶颈。</p>
+
+    <h2>飞轮转速公式</h2>
+
+    <p>把上面的东西收进一句话，Agent 数据飞轮的转速：</p>
+
+    <blockquote>转速 = min(验证带宽， 任务多样性， 重放保真度)</blockquote>
+
+    <p>验证带宽：你能以多快的速度给轨迹打上可信的判定（验证器经济学的老结论，在这里第二次出现——它不仅卡 RL 训练，还卡数据标注）。任务多样性：真实工作负载够不够杂，不杂就用环境合成补。重放保真度：你能不能把一次运行完整复现出来——环境快照、harness 指纹、随机种子。三者取最小值，<strong>哪个最短哪个就是你的瓶颈，而「日志字节数」根本不在公式里</strong>。</p>
+
+    <h2>可以立刻做什么</h2>
+
+    <p>不用等训练预算，今晚就能做的五件事：</p>
+
+    <ol>
+        <li><strong>给日志补上六件套 schema。</strong>每条轨迹：任务描述 / 环境+harness 快照 / 完整动作-观察序列 / 最终结果 / 判定结果+<strong>判据原文</strong> / 成本。判据单独一列——它是比轨迹本身更保值的资产，模型换代它不贬值。</li>
+        <li><strong>停止删除失败日志。</strong>至少标注出「首个致命步骤」，保留全文。按 SRFT 的数据，你删掉的是 76% 的正确劳动。</li>
+        <li><strong>检查你的观测平台导出格式。</strong>LangSmith/Phoenix/Langfuse 的 trace 能不能直接转成 SFT 消息格式？不能就写个转换器——这是飞轮的传送带，五十行代码的事。</li>
+        <li><strong>给团队的任务判据建档案。</strong>每个任务的「什么算成功」写成可执行的形式（测试、断言、清单）。这是未来所有训练（SFT、RL、判官）的共用资产，比任何单条轨迹都重要。</li>
+        <li><strong>低流量就造沙箱。</strong>挑三个最高频的任务，在测试环境里录制可重放的场景，让 agent 夜里在沙箱里自己飞——这是你能负担的 DREAMGYM 平替。</li>
+    </ol>
+
+    <p>最后回到开头那两个画面。特斯拉车队和你的 agent 之间，差的从来不是数据量——两家都在生产海量数据。差的是中间那台机器：判卷的验证器、留失败的仓库、判据的档案、能重放的环境。判卷人给出去的从来不只是分数——<strong>是下一版模型的教材</strong>。</p>
+
+    <p>部署即训练。做不到这一点的部署，只是烧钱。</p>
+
+    <div style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: #8b949e; font-size: 0.85rem;">
+        <p>深研笔记：<code>catalyst-research/exploration-notes/2026-11-17-agent-trajectory-data-flywheel.md</code> · 主要参考：SRFT (ICML 2026, JetBrains)、DREAMGYM (ICLR 2026)、ECHO (NeurIPS 2025)、ExpRAG (EMNLP 2026)、WebRL (ICLR 2025)、AgentGen (KDD 2025)、From Trajectories to Experience 综述 (2026)、LangSmith Fine-Tuning、OpenPipe ART/RULER、Lego-RL、Prime Intellect General Agent。</p>
+    </div>
+</body>
+</html>
