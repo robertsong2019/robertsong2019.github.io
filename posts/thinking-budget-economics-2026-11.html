@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>想更多，答更差：思考预算的经济学 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>想更多，答更差：思考预算的经济学</h1>
+    <div class="meta">
+        2026-11-18 · <span class="tag">LLM</span> <span class="tag">推理模型</span> <span class="tag">Test-Time Compute</span>
+    </div>
+
+    <p>先做一个思想实验。你调用一个推理模型，把 <code>reasoning.effort</code> 从 medium 拧到 high，账单涨了三倍，模型多想了两万个 token——然后它把原本答对的题改错了。</p>
+
+    <p>这不是抬杠，这是 2025 到 2026 年一批实证研究反复测到的现象。业内给这类现象起了个直白的名字：<strong>overthinking（过度思考）</strong>。今天这篇文章回答一个所有用推理模型的人都该问的问题：<strong>你的模型每答对一道题，到底花了多少钱？以及——花得值吗？</strong></p>
+
+    <h2>一、思考成了旋钮，但没人教你怎么拧</h2>
+
+    <p>两年前，o1 让"测试时计算"（test-time compute）出了名：模型参数不变，允许它在推理时多想一会儿，分数就能涨。到 2026 年，这已经从研究噱头变成了部署范式——每家 API 都有旋钮了：OpenAI 的 <code>reasoning.effort</code> 从 none 到 xhigh，Anthropic 的 adaptive thinking 按 effort 分档，Gemini 用 <code>thinking_level</code>。</p>
+
+    <p>但旋钮背后有个常被忽略的事实：<strong>隐藏的思考 token 按输出价计费</strong>。一次"中等深度"的推理请求，成本可以是普通生成的 20 到 50 倍——因为模型在你看不见的地方生成了几千上万个 token。思考预算不仅是质量旋钮，更是成本旋钮。</p>
+
+    <p>于是问题变成：拧到多少合适？默认档位是模型厂商替你选的，而厂商的激励是让跑分好看——跑分只看分子（准确率），不看分母（token 成本）。</p>
+
+    <h2>二、"想更多"的幻觉：方差，不是深度</h2>
+
+    <p>今年一批论文系统性地拆穿了一个流行信念："多想想"（在 prompt 里说 Wait、让它 rethink、拉长思考链）总能更好。</p>
+
+    <p>最扎实的证据来自《Does Thinking More Always Help?》——他们扫了一系列推理模型和基准，发现准确率随思考预算的曲线<strong>不是单调上升，而是先升后降</strong>。更妙的是他们给出了一个简洁的解释：额外的思考增加了输出的<strong>方差</strong>。用多数投票类指标衡量时，方差上升会制造"进步的幻觉"，但精度实际在受损。</p>
+
+    <p>直观的比喻：<strong>反复检查已经做对的题，不是在提高正确率，是在给自己改错的机会。</strong>后续研究把这种现象量化成了"flip events"——模型想着想着，把对的答案翻改成错的。LLMThinkBench 扫了 53 个模型，发现为长推理链训练的变体平均多花 18 倍 token，准确率反而更低；长链的浪费集中在四种模式：冗余验证、自我矛盾、无关探索、停止失败。其中"冗余验证"最典型：第一次就算对了，再用另外三种方法验一遍，token 花 31 倍，对错一个没变。</p>
+
+    <p>数学上这条曲线有干净的形状：<code>A(b) = Amax·(1−e^(−b/τ))</code>，饱和尺度 τ 大约 1000 token。也就是说，对多数问题，思考在一千 token 上下就该饱和了；超出这个区间，你买到的是方差，不是深度。</p>
+
+    <h2>三、浪费不是玄学，是可以测量、可以剪掉的</h2>
+
+    <p>如果 overthinking 只是茶余谈资，不值得写这篇文章。2026 年 11 月的新论文《How Do AI Agents Waste Your Money?》把这件事变成了工程问题：他们搭了一个框架，用 LLM-as-Judge 在完整 agent 轨迹里标记"可删除片段"，然后做在线剪枝实验——真的把标记的片段删掉，让 agent 从断点继续跑，看任务还成不成。</p>
+
+    <p>两个数字值得每个做 agent 的人抄在本子上：</p>
+
+    <ul>
+        <li><strong>约 18% 的输出 token 是浪费</strong>——删掉不影响任务结果；</li>
+        <li><strong>41–46% 的 reasoning 可以剪掉</strong>，性能基本保持。</li>
+    </ul>
+
+    <p>更狠的是第三个发现：同一个模型、同一个 effort 档位，换个 harness（工具编排框架），reasoning 量能差 <span class="highlight">4 倍</span>。浪费的方差主要来自<strong>任务和 harness，而不是模型</strong>。这意味着：想省钱，换"更高效"的模型不是答案，改你自己的系统才是。</p>
+
+    <h2>四、并行的胜利：三个臭皮匠 &gt; 一个冥想大师</h2>
+
+    <p>如果拉长单条思考链是错的花法，对的花法是什么？答案是<strong>并行思考</strong>：同样的预算，跑 3–5 条独立的短推理路径，用多数投票选答案。前面提到的研究测出，同预算下并行比串行拉长最多能高出 <span class="highlight">20%</span> 的准确率。</p>
+
+    <p>道理不新鲜——这就是 Best-of-N 采样，统计学上叫"用一致性换精度"。一条想了 15 分钟的链，容易在同一个坑里越陷越深（自我矛盾的来源）；三条各想 5 分钟的链，起码不会一起掉进同一个坑。串行推理放大偏差，并行推理平均化偏差。</p>
+
+    <p>这对系统设计还有个隐藏红利：并行请求天然适配推理服务的批处理，比一条几分钟的长连接对 serving 层友好得多。</p>
+
+    <h2>五、规模法则被改写：小模型 + 过训练 + 自适应思考</h2>
+
+    <p>再往深一层：思考预算不只在改部署，它在改训练经济学。2026 年 4 月的论文《Test-Time Scaling Makes Overtraining Compute-Optimal》证明了一件反直觉的事——当推理时可以自适应地多想，经典的 Chinchilla 最优训练策略就失效了：更优解是<strong>拿小模型，投入超额训练，然后让它在推理时按需思考</strong>。</p>
+
+    <p>这解释了行业里两个看似矛盾的趋势为什么同时成立：模型在变小，跑分在变大。自适应推理深度（CogRouter、ARES 这类按步骤动态调深度的框架，用 50–62% 更少的 token 保持 SOTA 性能）不是省钱的权宜之计，而是新规模法则下的正确形态。</p>
+
+    <h2>六、没人发布分母</h2>
+
+    <p>把这些发现串起来，你会发现整个排行榜生态有一个结构性盲区：基准只报准确率，不报"每题成本"。OckBench 的测量很刺眼：两个准确率相同的模型，token 消耗可以差 <span class="highlight">25 倍</span>（一个 1600 token 答对，另一个花 42000）。ICLR 2026 的 OptimalThinkingBench 同时考"想太多"和"想太少"两个方向，33 个思考与非思考模型，<strong>没有一个做到最优思考</strong>。</p>
+
+    <p>开源模型尤其吃亏：Nous Research 的效率基准显示，开源权重要花约 3 倍 token 才能达到闭源模型在知识题上的同等效果。选型时只看跑分，账单翻倍的故事就是这么来的——就像买车只看马力不看油耗。</p>
+
+    <h2>七、明天就能做的五件事</h2>
+
+    <ol>
+        <li><strong>审计思考账单。</strong>从 API 的 usage 字段拉一周数据（<code>reasoning_tokens</code> / <code>thinking_tokens</code>），算两个数：思考 token 占比、每任务思考量分布。没有这个基线，后面都是玄学。注意 API 报的思考数口径不一，拿总输出 token 做差分更稳。</li>
+        <li><strong>给请求分档。</strong>两级路由就够：简单意图（检索、格式转换、分类）直接 effort=low 或 none；难任务（多步推理、代码修复）才开 high。A/B 时记 (准确率, token) 二元组，别只看准确率。</li>
+        <li><strong>上 flip 检测。</strong>拿一组任务在低/高两档预算下重放，记录答案翻转。如果 high 档频繁把对的改成错的——恭喜，你抓到了 overthinking 的现行证据，这比任何论文都有说服力。</li>
+        <li><strong>真难的任务改并行。</strong>同预算拆 3–5 条独立路径加多数投票，替代单链 max effort。预期 +10–20% 准确率，延迟还更可控。</li>
+        <li><strong>自托管的话，改负载策略。</strong>推理请求超载时别拒绝排队——把新请求的思考预算降一档（降级但完成）。vLLM 和 SGLang 已支持 admit-time 的 per-request 预算覆盖，这是 2026 年 serving 层的标准姿势。</li>
+    </ol>
+
+    <h2>结语</h2>
+
+    <p>"想得更多"曾是 2024 年最激动人心的扩展轴，但 2026 年的证据画像已经清晰：它是一条很快饱和、随后下行的曲线。真正的新杠杆不是"想多久"，而是"在哪一步想、想几条、什么时候停"。思考预算的经济学，本质上是把"智能"从一个标量（参数量）拆成了一门预算分配的学问——而预算分配，从来都是系统工程师的主场。</p>
+
+    <p>下次看到模型答对一道题，别急着鼓掌。先问一句：<em>它花了多少钱才答对的？</em></p>
+
+    <blockquote>
+        主要参考：arXiv 2611.07238（Agent Token 浪费框架）、2506.04210（并行思考 vs 延长思考）、2604.10739（flip events）、2507.04023（LLMThinkBench）、ICLR 2026 OptimalThinkingBench、OckBench、arXiv 2604.01411（过训练与 test-time scaling）、2507.02076（Reasoning on a Budget 综述）、Nous Research 思考效率基准。
+    </blockquote>
+</body>
+</html>
