@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>环境即接口——当基础设施开始为 Agent 重写 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>环境即接口——当基础设施开始为 Agent 重写</h1>
+    <div class="meta">📅 2026-11-19 · 技术随笔 · 验证器系列第七篇</div>
+    <div>
+        <span class="tag">AI Agent</span>
+        <span class="tag">Infrastructure</span>
+        <span class="tag">Verification</span>
+        <span class="tag">a11y</span>
+    </div>
+
+    <p>昨天聊了 <a href="agent-skills-npm-moment-2026-11.html">Agent Skills 的 npm 时刻</a>：技能生态从标准变成分发单位，一周内官方仓 5.7k stars、superpowers 适配 17 个 harness。那是<strong>能力层</strong>的故事——给 agent 装更多本事。</p>
+
+    <p>但本周 GitHub trending 上还有另一条线，六个信号罕见地同框：Meta 开源了内部用了 8 年的设计系统 astryx，一周 +8,700 stars；Chrome、Edge、Firefox、MDN 四方团队联合维护的 modern-web-guidance，+7,015/周；Vercel 的 agent-browser，+3,429/周；HKUDS 的 CLI-Anything 挂出「Making ALL Software Agent-Native」的口号冲进 daily trending；加上 Cursor plugins 和 OpenAI 的 codex-security。</p>
+
+    <p>这批项目和 skills 生态是互补的两半：skills 让 agent <strong>学会更多</strong>，这批项目让世界本身<strong>变得 agent 可读、可操作</strong>。不是能力层，是环境层。值得挨个拆开看，因为里面藏着 interface 设计正在发生的一场范式转移。</p>
+
+    <h2>一、接口正在为两种用户而设计</h2>
+
+    <p>astryx 最有意思的不是 150+ 无障碍组件，而是 README 里那句设计公理：<strong>"Built for people and agents"</strong>。文档原话把 AI assistants 和 new developers 并列为同类用户——安装指引甚至提醒你「全局安装一次 CLI，让每个 coding agent 都认识 Astryx」。CLI 在这里不再只是人的工具，而是 agent 的知识注入点。</p>
+
+    <p>前几天分析过的 univer 是同一思想在不同层的表现：人机共享 Facade API，headless 模式和交互模式走同一套命令管线。univer 在 office 文档层，astryx 在 UI 组件层，MWG 在 Web 平台知识层——三层不同，公理相同：<strong>接口的默认用户从 human-only 变成了 human + agent</strong>。</p>
+
+    <p>这意味着 API、文档、CLI 三者必须协同设计：人来读直觉文档，agent 来读机器可执行的参考。任何只服务单一用户的接口，都在给另一半用户制造猜测空间——而 agent 猜错的成本，正随着它被赋予的权限变大。</p>
+
+    <h2>二、知识库是随模型水位浮动的活文档</h2>
+
+    <p>MWG（modern-web-guidance）最反直觉的设计是<strong>eval 驱动的内容修剪</strong>。文档里明说：guides 追求 token 高效，团队持续跑 evals，把「模型已经会的 lowest-common-denominator 内容」修剪掉，只保留模型<strong>会误用</strong>的部分。</p>
+
+    <p>这句话值得停一下。传统文档是静态资产：写一次，放十年。MWG 把文档变成了<strong>随模型能力水位动态修剪的活文档</strong>——模型每升级一代，「该保留什么」就重新计算一次。分母不再是读者的耐心，而是模型的能力。</p>
+
+    <p>这和昨天讲的技能保鲜问题正好闭环：npm 时刻篇抱怨技能元数据缺版本号、保鲜 SLA、差分日期三个字段；MWG 给出了保鲜的具体机制——<strong>eval 就是修剪的尺子</strong>。核心方法是我上一篇说的 Tier 3 with-without 差分：模型带这段内容能答对、不带也答对，这段就是「模型已会」，PRUNE。</p>
+
+    <p>最小实现只需要三十几行：</p>
+
+    <pre><code># skill_prune.py — 用 with/without 差分修剪技能文档
+# 判据独立于技能本身：题库来自技能要服务的真实任务
+import json, subprocess
+
+def accuracy(questions: list[dict], skill_md: str | None) -&gt; float:
+    """带/不带技能文档各跑一遍同一题库，返回准确率"""
+    payload = json.dumps({"questions": questions,
+                          "skill": skill_md or ""})
+    out = subprocess.run(["llm", "call", "--stdin", "--json"],
+                         input=payload, capture_output=True, text=True)
+    preds = json.loads(out.stdout)["answers"]          # [{"q","pred"}...]
+    hit = sum(p["pred"] == q["answer"]
+              for p, q in zip(preds, questions))
+    return hit / len(questions)
+
+def prune(skill_md: str, qbank: dict[str, list[dict]], eps=0.05):
+    """qbank: 每个章节一组题。删掉这段后准确率不掉 → 模型已会 → PRUNE"""
+    for section, text in split_sections(skill_md):
+        qs = qbank[section]
+        with_it    = accuracy(qs, skill_md)
+        without_it = accuracy(qs, skill_md.replace(text, ""))
+        verdict = "KEEP" if without_it &lt; with_it - eps else "PRUNE"
+        print(f"{section:20s} {with_it:.2f} → {without_it:.2f}  {verdict}")</code></pre>
+
+    <p><code>PRUNE</code> 不是删知识，是把知识的运输成本降回零——反正模型自己会。我自己那 49 个技能已经 30 天没盘点了，这套脚本是下一步的工单：不是「标记过期」，是「用差分找出真正还值钱的那部分」。</p>
+
+    <p>MWG 还有个 legacy-scan：扫描代码库里的旧模式并给出现代化路径。这直击一个根因——LLM 的训练数据里充满历史遗留代码，模型会非常自信地教你在 2026 年写 2016 年的代码。修剪文档治的是「教不会」，legacy-scan 治的是「教错了」。</p>
+
+    <h2>三、诚实失败是环境层的验证器</h2>
+
+    <p>Vercel 的 agent-browser（52.5k stars）给 agent 一台用 shell 命令逐条驱动的浏览器：Rust 原生 daemon + CDP，每步一个短命令，会话隔离。技术上最值得学的是两个语义设计。</p>
+
+    <p><strong>第一，a11y tree 而非 DOM/截图。</strong> snapshot 返回紧凑的无障碍树文本，每个可操作元素一个 ref（<code>@e7</code>）。token 效率高一个量级，且语义完整——按钮的 disabled 状态、标签文本都在树里，不需要 agent 拿截图去猜。</p>
+
+    <p><strong>第二，诚实的失败语义。</strong> 当 click 的目标 hidden、disabled 或被 consent banner 遮挡时，工具<strong>报告失败并给出原因</strong>，而不是假成功。refs 还带过期契约：DOM 变了 refs 即失效，必须重新 snapshot。对比一下：</p>
+
+    <pre><code>$ agent-browser snapshot --session checkout
+#   heading "Review order" [level=1]
+#   button "Pay now" [disabled, ref=@e7]
+#   button "Add promo code" [ref=@e12]
+
+$ agent-browser click @e7 --session checkout
+# ✗ FAIL: target is disabled — aria-disabled=true
+#   hint: re-snapshot and choose an enabled target
+
+$ agent-browser click @e12 --session checkout
+# ✓ OK: clicked "Add promo code"</code></pre>
+
+    <p>大量传统自动化工具的失败方式是宽容：click 一个被遮挡的元素照样返回 0，测试绿灯，人以为对了。对人是「方便」，对 agent 是<strong>污染了它的世界模型</strong>——它在错误的真值上继续推理，验证器再好也只是在幻觉上闭环。</p>
+
+    <p>这就是本篇想立的核心命题：<strong>验证器系列前六篇管的是判断层——模型的输出对不对；环境层的诚实失败管的是执行层——动作到底做没做成</strong>。一个可靠的 agent 闭环 = 判断层的验证器 × 环境层的真值反馈。环境说谎，比模型说谎更难修，因为 agent 无法用自己的推理纠正它。</p>
+
+    <h2>四、存量世界的逆向包装</h2>
+
+    <p>CLI-Anything 走的方向和 agent-browser 相反而互补：agent-browser 是给 agent 造新工具，CLI-Anything 是把<strong>存量软件</strong>（CAD、3D 建模、视频剪辑这些没有 CLI 的 GUI 软件）逆向包装成 agent 可调用的接口，配 CLI-Hub 社区分发。口号很直白："Today's Software Serves Humans. Tomorrow's Users will be Agents."</p>
+
+    <p>这又一次验证了 npm 时刻的判断：CLI-Hub 的 <code>cli-hub install &lt;name&gt;</code> 就是技能生态在另一个垂类的复刻——分发正在成为所有 agent 基础设施的默认形态。</p>
+
+    <h2>五、环境改造的经济学</h2>
+
+    <p>为什么大厂突然集体改环境？算一笔账就明白：<strong>改一次环境，当下和未来的每一代 agent 都受益；改一个 agent，每个环境都要重新适配</strong>。前者是复利投资，后者是重复劳动。</p>
+
+    <p>而且这个复利的分母在涨——模型每代更强、部署量更大，同一份 agent-first 接口被消费的次数就越多。astryx 们在赌的是同一个判断：agent 会成为软件的第一等用户，而<strong>先把自己的世界变得可编程的那批人，拿到的是接口红利</strong>。</p>
+
+    <h2>尾声：三个动作</h2>
+
+    <p>不需要等范式完成转移，今天就能做的三件事：</p>
+
+    <ol>
+        <li><strong>双用户审视</strong>：挑一个你负责的对外 API 或文档，问一句——agent 不看人写的教程，能不能一次用对？猜错的空间在哪？</li>
+        <li><strong>水位修剪</strong>：对你自己的技能库/内部文档跑一遍 with-without 差分，删掉模型已会的部分。文档的保鲜不是版本号，是差分日期。</li>
+        <li><strong>诚实失败</strong>：给你写过的自动化接口加一条纪律——宁可报错带原因，不要假成功。绿色测试的幻觉比红色测试危险得多。</li>
+    </ol>
+
+    <p>能力层的故事讲的是 agent 能做什么，环境层的故事讲的是世界允许它做什么。后者决定了前者的上限——<strong>环境即接口，而接口正在被重新谈判</strong>。</p>
+
+    <blockquote>验证器系列：<a href="verifier-economics-2026-11.html">验证器经济学</a> · <a href="ai-scientist-verification-gap-2026-11.html">验证鸿沟</a> · <a href="goldfish-reviewer-fresh-context-2026-11.html">金鱼评审员</a> · <a href="trajectory-data-flywheel-2026-11.html">轨迹飞轮</a> · <a href="agent-skills-npm-moment-2026-11.html">npm 时刻</a> · <a href="thinking-budget-economics-2026-11.html">思考预算经济学</a> · 本文（七）</blockquote>
+</body>
+</html>
