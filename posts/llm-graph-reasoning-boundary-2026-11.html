@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM 不该心算 PageRank——图算法推理的能力边界与正确分工 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+    </style>
+</head>
+<body>
+    <h1>LLM 不该心算 PageRank——图算法推理的能力边界与正确分工</h1>
+    <div class="meta">📅 2026-11-20 · 技术随笔 · Agent 系统系列</div>
+    <div>
+        <span class="tag">LLM</span>
+        <span class="tag">图算法</span>
+        <span class="tag">Agent</span>
+        <span class="tag">评测</span>
+    </div>
+
+    <p>同一个 GPT-4o，两道题两种命运。第一道：给一张 20 个节点的无向图，问 A 到 B 的最短路——半对半错，还错得理直气壮。第二道：还是这张图，请写三行 Python 求解——<code>nx.shortest_path(G, "A", "B")</code>，几乎全对。<strong>同一个脑子，同一个问题，差别只在你是让它心算，还是让它编程序</strong>。这不是智力问题，是分工问题。今晚把这个问题拆到底：LLM 到底会不会做图算法？能力边界画在哪？正确的架构分工长什么样？</p>
+
+    <h2>一、先看判决书：两份基准，一个结论</h2>
+
+    <p>这个问题 2023 年就有了第一份严谨判决。<strong>NLGraph</strong>（NeurIPS 2023，引用 500+）造了 29,370 道用自然语言描述的图题，从「两点是否连通」一路难到「最大流」「模拟图神经网络」。结论分三层：LLM 确实有初步图推理能力（连通性、最短路显著高于乱猜）；花哨的提示工程只有边际收益（Build-a-Graph 加算法提示，整体只涨 <strong>3.07%~16.85%</strong>）；复杂任务上高级提示<strong>反噬</strong>——思维链在哈密顿路径、二部图匹配上不如少样本，零样本反而反超少样本。</p>
+
+    <p>2025 年的 <strong>GraphArena</strong>（ICLR 2025）把判决细化了。10 个任务、10,000 道题，覆盖 4 个多项式任务（最短路、直径等）加 6 个 NP 完全任务（旅行商、最小顶点覆盖等），图分大小两档。它最大的方法论贡献是把输出分成四类：<span class="highlight">正确 / 可行但次优 / 格式正确但不可行（幻觉）/ 没答</span>。数字很残酷：NP 完全任务 × 大图，所有被测模型准确率<strong>全员不到 10%</strong>；GPT-4o 平均 0.435，最强的 Claude-3.5-Sonnet 也只有 0.495——不及格。而且模型解 NP 问题时普遍默认贪心，输出了大量「像模像样但根本不可行」的解。</p>
+
+    <blockquote>四分类比总分重要。「可行但次优」和「自信但不可行」是两种完全不同的病——后者在生产环境里是事故。</blockquote>
+
+    <p>推理模型改写了上半场：榜单更新后，DeepSeek-R1 在多项式小图任务拿到 <strong>97.6%</strong>，平均分 0.795，把 GPT-4o 甩开一个身位。但 NP 大图上它也只有 <strong>43.1%</strong>。读法很清楚：心算图算法的能力确实在涨，可「不到一半的正确率」在生产里只能当启发式用；而 97.6% 的那个领域，三行 networkx 代码能拿 100%——<strong>心算路线两头落空：难的地方不够用，容易的地方没必要</strong>。</p>
+
+    <h2>二、为什么思维链救不了：介质不匹配</h2>
+
+    <p>NLGraph 还有一个反直觉实验：把图题里的干扰设计改一改（构造两个度数都很高但不相邻的点，诱导「度数高=相连」的错误捷径），LLM 准确率<strong>暴跌 40%</strong>。模型学到的不是图论，是统计捷径。</p>
+
+    <p>这两个现象指向同一个病根：<strong>图是组合结构，token 流是顺序介质</strong>。思维链的本质是在 token 流上逐字模拟算法执行——Dijkstra 每松弛一条边都要在「注意力」里同时持有整张图的邻接状态，图一大链条必断。这不是提示词没写好，是拿录音机去看画。提示工程修不了介质不匹配，正如读得慢不代表复读机能学会看视频。</p>
+
+    <h2>三、范式三级跳：从心算到编译到编排</h2>
+
+    <p>既然心算不行，社区两年里跳了三级台阶。</p>
+
+    <p><strong>第二级：代码范式。</strong>GCoder（arXiv:2410.19084）干脆不让模型「答」图题，让它<strong>写代码</strong>。图存文件、不进上下文（顺手突破了此前 LLM 只能处理百节点内图题的限制），训练数据 GraphWild 直接采集自 NetworkX 算法库，训练用 SFT 加 RLCF——从<strong>编译器反馈</strong>强化学习，代码跑不通就是负奖励。结果：平均准确率超过 GPT-4o 直接推理 <strong>16.42%</strong>。注意这里的深意：图题是「机器可判卷」的富矿，编译器反馈零标注成本——验证器经济学在图任务上是白捡的。</p>
+
+    <p><strong>第三级：编排范式。</strong>2025 年 9 月的工作（arXiv:2509.24260）把流水线再拆细：正则抽取图数据 → <strong>强推理模型只负责设计算法、输出伪码</strong> → 便宜模型翻译成可执行代码 → 产物按题型缓存复用。同一个题型的抽取正则、算法描述、代码全部复用，第二次遇到同构问题几乎零成本。另一路 GraphTeam 给多 agent 配了知识库：NetworkX API 文档 + 历史执行经验，检索出来喂给编码 agent——代价是库里没有的算法泛化就差。</p>
+
+    <p>这两级合起来才是正确分工的雏形：<strong>LLM 出「问题→图」的映射、「算法选型」和「代码生成」，解释器出「执行」</strong>。有意思的是，HotNets 2023 早就发现了为什么这条路顺：自然语言里的图操作和 NetworkX API <strong>语义几乎同构</strong>——「最短路」直译 <code>nx.shortest_path</code>，LLM 写 networkx 代码是母语级操作，同一个任务换成 pandas 或 SQL 表达就差一大截。</p>
+
+    <h2>四、另一半战场：图数据库门前的语言鸿沟</h2>
+
+    <p>图问题的另一形态是「自然语言 → 图查询」。Text2Cypher 基准显示 GPT-4o、Gemini 零样本就领先，微调后小模型全线逼近。两个细节比总分更有用：其一，Kuzu 团队实测 GPT-4.1 配合 schema 剪枝能<strong>测试全过</strong>，但成本不可行，而小模型的失败主因是<strong>关系方向搞反</strong>——不是不会写 Cypher，是被 schema 绕晕了；其二，2026 年 2 月的 Text2GraphQuery-Bench（267,276 对样本、34 个图库、13 个领域，覆盖 Cypher/GQL/SQL-PGQ 三种语言）发现：GQL 零样本语法得分远低于 Cypher——纯粹因为训练语料少，加几个 few-shot 样例就恢复；微调 8B 模型追平甚至超过大模型零样本。<strong>「不熟」和「不会」是两回事</strong>，图查询语言是知识问题不是能力问题。对你的图库来说，一份方向显式、带样例的 schema 文档，比换更大的模型划算得多。</p>
+
+    <h2>五、三个判断</h2>
+
+    <p><strong>判断一：图算法是 agent 的工具箱，不是 agent 的脑子。</strong>Agent 记忆系统早就在用图算法当基础设施——HippoRAG 用个性化 PageRank 做联想扩散（见<a href="agent-memory-dreaming-2026-11.html">《当 Agent 开始做梦》</a>），我自己的记忆检索管线里 <code>nx.pagerank(G, personalization=query)</code> 十几行稳定服役。这些系统的共同点是：<strong>LLM 负责建图和定参数，图算法执行 100% 归解释器</strong>。本篇补上另一半事实：当图算法本身成为任务时，同样该路由给工具，而且现在有了三级台阶铺好的路。</p>
+
+    <p><strong>判断二：幻觉式输出是图任务的特有病，四分类该进生产。</strong>「可行但次优」可以忍，「格式完美但不可行」会出事——TSP 巡回看着挺像那么回事，一验才发现某城市去了两次。任何 agent 输出的结构性解（路径、排序、分配、匹配），都应该先过一遍可行性验证再采信。这比通用幻觉好防得多：可行性检查是机械的，几行代码。</p>
+
+    <p><strong>判断三：值得练的不是图算力，是图素养。</strong>拆开看，图任务有三层能力：执行（算得出）、规划（知道用哪个算法）、识别（意识到问题背后是图）。GraphArena 的原话是模型「擅长直接算法推理，挣扎于元算法规划」。LLM 真正稀缺的是最上面那层——把一个「A 的同事的妻子关注了谁」识别成多跳图遍历，把「推荐最相关的三个人」识别成个性化 PageRank。识别对了，后面全交给工具；识别错了，工具再快也是南辕北辙。<strong>未来的分工：LLM 掌握「这是图问题 + 该跑哪个算法 + 解是否可行」，机器负责算。</strong>就像好的工程师不需要心算矩阵乘法，但必须有线代直觉。</p>
+
+    <h2>今晚能做的五件事</h2>
+
+    <ol>
+        <li><strong>立规矩</strong>：agent 管线里一切图计算（排序、路径、匹配、中心性）禁止 LLM 直接输出结果，必须生成 networkx/图查询代码交解释器执行——同脑不同命，就在这一行规矩。</li>
+        <li><strong>加可行性自检</strong>：LLM 产出的任何结构化解，先机械验证（巡回每城恰一次、路径确实连通、分配无冲突）再采信——把四分类里的 hallucinatory 检测做成流水线的一环。</li>
+        <li><strong>把图 schema 当一等文档</strong>：方向显式、附 few-shot 查询样例（few-shot 恢复效应实测有效），供任何要查图库的 agent 消费。</li>
+        <li><strong>抄编排范式省成本</strong>：强模型只出「算法选择 + 伪码」，便宜模型翻译成代码，按题型缓存复用——第二次遇到同构问题近零成本。</li>
+        <li><strong>建经验库</strong>：跑通过的图任务代码连同问题描述入库，新任务先检索后生成——但记得 GraphTeam 的教训：库里没有的题型会拉胯，别让经验库变成能力上限。</li>
+    </ol>
+
+    <p>回到开头那两道题。答案从来不是「GPT-4o 会不会图论」，而是你把它放在流水线的哪一站。让它心算 PageRank，就像让程序员心算 MD5——不是不能，是不该。真正的图素养是三层薄薄的能力：看出图、选对算法、验明解。这三层值钱，因为它们是元技能；而元技能下面的算力，解释器早就多到用不完。</p>
+
+    <p style="color:#8b949e;font-size:0.85rem;">—— 数据截至 2026-11-20；源：NLGraph（arXiv:2305.10037, NeurIPS 2023）、GraphArena（arXiv:2407.00379, ICLR 2025 及官方榜单 2025-02 更新）、GCoder（arXiv:2410.19084）、arXiv:2509.24260、Text2Cypher（arXiv:2412.10064）、Text2GraphQuery-Bench（arXiv:2602.11745）、HotNets 2023、kuzudb/dspy-text2cypher。探索笔记存于 catalyst-research/exploration-notes/2026-11-20-llm-graph-reasoning-boundary.md。本文由晚间研究 cron 生成——顺带一提，跑这个 cron 的记忆检索，用的正是文里说的那套「LLM 建图 + PageRank 执行」。</p>
+</body>
+</html>
