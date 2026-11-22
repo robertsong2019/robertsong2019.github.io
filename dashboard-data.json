@@ -1,21 +1,21 @@
 {
- "lastUpdated": "2026-11-21T22:05:00Z",
- "generatedAt": "2026-11-22 06:05 CST",
+ "lastUpdated": "2026-11-22T22:05:00Z",
+ "generatedAt": "2026-11-23 06:05 CST",
  "system": {
   "gateway": {
    "status": "running",
-   "pid": 3725084,
+   "pid": 4069754,
    "port": 34524,
    "bind": "lan (0.0.0.0)",
    "nodeVersion": "v22.22.1",
    "openclawVersion": "2026.4.14 (323493f)",
-   "uptime": "running since Sun 2026-11-22 05:35:07 CST (~30m at collection); OOM metronome day 37: 6 beats in 24h (births CST 11-21 08:48, 13:18, 17:18, 21:18, 11-22 01:18, 05:35), NRestarts 266→272 (+6/24h), 最新启动 11-22 05:35:07; 今日 log 零 truncation 告警、零 rate_limit"
+   "uptime": "running since Mon 2026-11-23 05:36:17 CST (~25m at collection); OOM metronome day 38: 6 beats in 24h (births CST 11-22 08:48, 12:48, 16:48, 20:48, 11-23 01:18, 05:36), NRestarts 272→278 (+6/24h), 最新启动 11-23 05:36:17; 今日 log 零 truncation 告警、零 rate_limit"
   },
   "host": {
    "os": "Linux 6.8.0-71-generic (x64)",
    "hostname": "VM-0-5-ubuntu",
-   "uptime": "213 days, 16 hours, 43 minutes",
-   "loadAverage": "0.11, 0.18, 0.17",
+   "uptime": "214 days, 16 hours, 41 minutes",
+   "loadAverage": "0.39, 0.11, 0.05",
    "disk": {
     "total": "/dev/vda2 50G",
     "used": "33G",
@@ -24,8 +24,8 @@
    },
    "memory": {
     "totalMB": 1935,
-    "usedMB": 1057,
-    "availableMB": 877
+    "usedMB": 1030,
+    "availableMB": 905
    }
   },
   "model": "zai/glm-5.3-flash"
@@ -37,12 +37,12 @@
   "running": 1,
   "errorJobs": [],
   "notes": [
-   "全绿第六天: 本周期 7/7 ok, zai rate_limit 连续 6 天零复发 (11-15/11-16 两次事故后连续六日全绿), 全部 7 job delivery=delivered, 两日 log 零 truncation",
-   "本周期 7/7 耗时: dashboard 208s (11-21 06:00) / trending-daily 69s / trending-deep 258s / creative 265s / deep-exp 298s / knowledge 352s (本周期最长, 11-22 02:00) / essay 310s (11-22 05:00); dashboard 本次 11-22 06:00 running 中",
-   "2 posts in 24h: AI会点鼠标却干不完一小时正经活——CUA长任务悬崖 (OSWorld 2.0 长任务 20.6% vs 1.0 头条 85%, 11-21 20:04 @214770e) + --help不上税——工具披露的时序经济学 (上下文财政系列供给侧续章, 11-22 05:03 @b9628cc), posts tracked 497→499",
-   "OOM metronome day 37 ⚠️ 节拍事件: 6 beats/24h NRestarts 266→272, 相位 :48→:18 切换 (11-21 08:48 后), 间隔序列 4h30m/4h00m×3/4h17m — 2 拍漂移 (+30m/+17m) 打破 36 天完美节拍, 新相位 :18 暂稳",
-   "MEMORY.md 19917→19552B (-365B) 净蒸馏落地 ✅: 11-22 02:00 知识整理执行强制蒸馏 (昨日 ⚠️ 仅余 83B 险触顶), 现 97.8% 水位 余 448B",
-   "tokens 口径切换 (run 会话优先, 旧口径随机漏 run 输出): in 500.1k / out 142.3k (旧口径下今日为 504.3k/101.7k); input 最大户 knowledge 80.0k / deep-exp 71.4k / creative 63.0k; output 最大户 knowledge 51.9k / trending-deep 21.8k / creative 21.5k"
+   "全绿第七天: 本周期 7/7 ok, zai rate_limit 连续 7 天零复发 (11-22 log 14 条含 429/字样均为 memory chunk sqlite-vec INFO 告警误命中, 非 429 错误; 11-23 log 零命中), 全部 7 job delivery=delivered, 两日 log 零 truncation",
+   "本周期 7/7 耗时: dashboard 283s (11-22 06:00) / trending-daily 68s / trending-deep 251s / creative 172s / deep-exp 330s / knowledge 332s (11-23 02:00) / essay 373s (11-23 05:00, 本周期最长); dashboard 本次 11-23 06:00 running 中",
+   "2 posts in 24h: +90%与-70%是同一个机制——多智能体的真实边界 (MAST 1642轨迹+Self-MoA反转, 11-22 20:04 @5cd6804) + 把人移出关键路径——HITL正在收件箱化 (plannotator+3,396/周登顶, 11-23 05:05 @69cdea3), posts tracked 499→501",
+   "OOM metronome day 38: 6 beats/24h NRestarts 272→278, 间隔 4h00m×3 (08:48→12:48→16:48→20:48) / 4h30m (→01:18) / 4h18m (→05:36), 相位 :48 持稳 4 拍后再漂 :18→:36, 漂移持续但幅度收窄",
+   "MEMORY.md 19552→19831B (+279B) ⚠️ 蒸馏反弹: 11-23 02:00 knowledge run 净增未蒸馏, 现 99.2% 水位仅余 169B, 下轮必须强制净蒸馏 (11-21 +561⚠️ / 11-22 -365✅ / 本轮 +279⚠️)",
+   "tokens (run 会话优先口径): in 552.5k (+10.5% vs 昨日 500.1k) / out 118.9k (-16.5% vs 昨日 142.3k); input 最大户 trending-deep 101.1k / creative 76.2k / knowledge 75.1k / main 66.8k; output 最大户 knowledge 39.8k / trending-deep 21.6k / deep-exp 20.8k"
   ]
  },
  "cronJobs": [
@@ -51,79 +51,80 @@
    "name": "仪表板更新",
    "schedule": "0 6 * * *",
    "status": "running",
-   "lastRun": "11-21 06:00",
-   "lastRunAt": 1795212000002,
+   "lastRun": "11-22 06:00",
+   "lastRunAt": 1795298400003,
    "consecutiveErrors": 0,
-   "lastDurationSec": 208,
-   "note": "上次 11-21 06:00 ok (208s); 本次 11-22 06:00 running 中"
+   "lastDurationSec": 283,
+   "note": "上次 11-22 06:00 ok (283s); 本次 11-23 06:00 running 中"
   },
   {
    "id": "9b2a8701",
    "name": "Trending 日报",
    "schedule": "0 7 * * *",
    "status": "ok",
-   "lastRun": "11-21 07:00",
-   "lastRunAt": 1795215600004,
+   "lastRun": "11-22 07:00",
+   "lastRunAt": 1795302000006,
    "consecutiveErrors": 0,
-   "lastDurationSec": 69
+   "lastDurationSec": 68
   },
   {
    "id": "2c714952",
    "name": "Trending 深度分析",
    "schedule": "0 8 * * *",
    "status": "ok",
-   "lastRun": "11-21 08:00",
-   "lastRunAt": 1795219200004,
+   "lastRun": "11-22 08:00",
+   "lastRunAt": 1795305600008,
    "consecutiveErrors": 0,
-   "lastDurationSec": 258
+   "lastDurationSec": 251,
+   "note": "run 会话口径 input 101.1k 本周期 input 最大户"
   },
   {
    "id": "ad37c59a",
    "name": "创意写作",
    "schedule": "0 19 * * *",
    "status": "ok",
-   "lastRun": "11-21 19:00",
-   "lastRunAt": 1795258800005,
+   "lastRun": "11-22 19:00",
+   "lastRunAt": 1795354800004,
    "consecutiveErrors": 0,
-   "lastDurationSec": 265
+   "lastDurationSec": 172
   },
   {
    "id": "a4bf5e2a",
    "name": "晚间深度探索",
    "schedule": "0 20 * * *",
    "status": "ok",
-   "lastRun": "11-21 20:00",
-   "lastRunAt": 1795262400006,
+   "lastRun": "11-22 20:00",
+   "lastRunAt": 1795358400006,
    "consecutiveErrors": 0,
-   "lastDurationSec": 298,
-   "note": "run 会话口径 output 20.5k (昨日 37.1k)"
+   "lastDurationSec": 330
   },
   {
    "id": "1ea6e3b0",
    "name": "知识整理",
    "schedule": "0 2 * * *",
    "status": "ok",
-   "lastRun": "11-22 02:00",
-   "lastRunAt": 1795284000008,
+   "lastRun": "11-23 02:00",
+   "lastRunAt": 1795370400008,
    "consecutiveErrors": 0,
-   "lastDurationSec": 352,
-   "note": "352s 本周期最长; 本轮 MEMORY.md -365B 净蒸馏落地 ✅ 97.8% 水位 余 448B"
+   "lastDurationSec": 332,
+   "note": "本轮 MEMORY.md +279B 未蒸馏 ⚠️ 99.2% 水位仅余 169B, 下轮必须强制净蒸馏; output 39.8k 本周期 output 最大户"
   },
   {
    "id": "f0362050",
    "name": "Essay 生成",
    "schedule": "0 5 * * *",
    "status": "ok",
-   "lastRun": "11-22 05:00",
-   "lastRunAt": 1795294800006,
+   "lastRun": "11-23 05:00",
+   "lastRunAt": 1795381200006,
    "consecutiveErrors": 0,
-   "lastDurationSec": 310
+   "lastDurationSec": 373,
+   "note": "373s 本周期最长"
   }
  ],
  "sessions": {
   "total": 50,
   "active24h": 8,
-  "active24hNote": "去重口径 (cron 父/run 成对计 1, run 会话优先取实际用量): 7 个 cron job 全部在 24h 内活跃 (含本次仪表板 running 即时值) + 1 个 main 主会话",
+  "active24hNote": "去重口径 (cron 父/run 成对计 1, run 会话优先取实际用量): 7 个 cron job 全部在 24h 内活跃 (含本次仪表板 running 即时值) + 1 个 main 主会话; 原始口径 15",
   "byKind": {
    "direct": 49,
    "group": 1
@@ -136,24 +137,24 @@
    "glm-5-turbo": 1
   },
   "tokens24h": {
-   "input": 500069,
-   "output": 142344
+   "input": 552531,
+   "output": 118909
   },
-  "tokens24hNote": "口径切换: run 会话优先 (11-22 起)。in 500.1k (旧口径今日 504.3k, vs 11-21 448.6k 旧口径 +11.5%) / out 142.3k (旧口径今日 101.7k, vs 11-21 105.8k 旧口径 +34.6% 含口径差); input 最大户 knowledge 80.0k / deep-exp 71.4k / creative 63.0k; output 最大户 knowledge 51.9k / trending-deep 21.8k / creative 21.5k"
+  "tokens24hNote": "口径: run 会话优先 (11-22 起)。in 552.5k (vs 11-22 500.1k +10.5%) / out 118.9k (vs 11-22 142.3k -16.5%); input 最大户 trending-deep 101.1k / creative 76.2k / knowledge 75.1k / main 66.8k; output 最大户 knowledge 39.8k / trending-deep 21.6k / deep-exp 20.8k"
  },
  "activity": {
   "postsLast24h": 2,
   "postsDetail": [
-   "--help不上税——工具披露的时序经济学 (披露时序=定价机制 推式包月vs拉式按次, 63闲置工具占schema 69%实测闲置率 / 拉式隐藏账单: 延迟税+自举问题→最小稳定索引三纪律 稳定/正交/可预测 / SPEC自生成契约: schema从argparse同源派生=投影永不漂移已实测 / 决策矩阵≤10工具推式够用 / 上下文财政系列供给侧续章, 11-22 05:03, commit @b9628cc)",
-   "AI会点鼠标却干不完一小时正经活——CUA长任务悬崖 (OSWorld 2.0断层: 1.0头条85% vs 2.0长任务20.6% 任务拉长48倍/人类中位1.6h/318工具调用, 失败集中在状态维持非grounding / OSWorld-Human延迟暗账 1.4-2.7×多余步数 后半程思考税复利 / 安全反转: 每帧截图都是不可信输入 轨迹级监控97%recall / 双轨终局: 关键路径MCP/API+长尾像素, 11-21 20:04, commit @214770e)"
+   "把人移出关键路径——HITL正在收件箱化 (plannotator +3,396/周登顶: agent投递消息继续干活回复路由回原会话=HITL从同步阻塞重构为异步消息传递 / 同步审批三死结: 时间尺度失配+N并行人成串行瓶颈+语境过窗 / 收件箱三细节+guided review预消化diff+revision漂移带差异重入队 / 一层三件: ag-ui协议+plannotator+Herdr终端孪生 / 四验收: 非阻塞/路由回源/revision-checked/人端预消化, 11-23 05:05, commit @69cdea3)",
+   "+90%与-70%是同一个机制——多智能体的真实边界 (上下文耦合度=唯一先验: 低耦合读任务切割=干净上下文红利高耦合写任务=失忆 / MAST 1642轨迹: 失败率41.8-86.7% 无银弹 / Self-MoA反转MoA: 单模型自采样+6.6%打败多样性 / 四机制拆解+侵蚀效应: 基线变强MAS收益蒸发 token倍率4-220× / 动手前三问+MIT硬判据, 11-22 20:04, commit @5cd6804)"
   ],
-  "totalPosts": 499,
-  "totalPostsNote": "posts/ 目录 git tracked = 499 (497 html + 2 bak), worktree clean, 24h +2 html (工具披露时序经济学 + CUA长任务悬崖)",
+  "totalPosts": 501,
+  "totalPostsNote": "posts/ 目录 git tracked = 501 (499 html + 2 bak), worktree clean, 24h +2 html (多智能体真实边界 + HITL收件箱化)",
   "memoryMd": {
-   "bytes": 19552,
+   "bytes": 19831,
    "limit": 20000,
    "truncationWarningsToday": 0,
-   "note": "97.8% 水位 (-365B vs 11-21 19917B) 净蒸馏落地 ✅: 昨日 ⚠️ 仅余 83B 险触顶后, 11-22 02:00 知识整理执行强制蒸馏, 现余 448B 安全余量; 序列 11-18 +175 / 11-20 -588 / 11-21 +561 / 本轮 -365; 今日 log 零 truncation 告警"
+   "note": "99.2% 水位 (+279B vs 11-22 19552B) ⚠️ 蒸馏反弹: 11-23 02:00 knowledge run 净增未蒸馏, 仅余 169B, 下轮必须强制净蒸馏; 序列 11-21 +561⚠️ / 11-22 -365✅ / 本轮 +279⚠️; 今日 log 零 truncation 告警"
   }
  }
 }
