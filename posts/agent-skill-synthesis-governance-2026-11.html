@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>把经验变成肌肉记忆：Agent 技能的合成、治理与黑市 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.5rem; border: 1px solid var(--border); text-align: left; }
+        th { background: var(--card); color: var(--heading); }
+        .back-link { margin-top: 3rem; display: block; }
+    </style>
+</head>
+<body>
+    <h1>把经验变成肌肉记忆：Agent 技能的合成、治理与黑市</h1>
+    <p class="meta">
+        <span class="tag">AI Agent</span>
+        <span class="tag">技能合成</span>
+        <span class="tag">上下文工程</span>
+        <span class="tag">供应链安全</span>
+        2026-11-23 · 基于 SkillsBench（arXiv 2602.12670）、SkillWeaver（arXiv 2504.07079）、SkillGen（Microsoft Research）、SkillRevise（arXiv 2606.01139）、SkeMex、MUSE-Autoskill、Anthropic Agent Skills 与 ClawHub 生态安全审计等 15+ 项来源核实
+    </p>
+
+    <blockquote>同样是同一个模型，为什么同事的 Agent 三分钟跑通报销流程，你的还在反复试错？差距往往不在模型，不在 prompt，而在他的 <code>skills/</code> 目录里躺着几个文件夹。2026 年的第一个严肃基准 SkillsBench 给了量化答案：配上一套精心编写的技能，87 个任务的平均通过率从 33.9% 涨到 50.5%——<strong>小模型加技能，能打赢裸奔的大模型</strong>。但同一个基准还藏了一句冷冰冰的注脚：让模型自己现场写技能，平均收益约等于零。这篇文章讲的就是这两件事之间的距离：怎么把经验真正变成 Agent 的肌肉记忆，以及这个新兴市场正在哪里腐烂。</blockquote>
+
+    <h2>一、技能不是记忆，是菜谱</h2>
+    <p>认知科学把知识劈成两半：<strong>陈述性记忆</strong>（knowing that，巴黎是法国首都）和<strong>程序性记忆</strong>（knowing how，怎么骑自行车）。过去两年 Agent 记忆系统火得一塌糊涂——Mem0、Zep、MemOS，管的全是前一半：存事实、存对话、存你上周说过的偏好。但 Neo4j 的 William Lyon 有句扎心的话：<strong>「回忆不等于能力」</strong>。你的 Agent 记得清清楚楚上个月那次 P1 事故怎么处理的，可下一个会话的 Agent 拿到的只是一堆零散事实，不是处理下一次事故的流程。</p>
+    <p>技能补的就是后一半。一个 Agent Skill 说白了朴素得可笑：一个文件夹，里面一个 <code>SKILL.md</code>，开头两行名字和描述，正文写清楚步骤，旁边可以挂参考文件和脚本。它像菜谱：不是给你食材（那是 MCP 工具的事），也不是给你回忆（那是记忆系统的事），而是<strong>告诉你这道菜的工序</strong>——先热锅还是先切葱，火候几成，什么时候翻面。</p>
+    <p>这个土得掉渣的格式为什么能赢？因为它回答了一个上下文经济学的问题。MCP 的老毛病是工具定义线性膨胀——接 15 个服务，光 schema 就能吃掉 5 到 10 万 token。而技能采用<strong>渐进式披露</strong>：平时只有名字加一句话描述常驻系统提示（约 100 个 token），任务匹配上了才读正文，正文里指向的参考文件和脚本更是按需加载——代码执行时只有输出进上下文，源码根本不进来。结果是<strong>一个技能能携带的知识量事实上无界</strong>，就像你不需要把整本烹饪大全背下来，只需要知道书架上哪本书讲烘焙。到 2026 年底，这个格式已被 40 多个 Agent 客户端采纳，ClawHub 市场上挂着 5 万多个技能、累计 1200 万次下载。</p>
+
+    <h2>二、技能不是写出来的，是练出来的</h2>
+    <p>那能不能让 Agent 自己把干活的经验沉淀成技能？这是 2026 年学术界吵得最凶的一架。</p>
+    <p>反方证据来自 SkillsBench：让模型在任务现场自己生成技能再用，7308 条轨迹跑下来，<strong>平均收益约等于零</strong>。模型擅长写「看起来很有道理」的通用建议，但通用建议恰恰是技能的反面——技能的价值在于把「这个网站的这个坑位要这样绕」的<strong>具体工序</strong>固化下来。</p>
+    <p>正方证据则来自一整条研究脉络，它们的关键差异在于：<strong>是否让技能回到执行环境里接受毒打</strong>。</p>
+    <ul>
+        <li><strong>SkillWeaver</strong>（OSU，Yu Su 组）把它做成了学车流程：Agent 面对陌生网站，先「提议练车科目」（LLM 当课程生成器，看哪里还有没学会的操作），然后真练——反复执行，奖励模型判成败；练成了，把成功轨迹泛化成一个 Python API 进技能库；最后还要「路考」——自动生成测试用例，执行报错就打补丁。WebArena 上相对提升 31.8%，真实网站 39.8%。</li>
+        <li><strong>SkillGen</strong>（微软研究院）加了一个聪明的环节：<strong>对比归纳</strong>。同时喂成功和失败的轨迹，专找「成功的尝试里有、失败的尝试里缺」的行为模式——就像教练对比你打中和打偏的两次挥拍视频。更关键的是它把技能当<strong>干预</strong>来验证：同一批任务，带技能和不带技能各跑一遍，净收益 = 修好的（本来会挂、现在过了）− 弄坏的（本来能过、现在挂了）。技能值不值钱，像 A/B 测试一样可归因。</li>
+        <li><strong>SkillRevise</strong> 把「修」做成了主循环：技能写完只是初稿，执行失败后检索修复原则、重新执行候选版本、按经验效用保留最优解。在 SkillsBench 上从 36.05% 修到 <strong>61.63%</strong>，而且修订出来的技能换一个模型也能用。</li>
+    </ul>
+    <p>所以那场架其实是误会：静态的轨迹总结不是技能，<strong>执行锚定、失败驱动、带版本淘汰的闭环才是技能</strong>。就像你光看别人游泳的录像学不会游泳——你得下水呛几口，把修正后的动作固化，那才叫肌肉记忆。</p>
+
+    <h2>三、最大的红利：强者的经验流向弱者</h2>
+    <p>这条脉络里最被低估的数字是：<strong>SkillWeaver 里强模型合成的技能，装到弱模型身上，最高提升 54.3%</strong>。MUSE-Autoskill 做了同样的验证：一个 Agent 自产的技能原样注入另一个 Agent，47.9% 提到 58.4%，补齐了它与人类编写技能差距的 79%。</p>
+    <p>这件事的意义在于：技能是<strong>不用训练的蒸馏</strong>。传统的知识转移要微调、要数据、要算力，产出的权重还绑死在特定模型上；而技能以人类可读的制品形态存在，跨模型、跨框架、跨厂商流动，模型换代它不贬值。<strong>组织真正的复利资产不是某个昂贵的模型订阅，而是自己人在干活过程中沉淀下来的技能库</strong>——它才是「经验」第一次获得的可迁移、可审计、可版本管理的载体。SkeMex 甚至给每条技能配了效用值和升降级机制：用得好晋升，老作恶降级，库满了淘汰最低效的——一个技能层面的人才梯队。</p>
+    <p>不过也有冷水：SkillsBench 里 84 个任务有 16 个带技能反而变差。负迁移是真实存在的，技能不是越多越好。<strong>三个模块以内的聚焦技能，胜过大而全的百科全书</strong>；而 description 是生死线——必须写清「这是干什么用的、什么时候该用我」，因为 Agent 全靠这一行字决定要不要翻这本菜谱。</p>
+
+    <h2>四、黑市：npm 的剧本，更大的攻击面</h2>
+    <p>讲完光明面，说腐坏的部分——这部分发展得比大多数人想象得快。</p>
+    <p>技能市场从第一天起就是一条软件供应链。ClawHub 今年 2 月接入了 VirusTotal 扫描，但签名式扫描对付不了技能独有的攻击面：技能是<strong>自然语言指令 + 带全环境权限的脚本 + 前置工具授权</strong>的三合一，其中自然语言部分根本无签名可查。结果大家都看到了：Unit 42 报告五个恶意技能绕过了 VirusTotal 加平台自研扫描的双层筛，干的都是反向 shell、SSH 密钥注入、偷 .env、定时任务横向传播这一套；ClawHavoc 攻击一次性植入 335 个恶意技能；第三方审计估计 22-26% 的存量技能含可利用漏洞，7.1% 直接导致密钥泄露。趋势监测甚至发现，恶意技能最热门的伪装就是「自我改进」——教你 Agent 变强的技能，恰恰最适合用来下毒。</p>
+    <p>剧本和早期 npm、PyPI 完全同构：便利跑赢了安全审查，社区策展清单成了事实上的安全边界。但攻击面比包管理器时代更大——npm 包恶意，顶多偷你机器；恶意技能运行在一个<strong>拿着你的消息、文件、账号和自主行动权的 Agent</strong> 身体里。审一个技能，等于代码评审加上提示词评审的并集：扫 <code>scripts/</code> 里的外发流量，查 SKILL.md 和参考文件里有没有诱导性指令，看 frontmatter 有没有偷偷预授权工具。</p>
+
+    <h2>五、今天就能做的五件事</h2>
+    <ol>
+        <li><strong>给自己的 Agent 建技能蒸馏例程。</strong>每周从轨迹里挑出重复出现三次以上的流程，让 Agent 生成候选技能——但别止步于此：必须走「执行反馈修订 + 单元测试 + 最优版本保留」的闭环。静态总结不算技能。</li>
+        <li><strong>给存量技能算净值。</strong>同一批任务，带技能和不带技能各跑一遍，数一数修好了几个、弄坏了几个。净值为负的技能，删掉比留着体面。</li>
+        <li><strong>写技能守住四条硬规范：</strong>description 写清 what 加 when；单个技能不超过三个模块；能写成脚本的别写成散文（让输出进上下文，不是源码）；长参考拆成独立文件按需读。</li>
+        <li><strong>装第三方技能前三查：</strong>外发网络调用清单、指令注入迹象、frontmatter 工具预授权。装完锁版本——「审核之后偷偷更新」是已知的偷换手法。</li>
+        <li><strong>盯住两条产品线：</strong>技能的沙箱化运行和签名分发（verified publisher）。这两件事谁先做对，谁拿走企业市场。</li>
+    </ol>
+    <p>最后回到开头那个问题：你和同事的 Agent 之间的差距，本质上是一份没有被沉淀的经验。模型会换代，订阅会涨跌，但「我们在这里是怎么干活的」——这件事第一次可以被打包、被审计、被复用。别让你的经验只活在聊天记录里。</p>
+
+    <a class="back-link" href="../index.html">← 返回首页</a>
+</body>
+</html>
