@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>答案对了，引用却是编的——深度研究智能体解剖 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>答案对了，引用却是编的——深度研究智能体解剖</h1>
+    <div class="meta">📅 2026-11-24 · 技术随笔 · Agent 系统系列</div>
+    <div>
+        <span class="tag">Deep Research</span>
+        <span class="tag">AI Agent</span>
+        <span class="tag">强化学习</span>
+        <span class="tag">检索器</span>
+        <span class="tag">引用幻觉</span>
+    </div>
+
+    <blockquote>你丢给它一个问题，它十分钟跑四十次搜索，回来一份结构工整、带脚注的报告。看起来像研究员，用起来像抽盲盒。这篇拆开 2025–2026 年深度研究智能体的完整证据链：它们到底比 RAG 多了什么、靠什么炼出来的、哪个变量最被低估、以及哪条腿最短。</blockquote>
+
+    <h2>三个数字先把水温摸清</h2>
+
+    <p>第一个数字来自 BrowseComp，OpenAI 专治「答案难找但容易验证」的浏览基准：人类专家限时两小时只能解出 <strong>29.2%</strong>，GPT-4o 挂上搜索工具只有 <strong>1.9%</strong>，而专训过的 Deep Research 拿到 <strong>51.5%</strong>。同一个模型家族、同一副搜索工具，差出 27 倍——差的那部分不在工具，在<strong>怎么用工具</strong>。</p>
+
+    <p>第二个数字来自 Anthropic 的构建复盘：主 agent 派多个子 agent 并行检索，比单 agent 好 90.2%，而内部归因发现 <strong>token 用量解释了约 80% 的性能方差</strong>，代价是 15 倍的 token 账单。翻译一下：这个领域的「大力出奇迹」暂时还成立。</p>
+
+    <p>第三个数字最难听：2026 年一项覆盖 13 个模型、40 个领域、37.5 万条引用的研究（GhostCite）测出，<strong>引用幻觉率 14%–95%</strong>（分领域）。答案的准确率一路小跑，引用的准确率还在爬。你那份看起来很专业的报告，脚注页码可能有一部分是编的。</p>
+
+    <h2>一、范式跃迁：搜索变成了行动</h2>
+
+    <p>要理解深度研究智能体，先要放下「它就是 RAG 加强版」的直觉。三者其实是三种物种：</p>
+
+    <ul>
+        <li><strong>RAG 像图书馆管理员</strong>：你问一句，它把相关的书搬到桌上，剩下的全靠模型自己。</li>
+        <li><strong>agentic search 像你亲自去图书馆</strong>：读一条线索，跳一个书架，翻到一半发现要查另一本——搜索、点击、回退，都是模型在<strong>行动</strong>。</li>
+        <li><strong>deep research 像把查资料变成一整个研究项目</strong>：先做计划、把问题拆开、并行探索、交叉验证、最后写成带引用的报告——搜什么、何时停、信谁不信谁，全是策略。</li>
+    </ul>
+
+    <p>关键在于最后那句「全是策略」。在 RAG 里，检索流程是工程师写死的；在深度研究里，它变成了模型的<strong>行动空间</strong>——可以被强化学习训练的那部分。DeepResearcher（EMNLP 2025）在真实网页环境端到端 RL 之后报告了一批「涌现行为」：会跨来源交叉验证、发现检索结果和问题对不上会主动改写查询、找不到答案会承认而不是硬编。你看，这清单与其说是「智能」，不如说是一套<strong>研究纪律</strong>——outcome reward 恰好奖励了正确的研究习惯，奖励函数成了隐式的方法论课程。</p>
+
+    <h2>二、怎么炼：数据合成的风洞</h2>
+
+    <p>开源阵营 2025 年追平闭源靠的不是架构——supervisor 加 subagent 的拓扑图一天就能抄——而是<strong>数据合成</strong>。通义 WebAgent 家族（WebDancer→WebSailor→WebSailor-V2）的方法学收敛成四段流水线：</p>
+
+    <ol>
+        <li><strong>任务合成</strong>：不靠人工标注，在知识图谱上随机游走 + 信息遮蔽，程序化生成「Level-3 高不确定」任务（SailorFog-QA）——答案存在于图谱路径上但被刻意藏起来，逼着模型自己挖。</li>
+        <li><strong>轨迹采样</strong>：让专家模型跑完任务，再把轨迹<strong>重构为简洁推理</strong>做干净监督——事后的漂亮解释不算数，只留真实有效的「动作—观察」对。</li>
+        <li><strong>SFT 冷启动</strong>：先模仿。</li>
+        <li><strong>真实环境 RL</strong>：再让它自己练。</li>
+    </ol>
+
+    <p>WebSailor-V2 的比喻很准：这套合成管线是给 agent 造的<strong>风洞实验室</strong>。真实网络又贵又慢又不稳定，模拟器里可以低成本高密度地造出带环的证据图反复练，最后再用双环境 RL（模拟器迭代算法 + 真实网收敛策略）收口 sim-to-real 差距。</p>
+
+    <p>顺带一个反直觉发现：Search-R1++ 系统消融了提示模板、奖励函数、优化器三个变量，结论是 fast-thinking 直出动作的模板比 slow-thinking 长推理链<strong>训练更稳</strong>（后者会触发「标签堆叠」崩溃），而最朴素的 REINFORCE 比 PPO/GRPO 更高效。我们连「怎么教搜索」都还在试错期。</p>
+
+    <h2>三、上下文经济学：别存通话录音，写会议纪要</h2>
+
+    <p>深度研究是典型的长程任务：平均一次开放式研究要 15 次搜索、处理 6 万+ token 的证据（WebWeaver 的数据）。经典 ReAct 范式把每一步的观察全文 append 到对话历史——这等于<strong>存全程通话录音</strong>，上下文预算还没花到答案上，就先被录音带撑爆了，探索被迫中途夭折。</p>
+
+    <p>2025 年下半年起，SOTA 系统不约而同地换了姿势，方向惊人一致：<strong>把 transcript 压缩成 evolving artifact</strong>。</p>
+
+    <ul>
+        <li><strong>ReSum</strong>：每过一段就把历史摘要落盘再清窗，探索理论上可以无限续——WebSailor-30B 挂上摘要工具后 BrowseComp-en 到 16.0%，反超 Claude-4-Sonnet。</li>
+        <li><strong>WebResearcher</strong>：把深度研究重构为 MDP，周期性把新发现<strong>写进演进中的报告草稿</strong>，工作区里永远只放当前相关的内容。</li>
+        <li><strong>WebWeaver</strong>：动态大纲 + 证据记忆库，写作器按节干活——写哪节只检索哪节的证据，写完一节就把该节源材料<strong>显式清除</strong>，换占位符。</li>
+    </ul>
+
+    <p>一句话总结这轮收敛：<span class="highlight">过程状态比过程日志重要。</span>这套「artifact 优先」的纪律不只属于研究 agent——任何跑得长的工作流（代码 agent、运维 agent）都在同一道选择题里。</p>
+
+    <h2>四、被低估的主变量：检索器是前台的遮羞布</h2>
+
+    <p>这是对工程团队最 actionable 的一节。BrowseComp-Plus 把黑盒的「活网页搜索」换成固定的十万文档语料、人工标注证据与强干扰项之后，第一次把<strong>前端 agent 和后端检索器拆开归因</strong>。结果扎心：</p>
+
+    <table>
+        <tr><th>配置</th><th>准确率</th></tr>
+        <tr><td>Search-R1 + BM25 检索器</td><td>3.86%</td></tr>
+        <tr><td>GPT-5 + BM25</td><td>55.9%</td></tr>
+        <tr><td>GPT-5 + Qwen3-Embedding-8B</td><td><strong>70.1%</strong>，且搜索调用更少</td></tr>
+    </table>
+
+    <p>同一个 GPT-5，换个检索器 +14 个点，还更省调用次数。反过来读：你在端到端评测里看到的「agent 推理能力」，有一大块其实是检索器在幕后兜底。很多团队的现状是拿 3.86% 的检索底座，配最贵的前端模型，然后抱怨 agent 不行——<span class="highlight">升级 agent 之前，先消融检索器</span>，三个档位（BM25 / dense embedding / 加 reranker）各测两个数：准确率和调用次数。这是整个领域里性价比最高的一次体检。</p>
+
+    <h2>五、最短的腿：引用幻觉与验证缺口</h2>
+
+    <p>回到开头的第三个数字。GhostCite 还测了已发表论文生态：220 万条引用里 1.07% 无效，<strong>2025 年同比恶化 80.9%</strong>——AI 生成的引用正在污染学术出版本身。更讽刺的是研究者问卷调查出的「验证缺口」：87% 声称「总是验证 AI 生成的引用」，42% 承认直接复制粘贴 BibTeX 从不检查。意愿和行为严重脱节，指望用户兜底是不现实的。</p>
+
+    <p>我的判断：在训练侧真正解决引用接地之前（CiteME 上前沿模型把「给出摘录判断出处」的任务只做到 4–18%，人类 70%——模型本来就缺乏可靠把陈述锚定到出处的能力），工程侧只有两条便宜的兜底：<strong>schema 强制引用</strong>（每条 claim 必须携带机器可解析的出处，生成时而非事后挂引用）+ <strong>URL 级验证层</strong>（每个引用查可达性和 claim 支持性，做成流水线的 CI）。答案对、引用错的报告，比答案错的报告更危险——因为它能通过你的第一道审查。</p>
+
+    <h2>六、算力账：宽度的红利和天花板</h2>
+
+    <p>Anthropic 那条「token 解释 80% 方差」的定律还有下半段。EMNLP 2026 的失败模式研究里有一族叫 BAGEN 的发现：<strong>更多推理可以降低准确率</strong>，而且 agent 会误判自己还剩多少预算——一条轨迹烧到一半发现「算力不够了」，前面的探索全白费。并行扩宽度（Manus 的扇出、WideSeek 一系）是当前主路，但预算感知本身是个要训练的行为，不是免费的调度技巧。深度研究的 test-time scaling 有红利，也有看不见的悬崖。</p>
+
+    <h2>结尾：明天就能做的三件事</h2>
+
+    <p>不想等大厂投喂的话，三件事今天就能动手，都不用训练模型：</p>
+
+    <ol>
+        <li><strong>检索器消融</strong>：给你现有的 RAG / agent 管线配三档检索器，跑一组固定问题，记录准确率和调用次数两个数。多数人第一次跑都会发现自己一直在给劣质底座付高级模型的溢价。</li>
+        <li><strong>引用验证层</strong>：给所有 AI 生成的带引用输出加一道 CI——每条引用 URL 可达 + 内容支持性抽查，跑一周拿到自己的幻觉率基线。没有基线就没有改进。</li>
+        <li><strong>把日志改成纪要</strong>：任何长会话 agent，把「全量历史 append」改成「周期性摘要落盘 + 清理工作区」（ReSum 姿势），长程稳定性立见分晓。</li>
+    </ol>
+
+    <p><span class="highlight">深度研究智能体的本质，不是搜索变强了，而是「怎么查资料」第一次变成了可以被训练、被消融、被单独买卖的能力——所以先搞清楚你买的那一层，到底是策略、是检索、还是幻觉。</span></p>
+</body>
+</html>
