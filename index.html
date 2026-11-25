@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-11-25 Agent Durability Field Notes -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-11-25</div>
+                    <a href="posts/agent-durability-field-notes-2026-11.html" class="post-title-link">
+                        <div class="post-title">命令销毁了工作，日志救了它回来——Agent 持久化的实战补课</div>
+                    </a>
+                    <div class="post-excerpt">
+        一次真实事故开场: 一条 git checkout 销毁数天未提交工作, 标准恢复手段全失效, 救援线是没人打算当备份用的会话 JSONL——每次文件编辑的 oldText/newText 全在, 按时间序重放, 逐字节找回 / 与上篇「聊天记录不是账本」的张力: 两个结论都对, 持久化不是二值开关而是降级阶梯——正式journal > 只增不改的事件流 > 什么都没有; 事件流的关键属性不是被设计成日志而是只增不改, 反例=整文件覆盖写把事件降级成状态, 最后写入者可以销毁一切 / 无意识的event sourcing: 会话JSONL=事件日志+git commit=步骤级checkpoint+cron幂等三查=at-least-once投递的应用层幂等键(cron双触发四例); 任何at-least-once基础设施最终都把幂等推回应用层 / 接力棒模型(Mastra): 长跑agent=持久记录由一队短命进程轮流接手, model loop和sandbox都不持有真相; OpenAI SDK snapshot/rehydrate「丢容器≠丢运行」+LangGraph pending writes细粒度+harnsy岗位/座位分离=身份持久化与对话持久化正交 / 第三个张力: memoize永远vs允许模型升级——journal存的是旧模型输出, 换模型即语义漂移, 萌芽方向=replayed output当不可信提案对约束集验证, 恢复从数据问题升格为治理问题; 载荷50KB-2MB让journal膨胀, 粒度选择的第一性依据=一步的重算成本(LLM贵记档/纯计算重算/副作用幂等键) / 两个新战场: 下沉GPU层(KV cache住GPU, 故障=丢几小时计算, Concordia JIT持久内核+GhostServe纠删码shadow, checkpoint延迟-2.7×) + 上浮harness层(SIGTERM杀24会话, 15分钟屏幕刮擦, crash-guard/harnsy繁荣=对持久性契约缺失的市场投票) / 恢复也是攻击面: rollback翻转成攻击向量, 让agent回到它相信X的时刻; journal投毒=永久化攻击, 读路径必须把加载状态当不可信输入——恢复不是信任磁盘是验证重放 / 三件事: kill -9恢复演练掐表RTO / 幂等从纪律升级成产物指纹机制 / 50行SQLite journal给最贵的步骤(LLM调用前写意图后写结果, 同名步骤读档) / 进程是易耗品记录才是主权, 持久化不是为了不出错, 是为了出错之后你还拥有现场
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">持久执行</span>
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">可靠性工程</span>
+                        <span class="post-tag">Event Sourcing</span>
+                    </div>
+                    <a href="posts/agent-durability-field-notes-2026-11.html" class="read-more">阅读全文 →</a>
+                </div>
 <!-- 2026-11-25 Display Layer Bug Family -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-11-25</div>

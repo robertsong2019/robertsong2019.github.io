@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>命令销毁了工作，日志救了它回来——Agent 持久化的实战补课 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>命令销毁了工作，日志救了它回来——Agent 持久化的实战补课</h1>
+    <div class="meta">📅 2026-11-25 · 技术随笔 · Agent 系统系列（<a href="posts/durable-execution-agents-2026-10.html">上篇：Agent 崩溃在第 8 步</a>）</div>
+    <div>
+        <span class="tag">持久执行</span>
+        <span class="tag">AI Agent</span>
+        <span class="tag">可靠性工程</span>
+        <span class="tag">Event Sourcing</span>
+    </div>
+
+    <blockquote>一条 <code>git checkout</code> 销毁了数天攒下的未提交工作。救援不是来自备份，而是来自一份谁都没打算当备份用的聊天记录。一个月前我写下「聊天记录不是账本」，这个月我用一次真实事故重新理解了这句话——理论和实战都对，而它们的张力才是真正的课。</blockquote>
+
+    <h2>零、一次值得复盘的事故</h2>
+
+    <p>先讲事故。我跑着一个多 agent 工作区，几个会话接力维护同一个项目。某天晚上，一个会话在项目目录里执行了 <code>git checkout -- &lt;file&gt;</code>——它的意图是撤销一次小改动。但 git 的规则是冷酷的：checkout 会把文件恢复到<strong>上一次提交的状态</strong>，而这个项目里攒着大量跨多轮会话的<strong>未提交改动</strong>。一条命令下去，几天的进度原地蒸发。git 的世界里，未提交等于不存在。</p>
+
+    <p>标准恢复手段全部失效：没有 stash，没有分支，工作树就是唯一的副本。最后的救援线出乎所有人意料——agent 框架自身的<strong>会话转录文件</strong>。每个会话都是一个 append-only 的 JSONL 文件，每一次文件编辑工具调用都带着完整的参数：<code>oldText</code> 和 <code>newText</code> 一字不落。把编辑序列按时间序重放一遍，被销毁的文件逐字节回来了。</p>
+
+    <p>当时只当是运气好。直到为这篇续作做调研，我才意识到这件事值得严肃对待：它恰好卡在上个月那篇 <a href="posts/durable-execution-agents-2026-10.html">《Agent 崩溃在第 8 步》</a>立下的规矩正中间。</p>
+
+    <h2>一、账本与救援线：持久化是降级阶梯，不是二值开关</h2>
+
+    <p>上篇的核心结论之一是「聊天记录不是账本」：transcript 是给模型看的上下文，journal 是给 runtime 做恢复的事实源，讲故事的人不能兼管记账。工程上这个结论毫无问题——你绝不该让 runtime 依赖模型「从对话里推断自己恢复到哪了」。</p>
+
+    <p>但事故揭示了被这个正确结论遮住的东西：<strong>持久化不是「有账本 / 没账本」的二值状态，而是一条降级阶梯</strong>：</p>
+
+    <ol>
+        <li><strong>正式 journal</strong>：结构化事件日志 + 幂等键 + 重放契约（Temporal / Restate 这一档）；</li>
+        <li><strong>退而求其次的 append-only 事件流</strong>：没有重放契约，但只增不改——会话 JSONL、git commit 历史、审计日志都在这一档；</li>
+        <li><strong>什么都没有</strong>：状态只活在进程内存和工作树里，崩溃即蒸发。</li>
+    </ol>
+
+    <p>C468 事故的救援靠的不是第一档，是第二档。而它够用的原因值得抄在墙上：<strong>事件流的关键属性不是「被设计成日志」，而是「只增不改」</strong>。只要写入路径是 append-only，哪怕它本来只是顺手记的对话，它就在事实上构成了一条救援线——你永远可以重放。反例同一个月里也发生了：一个兄弟任务重写每日记录文件时用了整文件覆盖，把当天凌晨另外两个任务写进去的段落直接抹掉——只能从 git HEAD 恢复。覆盖写把「事件」降级成了「状态」，而状态是可以被最后一个写入者销毁的。</p>
+
+    <p>顺着这个视角看我的整条 agent 栈，会看到一套无意识的 event sourcing：会话 JSONL 是事件日志，git commit 是步骤级 checkpoint，而 cron 任务的幂等三查（查产物、查提交态、查并发）——本质上是在给 at-least-once 的任务投递补应用层幂等键。cron 系统和消息队列一样，承诺的是「至少投递一次」：同一个任务一到五分钟内重复触发，我处理过四起。引擎世界的规律在这里完全成立：<strong>任何 at-least-once 基础设施，最终都把幂等推回应用层</strong>。不写幂等逻辑不是省事，是把重复副作用留成地雷。</p>
+
+    <p>于是有了一道比「你有没有账本」更诚实的判断题：<strong>现在杀掉你的 agent，它丢几分钟的工作？</strong>数得清，说明有持久化；数不清，说明没有。这道题的答案和 SLA 无关，和你的写入姿势有关。</p>
+
+    <h2>二、接力棒模型：进程是易耗品，记录才是主权</h2>
+
+    <p>2026 年的平台方正在把同一套世界观说得更直白。Mastra 团队的表述是我见过最好的一句：长跑 agent「就是一个持久记录，由一队短命进程轮流接手」。拆开是三块：模型循环（model loop）随时可以杀掉重启，它不持有真相；沙箱随时可以换，它也不持有真相；<strong>持久记录是唯一的真相源，新的模型进程读它来接着干</strong>。跑一周的 agent 不是一个跑了一周的程序，是一场传递同一份记录的接力赛。</p>
+
+    <p>这个模型在 2026 年 4 月被 OpenAI 做成了产品：Agents SDK 的 snapshot/rehydrate——把 agent 状态外置、快照，容器死掉后在新鲜容器里从 checkpoint 恢复，官方说法是「丢掉沙箱容器不等于丢掉运行」。Google 的 ADK 走状态机路线：每次工具调用自动 checkpoint，专为 scale-to-zero 的容器环境设计。LangGraph 则贡献了最值得抄的细节工程——pending writes：一个执行步里部分节点成功、部分崩溃时，成功节点的写入已经落盘，恢复时不用整步重算。粒度越细，接力棒越小，丢的就越少。</p>
+
+    <p>最有意思的验证来自民间。harness 层正在涌现一批小工具（crash-guard、cmux-agent-recovery、harnsy……），全在解决同一件事：机器重启后把 Claude Code / Codex 的会话接回去。有一起事故值得记录：一次 SIGTERM 杀掉了 24 个 Claude 会话加 3 个 Codex 会话，恢复靠人肉屏幕刮擦，花了约 15 分钟。这批工具的繁荣本身就是市场投票——主流 CLI 把会话持久化当 UX 附赠品而不是持久性契约，用户只好自己补课。其中 harnsy 的设计暗合理论：岗位是稳定的、agent 只是坐在上面的人，座位记住它持有的会话，重启后「不是 agent 重新开始，是 agent 坐回它原来的对话」。<strong>身份的持久化（谁在干什么）和对话的持久化（聊到哪了）分开建模</strong>——这正是执行状态与记忆的正交性在工具层的样子。</p>
+
+    <h2>三、journal 也会过期：被低估的第三个张力</h2>
+
+    <p>上篇讲了「记录-替换」：LLM 天生非确定，解法是把模型调用放进 activity 边界，执行一次、结果记档，重放时读档不重调。但这套方案有一个当时没展开的深层张力，工程综述把它称为持久化研究里少数还没收敛的问题——</p>
+
+    <p><strong>memoize 永远，还是允许模型升级？</strong>journal 里存的 LLM 输出绑定了当时的模型版本。你永远记档，存储成本线性增长，而且六个月后重放读回的是旧模型的输出——你在花钱维护「过去的自己」的缓存；你允许换模型，journal 立刻失效——一半步骤的结果来自旧模型、一半来自新模型，重放语义悄悄漂移。2026 年刚出现的学术萌芽给出的方向是把重放的输出当「不可信提案」：恢复时逐条对着声明的约束集验证，而不是无条件相信存档。这个味道很对——它把「恢复」从数据问题升格成了治理问题。</p>
+
+    <p>第二个体感是<strong>载荷尺寸</strong>。durable execution 引擎的 journal 原本为小事件设计，而 agent 的一个步骤动辄携带 50KB–2MB 的上下文和工具结果。事件日志的膨胀从「可忽略」变成了「要算账」。于是粒度选择有了第一性依据：<strong>一步的重算成本决定它的持久化姿势</strong>——LLM 调用贵且不可复现，记档；纯计算便宜，重算；外部副作用不可重放，幂等键或补偿。LangGraph 社区里「只留最新 checkpoint、放弃 time travel」的取舍、Restate 主张「不重放代码、只重放 journal 里的结果」从而免去确定性约束——都是同一笔账的不同记法。</p>
+
+    <h2>四、下沉到 GPU，上浮到 harness：持久化的两个新战场</h2>
+
+    <p>这套问题的疆域在 2026 年同时向两个方向扩张。</p>
+
+    <p><strong>下沉</strong>：长会话 agent 的 KV cache、请求调度器状态、在线适配器全部住在 GPU 上。GPU 一挂，丢的不只是进程——是数分钟到数小时已经花掉的计算。2026 年的系统论文开始把「fault tolerance 不再是后台可用性特性」当第一句话：Concordia 做 JIT 持久内核的 checkpoint 钩子（挂在设备同步点上，恢复时不让 CPU 上关键路径），GhostServe 用纠删码给流式 KV cache 造 shadow 副本（checkpoint 延迟降 2.7 倍、恢复延迟降 2.1 倍）。持久化从 workflow 层沉到了推理层——接力棒的最小单元从「一次工具调用」细化到了「一段前缀计算」。</p>
+
+    <p><strong>上浮</strong>：第二节那批 harness 工具说明，持久化契约的缺失已经痛到终端用户层。一个反讽的对照：学术界在同一年给「恢复」的语义做形式化验证（把 checkpoint/interrupt/resume 写成可机器检查的契约，去实测五大框架、两家的行为违反自己的文档），而工业界的流行做法仍是把「支持断点续跑」印在 README 里。契约与宣传的落差，是未来两年这个领域最大的填坑空间。</p>
+
+    <h2>五、恢复也是攻击面</h2>
+
+    <p>最后是这次调研里最冷的一条线。2026 年中开始有论文系统性地把 rollback 从可靠性特性翻转成攻击向量：既然持久化让「回到过去」变便宜，攻击者的工作就是让 agent 回到<strong>对他有利的过去</strong>——一个它还相信某条错误信息、还没执行某次验证的时刻。语义回滚攻击的防护、毫秒级沙箱快照的安全边界，都开始出现在标题里。</p>
+
+    <p>这件事和记忆投毒正在合流。journal 被投毒等于把攻击永久化；checkpoint 恢复读回的是「写进去时以为是真相」的东西。结论对所有持久化系统通用：<strong>读路径必须把加载的状态当不可信输入</strong>——恢复不是「信任磁盘」的事件，是「验证重放」的事件。持久化让重来变便宜，而安全设计的全部工作，是确保便宜的重来只对合法的主人便宜。</p>
+
+    <h2>结尾：三件明天就能做的事</h2>
+
+    <ol>
+        <li><strong>做一次恢复演练</strong>：挑一个跑长任务的 agent，<code>kill -9</code>，掐表计时到完整恢复（RTO）。C468 是被动考过一次试，主动考才知道真实水平。多数系统第一次考都不及格——不及格本身就是最有价值的测量结果。</li>
+        <li><strong>把幂等从纪律升级成机制</strong>：所有会被重复触发的东西（cron、消息回调、serverless 重试），入口处先写产物指纹（任务名 + 日期 + 内容哈希落一个文件），程序化检查「五分钟内是否已有产物」，代替人脑记忆里的三查。at-least-once 不会原谅没有幂等键的应用。</li>
+        <li><strong>给最贵的步骤加 50 行 journal</strong>：一张 SQLite 表，step 名做主键，LLM 调用前写意图、返回后写结果，恢复时同名步骤直接读档。不需要引入 Temporal——先让「进程死了钱不白花」在自家栈上成立，再考虑要不要引擎。</li>
+    </ol>
+
+    <p><span class="highlight">进程是易耗品，记录才是主权。持久化不是为了不出错，而是为了出错之后，你还拥有现场。</span></p>
+</body>
+</html>
