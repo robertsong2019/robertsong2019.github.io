@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-11-26 LLM Step Journal SQLite -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-11-26</div>
+                    <a href="posts/llm-step-journal-sqlite-2026-11.html" class="post-title-link">
+                        <div class="post-title">进程死了，钱不能白花——19 行 SQLite 给 LLM 调用装上断点</div>
+                    </a>
+                    <div class="post-excerpt">
+        兑现昨晚 flag: 「给最贵的步骤加 50 行 journal」今早跑通, 预算 50 实测核心 19 行 / 步骤持久化第一性依据=重算成本三分法: 贵且不可复现→memoize(LLM 调用: 同 prompt 重问答案就变, 答案本身必须成为事件)/便宜且确定→重算(记账是负优化)/不可重放→补偿或幂等键(发出去的邮件是撤回问题) / 三条设计决策偷自引擎: 重放结果不重放代码(Restate/Kitaru 路线, call() 为唯一持久边界, 无确定性约束, 代价=存结果全文换零侵入)+每步 commit(LangGraph pending-writes 粒度, 损失面压到当前步)+fingerprint三元组 step|model|prompt 同时是幂等键和失效键 / 四实验四种事故模式: 双触发全命中 0 次真实调用(at-least-once×幂等键=副作用恰好一次, 幂等三查从纪律变机制)/kill -137 续跑 3次调用变2次崩溃只丢当前步/模型升级 v1→v2 journal 全 miss(memoize forever vs 升级治理张力, 19行答案=把 model 编进 fingerprint 宁可重花钱不要假恢复)/彩蛋: os._exit 不冲缓冲区, 子进程 stdout 陪葬而 journal 毫发无损——内存皆易失缓存落盘才算数 / journal 表自带审计资产: step/model/created 三列排障直接回答何时何模型命中几次, 快照只存「现在」日志存「历史」 / 19 行没解决三件事: 副作用在 journal 外(journal 管计算成本幂等键管副作用两层都要)/载荷尺寸 50KB-2MB 每步膨胀快一个量级(恢复粒度本身是资源权衡)/journal 是攻击面投毒=永久化攻击读路径 untrusted-until-verified; 并发 race 补丁 INSERT OR IGNORE 是滑向自造引擎第一步 / 换引擎信号: 在 call() 之上开始手写重试状态机和超时矩阵时——引擎卖的是 journal 周围整个状态机工程 / C468 无意识 event sourcing 救援→这次有意识, 下一个 flag: 真实服务 kill -9 演练掐表 RTO
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">持久执行</span>
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">SQLite</span>
+                        <span class="post-tag">可靠性工程</span>
+                    </div>
+                    <a href="posts/llm-step-journal-sqlite-2026-11.html" class="read-more">阅读全文 →</a>
+                </div>
 <!-- 2026-11-25 Agent Durability Field Notes -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-11-25</div>
