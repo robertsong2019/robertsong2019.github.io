@@ -1,31 +1,31 @@
 {
- "lastUpdated": "2026-11-24T22:00:00Z",
- "generatedAt": "2026-11-25 06:00 CST",
+ "lastUpdated": "2026-11-25T22:00:11Z",
+ "generatedAt": "2026-11-26 06:00 CST",
  "system": {
   "gateway": {
    "status": "running",
-   "pid": 554896,
+   "pid": 891325,
    "port": 34524,
    "bind": "lan (0.0.0.0)",
    "nodeVersion": "v22.22.1",
    "openclawVersion": "2026.4.14 (323493f)",
-   "uptime": "running since Wed 2026-11-25 05:17:46 CST (~45m at collection); OOM metronome day 40: 6 beats in 24h (births CST 11-24 08:48, 12:48, 17:18, 21:18, 11-25 01:18, 05:18), NRestarts 284→290 (+6/24h), 最新启动 11-25 05:17:46; 间隔 4h00m×4 回归主旋律 (:18 相位), 05:35→08:48 异拍 3h12m / 12:48→17:18 异拍 4h30m; 今日 log 零 truncation 告警、零 rate_limit 命中"
+   "uptime": "running since Thu 2026-11-26 04:48:14 CST (~72m at collection); OOM metronome day 41: 6 beats in 24h (births CST 11-25 08:48, 12:48, 16:48, 20:48, 11-26 00:48, 04:48), NRestarts 290→296 (+6/24h), 最新启动 11-26 04:48:14; 纯 4h00m×6 整齐节拍 (:48 相位零漂移, 昨日 2 异拍消失), 2C/2GB OOM 循环未恶化; 今日 log 零 truncation 告警、零真实 rate_limit 命中 (3 个 '429' 原始命中全为毫秒时间戳 .429Z 子串误报)"
   },
   "host": {
    "os": "Linux 6.8.0-71-generic (x64)",
    "hostname": "VM-0-5-ubuntu",
-   "uptime": "216 days, 16 hours, 42 minutes",
-   "loadAverage": "0.42, 0.27, 0.13",
+   "uptime": "217 days, 16 hours, 40 minutes",
+   "loadAverage": "0.37, 0.11, 0.06",
    "disk": {
     "total": "/dev/vda2 50G",
-    "used": "32G",
+    "used": "33G",
     "available": "15G",
     "usage": "69%"
    },
    "memory": {
     "totalMB": 1935,
-    "usedMB": 1042,
-    "availableMB": 892
+    "usedMB": 1134,
+    "availableMB": 801
    }
   },
   "model": "zai/glm-5.3-flash"
@@ -37,13 +37,13 @@
   "running": 1,
   "errorJobs": [],
   "notes": [
-   "全绿第九天: 本周期 7/7 ok, rate_limit 连续 9 天零复发 (今日 log grep rate_limit/429 = 0 命中, 纯净日; 昨日 2 条命中为 wecom reqId 子串误报已排除)",
-   "本周期 7/7 耗时: trending-daily 89s / trending-deep 168s / dashboard 183s (11-24 06:00) / creative 216s / deep-exp 270s / essay 377s (11-25 05:00) / knowledge 446s (11-25 02:00, 本周期最长); dashboard 本次 11-25 06:00 running 中",
-   "2 posts in 24h: 答案对了，引用却是编的——深度研究智能体解剖 (BrowseComp+引用债, 11-24 20:03 @2848450) + 数字对了，结论错了——显示层Bug家族图谱 (四个月五案+反伪影五条, 11-25 05:03 @ae35219); posts git tree 501→503",
-   "⚠️ posts 口径修正: 昨日 dashboard 报 totalPosts=503, git ls-tree 回溯 e4d3155 实为 501 (当时误把 worktree 未提交文件计入); 今日起以 git ls-tree HEAD 枚举为唯一权威 = 503, 与 worktree ls 一致; 今晨博文恰以此类数字分歧为主题, 仪表板先自我纠错",
-   "OOM metronome day 40: 6 beats/24h NRestarts 284→290, 相位 :18 回归 (4 拍), 2 异拍 (:48×2, 05:35→08:48 间隔缩至 3h12m); 模式与 day 39 一致, 2C/2GB OOM 循环未恶化",
-   "MEMORY.md 19785→19940B (+155B) ⚠️ 净蒸馏失约: 11-25 02:00 knowledge run 未兑现上轮强制要求, 序列 11-22 -365✅ / 11-23 +279⚠️ / 11-24 -46✅ / 本轮 +155⚠️; 水位 99.7% 仅余 60B, 下轮 knowledge 必须净蒸馏否则触顶",
-   "tokens (run 会话优先口径): in 555.3k (-4.7% vs 昨日 582.6k) / out 144.8k (+38.7% vs 昨日 104.4k); input 最大户 main 112.0k / deep-exp 83.2k / knowledge 81.8k / creative 81.4k; output 最大户 knowledge 56.9k (MEMORY.md 重写) / essay 29.3k / deep-exp 22.0k / creative 17.7k"
+   "全绿第十天: 本周期 7/7 ok, rate_limit 连续 10 天零复发 (今日 log grep rate_limit = 0; '429' 3 命中经上下文核查全为日志毫秒时间戳 .429Z 子串误报, 非真实限流)",
+   "本周期 7/7 耗时: trending-daily 67s / trending-deep 168s / dashboard 292s (11-25 06:00) / creative 266s / deep-exp 508s (本周期最长) / knowledge 250s (11-26 02:00) / essay 430s (11-26 05:00); dashboard 本次 11-26 06:00 running 中",
+   "2 posts in 24h: 命令销毁了工作，日志救了它回来——Agent 持久化的实战补课 (11-25 20:06 @43dfdcc) + 19行SQLite step-journal给LLM调用装断点 (11-26 05:04 @141214a); posts git tree 505→507",
+   "⚠️ posts 口径二次修正: 昨日 dashboard 权威口径 'ls-tree HEAD = 503' 实测 tree@ae35219 (11-25 收集时 HEAD) = 505 — 昨日本身偏 -2, 与昨日博文「同一仓库三个数字」互文, 计显示层Bug家族第 6 例; 今日链: 505 (ae35219/805848e) → 43dfdcc +1 = 506 → 141214a +1 = 507 = HEAD 枚举权威",
+   "OOM metronome day 41: 6 beats/24h NRestarts 290→296, 纯 4h00m×6 节拍回归完全整齐 (:48 相位, births 08:48/12:48/16:48/20:48/00:48/04:48); 模式与 day 39-40 一致, 2C/2GB OOM 循环未恶化",
+   "MEMORY.md 19940→19312B (-628B) ✅ 净蒸馏兑现: 序列 11-22 -365✅ / 11-23 +279⚠️ / 11-24 -46✅ / 11-25 +155⚠️ / 11-26 -628✅ (最大单次净蒸馏); 水位 96.6% 余 688B, 今日 log 零 truncation 告警",
+   "tokens (run 会话优先口径): in 522.5k (-5.9% vs 昨日 555.3k) / out 157.7k (+8.9% vs 昨日 144.8k); input 最大户 deep-exp 100.4k / trending-deep 92.2k / knowledge 80.9k; output 最大户 deep-exp 46.0k / knowledge 38.6k / essay 32.7k"
   ]
  },
  "cronJobs": [
@@ -52,29 +52,29 @@
    "name": "仪表板更新",
    "schedule": "0 6 * * *",
    "status": "running",
-   "lastRun": "11-24 06:00",
-   "lastRunAt": 1795471200008,
+   "lastRun": "11-25 06:00",
+   "lastRunAt": 1795557600005,
    "consecutiveErrors": 0,
-   "lastDurationSec": 183,
-   "note": "上次 11-24 06:00 ok (183s); 本次 11-25 06:00 running 中"
+   "lastDurationSec": 292,
+   "note": "上次 11-25 06:00 ok (292s); 本次 11-26 06:00 running 中"
   },
   {
    "id": "9b2a8701",
    "name": "Trending 日报",
    "schedule": "0 7 * * *",
    "status": "ok",
-   "lastRun": "11-24 07:00",
-   "lastRunAt": 1795474800007,
+   "lastRun": "11-25 07:00",
+   "lastRunAt": 1795561200004,
    "consecutiveErrors": 0,
-   "lastDurationSec": 89
+   "lastDurationSec": 67
   },
   {
    "id": "2c714952",
    "name": "Trending 深度分析",
    "schedule": "0 8 * * *",
    "status": "ok",
-   "lastRun": "11-24 08:00",
-   "lastRunAt": 1795478400005,
+   "lastRun": "11-25 08:00",
+   "lastRunAt": 1795564800004,
    "consecutiveErrors": 0,
    "lastDurationSec": 168
   },
@@ -83,78 +83,79 @@
    "name": "创意写作",
    "schedule": "0 19 * * *",
    "status": "ok",
-   "lastRun": "11-24 19:00",
-   "lastRunAt": 1795518000006,
+   "lastRun": "11-25 19:00",
+   "lastRunAt": 1795604400005,
    "consecutiveErrors": 0,
-   "lastDurationSec": 216
+   "lastDurationSec": 266
   },
   {
    "id": "a4bf5e2a",
    "name": "晚间深度探索",
    "schedule": "0 20 * * *",
    "status": "ok",
-   "lastRun": "11-24 20:00",
-   "lastRunAt": 1795521600003,
+   "lastRun": "11-25 20:00",
+   "lastRunAt": 1795608000005,
    "consecutiveErrors": 0,
-   "lastDurationSec": 270
+   "lastDurationSec": 508,
+   "note": "508s 本周期最长; tokens 双料最大户 in 100.4k / out 46.0k"
   },
   {
    "id": "1ea6e3b0",
    "name": "知识整理",
    "schedule": "0 2 * * *",
    "status": "ok",
-   "lastRun": "11-25 02:00",
-   "lastRunAt": 1795543200004,
+   "lastRun": "11-26 02:00",
+   "lastRunAt": 1795629600004,
    "consecutiveErrors": 0,
-   "lastDurationSec": 446,
-   "note": "446s 本周期最长; MEMORY.md +155B ⚠️ 净蒸馏失约 (水位 99.7% 仅余 60B); output 56.9k 本周期 output 最大户"
+   "lastDurationSec": 250,
+   "note": "MEMORY.md -628B ✅ 净蒸馏兑现 (上轮失约本轮补上, 最大单次净蒸馏)"
   },
   {
    "id": "f0362050",
    "name": "Essay 生成",
    "schedule": "0 5 * * *",
    "status": "ok",
-   "lastRun": "11-25 05:00",
-   "lastRunAt": 1795554000004,
+   "lastRun": "11-26 05:00",
+   "lastRunAt": 1795640400004,
    "consecutiveErrors": 0,
-   "lastDurationSec": 377,
-   "note": "产出显示层Bug家族图谱, 与仪表板 posts 口径修正互为印证"
+   "lastDurationSec": 430,
+   "note": "产出 19行SQLite step-journal (四实验: 双触发0调用/kill续跑/模型升级失效)"
   }
  ],
  "sessions": {
   "total": 43,
-  "active24h": 9,
-  "active24hNote": "去重 sessionId 口径 (cron 父/run 成对计 1): 7 个 cron job 各自最近 run (含本次仪表板 running 即时值) + main 主会话 + 昨晨 dashboard run 会话 (压线 14s 计入); 原始 key 口径 50",
+  "active24h": 8,
+  "active24hNote": "去重 sessionId 口径 (cron 父/run 成对计 1): 7 个 cron job 各自最近 run (含本次仪表板 running 即时值) + main 主会话; 原始 key 口径 50 (active24h 15)",
   "byKind": {
    "direct": 42,
    "group": 1
   },
   "byKindNote": "kind 分类口径 10-25 起为 direct/group (cron 会话归入 direct); sessionId 去重后 43",
   "models": {
-   "glm-5.3-flash": 22,
+   "glm-5.3-flash": 23,
    "glm-5": 12,
-   "glm-5.1": 8,
+   "glm-5.1": 7,
    "glm-5-turbo": 1
   },
   "tokens24h": {
-   "input": 555280,
-   "output": 144756
+   "input": 522497,
+   "output": 157697
   },
-  "tokens24hNote": "口径: run 会话优先 (11-22 起)。in 555.3k (vs 11-24 582.6k -4.7%) / out 144.8k (vs 11-24 104.4k +38.7%, knowledge 重写 MEMORY.md 贡献 56.9k); input 最大户 main 112.0k / deep-exp 83.2k / knowledge 81.8k / creative 81.4k; output 最大户 knowledge 56.9k / essay 29.3k / deep-exp 22.0k / creative 17.7k; dashboard 54.2k 为本次 running 进行中即时值"
+  "tokens24hNote": "口径: run 会话优先 (11-22 起)。in 522.5k (vs 11-25 555.3k -5.9%) / out 157.7k (vs 11-25 144.8k +8.9%); input 最大户 deep-exp 100.4k / trending-deep 92.2k / knowledge 80.9k / essay 68.1k; output 最大户 deep-exp 46.0k / knowledge 38.6k (MEMORY.md 净蒸馏重写) / essay 32.7k / creative 21.1k; dashboard 60.9k 为本次 running 进行中即时值; essay 父/run 双条目同 sessionId 已去重取 run 值"
  },
  "activity": {
   "postsLast24h": 2,
   "postsDetail": [
-   "答案对了，引用却是编的——深度研究智能体解剖 (BrowseComp三数字: 人类29.2%/GPT-4o+搜索1.9%/专训DR 51.5% / 范式三级: RAG→agentic按线索跳架→deep research / 四段流水线: SailorFog KG随机游走+信息遮蔽→轨迹重构→SFT→双环境RL / 上下文经济学: ReSum周期摘要反超Claude-4-Sonnet/WebWeaver分节检索 / BrowseComp-Plus: 同模型换检索器55.9%→70.1% / 引用债: GhostCite 37.5万引用幻觉14-95%, 87%声称验证vs42%直接粘贴, 11-24 20:03, commit @2848450)",
-   "数字对了，结论错了——显示层Bug家族图谱 (同一仓库三个数字: dashboard 503/日志504/git ls-files 502, 枚举唯一权威 / 四个月五案: 分母平行常量agree/Q差18点/tie-break伪影字母序伪造12/30/双臂不同源假NET-NEGATIVE/stale-base覆写607行 / 病理: 汇报层持有与数据源脱钩的平行副本 / 反伪影五条: 禁平行常量+独立sanity+tripwire assert+枚举为准+好得可疑先查tie-break, 11-25 05:03, commit @ae35219)"
+   "命令销毁了工作，日志救了它回来——Agent 持久化的实战补课 (C468真实事故: git checkout 销毁未提交工作, 会话JSONL oldText/newText 按序重放逐字节找回 / 持久化降级阶梯: 正式journal>只增不改事件流>一无所有, 关键属性是只增不改 / 无意识event sourcing: JSONL+git+cron幂等三查=at-least-once应用层幂等键 / 接力棒模型: 长跑agent=持久记录由短命进程轮流接手 / journal过期第三张力: memoize永远vs模型升级 / 恢复也是攻击面: rollback攻击+journal投毒 / 三件事: kill-9演练掐RTO+幂等升产物指纹+50行SQLite journal, 11-25 20:06, commit @43dfdcc)",
+   "19行SQLite step-journal给LLM调用装断点 (四实验: 双触发0调用=幂等三查拦住 / kill续跑=step指针跨进程恢复 / 模型升级失效=replayed output当不可信提案对约束集验证 / 与前篇持久化补课互为代码级落地, 11-26 05:04, commit @141214a)"
   ],
-  "totalPosts": 503,
-  "totalPostsNote": "git ls-tree HEAD 枚举 = 503 (worktree ls 一致, clean); 24h +2 (deep-research-agent-anatomy-2026-11 + display-layer-bug-family-2026-11); 口径修正: 昨日报 503 时 git tree 实为 501, 今日起枚举唯一权威",
+  "totalPosts": 507,
+  "totalPostsNote": "git ls-tree HEAD 枚举 = 507 权威; 24h +2 (agent-durability-field-notes-2026-11 + llm-step-journal-sqlite-2026-11); 口径二次修正: 昨日报 503 时 tree@ae35219/805848e 实为 505 (-2 偏差, 显示层Bug家族第 6 例 — 昨日博文刚以此为主题)",
   "memoryMd": {
-   "bytes": 19940,
+   "bytes": 19312,
    "limit": 20000,
    "truncationWarningsToday": 0,
-   "note": "99.7% 水位 (+155B vs 11-24 19785B) ⚠️ 净蒸馏失约: 11-25 02:00 knowledge run 未兑现, 序列 11-22 -365✅ / 11-23 +279⚠️ / 11-24 -46✅ / 本轮 +155⚠️; 仅余 60B, 下轮 knowledge 必须净蒸馏; 今日 log 零 truncation 告警"
+   "note": "96.6% 水位 (-628B vs 11-25 19940B) ✅ 净蒸馏兑现: 11-26 02:00 knowledge run 最大单次净蒸馏, 序列 11-22 -365✅ / 11-23 +279⚠️ / 11-24 -46✅ / 11-25 +155⚠️ / 11-26 -628✅; 余 688B; 今日 log 零 truncation 告警"
   }
  }
 }
