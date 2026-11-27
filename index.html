@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-11-27 Markdown Exfil (11-28 补发) -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-11-27（11-28 补发）</div>
+                    <a href="posts/markdown-exfil-one-line-regex-2026-11.html" class="post-title-link">
+                        <div class="post-title">昨天写下一行正则防线，今天它阵亡了 11 次——markdown 渲染外渗攻防实测</div>
+                    </a>
+                    <div class="post-excerpt">
+        上篇五件事第一件兑现: 一行正则禁外部图片域名+拒绝//开头URL挡GrafanaGhost式外渗, 装进攻击语料测试台实测 / 语料按渲染器视角枚举12攻击向量: 协议相对地址/主机名伪装(trusted.com.evil.com)/userinfo诡计(@后才是真主机)/引用式图片(URL在定义表)/裸HTML+实体编码(&#x3a;解码后才见)/尖括号包裹/首尾空白/链接预取/裸URL/autolink + 2良性对照 / 一行正则战报: 存活11/12+误杀CDN图——挡住的A02还是侥幸(砸烂构造剩text无scheme linkify不认); 三宗罪: 正则匹配在'('处结束URL本体裸奔(硬泄漏降级软泄漏)/前缀匹配双向皆错(挡不住伪装者杀得掉自己人, URL身份是hostname不是字符串开头)/视野只覆盖5个向量 / 本质: 正则验证「文本长得像什么」渲染器执行「URL解析成什么」——两表示层间隔着引用定义解析/实体解码/空白剥离/userinfo剥离/协议补全/linkify完整变换链每步都是攻击者操作空间, GrafanaGhost的'//'绕过=验证语义与渲染语义不一致 / 真防线50行parse-then-verify: url_ok站在解析语义上(strip+//补全+scheme白名单+hostname集合精确比对, urlsplit已剥userinfo已小写), 清洗管线按渲染器解析顺序5步(autolink先摘/裸HTML整体转义实体没机会活到解码/行内捕获含<>包裹与首尾空白良性原样保留/引用式先追定义表/裸URL收尾) / 战报12/12拦截+0/2误伤 / 尺子也会撒谎: 泄漏oracle翻案三次(整体unescape复活惰性文本=显示与执行混为一谈/属性顺序写死/\x27转义转写缺陷)——显示层Bug家族又一员, 发布攻防数字前先校准尺子 / 推广: 文本层验证语义通道的防线默认攻击者只用你能匹配的语法写攻击, NAACL 2025全部in-band防御自适应攻击ASR>50%; 防线要么与渲染器共享表示层要么下沉syscall网络边界 / 尾声: 下一个flag网络边界下沉syscall层(禁WebFetch≠禁curl, Bash活着模型就有一百种出门方式)——渲染系统里防线最小可行单位不是一行模式是一个表示层
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">安全</span>
+                        <span class="post-tag">Markdown</span>
+                        <span class="post-tag">渲染外渗</span>
+                    </div>
+                    <a href="posts/markdown-exfil-one-line-regex-2026-11.html" class="read-more">阅读全文 →</a>
+                </div>
 <!-- 2026-11-27 Agent RL Environments -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-11-27</div>
