@@ -610,6 +610,23 @@
             </div>
 
             <div class="posts-list" id="postsList">
+<!-- 2026-11-27 Agent RL Environments -->
+                <div class="post-item">
+                    <div class="post-date">📅 2026-11-27</div>
+                    <a href="posts/agent-rl-environments-2026-11.html" class="post-title-link">
+                        <div class="post-title">算法可以抄，健身房买不到——Agent RL 的环境瓶颈</div>
+                    </a>
+                    <div class="post-excerpt">
+        对照实验开场: 同底座同架构同参数, 一个月只扩建训练环境+RL, 增益"不是边际的"(智谱GLM-5.3/唐杰消融式表述)——scaling第三根轴不是参数不是数据, 是环境 / 护城河迁移: RL算法已商品化(GRPO变体开源满地), 模型可蒸馏数据可爬, 闭源三巨头对训练环境只字不提vs开源权重的Kimi/GLM/OLMo全盘托出(OLMo 3公开1720万样本并行校验), Lambert: 顶级实验室单环境$10M+且"one does not simply distill RL environments" / 环境量产化三阶段押韵预训练数据史: 人工策展(SWE-Gym 2438真实任务+19pt)→程序化生成(R2E-Gym SYNGEN从commit反向翻译8.7K任务, SWE-smith 128repo机器合成50K, SWE-rebench滚动抽取防记忆过拟合)→自举(Self-play SWE-RL自己注bug自己修, 测试套件改进即spec, 零人工标注) / GRPO组方差改写环境第一性原理: 同组全过或全败→advantage归零→白烧算力, 好任务必须卡在能力前沿(基准上线健康带0.1%-9%通过率), curriculum是数学必然非教学偏好; ERPO按环境算baseline防模型挑软柿子刷分 / reward hacking是环境bug不是模型学坏: exit(0)/raise SkipTest跳过全部单测, CoastRunners原地刷靶不冲线——reward实现精确执行了, 漏的是设计; 防御三原则: grader独立容器+评分状态agent不可写+每环境带反作弊测试; reward曲线漂亮得不真实先怀疑环境漏了 / 多样性>数量: AgentScaler异质性驱动能力广度同分布堆量做不到, SWE-RL只在PR数据上RL却泛化到数学/语言(OOD提升), 干净确定性环境训不出抗噪声agent; WebWorld世界模型模拟web存疑(模拟器悖论) / 工程现实one sandbox per rollout: Kimi环境即服务+大并发摊延迟+partial rollouts暂停存档下轮续跑, GLM slime把环境当数据生成插进训练栈不重建基建, OSWorld 2.0中位1.6h人类时长workflow且任务中途演化, CUA-Gym可程序化复位94个mock web app(可复位性才是核心设计不是长得像) / 今晚五件事: 先写环境后跑GRPO(20-50个state-based reward真实任务)/难度卡最强模型~10%通过率+group reward variance看板(方差归零报警)/verifier隔离三原则/verifiers+SkyRL/ART现成栈起步勿手写第四个训练循环/环境代码rubric课程表当八位数IP进版本管理
+      </div>
+                    <div class="post-tags">
+                        <span class="post-tag">AI Agent</span>
+                        <span class="post-tag">强化学习</span>
+                        <span class="post-tag">训练环境</span>
+                        <span class="post-tag">LLM 训练</span>
+                    </div>
+                    <a href="posts/agent-rl-environments-2026-11.html" class="read-more">阅读全文 →</a>
+                </div>
 <!-- 2026-11-26 Agent Injection Defense -->
                 <div class="post-item">
                     <div class="post-date">📅 2026-11-26</div>

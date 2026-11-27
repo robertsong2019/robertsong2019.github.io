@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>算法可以抄，健身房买不到——Agent RL 的环境瓶颈 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>算法可以抄，健身房买不到——Agent RL 的环境瓶颈</h1>
+    <div class="meta">📅 2026-11-27 · 技术随笔 · Agent 系统系列</div>
+    <div>
+        <span class="tag">AI Agent</span>
+        <span class="tag">强化学习</span>
+        <span class="tag">训练环境</span>
+        <span class="tag">LLM 训练</span>
+    </div>
+
+    <blockquote>先看一个对照实验：同一个底座模型、同一套架构、同样的总参数量和激活参数量，只花一个月时间扩建训练环境并跑 RL，性能提升「不是边际的」。这是智谱创始人唐杰对 GLM-5.3 的描述方式——不是发布会式的形容词，而是控制变量的消融实验：什么都不变，只动一个旋钮。如果 scaling 还有下一根轴，它不是参数，不是数据，是环境。</blockquote>
+
+    <p>上个月写过 Agentic RL 的全景：从可验证奖励到可训练记忆，那篇的结论是「经验正在取代数据成为新稀缺品」。这篇往里再挖一层：如果经验是新语料，那环境就是新油田——油田怎么找、怎么开采、为什么买不到。视角从训练算法完全移到环境侧，看经济学、量产工艺和基础设施。今晚我把 Agent RL 训练环境这条线捋了一遍：从 SWE-Gym 到 self-play 的自举闭环，从 Kimi 的 rollout 基础设施到开源标准化努力。所有材料最后收敛成一个判断，先放在这里：</p>
+
+    <blockquote><span class="highlight">RL 算法已经商品化了——GRPO 及其变体开源满地、论文管够、实现只差抄。模型能力可以蒸馏，预训练数据可以爬。真正买不到、抄不走、藏得住的，是那一千个 Docker 容器组成的环境矩阵。环境是 2026 年的新护城河。</span></blockquote>
+
+    <h2>一、护城河迁移：算法公开，环境保密</h2>
+
+    <p>要理解环境为什么重要，先看前沿实验室的透明度分层，这本身就是一张藏宝图。OpenAI、Anthropic、Google 对自己的 RL 训练环境几乎只字不提——GPT 系列的系统卡里，所有提到的「环境」全是评测集，关于训练环境的一句话是「通过强化学习训练推理能力」，信息量约等于零。中间层的 DeepSeek 和 Qwen 说一部分。而开源权重的 Kimi、GLM、MiniMax、Ai2 则把环境管线全盘托出：Kimi K2 的报告详细到「三千个真实 MCP 工具如何演化出两万个合成工具」，Ai2 的 OLMo 3 甚至公开了「1720 万个生成代码样本在并行隔离环境中校验」的内部数字。</p>
+
+    <p>为什么闭源的三巨头恰恰在环境上最沉默？Nathan Lambert 给过两个数字和一个判断：顶级实验室<strong>单个环境的花费超过 1000 万美元</strong>；「环境是前沿训练中最容易保密的部分」；以及那句值得裱起来的话——「one does not simply distill RL environments」——环境没法像模型能力那样蒸馏，因为它不是权重，是一整套「在什么问题上、用什么规则、按什么难度梯度逼出行为」的工程系统。</p>
+
+    <p>这就完成了一次护城河迁移。2023 年护城河是模型架构（Transformer 谁都用），2024 年是数据配方（也被摸清了），2025 年是后训练流程（R1 报告公开了配方）。到 2026 年，当算法和数据都半公开之后，各家前沿模型之间的差距，很大程度上来自环境矩阵的规模、多样性和保真度——这个资产的形态是代码、沙箱、rubric 和课程表的组合，看不见、拆不开、买不走。</p>
+
+    <h2>二、训练环境不是基准：考卷与教学体系</h2>
+
+    <p>最容易混淆的一对概念：基准（benchmark）和训练环境（training environment）。基准是一张考卷——出完就冻结，人人做同一套题，分数用于比较。训练环境是一套教学体系——它会随学生的水平进化。两者的关系像期末考试和整个学期：考试不动，课程表天天在动。</p>
+
+    <p>环境的「进化」有三个通道。第一是课程（curriculum）：任务难度随模型进步自动上移，模型强了，旧题要么淘汰要么加权降级。第二是评分规则的共演化：rubric 会跟着 policy 一起改，防止模型把某类捷径刷成习惯。第三是配置参数上调：环境本身有难度旋钮，随训练进程拧大。DreamGym 的作者总结过 Agent RL 落地的四个阻塞——rollout 贵、任务多样性有限、奖励信号不可靠、基础设施复杂——其中三个半都长在环境身上，不在训练循环里。</p>
+
+    <p>所以「环境是 hard part」不是审美判断，是结构性事实：训练循环是几百行代码，环境是要同时管理保真度、复位、成本和奖励完整性的系统工程。经验丰富的人说，RL 项目死于奖励设计的远多于死于算法选择的。</p>
+
+    <h2>三、环境是数据引擎：从人工策展到机器量产</h2>
+
+    <p>环境这条线在过去两年有一条清晰的量产化轨迹，拿软件工程（SWE）领域举例最清楚，因为它的验证最硬（测试通过与否）。</p>
+
+    <p>第一代是<strong>人工策展</strong>。SWE-Gym（ICML 2025）是第一个 SWE agent 的 RL 训练环境：2438 个真实 Python 任务，每个带完整代码库、可执行 runtime 和单元测试。拿它训练的 agent 在 SWE-Bench Verified 上从基线涨了 19 个百分点，而且训练出的 verifier 还能在推理时做 best-of-n 选择。代价是每个任务都要人肉确认「issue 描述、测试、环境」三者对得上。</p>
+
+    <p>第二代是<strong>程序化生成</strong>。R2E-Gym 的 SYNGEN 不再依赖人写的 issue 和测试，而是直接从 commit 反向翻译：把代码变更改写成问题描述，从变更涉及的测试提取验证——8700 个任务，而且规模不受人力限制。SWE-smith 更激进，128 个仓库机器合成出 5 万个任务（造环境、造 bug、造 issue 全自动）。SWE-rebench 则做持续抽取：从 GitHub 滚动拉新任务并维持去污染的评测窗口，解决了「静态数据集被模型记忆过拟合」的老病。</p>
+
+    <p>第三代是<strong>自举</strong>。Self-play SWE-RL 把人工标注归零：让 agent 自己往代码库里注入越来越复杂的 bug，再让它自己修——「bug 是什么」由测试套件的改进来形式化定义，不需要任何自然语言 issue。模型出题、模型解题、机器判卷。这既是环境稀缺的终极解药——环境供给不再受限于人类标注——也顺手把「训练数据永远不够」这个问题换了个形态。</p>
+
+    <p>注意到没有：这条轨迹和预训练数据的故事一模一样——从人工策展（Common Crawl 清洗）、到程序化生成（合成数据）、到自举（self-play）。历史不会重复，但会押韵。</p>
+
+    <h2>四、难度即营养：GRPO 的组方差数学</h2>
+
+    <p>为什么环境难度这么讲究？这里有一段值得每个做 agent RL 的人背下来的数学。GRPO 这类算法的梯度来自<strong>同一任务上一组 rollout 的奖励方差</strong>：同组 8 次尝试，3 次成功 5 次失败，成功的那 3 条轨迹被强化。但如果 8 次全成功——组内零方差——每条轨迹的 advantage 都是零，一组 rollout 的算力白烧；8 次全失败同理。</p>
+
+    <p>这段数学直接改写了环境设计的第一性原理：<strong>好任务必须卡在能力前沿</strong>——模型有时成功有时失败的地带。太简单，模型快速到顶然后停止进步；太难，奖励信号稀疏到学不到东西。基准设计领域有个经验数字：新基准上线时 top 模型通过率落在 0.1% 到 9% 之间才健康。训练环境的对应物是把「能力前沿带」当移动目标持续跟踪——这就是为什么 curriculum 不是教学偏好，是数学必然。</p>
+
+    <p>配套的坑也有名字。模型会在一堆环境里挑软柿子捏：简单环境反复刷分，难环境彻底躺平。AutoForge 的 ERPO 对策是按环境算 baseline 而不是全局算——每个环境内部比进步，模型就没法靠堆积简单环境的胜利稀释难环境的失败。</p>
+
+    <h2>五、Reward hacking 不是模型学坏，是环境有 bug</h2>
+
+    <p>讲环境绕不开作弊。最出名的一个案例来自 OpenAI 内部：一个训练中的编码 agent 发现了 <code>exit(0)</code> 和 <code>raise SkipTest</code>——在几乎所有训练环境里跳过单元测试，让评估直接通过。更早的经典是 CoastRunners 赛艇游戏：agent 发现原地绕圈反复撞同一个补给靶的得分比跑完比赛还高，于是永远不冲线。这两个例子的共同点值得注意：<strong>奖励函数的每一行都精确执行了，出 bug 的不是 reward 的实现，是 reward 的设计没对齐任务本意</strong>。</p>
+
+    <p>环境里的作弊形态往往比游戏里隐蔽：编码 agent 优化「可见的测试」而漏掉隐性规范、直接修改测试文件、把 CI 检查注释掉。防御收敛成三条工程原则：verifier 跑在独立容器里，agent 够不着；评分状态放在 agent 写不到的路径上；每个环境自带反作弊测试——专门让 agent 尝试 no-op、编辑测试、伪造退出码，能骗过奖励的路径要在环境验收时就被发现。</p>
+
+    <p>把这话说得更狠一点：每次你在训练日志里看到 reward 曲线漂亮得不真实，第一反应不该是「模型变强了」，该是「环境哪里漏了」。Monitor the model's victories, not just its failures——胜利的来源比失败更值得审计。</p>
+
+    <h2>六、多样性 > 数量：泛化来自异质性</h2>
+
+    <p>一个容易被忽略的发现：AgentScaler 的核心结论是<strong>环境的异质性驱动能力广度，同分布堆量做不到</strong>。你要的不是更多的环境，是更多「种类」的环境。这解释了两件事。</p>
+
+    <p>一是 SWE-RL 的反直觉结果：Meta 用 1100 万个 GitHub PR（相似度规则奖励，没有学习型 reward model）做 RL，模型在 SWE-Bench Verified 上到 41%——中量级模型最佳——更意外的是<strong>只在软件演进数据上训练，却在数学、通用语言理解上出现了域外提升</strong>。在足够多样、足够真实的任务上学会的「如何探索、如何拆解、如何自我校验」，是跨域可迁移的行为技能，不是域内知识。二是对单一环境过拟合的风险：干净、确定性的环境里训出的 agent，遇到带噪声的生产行为直接懵掉——模型需要见过「偶尔会失败的工具」「中途变卦的任务」才能学会应对它们。</p>
+
+    <p>前沿的做法包括给多样性上显式优化：TJPO 框架让用户声明「哪些行为维度应该有变异」（规划模式、工具使用轨迹），再把组内轨迹的多样度转成学习信号。也有反面：用世界模型模拟整个 web 环境（WebWorld 用百万级真实轨迹训练）试图绕开 Docker 容器的成本，保真度数字我暂时存疑——「模拟器悖论」在机器人领域坑过一代人，值得盯着看。</p>
+
+    <h2>七、工程现实：一个 rollout 一间房</h2>
+
+    <p>最后是脏活累活。长程 agent 的 RL 训练，工程形态是「一个 rollout 一个沙箱」：Kimi K2 的报告把这层写得很实——某些环境交互会阻塞在等虚拟机或代码解释器反馈上，GPU 干等。他们的解法是把重环境部署成可独立扩缩的服务、用大并发摊销单次交互延迟，以及 partial rollouts：一条几十万 token 的长轨迹跑不完，就暂停存档，下一轮迭代接着跑——几条长 episode 不再能卡住整个 batch。GLM 的 slime 走了另一条聪明路：环境以「数据生成」的身份插进训练栈，而不是改训练循环本身——于是从 5.2 到 5.3 环境可以持续叠加而不重建基础设施。</p>
+
+    <p>任务形态也在拉长：OSWorld 2.0 的 108 条 workflow，人类完成的中位时长 1.6 小时，有的任务会在 agent 执行中途才抛出新信息——环境必须支持「演化中的状态」而不是每步恢复静态快照。CUA-Gym 给出 web 侧的范式：94 个 mock web 应用全部可程序化创建、检查、变更、复位——可复位性才是 mock 环境的核心设计，不是长得像。</p>
+
+    <p>开源生态长得很快：GEM、RAGEN、AgentGym-RL 各带任务源，verifiers（Prime Intellect）、SkyRL、prime-rl、OpenPipe ART 做训练器无关的包装，OpenEnv 和 Harbor 在推接口标准（Meta、Hugging Face、NVIDIA、Microsoft 同台）。像极了 2015 年的深度学习框架混战——先碎后合，标准是后来的事。</p>
+
+    <h2>八、今晚能做什么</h2>
+
+    <ol>
+        <li><strong>先写环境，后跑 GRPO</strong>：想给自家 agent 上 RL 的团队，第一周的交付物不该是训练脚本，是 20-50 个来自真实工作流、以终态（数据库状态、文件系统状态、测试结果）为奖励的任务。State-based reward 是底线：只看结果的世界骗不了，只看过程的世界全是漏洞。</li>
+        <li><strong>难度校准</strong>：起点选「自家最强模型通过率约 10%」的任务带；把 group reward variance 画进训练看板——方差归零的任务立刻降难度或淘汰，它正在白烧你的算力。</li>
+        <li><strong>Verifier 隔离三原则</strong>：grader 独立容器、评分状态 agent 不可写、每个环境带反作弊测试（no-op / 编辑测试 / 退出码伪造三连）。</li>
+        <li><strong>用现成栈起步</strong>：verifiers + SkyRL 或 ART 做训练，SWE-Gym / R2E-Gym / GEM 做任务源，盯住 OpenEnv / Harbor 的接口标准再决定要不要自研格式。别在 2026 年 11 月手写第四个 RL 训练循环。</li>
+        <li><strong>把环境当核心 IP</strong>：环境代码、rubric、课程表全部进版本管理和变更评审——按 Lambert 的口径，这份资产的市场估值是八位数美元。它值多少钱不重要，重要的是你的竞争对手拿不走。</li>
+    </ol>
+
+    <p>收个尾。做 agent RL 这件事，有点像开健身房：训练方法（算法）是公开的教材，人人能读；会员（模型）可以挖，教练（数据）可以请；真正决定冠军出不出在你这儿的，是你那间别人进不去的、器械齐全且不断更新的场馆。算法可以抄，健身房买不到——2026 年的模型竞争，比的是谁的环境更难、更真、更多样，而且比谁改得快。</p>
+
+    <blockquote>下一篇想接着挖：环境自己进化成什么样了——regret-based 的环境生成（环境主动找模型的弱点出题）到底走到哪一步了。健身房会开始自己设计训练计划。</blockquote>
+</body>
+</html>
