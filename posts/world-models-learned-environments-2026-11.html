@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>健身房买不到，但能打印吗——世界模型 2026 的三个战场 | 罗嵩的技术博客</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --heading: #f0f6fc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { color: var(--heading); font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.3; }
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { color: var(--heading); font-size: 1.1rem; margin: 1.5rem 0 0.8rem; }
+        .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 2rem; }
+        p { margin-bottom: 1rem; }
+        code { background: var(--card); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #e6edf3; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: #8b949e; }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .tag { display: inline-block; background: #1f2937; color: #58a6ff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-right: 0.3rem; }
+        .highlight { color: #ffa657; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+        th, td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; }
+        th { color: var(--heading); background: var(--card); }
+    </style>
+</head>
+<body>
+    <h1>健身房买不到，但能打印吗——世界模型 2026 的三个战场</h1>
+    <div class="meta">📅 2026-11-28 · 技术随笔 · Agent 系统系列</div>
+    <div>
+        <span class="tag">世界模型</span>
+        <span class="tag">AI Agent</span>
+        <span class="tag">强化学习</span>
+        <span class="tag">机器人</span>
+    </div>
+
+    <blockquote>自动驾驶公司最贵的训练数据是什么？是那些百万英里才撞见一次的边缘案例：一个突然横穿的马尾、一辆逆行的快递车、一场太阳低角度直射的眩光。真实世界里，这些数据只能等事故快来了才知道要收。而 Waymo 基于 DeepMind Genie 3 造了一个「Waymo 世界模型」，专门把边缘案例<strong>点播</strong>出来——想要什么场景，生成什么场景。</blockquote>
+
+    <p>昨天那篇的结论是：RL 算法已经商品化，环境才是 2026 年的新护城河，「one does not simply distill RL environments」。今晚自然要追问那个更刁钻的问题：<strong>如果环境本身可以被学出来呢？</strong>健身房买不到，但能不能打印一间？（10 月那篇《学会想象再行动》梳理过世界模型的三条战线；今晚换一把尺子——不看它多像未来，只看它能不能把昨天的护城河凿开。）</p>
+
+    <p>今晚我把世界模型这条线捋了一遍：从 DeepMind 的 Genie 3 到 NVIDIA 的 Cosmos 3，从 Meta 的 V-JEPA 2 到 Dreamer 4，从 Figure 的 Helix 02 到 Qwen 的语言世界模型。所有材料最后收敛成一个判断，先放在这里：</p>
+
+    <blockquote><span class="highlight">世界模型没有炸开环境护城河，但凿开了一个洞——洞的位置在像素空间。而被学出来的环境自己也需要被验证，于是护城河从「环境」变形为「环境＋校准协议」。世界模型把环境的边际成本打下来了一个数量级，但把环境的验证成本顶上来了一个台阶。省钱和省心，不是同一件事。</span></blockquote>
+
+    <h2>一、三种世界模型：在什么空间里预测未来</h2>
+
+    <p>「世界模型」这个词被用得太滥，先把它钉死。剥掉所有修辞，世界模型就是一件事：<strong>给定当前状态和动作，预测下一个状态</strong>。真正的分野在于它在哪个空间里做这个预测——这决定了误差以什么形态存在、容错有多大余地。我把 2026 年的玩家分成三类。</p>
+
+    <p>第一类是<strong>打印机</strong>，在像素空间直接生成下一帧。代表是 DeepMind 的 Genie 3：一段文本提示生成可实时交互的世界，720p、24 帧每秒、分钟级一致性，还能中途用提示词改天气、加角色。它在 2026 年 1 月以 Project Genie 的名义开放给订阅者，但每次探索限制 60 秒——官方说辞是算力，背后的真相后面讲。NVIDIA 的 Cosmos 3 是工业版打印机，2026 年 6 月在台北 GTC 发布，开源，能理解并生成文本、图像、视频、音频和动作。它最有意思的组件叫 Cosmos Transfer：把 Omniverse 里低保真的物理模拟输出「刷漆」成照片级视频——物理引擎保证动力学正确，世界模型保证感官真实，两条流水线各干各的强项，就像先搭钢架再贴外立面。</p>
+
+    <p>第二类是<strong>缩略图</strong>，在潜空间预测表征而不生成像素。代表是 Meta 的 V-JEPA 2：1.2B 参数，看海量视频学会预测「下一帧的抽象表征」；它的 action-conditioned 变体只补了<strong>62 小时</strong>机器人数据，就能在从没见过的实验室里零样本做抓放任务，成功率 65-80%，而对照组的 VLA 模型 Octo 只有 15%。为什么不生成像素？因为像素太贵也太脆：预测一张 720p 的图要逐像素正确，而预测「杯子还在桌上、位置偏了五厘米」的表征便宜得多，误差也好度量。另一个代表是 DeepMind 的 Dreamer 4，它在想象里练功练到了新高度——纯离线数据，在 Minecraft 挖到钻石，全程 2 万多步鼠标键盘操作，一次真实环境交互都没有。</p>
+
+    <p>第三类是<strong>口述者</strong>，在语言空间模拟环境。这是最新也最直接的战场：让 LLM 自己当环境。Qwen-AgentWorld 是第一个成家族的语言世界模型，一个模型覆盖终端、Web、搜索、SWE、安卓、桌面等七个 agent 交互域，用「CPT 注入、SFT 激活、RL 磨尖」三段式把模拟保真度磨上去；更早的 WebDreamer 用 LLM 模拟网页环境让 agent 在里面做前瞻规划。这一类直接瞄准的，正是昨天说的 SWE 和 Web 环境的护城河。</p>
+
+    <p>打印机、缩略图、口述者——误差复合发生在哪个空间，容错就发生在哪个空间。像素差一点，人眼和下游策略都能容忍；潜空间的误差可以设计进目标函数；而 token 的误差是离散悬崖：exit code 差一位就是全对和全错的区别。这个不对称，决定了后面所有故事。</p>
+
+    <h2>二、梦里练功：效率账算下来吓人</h2>
+
+    <p>世界模型作为训练环境，账本上最惊人的一行来自 DIAMOND。这个 2024 年的工作在扩散世界模型里训 RL agent，打 Atari 100k 基准——每个游戏只许 10 万步交互，约等于两小时人类游戏时长，而标准 agent 通常要 5000 万步。DIAMOND 拿到 1.46 的人类归一化分数，比人类平均水平还高 46%。</p>
+
+    <p>这里有个反直觉的细节值得放大：<strong>在世界模型里训练的 agent，超过了在真实环境里训练的 agent。</strong>原因之一是世界模型保留了此前离散 token 化方案丢掉的关键视觉细节（比如小道具的精确位置）；原因之二是环境无限便宜，想 reset 多少次就 reset 多少次。前者说明「学出来的环境」不只是降配版的真实环境——它有时是<strong>更好的老师</strong>，就像录像回放比现场更容易看清动作细节。后者才是本质：世界模型真正的产品不是炫技视频，是「无限重置的便宜环境」。</p>
+
+    <p>数据配方的悬殊比例同样值得抄在本子上。V-JEPA 2 用海量 web 视频加 62 小时机器人数据；Physical Intelligence 的 π0.5，预训练数据里 97.6% 甚至不是移动操作任务，照样在没见过的厨房里收拾餐具。世界知识来自被动观察，任务能力来自少量交互——<strong>观察多、试错少</strong>，和婴儿学走路是同一个配方。这也回应了「数据不够」的焦虑：交互数据稀缺，但观察数据近乎无限，而世界模型恰好是消化观察数据的器官。</p>
+
+    <h2>三、误差复合：世界模型的物理学</h2>
+
+    <p>现在说那个让 60 秒限制变得诚实的东西。自回归的世界模型在 rollout 时吃的是<strong>自己的预测</strong>：第 N 步的输入是第 N-1 步的输出，不是真实观测。一步预测的微小误差，会被指数级的链条放大——这是 Talvitie 2017 年就证明的老结果，2026 年的综述还在把它列为头号瓶颈。实践中的有效规划视界大约 20-50 步；10Hz 控制频率下，也就是 2-5 秒。Genie 3 宣传「分钟级一致性」是巨大进步，但「分钟」仍然是上限而非常态；Project Genie 的 60 秒墙，不是产品经理的洁癖，是误差复合的数学在给体验定价。</p>
+
+    <p>还有一个更阴险的现象，学界叫 <strong>model exploitation</strong>——模型剥削。当你让优化器（规划算法或 RL agent）在一个学出来的环境里找最优路径时，它会系统性地搜索<strong>模型预测过于乐观的区域</strong>，专挑模拟器学错的地方作弊。本质上这就是 reward hacking 的世界模型版：昨天说的 reward hacking 是环境的 bug，今天的 model exploitation 是模拟器的 bug。防御手段也同构：昨天的解法是 grader 隔离、反作弊测试；今天的解法是 ensemble disagreement（多个世界模型投票，分歧大的轨迹降权或直接熔断）加频繁重锚定真实观测。工程上的三板斧——短 rollout、MPC 式重锚定、集成分歧熔断——都是缓解，不是解决。<strong>保真度乘以视界等于可用训练预算</strong>，这是一个乘积约束：两个因子任何一个趋近于零，整个方案作废。</p>
+
+    <h2>四、像素宽容，语义苛刻：落地顺序的秘密</h2>
+
+    <p>为什么世界模型先在游戏、驾驶、机器人落地，而不是在 SWE？不是研究品味问题，是验证函数的形态问题。</p>
+
+    <p>驾驶和游戏世界的验证是「分布近似」：生成的边缘案例只要像素分布长得像现实、物理大体对，感知系统就能从中受益——所以 Waymo 敢把 Genie 3 的衍生模型用于量产边缘案例，Cosmos 敢用刷漆流水线桥接 sim-to-real。像素空间天然宽容，误差表现为「模糊」而非「错误」。</p>
+
+    <p>软件环境的验证是「符号级精确」：exit code、测试结果、文件状态，差一个 token 全盘皆错。EnvSimBench 这个 2026 年的基准专门诊断了 LLM 模拟环境的三大病：幻觉、逻辑不一致、<strong>静默状态漂移</strong>。第三个最毒：他们训练了一个只见过状态变更样本的模拟器，它对「动作没改变任何东西」的场景，状态预测 96% 正确——状态确实没变——但反馈文本 0% 正确，会生成成功样式的消息而不是错误提示。部署到训练管线里，agent 每做一次无效动作都收到「干得好」的信号，把错误归因到自己的好动作上。<strong>静默漂移比崩溃危险：崩溃会被发现，漂移会被学进策略。</strong></p>
+
+    <p>所以 Qwen-AgentWorld 才要用 RL「磨尖」模拟保真度，才要专门造 AgentWorldBench、给每个模拟样本配一份真实环境的 ground truth 观测做对照。这个设计本身就是今晚的中心隐喻：<strong>被学出来的环境，需要一份不可学出来的答案来对账。</strong></p>
+
+    <h2>五、机器人堆栈：和 LLM 押韵到可疑的程度</h2>
+
+    <p>把 2026 年机器人前沿的几个快照摆在一起，能看到一个清晰的堆栈形状。Figure 的 Helix 02（2026 年 1 月）：System 2 做语义推理，System 1 以 200Hz 把视觉直接翻译成全身关节目标，System 0 以 1kHz 处理平衡与协调——这个最底层的控制器在 1000 多小时人类运动数据和 sim-to-real RL 上训出来，替代了 109,504 行手写 C++。整机能连续执行 4 分钟洗碗机任务、61 个连续动作零干预，指尖传感器能感知三克——一枚回形针的重量。</p>
+
+    <p>Physical Intelligence 的 π 系列把后半段补齐：π0.5 实现开放世界泛化（没见过的厨房直接开工），π0.6 用 RECAP 方法把<strong>人类的纠正</strong>变成 RL 信号，吞吐翻倍、失败率减半；2026 年 2 月的部署报告里，Ultra 的仓库机器人以 96.4% 的自主率跑完整个班次。</p>
+
+    <p>现在把整个堆栈竖着读一遍：海量被动视频预训练 → 少量真机交互对齐 → 世界模型想象 RL → 部署反馈蒸馏回预训练。再把它和 LLM 的堆栈并排放：互联网文本预训练 → 少量标注对齐 → RLVR → 用户反馈再训练。<strong>同一个形状。</strong>昨天说经验正在取代数据成为新稀缺品，今晚补上物理版：机器人领域正在重演 LLM 的整部编年史，只是把「语料」换成了「视频」、把「用户反馈」换成了「人类纠正」。Richens 等人 2025 年的理论结果给这个故事盖了章：足够通用的 agent 必然内含世界模型——这不是工程选择，是数学必然。</p>
+
+    <h2>六、护城河的重新定价</h2>
+
+    <p>回到开头的问题：健身房能打印吗？</p>
+
+    <p>能打印像素健身房——游戏、驾驶边缘案例、操纵原语这些「验证靠分布近似」的域，环境的边际成本确实被打下来了一个数量级。DIAMOND 甚至证明打印件有时比原装还好用。</p>
+
+    <p>暂时印不出语义健身房——SWE、Web 这些「验证靠符号精确」的域，被学出来的模拟器自己还病着，幻觉和静默漂移会顺着奖励信号毒化整个训练。而且就算语言世界模型把保真度磨上去了，校准它仍然需要真实环境做 ground truth——<strong>谁来模拟模拟器，谁就攥着最后一环</strong>。</p>
+
+    <p>所以护城河没有消失，而是重新定价了。昨天的版本说环境藏得住、蒸馏不了；今晚的修正版：环境可以蒸馏进权重，但蒸馏过程需要一份「环境与世界模型的差分信号」——哪些边缘行为模拟器学不会，恰好标出了你独家数据的边界。环境矩阵还是资产，但资产的形态从「一堆 Docker 容器」变成了「容器＋校准协议＋差分信号」。AgentWorldBench 和 EnvSimBench 这类「每个模拟样本配真实答案」的设计，会从论文方法论变成商业秘密。你猜闭源三巨头会不会公开自己的校准协议？我猜和训练环境一样沉默。</p>
+
+    <h2>今晚可以立刻做的五件事</h2>
+
+    <ol>
+        <li><strong>把环境日志当石油存。</strong>你每次 agent 部署产生的 (状态, 动作, 观测) 三元组日志，就是未来训练你自己领域世界模型的语料。结构化、全量、从今天开始。</li>
+        <li><strong>模拟反馈只用于探索，不用于结算。</strong>用 LLM 世界模型做 lookahead 规划（WebDreamer 路线）没问题，但奖励信号必须来自 ground-truth 执行——EnvSimBench 的毒奖励就是反面教材。</li>
+        <li><strong>短 rollout 纪律。</strong>任何在预测模型里做的规划，几十步内必须重锚定真实观测；如果有多份模型可用，把分歧当熔断器而不是装饰指标。</li>
+        <li><strong>从 10 万步玩起。</strong>DIAMOND 在单张 4090 上训了不到三天。世界模型不是八位数预算的专利——挑一个玩具域，先跑通一个「梦里练功」的闭环，体感比论文值钱。</li>
+        <li><strong>亲手戳一下漂移。</strong>Cosmos 在 HuggingFace 开放，Project Genie 对订阅者开放，DIAMOND 的可玩世界模型代码全开源。进去走一分钟，亲眼看它在哪一步开始「忘记」自己造过的东西——那一刻你对「分钟级一致性」的理解，会超过读十篇综述。</li>
+    </ol>
+
+    <p>昨天说环境买不到。今天的补充条款是：打印机已经到货，但它印得出像素，印不出确定性；而且每台打印机都需要一把无法被打印的尺子。<strong>护城河换了形状，还在原地。</strong></p>
+</body>
+</html>
